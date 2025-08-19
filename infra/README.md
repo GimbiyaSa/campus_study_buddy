@@ -43,24 +43,13 @@ terraform validate
 terraform plan -var-file="environments/prod/terraform.tfvars"
 ```
 
-### Current Status
-
-✅ **Terraform Formatting Fixed** - All files now pass `terraform fmt -check -recursive`  
-✅ **Configuration Validated** - Infrastructure passes `terraform validate`  
-🔄 **Ready for Deployment** - Workflows configured for automated CI/CD
-
-### Recent Updates
-- Fixed Terraform formatting issues in all modules
-- Validated configuration syntax and structure
-- Optimized for Azure Free Tier limits
-
 ## 🎯 Production Deployment
 
 **Production deployments happen via GitHub Actions only with branch protection!**
 
 ### Decoupled CI/CD Workflow:
 
-1. **Create feature branch** from `master`
+1. **Create feature branch** from `main`
    ```bash
    git checkout -b feature/infrastructure-update
    ```
@@ -82,7 +71,7 @@ terraform plan -var-file="environments/prod/terraform.tfvars"
    - Ensure terraform validation succeeds (`terraform validate`)
    - Review planned infrastructure changes
 
-5. **Create Pull Request** to `master`
+5. **Create Pull Request** to `main`
    ```bash
    gh pr create --title "Infrastructure update" --body "Description of changes"
    ```
@@ -139,12 +128,12 @@ infra/
 
 ### Standard Development Flow:
 
-1. **Create feature branch** from `master`
+1. **Create feature branch** from `main`
 2. **Make infrastructure changes** 
 3. **Push branch** → **terraform-plan.yml** validates changes
 4. **Verify plan succeeds** ✅ in GitHub Actions
 5. **Create Pull Request** for team review
-6. **Team approves PR** and merges to master
+6. **Team approves PR** and merges to main
 8. **Auto-Approve deployment** → Infrastructure deployed to Azure
 
 ## 🔐 Security & Environment Setup
@@ -212,35 +201,3 @@ All secrets are stored in the **production environment**:
 - ✅ Follow branch protection and approval processes
 - ✅ Run `terraform fmt` locally before committing
 - ✅ Validate configuration with `terraform validate`
-
-## 🔧 Troubleshooting
-
-### Common Issues
-
-**Terraform Formatting Errors**
-```bash
-# Error: terraform fmt -check -recursive failed
-# Solution: Run format command locally
-cd infra/terraform
-terraform fmt -recursive
-git add . && git commit -m "fix: format terraform files"
-```
-
-**Backend Configuration Issues**
-```bash
-# Error: Backend initialization failed
-# Check backend configuration file exists and has correct settings
-ls environments/prod/-backend-config
-```
-
-**Secret/Environment Variable Issues**
-- Ensure all required secrets are set in GitHub production environment
-- Verify secret names match exactly what's expected in workflows
-- Check that production environment is configured with proper protection rules
-
-**Validation Errors**
-```bash
-# Run validation locally to debug
-terraform validate
-terraform plan -var-file="environments/prod/terraform.tfvars"
-```

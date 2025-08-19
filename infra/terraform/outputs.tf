@@ -1,5 +1,5 @@
 # Campus Study Buddy - Terraform Outputs
-# Essential outputs for application configuration and monitoring
+# Essential outputs for application configuration and monitoring (NON-SENSITIVE)
 
 # ==============================================================================
 # RESOURCE GROUP OUTPUTS

@@ -1,0 +1,53 @@
+name: 'Terraform Plan'
+
+on:
+  push:
+    branches:
+      - '**'
+      - '!master'
+    paths:
+      - 'infra/terraform/**'
+      - '.github/workflows/terraform-*.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  terraform-plan:
+    name: 'Terraform Plan'
+    runs-on: ubuntu-latest
+    environment: production
+    
+    env:
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_USE_CLI: "false"
+      TF_VAR_database_admin_password: ${{ secrets.TF_VAR_database_admin_password }}
+    
+    defaults:
+      run:
+        shell: bash
+        working-directory: infra/terraform
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ~1.5.0
+    
+    - name: Terraform Init
+      run: terraform init -backend-config="environments/prod/-backend-config"
+    
+    - name: Terraform Format Check
+      run: terraform fmt -check -recursive
+    
+    - name: Terraform Validate
+      run: terraform validate
+    
+    - name: Terraform Plan
+      run: terraform plan -var-file="environments/prod/terraform.tfvars"

@@ -1,0 +1,44 @@
+{
+  "extendedLocation": null,
+  "id": "/subscriptions/7db47e1f-79a2-4a18-9797-c803ca806c29/resourceGroups/csb-prod-rg/providers/Microsoft.NotificationHubs/namespaces/csb-prod-nh-ns-7ndjbzgu",
+  "identity": null,
+  "kind": null,
+  "location": "South Africa North",
+  "managedBy": null,
+  "name": "csb-prod-nh-ns-7ndjbzgu",
+  "plan": null,
+  "properties": {
+    "createdAt": "2025-08-19T17:46:28.23+00:00",
+    "critical": false,
+    "enabled": true,
+    "name": "csb-prod-nh-ns-7ndjbzgu",
+    "namespaceType": "NotificationHub",
+    "networkAcls": {},
+    "privateEndpointConnections": [],
+    "provisioningState": "Succeeded",
+    "publicNetworkAccess": "Enabled",
+    "serviceBusEndpoint": "https://csb-prod-nh-ns-7ndjbzgu.servicebus.windows.net:443/",
+    "status": "Created",
+    "subscriptionId": "7db47e1f-79a2-4a18-9797-c803ca806c29",
+    "updatedAt": "2025-08-19T17:46:28.25+00:00",
+    "zoneRedundancy": "Enabled"
+  },
+  "resourceGroup": "csb-prod-rg",
+  "sku": {
+    "capacity": null,
+    "family": null,
+    "model": null,
+    "name": "Free",
+    "size": null,
+    "tier": null
+  },
+  "tags": {
+    "CostCenter": "Education",
+    "Environment": "prod",
+    "ManagedBy": "terraform",
+    "Owner": "DevOps",
+    "Project": "csb",
+    "Purpose": "Production environment for campus study buddy application"
+  },
+  "type": "Microsoft.NotificationHubs/namespaces"
+}

@@ -128,6 +128,10 @@ module "communication" {
 }
 
 // Identity and security module (Azure AD app, SP, groups, secrets)
+// TEMPORARILY DISABLED: Requires Azure AD Application Administrator permissions
+// Service principal f187369a-7019-4e0e-a6e3-798a5f5e449b lacks directory-level permissions
+// Re-enable after assigning "Application Administrator" role to service principal
+/*
 module "identity" {
   source = "./modules/identity"
 
@@ -152,6 +156,7 @@ module "identity" {
 
   depends_on = [module.core]
 }
+*/
 
 // Automation module (Logic Apps, Service Bus, automation monitoring)
 module "automation" {

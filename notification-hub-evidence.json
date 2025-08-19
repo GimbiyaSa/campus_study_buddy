@@ -1,0 +1,17 @@
+{
+  "authorizationRules": [],
+  "id": "/subscriptions/7db47e1f-79a2-4a18-9797-c803ca806c29/resourceGroups/csb-prod-rg/providers/Microsoft.NotificationHubs/namespaces/csb-prod-nh-ns-7ndjbzgu/NotificationHubs/csb-prod-nh",
+  "location": "South Africa North",
+  "name": "csb-prod-nh",
+  "registrationTtl": "10675199.02:48:05.4775807",
+  "resourceGroup": "csb-prod-rg",
+  "tags": {
+    "CostCenter": "Education",
+    "Environment": "prod",
+    "ManagedBy": "terraform",
+    "Owner": "DevOps",
+    "Project": "csb",
+    "Purpose": "Production environment for campus study buddy application"
+  },
+  "type": "Microsoft.NotificationHubs/namespaces/notificationHubs"
+}

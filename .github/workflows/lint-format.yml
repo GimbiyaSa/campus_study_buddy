@@ -1,0 +1,62 @@
+name: Lint and Format
+
+on:
+  push:
+    branches: [ main, dev, bryan ]
+  pull_request:
+    branches: [ main, dev, bryan ]
+
+jobs:
+  lint-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies (frontend)
+        working-directory: frontend
+        run: |
+          npm ci
+
+      - name: Run ESLint (frontend)
+        working-directory: frontend
+        run: |
+          npm run lint
+
+      - name: Check Prettier formatting (frontend)
+        working-directory: frontend
+        run: |
+          npm run format -- --check
+
+  lint-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies (backend)
+        working-directory: backend
+        run: |
+          npm ci
+
+      - name: Run ESLint (backend)
+        working-directory: backend
+        run: |
+          npm run lint
+
+      - name: Check Prettier formatting (backend)
+        working-directory: backend
+        run: |
+          npm run format -- --check

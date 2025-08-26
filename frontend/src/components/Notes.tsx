@@ -1,31 +1,31 @@
-import { NotebookText} from "lucide-react";
+import { NotebookText } from 'lucide-react';
 
 type Note = {
   title: string;
   snippet: string;
-  meta: string;    // timestamp or course
+  meta: string; // timestamp or course
   tags?: string[];
 };
 
 export default function Notes() {
   const notes: Note[] = [
     {
-      title: "Linear Algebra – Lecture 4 summary",
-      snippet: "Eigenvalues vs eigenvectors; geometric intuition, diagonalization steps…",
-      meta: "Today · MATH 204",
-      tags: ["review", "exam"],
+      title: 'Linear Algebra – Lecture 4 summary',
+      snippet: 'Eigenvalues vs eigenvectors; geometric intuition, diagonalization steps…',
+      meta: 'Today · MATH 204',
+      tags: ['review', 'exam'],
     },
     {
-      title: "Data Structures – Lab prep",
-      snippet: "Implement stack using 2 queues; analyze amortized complexity.",
-      meta: "Yesterday · CS 201",
-      tags: ["coding"],
+      title: 'Data Structures – Lab prep',
+      snippet: 'Implement stack using 2 queues; analyze amortized complexity.',
+      meta: 'Yesterday · CS 201',
+      tags: ['coding'],
     },
     {
-      title: "Reading list",
-      snippet: "CLRS §10.1–10.4; MIT OCW playlist; link to B-tree visualization.",
-      meta: "2 days ago",
-      tags: ["links"],
+      title: 'Reading list',
+      snippet: 'CLRS §10.1–10.4; MIT OCW playlist; link to B-tree visualization.',
+      meta: '2 days ago',
+      tags: ['links'],
     },
   ];
 
@@ -40,10 +40,7 @@ export default function Notes() {
 
       <ul className="space-y-3">
         {notes.map((n) => (
-          <li
-            key={n.title}
-            className="p-3 rounded-xl border border-gray-100 bg-white"
-          >
+          <li key={n.title} className="p-3 rounded-xl border border-gray-100 bg-white">
             <div className="flex items-start gap-3">
               <div className="w-9 h-9 rounded-lg bg-brand-50 text-brand-700 grid place-items-center">
                 <NotebookText className="w-5 h-5" />

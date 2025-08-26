@@ -1,9 +1,9 @@
-import { Clock } from "lucide-react";
+import { Clock } from 'lucide-react';
 
 export default function UpcomingSessions() {
   const sessions = [
-    { name: "Discussion Algorithm", time: "08:00 AM – 03:00 PM" },
-    { name: "Simple Home Page Design", time: "08:00 AM – 03:00 PM" },
+    { name: 'Discussion Algorithm', time: '08:00 AM – 03:00 PM' },
+    { name: 'Simple Home Page Design', time: '08:00 AM – 03:00 PM' },
   ];
 
   return (

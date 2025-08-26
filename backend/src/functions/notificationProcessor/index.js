@@ -1,42 +1,42 @@
-const { ServiceBusClient } = require('@azure/service-bus')
-const { EmailClient } = require('@azure/communication-email')
+const { ServiceBusClient } = require('@azure/service-bus');
+const { EmailClient } = require('@azure/communication-email');
 
 module.exports = async function (context, myTimer) {
-  const serviceBusClient = new ServiceBusClient(process.env.SERVICE_BUS_CONNECTION_STRING)
-  const emailClient = new EmailClient(process.env.COMMUNICATION_CONNECTION_STRING)
-  
-  const receiver = serviceBusClient.createReceiver('notifications')
-  
+  const serviceBusClient = new ServiceBusClient(process.env.SERVICE_BUS_CONNECTION_STRING);
+  const emailClient = new EmailClient(process.env.COMMUNICATION_CONNECTION_STRING);
+
+  const receiver = serviceBusClient.createReceiver('notifications');
+
   try {
-    const messages = await receiver.receiveMessages(10, { maxWaitTimeInMs: 5000 })
-    
+    const messages = await receiver.receiveMessages(10, { maxWaitTimeInMs: 5000 });
+
     for (const message of messages) {
-      const { type, data } = message.body
-      
+      const { type, data } = message.body;
+
       switch (type) {
         case 'session_reminder':
-          await sendSessionReminder(emailClient, data)
-          break
+          await sendSessionReminder(emailClient, data);
+          break;
         case 'group_invitation':
-          await sendGroupInvitation(emailClient, data)
-          break
+          await sendGroupInvitation(emailClient, data);
+          break;
         case 'partner_match':
-          await sendPartnerMatch(emailClient, data)
-          break
+          await sendPartnerMatch(emailClient, data);
+          break;
       }
-      
-      await receiver.completeMessage(message)
+
+      await receiver.completeMessage(message);
     }
   } catch (error) {
-    context.log.error('Error processing notifications:', error)
+    context.log.error('Error processing notifications:', error);
   } finally {
-    await receiver.close()
+    await receiver.close();
   }
-}
+};
 
 async function sendSessionReminder(emailClient, data) {
   const emailMessage = {
-    senderAddress: "noreply@students.wits.ac.za",
+    senderAddress: 'noreply@students.wits.ac.za',
     content: {
       subject: `Study Session Reminder: ${data.sessionTitle}`,
       html: `
@@ -54,19 +54,19 @@ async function sendSessionReminder(emailClient, data) {
           <p>Best of luck with your studies!</p>
           <p>The Study Buddy Team</p>
         </div>
-      `
+      `,
     },
     recipients: {
-      to: [{ address: data.userEmail }]
-    }
-  }
+      to: [{ address: data.userEmail }],
+    },
+  };
 
-  await emailClient.beginSend(emailMessage)
+  await emailClient.beginSend(emailMessage);
 }
 
 async function sendGroupInvitation(emailClient, data) {
   const emailMessage = {
-    senderAddress: "noreply@students.wits.ac.za",
+    senderAddress: 'noreply@students.wits.ac.za',
     content: {
       subject: `Study Group Invitation: ${data.groupName}`,
       html: `
@@ -89,12 +89,12 @@ async function sendGroupInvitation(emailClient, data) {
           <p>Happy studying!</p>
           <p>The Study Buddy Team</p>
         </div>
-      `
+      `,
     },
     recipients: {
-      to: [{ address: data.userEmail }]
-    }
-  }
+      to: [{ address: data.userEmail }],
+    },
+  };
 
-  await emailClient.beginSend(emailMessage)
+  await emailClient.beginSend(emailMessage);
 }

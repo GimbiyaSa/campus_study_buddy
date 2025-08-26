@@ -1,13 +1,13 @@
 // App.tsx or Dashboard.tsx (the layout file)
-import Sidebar from "./components/Sidebar";
-import Header from "./components/Header";
-import BuddySearch from "./components/BuddySearch";
-import Courses from "./components/Courses";
-import Calendar from "./components/Calendar";
-import UpcomingSessions from "./components/UpcomingSessions";
-import Notes from "./components/Notes";
+import Sidebar from './components/Sidebar';
+import Header from './components/Header';
+import BuddySearch from './components/BuddySearch';
+import Courses from './components/Courses';
+import Calendar from './components/Calendar';
+import UpcomingSessions from './components/UpcomingSessions';
+import Notes from './components/Notes';
 
-const card = "bg-white rounded-2xl shadow-card p-6";
+const card = 'bg-white rounded-2xl shadow-card p-6';
 
 export default function App() {
   return (

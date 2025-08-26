@@ -1,16 +1,15 @@
-import { Plus, MessageCircle, Bell, Target } from "lucide-react";
+import { Plus, MessageCircle, Bell, Target } from 'lucide-react';
 
 export default function Courses() {
   const courses = [
-    { title: "History of graphic design", teacher: "William Joe", progress: 25 },
-    { title: "App Design Course",        teacher: "William Joe", progress: 25 },
-    { title: "Digital painting",         teacher: "William Joe", progress: 25 },
+    { title: 'History of graphic design', teacher: 'William Joe', progress: 25 },
+    { title: 'App Design Course', teacher: 'William Joe', progress: 25 },
+    { title: 'Digital painting', teacher: 'William Joe', progress: 25 },
   ];
 
   const avg =
-    Math.round(
-      (courses.reduce((s, c) => s + c.progress, 0) / Math.max(courses.length, 1)) * 10
-    ) / 10;
+    Math.round((courses.reduce((s, c) => s + c.progress, 0) / Math.max(courses.length, 1)) * 10) /
+    10;
 
   // donut sizes
   const size = 120;
@@ -38,7 +37,7 @@ export default function Courses() {
           >
             <div className="flex items-center gap-4 min-w-0">
               <div className="w-10 h-10 rounded-xl bg-brand-100 text-brand-700 grid place-items-center font-semibold shadow-soft shrink-0">
-                {String(c.title.match(/[A-Z]/g)?.slice(0, 2).join("") ?? "C")}
+                {String(c.title.match(/[A-Z]/g)?.slice(0, 2).join('') ?? 'C')}
               </div>
               <div className="min-w-0">
                 <p className="font-medium text-gray-900 truncate">{c.title}</p>

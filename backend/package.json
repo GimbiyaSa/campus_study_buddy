@@ -2,6 +2,7 @@
   "name": "study-buddy-api",
   "version": "1.0.0",
   "description": "Study Buddy Platform API",
+  "type": "module",
   "main": "app.js",
   "scripts": {
     "start": "node dist/app.js",

@@ -3,10 +3,11 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import tsPlugin from '@typescript-eslint/eslint-plugin';
 import tsParser from '@typescript-eslint/parser';
-import { globalIgnores } from 'eslint/config';
 
 export default [
-  globalIgnores(['dist', 'public']),
+  {
+    ignores: ['node_modules', 'dist', 'public', '*.log'],
+  },
   {
     files: ['**/*.{ts,tsx,js,jsx}'],
     languageOptions: {

@@ -162,16 +162,16 @@ export default function Sidebar() {
 
             <nav className="flex-1 px-4 space-y-1">
               {navLinks.map((l) => (
-            <a
-              key={l.label}
-              href={l.href}
-              onClick={(e) => {
-                e.preventDefault();
-                window.history.pushState({}, '', l.href);
-                setActiveItem(l.label);
-                setIsOpen(false);
-                window.dispatchEvent(new PopStateEvent('popstate'));
-              }}
+                <a
+                  key={l.label}
+                  href={l.href}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.history.pushState({}, '', l.href);
+                    setActiveItem(l.label);
+                    setIsOpen(false);
+                    window.dispatchEvent(new PopStateEvent('popstate'));
+                  }}
                   className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors duration-200 ${
                     activeItem === l.label
                       ? 'bg-brand-50 text-brand-700 ring-1 ring-brand-200'

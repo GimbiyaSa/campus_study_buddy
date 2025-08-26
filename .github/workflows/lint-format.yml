@@ -1,5 +1,8 @@
 name: Lint and Format
 
+permissions:
+  contents: write
+
 on:
   push:
     branches: [ main, dev, bryan ]
@@ -8,10 +11,14 @@ on:
 
 jobs:
   lint-frontend:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -28,18 +35,30 @@ jobs:
       - name: Run ESLint (frontend)
         working-directory: frontend
         run: |
-          npm run lint
+          npm run lint:fix
 
       - name: Check Prettier formatting (frontend)
         working-directory: frontend
         run: |
-          npm run format -- --check
+          npm run format
+
+      - name: Commit & push autofixes (frontend)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A frontend || true
+          git commit -m "chore: apply lint fixes and formatting (frontend)" || echo "No changes to commit"
+          git push || echo "Push failed"
 
   lint-backend:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -56,9 +75,17 @@ jobs:
       - name: Run ESLint (backend)
         working-directory: backend
         run: |
-          npm run lint
+          npm run lint:fix
 
       - name: Check Prettier formatting (backend)
         working-directory: backend
         run: |
-          npm run format -- --check
+          npm run format
+
+      - name: Commit & push autofixes (backend)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A backend || true
+          git commit -m "chore: apply lint fixes and formatting (backend)" || echo "No changes to commit"
+          git push || echo "Push failed"

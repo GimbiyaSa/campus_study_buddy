@@ -16,7 +16,11 @@ export default [
       globals: globals.browser,
       parser: tsParser,
     },
-    plugins: { '@typescript-eslint': tsPlugin, 'react-hooks': reactHooks, 'react-refresh': reactRefresh },
+    plugins: {
+      '@typescript-eslint': tsPlugin,
+      'react-hooks': reactHooks,
+      'react-refresh': reactRefresh,
+    },
     rules: {},
   },
 ];

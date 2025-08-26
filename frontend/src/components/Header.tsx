@@ -99,17 +99,17 @@ export default function Header({ lessonCount = 0 }: { lessonCount?: number }) {
               style={{ top: `${pos.top}px`, left: `${pos.left}px` }}
             >
               <li>
-                <a href="#profile" className="block px-4 py-2 hover:bg-gray-50">
+                <a href="/profile" className="block px-4 py-2 hover:bg-gray-50">
                   Profile
                 </a>
               </li>
               <li>
-                <a href="#settings" className="block px-4 py-2 hover:bg-gray-50">
+                <a href="/settings" className="block px-4 py-2 hover:bg-gray-50">
                   Settings
                 </a>
               </li>
               <li>
-                <a href="#logout" className="block px-4 py-2 hover:bg-gray-50">
+                <a href="/logout" className="block px-4 py-2 hover:bg-gray-50">
                   Logout
                 </a>
               </li>

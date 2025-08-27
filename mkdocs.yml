@@ -3,7 +3,7 @@ site_description: Internal docs for the Campus Study Buddy platform
 # Set this to your public pages URL (optional but nice for SEO/canonical links)
 # site_url: https://<USER>.github.io/<REPO> 
 
-repo_url: https://github.com/<USER>/<REPO>
+repo_url: https://github.com/GimbiyaSa/campus_study_buddy
 # If you want "Edit this page" links to point to your docs folder in main:
 edit_uri: edit/main/docs/
 

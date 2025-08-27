@@ -1,9 +1,9 @@
 ################################################################################
 # Module: communication
-# Purpose: Provision Web PubSub, Notification Hubs, and Communication Services used for real-time chat and notifications.
+# Purpose: Provision Web PubSub for real-time chat (Notification Hubs removed to avoid charges)
 # Inputs: resource_group_name, location, naming_prefix, web_pubsub_sku, key_vault_id (optional), tags
-# Outputs: web_pubsub_primary_connection_string, web_pubsub_hostname, notification hub ids
-# Provision order in this module: web pubsub -> hubs -> optional notification/communication services -> store secrets in Key Vault
+# Outputs: web_pubsub_primary_connection_string, web_pubsub_hostname
+# Provision order in this module: web pubsub -> hubs -> store secrets in Key Vault
 # Best practices: avoid exposing keys; store in Key Vault; use managed identity/event handlers for secure processing.
 ################################################################################
 
@@ -81,29 +81,13 @@ resource "azurerm_key_vault_secret" "web_pubsub_access_key" {
 }
 
 # ==============================================================================
-# NOTIFICATION HUB (Optional for future use)
+# NOTIFICATION HUB REMOVED TO AVOID AVAILABILITY ZONE CHARGES
 # ==============================================================================
 
-# Notification Hub Namespace
-resource "azurerm_notification_hub_namespace" "main" {
-  name                = "${var.naming_prefix}-nh-ns-${var.random_suffix}"
-  resource_group_name = var.resource_group_name
-  location            = var.location
-  namespace_type      = "NotificationHub"
-  sku_name            = "Free"
-
-  tags = var.tags
-}
-
-# Notification Hub
-resource "azurerm_notification_hub" "main" {
-  name                = "${var.naming_prefix}-nh"
-  namespace_name      = azurerm_notification_hub_namespace.main.name
-  resource_group_name = var.resource_group_name
-  location            = var.location
-
-  tags = var.tags
-}
+# REMOVED: Notification Hub Namespace and Hub resources
+# Reason: Even with "Free" SKU, Azure charges for Availability Zones
+# Alternative: Use Web PubSub for notifications or implement push notifications
+# via browser APIs and your own notification service
 
 # ==============================================================================
 # COMMUNICATION SERVICES (Optional for future email/SMS)

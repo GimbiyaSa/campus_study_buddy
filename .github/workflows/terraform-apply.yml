@@ -4,7 +4,7 @@ on:
   pull_request:
     types: [closed]
     branches:
-      - master
+      - main
     paths:
       - 'infra/terraform/**'
       - '.github/workflows/terraform-*.yml'
@@ -37,8 +37,8 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
       with:
-        # IMPORTANT: Checkout the merged master, not the PR branch
-        ref: master
+        # IMPORTANT: Checkout the merged main, not the PR branch
+        ref: main
     
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3

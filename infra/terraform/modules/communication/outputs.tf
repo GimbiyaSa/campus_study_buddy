@@ -52,29 +52,8 @@ output "web_pubsub_hub_id" {
   value       = azurerm_web_pubsub_hub.chat_hub.id
 }
 
-# Notification Hub outputs
-output "notification_hub_namespace_name" {
-  description = "The name of the Notification Hub namespace"
-  value       = azurerm_notification_hub_namespace.main.name
-}
-
-output "notification_hub_namespace_id" {
-  description = "The ID of the Notification Hub namespace"
-  value       = azurerm_notification_hub_namespace.main.id
-}
-
-output "notification_hub_name" {
-  description = "The name of the Notification Hub"
-  value       = azurerm_notification_hub.main.name
-}
-
-output "notification_hub_id" {
-  description = "The ID of the Notification Hub"
-  value       = azurerm_notification_hub.main.id
-}
-
-# Communication Service outputs
-// Azure Communication Service removed to avoid paid SMS/email features. Use external providers if needed.
+# NOTIFICATION HUB OUTPUTS REMOVED
+# Reason: Removed Notification Hub resources to avoid charges
 
 # Key Vault Secret IDs
 output "web_pubsub_connection_secret_id" {

@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useMemo, useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function Calendar() {
   const [cursor, setCursor] = useState(new Date());
@@ -15,7 +15,7 @@ export default function Calendar() {
     const padEnd = 6 - toMonIdx(last.getDay());
 
     return {
-      monthLabel: cursor.toLocaleString(undefined, { month: "long" }),
+      monthLabel: cursor.toLocaleString(undefined, { month: 'long' }),
       year: y,
       days: [
         ...Array.from({ length: padStart }, () => null),
@@ -36,7 +36,9 @@ export default function Calendar() {
     <div className="bg-white rounded-2xl shadow-card p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-semibold text-gray-900">{monthLabel} {year}</h3>
+          <h3 className="font-semibold text-gray-900">
+            {monthLabel} {year}
+          </h3>
           <p className="text-xs text-gray-500">Mon — Sun</p>
         </div>
         <div className="flex items-center gap-2">
@@ -58,8 +60,10 @@ export default function Calendar() {
       </div>
 
       <div className="mt-3 grid grid-cols-7 text-[11px] font-medium text-gray-500">
-        {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d => (
-          <div key={d} className="py-1 text-center">{d}</div>
+        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
+          <div key={d} className="py-1 text-center">
+            {d}
+          </div>
         ))}
       </div>
 
@@ -70,9 +74,9 @@ export default function Calendar() {
               <div className="h-10 flex items-center justify-center">
                 <div
                   className={`w-8 h-8 grid place-items-center rounded-full ${
-                    isToday(d) ? "bg-brand-500 text-white" : "text-gray-700 hover:bg-brand-50"
+                    isToday(d) ? 'bg-brand-500 text-white' : 'text-gray-700 hover:bg-brand-50'
                   }`}
-                  aria-current={isToday(d) ? "date" : undefined}
+                  aria-current={isToday(d) ? 'date' : undefined}
                 >
                   {d.getDate()}
                 </div>

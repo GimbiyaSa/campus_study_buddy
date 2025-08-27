@@ -1,31 +1,31 @@
-import { NotebookText} from "lucide-react";
+import { NotebookText } from 'lucide-react';
 
 type Note = {
   title: string;
   snippet: string;
-  meta: string;    // timestamp or course
+  meta: string; // timestamp or course
   tags?: string[];
 };
 
 export default function Notes() {
   const notes: Note[] = [
     {
-      title: "Linear Algebra – Lecture 4 summary",
-      snippet: "Eigenvalues vs eigenvectors; geometric intuition, diagonalization steps…",
-      meta: "Today · MATH 204",
-      tags: ["review", "exam"],
+      title: 'Linear Algebra – Lecture 4 summary',
+      snippet: 'Eigenvalues vs eigenvectors; geometric intuition, diagonalization steps…',
+      meta: 'Today · MATH 204',
+      tags: ['review', 'exam'],
     },
     {
-      title: "Data Structures – Lab prep",
-      snippet: "Implement stack using 2 queues; analyze amortized complexity.",
-      meta: "Yesterday · CS 201",
-      tags: ["coding"],
+      title: 'Data Structures – Lab prep',
+      snippet: 'Implement stack using 2 queues; analyze amortized complexity.',
+      meta: 'Yesterday · CS 201',
+      tags: ['coding'],
     },
     {
-      title: "Reading list",
-      snippet: "CLRS §10.1–10.4; MIT OCW playlist; link to B-tree visualization.",
-      meta: "2 days ago",
-      tags: ["links"],
+      title: 'Reading list',
+      snippet: 'CLRS §10.1–10.4; MIT OCW playlist; link to B-tree visualization.',
+      meta: '2 days ago',
+      tags: ['links'],
     },
   ];
 
@@ -33,17 +33,14 @@ export default function Notes() {
     <div className="bg-white rounded-2xl shadow-card p-6">
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-semibold text-gray-900">Notes</h2>
-        <a href="#/notes" className="text-sm font-medium text-brand-600 hover:text-brand-700">
+        <a href="/notes" className="text-sm font-medium text-brand-600 hover:text-brand-700">
           See all
         </a>
       </div>
 
       <ul className="space-y-3">
         {notes.map((n) => (
-          <li
-            key={n.title}
-            className="p-3 rounded-xl border border-gray-100 bg-white"
-          >
+          <li key={n.title} className="p-3 rounded-xl border border-gray-100 bg-white">
             <div className="flex items-start gap-3">
               <div className="w-9 h-9 rounded-lg bg-brand-50 text-brand-700 grid place-items-center">
                 <NotebookText className="w-5 h-5" />
@@ -74,7 +71,7 @@ export default function Notes() {
 
       {/* Optional quick actions row */}
       <div className="mt-4 flex flex-wrap gap-2">
-        <a href="#/notes/new" className="px-3 py-1.5 rounded-full border text-sm hover:bg-gray-50">
+        <a href="/notes/new" className="px-3 py-1.5 rounded-full border text-sm hover:bg-gray-50">
           New note
         </a>
       </div>

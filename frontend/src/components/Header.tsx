@@ -1,6 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { Bell, ChevronDown, User } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Bell, ChevronDown, User } from 'lucide-react';
 
 export default function Header({ lessonCount = 0 }: { lessonCount?: number }) {
   const [open, setOpen] = useState(false);
@@ -24,11 +24,11 @@ export default function Header({ lessonCount = 0 }: { lessonCount?: number }) {
     updatePosition();
     const onScroll = () => updatePosition();
     const onResize = () => updatePosition();
-    window.addEventListener("scroll", onScroll, true);
-    window.addEventListener("resize", onResize);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onResize);
     return () => {
-      window.removeEventListener("scroll", onScroll, true);
-      window.removeEventListener("resize", onResize);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onResize);
     };
   }, [open]);
 
@@ -38,8 +38,8 @@ export default function Header({ lessonCount = 0 }: { lessonCount?: number }) {
       if (!open) return;
       if (buttonRef.current && buttonRef.current.contains(e.target as Node)) return;
     };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
   }, [open]);
 
   return (
@@ -50,7 +50,7 @@ export default function Header({ lessonCount = 0 }: { lessonCount?: number }) {
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Hi Martin!</h1>
               <p className="mt-1 text-sm text-gray-600">
-                You have completed{" "}
+                You have completed{' '}
                 <span className="font-semibold text-brand-700">{lessonCount} lessons</span> in the
                 last day. Start your learning today.
               </p>
@@ -99,17 +99,17 @@ export default function Header({ lessonCount = 0 }: { lessonCount?: number }) {
               style={{ top: `${pos.top}px`, left: `${pos.left}px` }}
             >
               <li>
-                <a href="#profile" className="block px-4 py-2 hover:bg-gray-50">
+                <a href="/profile" className="block px-4 py-2 hover:bg-gray-50">
                   Profile
                 </a>
               </li>
               <li>
-                <a href="#settings" className="block px-4 py-2 hover:bg-gray-50">
+                <a href="/settings" className="block px-4 py-2 hover:bg-gray-50">
                   Settings
                 </a>
               </li>
               <li>
-                <a href="#logout" className="block px-4 py-2 hover:bg-gray-50">
+                <a href="/logout" className="block px-4 py-2 hover:bg-gray-50">
                   Logout
                 </a>
               </li>

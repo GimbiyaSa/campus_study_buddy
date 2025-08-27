@@ -1,16 +1,16 @@
-import { Clock } from "lucide-react";
+import { Clock } from 'lucide-react';
 
 export default function UpcomingSessions() {
   const sessions = [
-    { name: "Discussion Algorithm", time: "08:00 AM – 03:00 PM" },
-    { name: "Simple Home Page Design", time: "08:00 AM – 03:00 PM" },
+    { name: 'Discussion Algorithm', time: '08:00 AM – 03:00 PM' },
+    { name: 'Simple Home Page Design', time: '08:00 AM – 03:00 PM' },
   ];
 
   return (
     <div className="bg-white rounded-2xl shadow-card p-6">
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-semibold text-gray-900">Upcoming Sessions</h2>
-        <a href="#/sessions" className="text-sm font-medium text-brand-600 hover:text-brand-700">
+        <a href="/sessions" className="text-sm font-medium text-brand-600 hover:text-brand-700">
           See all
         </a>
       </div>

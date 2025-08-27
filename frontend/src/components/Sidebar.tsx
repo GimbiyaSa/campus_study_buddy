@@ -1,40 +1,67 @@
-import { useState, useRef, useEffect, type ComponentType } from "react";
+import { useState, useRef, useEffect, type ComponentType } from 'react';
 import {
-  Menu, X, LayoutDashboard, UserPlus, GraduationCap,
-  LineChart, CalendarClock, Settings
-} from "lucide-react";
-import logo from "../assets/logo.jpg";
+  Menu,
+  X,
+  LayoutDashboard,
+  UserPlus,
+  GraduationCap,
+  LineChart,
+  CalendarClock,
+  Settings,
+} from 'lucide-react';
+import logo from '../assets/logo.jpg';
 
 type NavLink = { label: string; href: string; icon: ComponentType<{ className?: string }> };
 
 export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
-  const [activeItem, setActiveItem] = useState("Dashboard");
+  const [activeItem, setActiveItem] = useState('Dashboard');
   const drawerRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    // set active item from current pathname
+    const path = window.location.pathname.replace(/^\//, '').replace(/\/$/, '') || 'dashboard';
+    const map: Record<string, string> = {
+      dashboard: 'Dashboard',
+      partners: 'Find study partners',
+      courses: 'My courses',
+      progress: 'Track my progress',
+      sessions: 'Plan study sessions',
+      settings: 'Settings',
+    };
+    setActiveItem(map[path] || 'Dashboard');
+  }, []);
+
   const navLinks: NavLink[] = [
-    { label: "Dashboard",           href: "#/dashboard", icon: LayoutDashboard },
-    { label: "Find study partners", href: "#/partners",  icon: UserPlus },
-    { label: "My courses",          href: "#/courses",   icon: GraduationCap },
-    { label: "Track my progress",   href: "#/progress",  icon: LineChart },
-    { label: "Plan study sessions", href: "#/sessions",  icon: CalendarClock },
-    { label: "Settings",            href: "#/settings",  icon: Settings },
+    { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { label: 'Find study partners', href: '/partners', icon: UserPlus },
+    { label: 'My courses', href: '/courses', icon: GraduationCap },
+    { label: 'Track my progress', href: '/progress', icon: LineChart },
+    { label: 'Plan study sessions', href: '/sessions', icon: CalendarClock },
+    { label: 'Settings', href: '/settings', icon: Settings },
   ];
 
   useEffect(() => {
     if (!isOpen) return;
-    const focusable = drawerRef.current?.querySelectorAll<HTMLElement>("a, button");
-    const first = focusable?.[0], last = focusable?.[focusable.length - 1];
+    const focusable = drawerRef.current?.querySelectorAll<HTMLElement>('a, button');
+    const first = focusable?.[0],
+      last = focusable?.[focusable.length - 1];
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setIsOpen(false);
-      if (e.key === "Tab" && first && last) {
-        if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      if (e.key === 'Escape') setIsOpen(false);
+      if (e.key === 'Tab' && first && last) {
+        if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
       }
     };
-    document.addEventListener("keydown", onKey);
+    document.addEventListener('keydown', onKey);
     first?.focus();
-    return () => document.removeEventListener("keydown", onKey);
+    return () => document.removeEventListener('keydown', onKey);
   }, [isOpen]);
 
   const LinkItem = ({ link }: { link: NavLink }) => {
@@ -43,20 +70,24 @@ export default function Sidebar() {
     return (
       <a
         href={link.href}
-        onClick={() => setActiveItem(link.label)}
+        onClick={(e) => {
+          e.preventDefault();
+          window.history.pushState({}, '', link.href);
+          setActiveItem(link.label);
+          // dispatch popstate so App picks up the route change
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        }}
         className={[
-          "group flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors duration-200",
+          'group flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors duration-200',
           active
-            ? "bg-brand-50 text-brand-700 ring-1 ring-brand-200"
-            : "text-gray-600 hover:bg-brand-50/70 hover:text-brand-700"
-        ].join(" ")}
-        aria-current={active ? "page" : undefined}
+            ? 'bg-brand-50 text-brand-700 ring-1 ring-brand-200'
+            : 'text-gray-600 hover:bg-brand-50/70 hover:text-brand-700',
+        ].join(' ')}
+        aria-current={active ? 'page' : undefined}
       >
         <Icon
           className={`w-5 h-5 transition-colors duration-200 ${
-            active
-              ? "text-brand-600"
-              : "text-gray-400 group-hover:text-brand-600"
+            active ? 'text-brand-600' : 'text-gray-400 group-hover:text-brand-600'
           }`}
         />
         <span>{link.label}</span>
@@ -85,7 +116,9 @@ export default function Sidebar() {
         </div>
 
         <nav className="flex-1 px-4 py-2 space-y-1">
-          {navLinks.map((l) => <LinkItem key={l.label} link={l} />)}
+          {navLinks.map((l) => (
+            <LinkItem key={l.label} link={l} />
+          ))}
         </nav>
       </aside>
 
@@ -132,19 +165,23 @@ export default function Sidebar() {
                 <a
                   key={l.label}
                   href={l.href}
-                  onClick={() => { setActiveItem(l.label); setIsOpen(false); }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.history.pushState({}, '', l.href);
+                    setActiveItem(l.label);
+                    setIsOpen(false);
+                    window.dispatchEvent(new PopStateEvent('popstate'));
+                  }}
                   className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors duration-200 ${
                     activeItem === l.label
-                      ? "bg-brand-50 text-brand-700 ring-1 ring-brand-200"
-                      : "text-gray-600 hover:bg-brand-50/70 hover:text-brand-700"
+                      ? 'bg-brand-50 text-brand-700 ring-1 ring-brand-200'
+                      : 'text-gray-600 hover:bg-brand-50/70 hover:text-brand-700'
                   }`}
-                  aria-current={activeItem === l.label ? "page" : undefined}
+                  aria-current={activeItem === l.label ? 'page' : undefined}
                 >
                   <l.icon
                     className={`w-5 h-5 transition-colors duration-200 ${
-                      activeItem
-                        ? "text-brand-600"
-                        : "text-gray-400 group-hover:text-brand-600"
+                      activeItem ? 'text-brand-600' : 'text-gray-400 group-hover:text-brand-600'
                     }`}
                   />
                   {l.label}

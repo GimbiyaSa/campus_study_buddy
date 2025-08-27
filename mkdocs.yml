@@ -1,0 +1,90 @@
+site_name: Campus Study Buddy Docs
+site_description: Internal docs for the Campus Study Buddy platform
+# Set this to your public pages URL (optional but nice for SEO/canonical links)
+# site_url: https://<USER>.github.io/<REPO> 
+
+repo_url: https://github.com/GimbiyaSa/campus_study_buddy
+# If you want "Edit this page" links to point to your docs folder in main:
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.tabs         # top-level sections as tabs
+    - navigation.sections     # group children in sidebar
+    - navigation.expand       # auto-expand current section
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - toc.integrate           # integrate page ToC in sidebar
+    - content.tabs.link
+  palette:
+    - scheme: default
+      primary: green
+      accent: teal
+    - scheme: slate
+      primary: green
+      accent: teal
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+  # Optional branding:
+  # logo: assets/logo.png
+  # favicon: assets/favicon.png
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/<USER>/<REPO>
+
+plugins:
+  - search
+  - mermaid2
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.critic
+
+nav:
+  - Home: index.md
+  - Overview:
+      - Overview: overview/index.md
+      - Roadmap: overview/roadmap.md
+  - Frontend:
+      - Overview: frontend/index.md
+      - Pages: frontend/pages.md
+      - Components: frontend/components.md
+      - State management: frontend/state-management.md
+  - Backend:
+      - Overview: backend/index.md
+      - API: backend/api.md
+      - Data models: backend/data-models.md
+      - Services: backend/services.md
+  - Architecture:
+      - Overview: architecture/index.md
+      - Diagrams: architecture/diagrams.md
+  - Infrastructure:
+      - Overview: infrastructure/index.md
+      - Environments: infrastructure/environments.md
+      - CI/CD: infrastructure/ci-cd.md
+  - Design System:
+      - Overview: design-system/index.md
+      - Tokens: design-system/tokens.md
+      - Accessibility: design-system/accessibility.md
+  - Operations:
+      - Overview: operations/index.md
+      - Runbooks: operations/runbooks.md
+      - Troubleshooting: operations/troubleshooting.md

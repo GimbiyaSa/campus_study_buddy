@@ -23,7 +23,7 @@ export default function Courses() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-semibold text-gray-900">My Courses</h2>
-        <a href="#/courses" className="text-sm font-medium text-brand-600 hover:text-brand-700">
+        <a href="/courses" className="text-sm font-medium text-brand-600 hover:text-brand-700">
           See all
         </a>
       </div>
@@ -112,28 +112,28 @@ export default function Courses() {
               <p className="font-medium text-gray-900 mb-2">Quick actions</p>
               <div className="flex flex-wrap gap-2">
                 <a
-                  href="#/courses/new"
+                  href="/courses/new"
                   className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm hover:bg-gray-50"
                 >
                   <Plus className="w-4 h-4" />
                   Add course
                 </a>
                 <a
-                  href="#/partners"
+                  href="/partners"
                   className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm hover:bg-gray-50"
                 >
                   <MessageCircle className="w-4 h-4" />
                   Chat with study partners
                 </a>
                 <a
-                  href="#/reminders"
+                  href="/reminders"
                   className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm hover:bg-gray-50"
                 >
                   <Bell className="w-4 h-4" />
                   View reminders
                 </a>
                 <a
-                  href="#/goals"
+                  href="/goals"
                   className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm hover:bg-gray-50"
                 >
                   <Target className="w-4 h-4" />

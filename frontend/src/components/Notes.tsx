@@ -33,7 +33,7 @@ export default function Notes() {
     <div className="bg-white rounded-2xl shadow-card p-6">
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-semibold text-gray-900">Notes</h2>
-        <a href="#/notes" className="text-sm font-medium text-brand-600 hover:text-brand-700">
+        <a href="/notes" className="text-sm font-medium text-brand-600 hover:text-brand-700">
           See all
         </a>
       </div>
@@ -71,7 +71,7 @@ export default function Notes() {
 
       {/* Optional quick actions row */}
       <div className="mt-4 flex flex-wrap gap-2">
-        <a href="#/notes/new" className="px-3 py-1.5 rounded-full border text-sm hover:bg-gray-50">
+        <a href="/notes/new" className="px-3 py-1.5 rounded-full border text-sm hover:bg-gray-50">
           New note
         </a>
       </div>

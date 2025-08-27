@@ -62,7 +62,7 @@ export default function BuddySearch() {
       <div className="bg-white p-6 rounded-xl shadow">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold text-gray-900">Study Buddy Suggestions</h2>
-          <a href="#/partners" className="text-sm font-medium text-brand-600 hover:text-brand-700">
+          <a href="/partners" className="text-sm font-medium text-brand-600 hover:text-brand-700">
             See all
           </a>
         </div>

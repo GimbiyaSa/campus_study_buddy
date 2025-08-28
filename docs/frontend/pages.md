@@ -1,6 +1,3 @@
-
-## `docs/frontend/pages.md`
-```md
 # Pages & Layout
 
 Main areas:

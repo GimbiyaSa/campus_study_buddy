@@ -1,8 +1,5 @@
 # Diagrams
 
-```mermaid
-flowchart LR
-  A[React + TS] -- Axios --> B[Express API]
-  B --> C[(Cosmos DB)]
-  B --> D((Web PubSub))
-  B --> E[(Service Bus)]
+![Diagram 1](./Architecture 1.jpeg)
+![Diagram 2](./Architecture 2.jpeg)
+![Diagram 3](./Architecture 1.jpeg)

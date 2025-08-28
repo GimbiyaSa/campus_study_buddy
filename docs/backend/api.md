@@ -1,6 +1,4 @@
 
-## `docs/backend/api.md`
-```md
 # API
 
 | Method | Path              | Description          |

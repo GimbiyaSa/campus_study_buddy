@@ -1,6 +1,3 @@
-
-## `docs/backend/services.md`
-```md
 # Services
 
 - **Cosmos DB**: primary data store (users, notes, courses)

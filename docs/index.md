@@ -1,7 +1,14 @@
 # Campus Study Buddy
 
-Welcome to the docs. Use the left nav or search (press `/`).
+Welcome to the internal documentation for **Campus Study Buddy**.
 
-!!! tip
-    Keep pages short. Link out to detail pages. Treat this like a team wiki.
+This wiki covers:
+- What the app does and how it’s organized
+- Frontend (React + TypeScript)
+- Backend (Node.js + Express + TypeScript)
+- Architecture and design decisions
+- Infrastructure (GitHub Actions, Pages; Azure services)
+- Design system and accessibility
+- Operations & runbooks
 
+> Repo: <https://github.com/GimbiyaSa/campus_study_buddy>

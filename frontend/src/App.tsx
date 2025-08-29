@@ -1,4 +1,4 @@
-// App.tsx — global layout and minimal hash router
+// App.tsx
 import { useEffect, useState } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -10,15 +10,10 @@ import Progress from './pages/Progress';
 import Sessions from './pages/Sessions';
 import Settings from './pages/Settings';
 import Profile from './pages/Profile';
+import { getRouteFromPathname } from './router';
 
 export default function App() {
-  const getRouteFromPath = () => {
-    const path = window.location.pathname || '/dashboard';
-    // strip leading slash and possible trailing slash
-    const cleaned = path.replace(/^\//, '').replace(/\/$/, '');
-    return cleaned === '' ? 'dashboard' : cleaned;
-  };
-
+  const getRouteFromPath = () => getRouteFromPathname(); // <-- use helper
   const [route, setRoute] = useState<string>(getRouteFromPath);
 
   useEffect(() => {
@@ -54,7 +49,6 @@ export default function App() {
         <Sidebar />
         <div className="flex-1 flex flex-col">
           <Header />
-
           <main className="p-6 md:p-8">{renderPage()}</main>
         </div>
       </div>

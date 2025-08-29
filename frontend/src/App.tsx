@@ -1,47 +1,43 @@
-// App.tsx — global layout and minimal hash router
-import { useEffect, useState } from 'react';
-import Sidebar from './components/Sidebar';
-import Header from './components/Header';
+// App.tsx
+import { useEffect, useState } from "react";
+import Sidebar from "./components/Sidebar";
+import Header from "./components/Header";
 
-import Dashboard from './pages/Dashboard';
-import Partners from './pages/Partners';
-import CoursesPage from './pages/CoursesPage';
-import Progress from './pages/Progress';
-import Sessions from './pages/Sessions';
-import Settings from './pages/Settings';
-import Profile from './pages/Profile';
+import Dashboard from "./pages/Dashboard";
+import Partners from "./pages/Partners";
+import CoursesPage from "./pages/CoursesPage";
+import Progress from "./pages/Progress";
+import Sessions from "./pages/Sessions";
+import Settings from "./pages/Settings";
+import Profile from "./pages/Profile";
+import { getRouteFromPathname } from "./router";
+
 
 export default function App() {
-  const getRouteFromPath = () => {
-    const path = window.location.pathname || '/dashboard';
-    // strip leading slash and possible trailing slash
-    const cleaned = path.replace(/^\//, '').replace(/\/$/, '');
-    return cleaned === '' ? 'dashboard' : cleaned;
-  };
-
+  const getRouteFromPath = () => getRouteFromPathname(); // <-- use helper
   const [route, setRoute] = useState<string>(getRouteFromPath);
 
   useEffect(() => {
     const onPop = () => setRoute(getRouteFromPath());
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
   }, []);
 
   const renderPage = () => {
     switch (route) {
-      case 'partners':
+      case "partners":
         return <Partners />;
-      case 'courses':
+      case "courses":
         return <CoursesPage />;
-      case 'progress':
+      case "progress":
         return <Progress />;
-      case 'sessions':
+      case "sessions":
         return <Sessions />;
-      case 'settings':
+      case "settings":
         return <Settings />;
-      case 'profile':
+      case "profile":
         return <Profile />;
-      case 'dashboard':
+      case "dashboard":
       default:
         return <Dashboard />;
     }
@@ -54,7 +50,6 @@ export default function App() {
         <Sidebar />
         <div className="flex-1 flex flex-col">
           <Header />
-
           <main className="p-6 md:p-8">{renderPage()}</main>
         </div>
       </div>

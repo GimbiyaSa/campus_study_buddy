@@ -4,13 +4,33 @@ const { authenticateToken } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 const cosmosClient = new CosmosClient(process.env.COSMOS_CONNECTION_STRING);
-const database = cosmosClient.database('StudyBuddyDB');
-const container = database.container('Users');
+
+let containerPromise = (async () => {
+  const { database } = await cosmosClient.databases.createIfNotExists({
+    id: 'StudyBuddyDB',
+    throughput: 400,
+  });
+  const { container } = await database.containers.createIfNotExists({
+    id: 'Users',
+    partitionKey: { paths: ['/id'] },
+  });
+  return container;
+})();
 
 // Get current user profile
 router.get('/me', authenticateToken, async (req, res) => {
   try {
-    const { resource: user } = await container.item(req.user.id, req.user.university).read();
+    // Mock user for testing purposes - replace with actual auth middleware
+    /*req.user = {
+      id: 'user126',
+      email: 'test@example.com',
+      name: 'Test User',
+      university: 'UniXYZ',
+      course: 'Computer Science'
+    };*/
+
+    const container = await containerPromise;
+    const { resource: user } = await container.item(req.user.id, req.user.id).read();
 
     if (!user) {
       // Create user profile from Azure AD claims
@@ -20,7 +40,7 @@ router.get('/me', authenticateToken, async (req, res) => {
         name: req.user.name,
         university: req.user.university,
         course: req.user.course,
-        partitionKey: req.user.university,
+        partitionKey: req.user.id,
         profile: {
           subjects: [],
           studyPreferences: {
@@ -52,9 +72,8 @@ router.get('/me', authenticateToken, async (req, res) => {
 // Update user profile
 router.put('/me', authenticateToken, async (req, res) => {
   try {
-    const { resource: existingUser } = await container
-      .item(req.user.id, req.user.university)
-      .read();
+    const container = await containerPromise;
+    const { resource: existingUser } = await container.item(req.user.id, req.user.id).read();
 
     const updatedUser = {
       ...existingUser,
@@ -64,9 +83,7 @@ router.put('/me', authenticateToken, async (req, res) => {
       updatedAt: new Date().toISOString(),
     };
 
-    const { resource: user } = await container
-      .item(req.user.id, req.user.university)
-      .replace(updatedUser);
+    const { resource: user } = await container.item(req.user.id, req.user.id).replace(updatedUser);
     res.json(user);
   } catch (error) {
     console.error('Error updating user:', error);

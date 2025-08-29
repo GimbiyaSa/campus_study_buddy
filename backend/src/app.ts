@@ -12,6 +12,8 @@ import groupService from './services/groupService';
 import progressService from './services/progressService';
 import chatService from './services/chatService';
 
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; // For local dev with self-signed certs
+
 const app = express();
 
 // Security middleware

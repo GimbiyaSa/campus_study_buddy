@@ -1,30 +1,62 @@
 site_name: Campus Study Buddy Docs
-site_url: https://gimbiyasa.github.io/campus_study_buddy/
+site_description: Internal docs for the Campus Study Buddy platform
+# Set this to your public pages URL (optional but nice for SEO/canonical links)
+# site_url: https://<USER>.github.io/<REPO> 
+
 repo_url: https://github.com/GimbiyaSa/campus_study_buddy
+# If you want "Edit this page" links to point to your docs folder in main:
+edit_uri: edit/main/docs/
+
 theme:
   name: material
+  language: en
   features:
-    - navigation.sections
-    - navigation.instant
+    - navigation.tabs         # top-level sections as tabs
+    - navigation.sections     # group children in sidebar
+    - navigation.expand       # auto-expand current section
+    - search.suggest
+    - search.highlight
     - content.code.copy
+    - toc.integrate           # integrate page ToC in sidebar
     - content.tabs.link
   palette:
     - scheme: default
-      primary: teal
+      primary: green
       accent: teal
-markdown_extensions:
-  - admonition
-  - toc:
-      permalink: true
-  - attr_list
-  - def_list
-  - md_in_html
-  - pymdownx.details
-  - pymdownx.superfences
-  - pymdownx.tabbed
+    - scheme: slate
+      primary: green
+      accent: teal
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+  # Optional branding:
+  # logo: assets/logo.png
+  # favicon: assets/favicon.png
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/<USER>/<REPO>
+
 plugins:
   - search
   - mermaid2
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.critic
 
 nav:
   - Home: index.md
@@ -33,7 +65,7 @@ nav:
       - Roadmap: overview/roadmap.md
   - Frontend:
       - Overview: frontend/index.md
-      - Pages & Layout: frontend/pages.md
+      - Pages: frontend/pages.md
       - Components: frontend/components.md
       - State management: frontend/state-management.md
   - Backend:

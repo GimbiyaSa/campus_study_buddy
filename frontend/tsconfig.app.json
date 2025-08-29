@@ -29,7 +29,7 @@
     /*"noUncheckedSideEffectImports": true*/
 
     // Vite env/types (e.g., import.meta.env)
-     "types": ["vite/client"]
+    "types": ["vite/client"]
   },
 
   // Index all TS/TSX under src (and local .d.ts)

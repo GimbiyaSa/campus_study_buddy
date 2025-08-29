@@ -1,17 +1,16 @@
 // App.tsx
-import { useEffect, useState } from "react";
-import Sidebar from "./components/Sidebar";
-import Header from "./components/Header";
+import { useEffect, useState } from 'react';
+import Sidebar from './components/Sidebar';
+import Header from './components/Header';
 
-import Dashboard from "./pages/Dashboard";
-import Partners from "./pages/Partners";
-import CoursesPage from "./pages/CoursesPage";
-import Progress from "./pages/Progress";
-import Sessions from "./pages/Sessions";
-import Settings from "./pages/Settings";
-import Profile from "./pages/Profile";
-import { getRouteFromPathname } from "./router";
-
+import Dashboard from './pages/Dashboard';
+import Partners from './pages/Partners';
+import CoursesPage from './pages/CoursesPage';
+import Progress from './pages/Progress';
+import Sessions from './pages/Sessions';
+import Settings from './pages/Settings';
+import Profile from './pages/Profile';
+import { getRouteFromPathname } from './router';
 
 export default function App() {
   const getRouteFromPath = () => getRouteFromPathname(); // <-- use helper
@@ -19,25 +18,25 @@ export default function App() {
 
   useEffect(() => {
     const onPop = () => setRoute(getRouteFromPath());
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
   }, []);
 
   const renderPage = () => {
     switch (route) {
-      case "partners":
+      case 'partners':
         return <Partners />;
-      case "courses":
+      case 'courses':
         return <CoursesPage />;
-      case "progress":
+      case 'progress':
         return <Progress />;
-      case "sessions":
+      case 'sessions':
         return <Sessions />;
-      case "settings":
+      case 'settings':
         return <Settings />;
-      case "profile":
+      case 'profile':
         return <Profile />;
-      case "dashboard":
+      case 'dashboard':
       default:
         return <Dashboard />;
     }

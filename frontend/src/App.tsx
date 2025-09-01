@@ -21,7 +21,7 @@ export default function App() {
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
   // If no token and route is "dashboard", you could redirect:
   if (!token && route === 'dashboard') {
-    window.history.replaceState({}, '', '/landing');
+    window.history.replaceState({}, '', '/dashboard');
   }
 
   useEffect(() => {

@@ -1,57 +1,67 @@
-import { useId, useMemo, useState } from "react";
-import { Eye, EyeOff, UserPlus, Building2 } from "lucide-react";
-import { navigate } from "../router";
+import { useId, useMemo, useState } from 'react';
+import { Eye, EyeOff, UserPlus, Building2 } from 'lucide-react';
+import { navigate } from '../router';
 import logo from '../assets/logo.jpg';
 
-type Tab = "student" | "organization";
+type Tab = 'student' | 'organization';
 
 export default function Register() {
-  const [tab, setTab] = useState<Tab>("student");
+  const [tab, setTab] = useState<Tab>('student');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // --- Student
-  const [sFullName, setSFullName] = useState("");
-  const [sEmail, setSEmail] = useState("");
-  const [sPwd, setSPwd] = useState("");
+  const [sFullName, setSFullName] = useState('');
+  const [sEmail, setSEmail] = useState('');
+  const [sPwd, setSPwd] = useState('');
   const [sShowPwd, setSShowPwd] = useState(false);
-  const [sUniversity, setSUniversity] = useState("");
-  const [sCourse, setSCourse] = useState("");
-  const [sYear, setSYear] = useState("");
+  const [sUniversity, setSUniversity] = useState('');
+  const [sCourse, setSCourse] = useState('');
+  const [sYear, setSYear] = useState('');
 
   // --- Organization
-  const [oName, setOName] = useState("");
-  const [oAdminName, setOAdminName] = useState("");
-  const [oAdminEmail, setOAdminEmail] = useState("");
-  const [oPwd, setOPwd] = useState("");
+  const [oName, setOName] = useState('');
+  const [oAdminName, setOAdminName] = useState('');
+  const [oAdminEmail, setOAdminEmail] = useState('');
+  const [oPwd, setOPwd] = useState('');
   const [oShowPwd, setOShowPwd] = useState(false);
-  const [oDomain, setODomain] = useState("");
-  const [oLocation, setOLocation] = useState("");
+  const [oDomain, setODomain] = useState('');
+  const [oLocation, setOLocation] = useState('');
 
   const lrId = useId();
 
   const requiredErrors = useMemo(() => {
     const errs: Record<string, string> = {};
-    if (tab === "student") {
-      if (!sFullName.trim()) errs.sFullName = "Full name is required.";
-      if (!/^\S+@\S+\.\S+$/.test(sEmail)) errs.sEmail = "Enter a valid email.";
-      if (!sPwd || sPwd.length < 8) errs.sPwd = "Password must be at least 8 characters.";
-      if (!sUniversity.trim()) errs.sUniversity = "University is required.";
-      if (!sCourse.trim()) errs.sCourse = "Course / Program is required.";
-      if (!sYear.trim()) errs.sYear = "Year is required.";
+    if (tab === 'student') {
+      if (!sFullName.trim()) errs.sFullName = 'Full name is required.';
+      if (!/^\S+@\S+\.\S+$/.test(sEmail)) errs.sEmail = 'Enter a valid email.';
+      if (!sPwd || sPwd.length < 8) errs.sPwd = 'Password must be at least 8 characters.';
+      if (!sUniversity.trim()) errs.sUniversity = 'University is required.';
+      if (!sCourse.trim()) errs.sCourse = 'Course / Program is required.';
+      if (!sYear.trim()) errs.sYear = 'Year is required.';
     } else {
-      if (!oName.trim()) errs.oName = "Organization name is required.";
-      if (!oAdminName.trim()) errs.oAdminName = "Admin name is required.";
-      if (!/^\S+@\S+\.\S+$/.test(oAdminEmail)) errs.oAdminEmail = "Enter a valid email.";
-      if (!oPwd || oPwd.length < 8) errs.oPwd = "Password must be at least 8 characters.";
-      if (!oDomain.trim()) errs.oDomain = "Email domain is required.";
-      if (!oLocation.trim()) errs.oLocation = "Location is required.";
+      if (!oName.trim()) errs.oName = 'Organization name is required.';
+      if (!oAdminName.trim()) errs.oAdminName = 'Admin name is required.';
+      if (!/^\S+@\S+\.\S+$/.test(oAdminEmail)) errs.oAdminEmail = 'Enter a valid email.';
+      if (!oPwd || oPwd.length < 8) errs.oPwd = 'Password must be at least 8 characters.';
+      if (!oDomain.trim()) errs.oDomain = 'Email domain is required.';
+      if (!oLocation.trim()) errs.oLocation = 'Location is required.';
     }
     return errs;
   }, [
     tab,
-    sFullName, sEmail, sPwd, sUniversity, sCourse, sYear,
-    oName, oAdminName, oAdminEmail, oPwd, oDomain, oLocation
+    sFullName,
+    sEmail,
+    sPwd,
+    sUniversity,
+    sCourse,
+    sYear,
+    oName,
+    oAdminName,
+    oAdminEmail,
+    oPwd,
+    oDomain,
+    oLocation,
   ]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -59,7 +69,7 @@ export default function Register() {
     setError(null);
 
     if (Object.keys(requiredErrors).length > 0) {
-      setError("Please fix the highlighted fields.");
+      setError('Please fix the highlighted fields.');
       return;
     }
 
@@ -68,9 +78,9 @@ export default function Register() {
       // TODO: call your real endpoints:
       // if (tab === "student") await fetch("/api/auth/register/student", { ... })
       // else await fetch("/api/auth/register/org", { ... })
-      navigate("/login");
+      navigate('/login');
     } catch (err: any) {
-      setError(err?.message || "Registration failed");
+      setError(err?.message || 'Registration failed');
     } finally {
       setSubmitting(false);
     }
@@ -79,7 +89,7 @@ export default function Register() {
   return (
     <main className="min-h-[calc(100vh-64px)]">
       <div id={lrId} aria-live="polite" className="sr-only">
-        {submitting ? "Submitting registration" : error ? `Error: ${error}` : ""}
+        {submitting ? 'Submitting registration' : error ? `Error: ${error}` : ''}
       </div>
 
       <div className="mx-auto max-w-6xl px-4 py-10 md:py-14">
@@ -87,32 +97,44 @@ export default function Register() {
           {/* Left: form */}
           <section aria-labelledby="reg-title" className="px-2 py-2 md:px-4 md:py-4">
             <header className="mb-6">
-              <h1 id="reg-title" className="text-2xl font-semibold tracking-tight">Create your account</h1>
-              <p className="mt-1 text-slate-600 text-sm">Choose your account type and fill in the details.</p>
+              <h1 id="reg-title" className="text-2xl font-semibold tracking-tight">
+                Create your account
+              </h1>
+              <p className="mt-1 text-slate-600 text-sm">
+                Choose your account type and fill in the details.
+              </p>
             </header>
 
             {/* Tabs */}
-            <div role="tablist" aria-label="Account type" className="mb-4 inline-flex rounded-xl border border-slate-200 p-1">
+            <div
+              role="tablist"
+              aria-label="Account type"
+              className="mb-4 inline-flex rounded-xl border border-slate-200 p-1"
+            >
               <button
                 role="tab"
-                aria-selected={tab === "student"}
-                onClick={() => setTab("student")}
+                aria-selected={tab === 'student'}
+                onClick={() => setTab('student')}
                 className={[
-                  "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm",
-                  tab === "student" ? "bg-emerald-600 text-white" : "text-slate-700 hover:bg-slate-50",
-                ].join(" ")}
+                  'flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm',
+                  tab === 'student'
+                    ? 'bg-emerald-600 text-white'
+                    : 'text-slate-700 hover:bg-slate-50',
+                ].join(' ')}
               >
                 <UserPlus className="h-4 w-4" />
                 Student
               </button>
               <button
                 role="tab"
-                aria-selected={tab === "organization"}
-                onClick={() => setTab("organization")}
+                aria-selected={tab === 'organization'}
+                onClick={() => setTab('organization')}
                 className={[
-                  "ml-1 flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm",
-                  tab === "organization" ? "bg-emerald-600 text-white" : "text-slate-700 hover:bg-slate-50",
-                ].join(" ")}
+                  'ml-1 flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm',
+                  tab === 'organization'
+                    ? 'bg-emerald-600 text-white'
+                    : 'text-slate-700 hover:bg-slate-50',
+                ].join(' ')}
               >
                 <Building2 className="h-4 w-4" />
                 Organization
@@ -120,23 +142,114 @@ export default function Register() {
             </div>
 
             <form onSubmit={handleSubmit} className="grid gap-4" noValidate>
-              {tab === "student" ? (
+              {tab === 'student' ? (
                 <>
-                  <Field label="Full name" value={sFullName} onChange={setSFullName} placeholder="e.g., Aisha Mthembu" required error={requiredErrors.sFullName} />
-                  <Field label="Email" type="email" value={sEmail} onChange={setSEmail} placeholder="you@university.edu" required error={requiredErrors.sEmail} autoComplete="email" />
-                  <PasswordField label="Password" value={sPwd} onChange={setSPwd} show={sShowPwd} setShow={setSShowPwd} required error={requiredErrors.sPwd} />
-                  <Field label="University" value={sUniversity} onChange={setSUniversity} placeholder="e.g., UniXYZ" required error={requiredErrors.sUniversity} />
-                  <Field label="Course / Program" value={sCourse} onChange={setSCourse} placeholder="e.g., BSc Computer Science" required error={requiredErrors.sCourse} />
-                  <Field label="Year" value={sYear} onChange={setSYear} placeholder="e.g., 3" required error={requiredErrors.sYear} inputMode="numeric" />
+                  <Field
+                    label="Full name"
+                    value={sFullName}
+                    onChange={setSFullName}
+                    placeholder="e.g., Aisha Mthembu"
+                    required
+                    error={requiredErrors.sFullName}
+                  />
+                  <Field
+                    label="Email"
+                    type="email"
+                    value={sEmail}
+                    onChange={setSEmail}
+                    placeholder="you@university.edu"
+                    required
+                    error={requiredErrors.sEmail}
+                    autoComplete="email"
+                  />
+                  <PasswordField
+                    label="Password"
+                    value={sPwd}
+                    onChange={setSPwd}
+                    show={sShowPwd}
+                    setShow={setSShowPwd}
+                    required
+                    error={requiredErrors.sPwd}
+                  />
+                  <Field
+                    label="University"
+                    value={sUniversity}
+                    onChange={setSUniversity}
+                    placeholder="e.g., UniXYZ"
+                    required
+                    error={requiredErrors.sUniversity}
+                  />
+                  <Field
+                    label="Course / Program"
+                    value={sCourse}
+                    onChange={setSCourse}
+                    placeholder="e.g., BSc Computer Science"
+                    required
+                    error={requiredErrors.sCourse}
+                  />
+                  <Field
+                    label="Year"
+                    value={sYear}
+                    onChange={setSYear}
+                    placeholder="e.g., 3"
+                    required
+                    error={requiredErrors.sYear}
+                    inputMode="numeric"
+                  />
                 </>
               ) : (
                 <>
-                  <Field label="Organization name" value={oName} onChange={setOName} placeholder="e.g., Greenfields University" required error={requiredErrors.oName} />
-                  <Field label="Admin name" value={oAdminName} onChange={setOAdminName} placeholder="e.g., Thandi Dlamini" required error={requiredErrors.oAdminName} />
-                  <Field label="Admin email" type="email" value={oAdminEmail} onChange={setOAdminEmail} placeholder="admin@university.edu" required error={requiredErrors.oAdminEmail} autoComplete="email" />
-                  <PasswordField label="Password" value={oPwd} onChange={setOPwd} show={oShowPwd} setShow={setOShowPwd} required error={requiredErrors.oPwd} />
-                  <Field label="Email domain" value={oDomain} onChange={setODomain} placeholder="university.edu" required error={requiredErrors.oDomain} />
-                  <Field label="Location" value={oLocation} onChange={setOLocation} placeholder="City, Country" required error={requiredErrors.oLocation} />
+                  <Field
+                    label="Organization name"
+                    value={oName}
+                    onChange={setOName}
+                    placeholder="e.g., Greenfields University"
+                    required
+                    error={requiredErrors.oName}
+                  />
+                  <Field
+                    label="Admin name"
+                    value={oAdminName}
+                    onChange={setOAdminName}
+                    placeholder="e.g., Thandi Dlamini"
+                    required
+                    error={requiredErrors.oAdminName}
+                  />
+                  <Field
+                    label="Admin email"
+                    type="email"
+                    value={oAdminEmail}
+                    onChange={setOAdminEmail}
+                    placeholder="admin@university.edu"
+                    required
+                    error={requiredErrors.oAdminEmail}
+                    autoComplete="email"
+                  />
+                  <PasswordField
+                    label="Password"
+                    value={oPwd}
+                    onChange={setOPwd}
+                    show={oShowPwd}
+                    setShow={setOShowPwd}
+                    required
+                    error={requiredErrors.oPwd}
+                  />
+                  <Field
+                    label="Email domain"
+                    value={oDomain}
+                    onChange={setODomain}
+                    placeholder="university.edu"
+                    required
+                    error={requiredErrors.oDomain}
+                  />
+                  <Field
+                    label="Location"
+                    value={oLocation}
+                    onChange={setOLocation}
+                    placeholder="City, Country"
+                    required
+                    error={requiredErrors.oLocation}
+                  />
                 </>
               )}
 
@@ -146,14 +259,14 @@ export default function Register() {
                 aria-busy={submitting || undefined}
                 className="mt-2 inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 font-medium text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
               >
-                {submitting ? "Creating account…" : "Create account"}
+                {submitting ? 'Creating account…' : 'Create account'}
               </button>
 
               <p className="text-sm text-slate-700">
-                Already have an account?{" "}
+                Already have an account?{' '}
                 <button
                   type="button"
-                  onClick={() => navigate("/login")}
+                  onClick={() => navigate('/login')}
                   className="font-medium text-emerald-700 hover:text-emerald-800 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600 rounded"
                 >
                   Sign in
@@ -161,7 +274,10 @@ export default function Register() {
               </p>
 
               {error && (
-                <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                <div
+                  role="status"
+                  className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
+                >
                   {error}
                 </div>
               )}
@@ -172,7 +288,7 @@ export default function Register() {
           <aside className="overflow-hidden">
             <div className="aspect-[4/3] w-full overflow-hidden rounded-xl">
               <img
-                src={logo} 
+                src={logo}
                 alt="Campus Study Buddy"
                 className="h-full w-full object-cover"
                 loading="eager"
@@ -202,13 +318,23 @@ function Field(props: {
   onChange: (v: string) => void;
   placeholder?: string;
   required?: boolean;
-  type?: "text" | "email";
+  type?: 'text' | 'email';
   error?: string;
   autoComplete?: string;
-  inputMode?: React.InputHTMLAttributes<HTMLInputElement>["inputMode"];
+  inputMode?: React.InputHTMLAttributes<HTMLInputElement>['inputMode'];
 }) {
   const id = useId();
-  const { label, value, onChange, placeholder, required, type = "text", error, autoComplete, inputMode } = props;
+  const {
+    label,
+    value,
+    onChange,
+    placeholder,
+    required,
+    type = 'text',
+    error,
+    autoComplete,
+    inputMode,
+  } = props;
   return (
     <label htmlFor={id} className="block">
       <span className="mb-1 block text-sm font-medium text-slate-800">
@@ -226,11 +352,11 @@ function Field(props: {
         aria-invalid={!!error || undefined}
         aria-describedby={error ? `${id}-err` : undefined}
         className={[
-          "w-full rounded-xl border bg-slate-50 px-3 py-2 outline-none",
+          'w-full rounded-xl border bg-slate-50 px-3 py-2 outline-none',
           error
-            ? "border-emerald-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
-            : "border-slate-300 focus:ring-2 focus:ring-emerald-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600",
-        ].join(" ")}
+            ? 'border-emerald-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600'
+            : 'border-slate-300 focus:ring-2 focus:ring-emerald-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600',
+        ].join(' ')}
       />
       {error && (
         <p id={`${id}-err`} className="mt-1 text-sm text-emerald-700">
@@ -260,7 +386,7 @@ function PasswordField(props: {
       <div className="relative">
         <input
           id={id}
-          type={show ? "text" : "password"}
+          type={show ? 'text' : 'password'}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="••••••••"
@@ -269,15 +395,15 @@ function PasswordField(props: {
           aria-describedby={error ? `${id}-err` : undefined}
           autoComplete="new-password"
           className={[
-            "w-full rounded-xl border bg-slate-50 px-3 py-2 pr-12 outline-none",
+            'w-full rounded-xl border bg-slate-50 px-3 py-2 pr-12 outline-none',
             error
-              ? "border-emerald-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
-              : "border-slate-300 focus:ring-2 focus:ring-emerald-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600",
-          ].join(" ")}
+              ? 'border-emerald-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600'
+              : 'border-slate-300 focus:ring-2 focus:ring-emerald-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600',
+          ].join(' ')}
         />
         <button
           type="button"
-          aria-label={show ? "Hide password" : "Show password"}
+          aria-label={show ? 'Hide password' : 'Show password'}
           onClick={() => setShow(!show)}
           className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-slate-600 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
         >

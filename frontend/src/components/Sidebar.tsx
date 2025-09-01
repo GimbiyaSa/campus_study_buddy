@@ -12,8 +12,12 @@ import {
 import logo from '../assets/logo.jpg';
 
 type NavLink = { label: string; href: string; icon: ComponentType<{ className?: string }> };
-{/* before: <Sidebar /> */}
-<div className="hidden md:block"><Sidebar /></div>
+{
+  /* before: <Sidebar /> */
+}
+<div className="hidden md:block">
+  <Sidebar />
+</div>;
 
 export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);

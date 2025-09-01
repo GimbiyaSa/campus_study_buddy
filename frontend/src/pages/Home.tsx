@@ -1,11 +1,11 @@
-import { useState, useId } from "react";
-import { Eye, EyeOff, LogIn } from "lucide-react";
-import { navigate } from "../router";
+import { useState, useId } from 'react';
+import { Eye, EyeOff, LogIn } from 'lucide-react';
+import { navigate } from '../router';
 import logo from '../assets/logo.jpg';
 
 export default function Login() {
-  const [username, setUsername] = useState("");
-  const [pwd, setPwd] = useState("");
+  const [username, setUsername] = useState('');
+  const [pwd, setPwd] = useState('');
   const [showPwd, setShowPwd] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,9 +20,9 @@ export default function Login() {
     setSubmitting(true);
     try {
       // TODO: replace with real auth
-      navigate("/dashboard");
+      navigate('/dashboard');
     } catch (err: any) {
-      setError(err?.message || "Login failed");
+      setError(err?.message || 'Login failed');
     } finally {
       setSubmitting(false);
     }
@@ -31,7 +31,7 @@ export default function Login() {
   return (
     <main className="min-h-[calc(100vh-64px)]">
       <div aria-live="polite" className="sr-only">
-        {submitting ? "Logging in" : error ? `Error: ${error}` : ""}
+        {submitting ? 'Logging in' : error ? `Error: ${error}` : ''}
       </div>
 
       <div className="mx-auto max-w-6xl px-4 py-10 md:py-14">
@@ -74,7 +74,7 @@ export default function Login() {
                     placeholder="••••••••"
                     value={pwd}
                     onChange={(e) => setPwd(e.target.value)}
-                    type={showPwd ? "text" : "password"}
+                    type={showPwd ? 'text' : 'password'}
                     required
                     autoComplete="current-password"
                     aria-invalid={!!error && !pwd ? true : undefined}
@@ -82,7 +82,7 @@ export default function Login() {
                   />
                   <button
                     type="button"
-                    aria-label={showPwd ? "Hide password" : "Show password"}
+                    aria-label={showPwd ? 'Hide password' : 'Show password'}
                     onClick={() => setShowPwd((v) => !v)}
                     className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-slate-600 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
                   >
@@ -94,7 +94,7 @@ export default function Login() {
               <nav className="mt-1 space-y-1 text-sm">
                 <button
                   type="button"
-                  onClick={() => navigate("/forgot-password")}
+                  onClick={() => navigate('/forgot-password')}
                   className="text-emerald-700 hover:text-emerald-800 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600 rounded"
                 >
                   Forgot your password?
@@ -102,7 +102,7 @@ export default function Login() {
                 <br />
                 <button
                   type="button"
-                  onClick={() => navigate("/forgot-username")}
+                  onClick={() => navigate('/forgot-username')}
                   className="text-emerald-700 hover:text-emerald-800 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600 rounded"
                 >
                   Forgot your username?
@@ -116,14 +116,14 @@ export default function Login() {
                 className="mt-2 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 font-medium text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
               >
                 <LogIn className="h-4 w-4" />
-                {submitting ? "Logging in…" : "Login"}
+                {submitting ? 'Logging in…' : 'Login'}
               </button>
 
               <p className="mt-2 text-sm text-slate-700">
-                Don’t have an account?{" "}
+                Don’t have an account?{' '}
                 <button
                   type="button"
-                  onClick={() => navigate("/register")}
+                  onClick={() => navigate('/register')}
                   className="font-medium text-emerald-700 hover:text-emerald-800 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600 rounded"
                 >
                   Get started
@@ -131,7 +131,11 @@ export default function Login() {
               </p>
 
               {error && (
-                <div id={errId} role="status" className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                <div
+                  id={errId}
+                  role="status"
+                  className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
+                >
                   {error}
                 </div>
               )}
@@ -141,7 +145,7 @@ export default function Login() {
           <aside className="overflow-hidden">
             <div className="aspect-[4/3] w-full overflow-hidden rounded-xl">
               <img
-                src={logo} 
+                src={logo}
                 alt="Campus Study Buddy"
                 className="h-full w-full object-cover"
                 loading="eager"

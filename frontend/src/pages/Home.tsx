@@ -38,7 +38,6 @@ export default function Login() {
         <div className="grid gap-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-2 md:p-6">
           <section aria-labelledby="login-title" className="px-2 py-2 md:px-4 md:py-4">
             <div className="mb-6">
-              <h1 id="login-title" className="text-2xl font-semibold tracking-tight">Login</h1>
               <p className="mt-2 text-3xl font-extrabold">
                 <span className="text-emerald-600">Campus </span>
                 <span className="text-slate-900">Study </span>

@@ -34,7 +34,7 @@ export default function App() {
 
   const renderPage = () => {
     switch (route) {
-      case 'login':
+      case 'home':
       default:
         return <Home />;
       case 'register':

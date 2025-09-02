@@ -32,7 +32,6 @@ export default function Sidebar() {
       courses: 'My courses',
       progress: 'Track my progress',
       sessions: 'Plan study sessions',
-     
     };
     setActiveItem(map[path] || 'Dashboard');
   }, []);

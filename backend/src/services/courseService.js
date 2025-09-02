@@ -54,10 +54,10 @@ router.post('/', authenticateToken, async (req, res) => {
       id,
       ownerId: req.user.id, // partition key
       type,
-      code: type === 'institution' ? (code || '') : undefined,
+      code: type === 'institution' ? code || '' : undefined,
       title: title.trim(),
-      term: type === 'institution' ? (term || '') : undefined,
-      description: type === 'casual' ? (description || '') : undefined,
+      term: type === 'institution' ? term || '' : undefined,
+      description: type === 'casual' ? description || '' : undefined,
       progress: 0,
       createdAt: now,
       updatedAt: now,

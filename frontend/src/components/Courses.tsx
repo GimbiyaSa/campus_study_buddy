@@ -112,7 +112,7 @@ export default function Courses() {
               <p className="font-medium text-gray-900 mb-2">Quick actions</p>
               <div className="flex flex-wrap gap-2">
                 <a
-                  href="/courses/new"
+                  href="/courses"
                   className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm hover:bg-gray-50"
                 >
                   <Plus className="w-4 h-4" />
@@ -126,7 +126,7 @@ export default function Courses() {
                   Chat with study partners
                 </a>
                 <a
-                  href="/reminders"
+                  href="/BuddySearch"
                   className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm hover:bg-gray-50"
                 >
                   <Bell className="w-4 h-4" />

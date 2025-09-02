@@ -7,7 +7,6 @@ import {
   GraduationCap,
   LineChart,
   CalendarClock,
-  Settings,
 } from 'lucide-react';
 import logo from '../assets/logo.jpg';
 
@@ -33,7 +32,7 @@ export default function Sidebar() {
       courses: 'My courses',
       progress: 'Track my progress',
       sessions: 'Plan study sessions',
-      settings: 'Settings',
+     
     };
     setActiveItem(map[path] || 'Dashboard');
   }, []);
@@ -44,7 +43,6 @@ export default function Sidebar() {
     { label: 'My courses', href: '/courses', icon: GraduationCap },
     { label: 'Track my progress', href: '/progress', icon: LineChart },
     { label: 'Plan study sessions', href: '/sessions', icon: CalendarClock },
-    { label: 'Settings', href: '/settings', icon: Settings },
   ];
 
   useEffect(() => {

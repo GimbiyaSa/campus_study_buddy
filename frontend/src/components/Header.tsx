@@ -53,34 +53,34 @@ export default function Header({ lessonCount = 0 }: { lessonCount?: number }) {
   }, [open]);
 
   useEffect(() => {
-    const ac = new AbortController();
-    (async () => {
-      try {
-        const token = localStorage.getItem('access_token'); // from your login / MSAL flow
-        if (!token) throw new Error('no token');
+  const ac = new AbortController();
+  (async () => {
+    try {
+      const token = localStorage.getItem('access_token'); // from your login / MSAL flow
+      if (!token) throw new Error('no token');
 
-        const res = await fetch('/users/me', {
-          headers: { Authorization: `Bearer ${token}` },
-          signal: ac.signal,
-        });
+      const res = await fetch('/users/me', {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: ac.signal,
+      });
 
-        if (res.status === 401 || res.status === 403) {
-          // token missing/invalid – send the user to login
-          window.location.assign('/home');
-          return;
-        }
-
-        if (!res.ok) throw new Error(String(res.status));
-        const me = await res.json();
-        setMe(me);
-      } catch {
-        setMe(null);
-      } finally {
-        setLoadingMe(false);
+      if (res.status === 401 || res.status === 403) {
+        // token missing/invalid – send the user to login
+        window.location.assign('/home');
+        return;
       }
-    })();
-    return () => ac.abort();
-  }, []);
+
+      if (!res.ok) throw new Error(String(res.status));
+      const me = await res.json();
+      setMe(me);
+    } catch {
+      setMe(null);
+    } finally {
+      setLoadingMe(false);
+    }
+  })();
+  return () => ac.abort();
+}, []);
 
   const displayName = loadingMe ? 'there' : firstNameFrom(me);
 
@@ -92,31 +92,16 @@ export default function Header({ lessonCount = 0 }: { lessonCount?: number }) {
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Hi {displayName}!</h1>
               <p className="mt-1 text-sm text-gray-600">
-                You have completed{' '}
-                <span className="font-semibold text-brand-700">{lessonCount} lessons</span> in the
-                last day. Start your learning today.
+                You have completed <span className="font-semibold text-brand-700">{lessonCount} lessons</span> in the last day. Start your learning today.
               </p>
             </div>
             <div className="flex items-center gap-4">
-              <button
-                type="button"
-                aria-label="Notifications, 1 unread"
-                className="relative p-2 rounded-full hover:bg-white/70 transition shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70"
-              >
+              <button type="button" aria-label="Notifications, 1 unread" className="relative p-2 rounded-full hover:bg-white/70 transition shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70">
                 <Bell className="w-5 h-5 text-gray-700" />
                 <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full" />
               </button>
-              <button
-                type="button"
-                ref={buttonRef}
-                onClick={() => setOpen((v) => !v)}
-                aria-expanded={open}
-                aria-haspopup="true"
-                className="flex items-center gap-2 rounded-full px-2 py-1 hover:bg-white/70 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70"
-              >
-                <div className="w-9 h-9 rounded-full bg-brand-500 text-white grid place-items-center">
-                  <User className="w-5 h-5" />
-                </div>
+              <button type="button" ref={buttonRef} onClick={() => setOpen(v => !v)} aria-expanded={open} aria-haspopup="true" className="flex items-center gap-2 rounded-full px-2 py-1 hover:bg-white/70 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70">
+                <div className="w-9 h-9 rounded-full bg-brand-500 text-white grid place-items-center"><User className="w-5 h-5" /></div>
                 <ChevronDown className="w-4 h-4 text-gray-600" />
               </button>
             </div>
@@ -127,30 +112,11 @@ export default function Header({ lessonCount = 0 }: { lessonCount?: number }) {
       {open &&
         createPortal(
           <>
-            <button
-              aria-label="Close menu"
-              className="fixed inset-0 z-[9998] bg-transparent cursor-default"
-              onClick={() => setOpen(false)}
-            />
-            <ul
-              className="fixed z-[9999] w-44 bg-white text-gray-800 rounded-xl shadow-card py-2"
-              style={{ top: `${pos.top}px`, left: `${pos.left}px` }}
-            >
-              <li>
-                <a href="/profile" className="block px-4 py-2 hover:bg-gray-50">
-                  Profile
-                </a>
-              </li>
-              <li>
-                <a href="/settings" className="block px-4 py-2 hover:bg-gray-50">
-                  Settings
-                </a>
-              </li>
-              <li>
-                <a href="/logout" className="block px-4 py-2 hover:bg-gray-50">
-                  Logout
-                </a>
-              </li>
+            <button aria-label="Close menu" className="fixed inset-0 z-[9998] bg-transparent cursor-default" onClick={() => setOpen(false)} />
+            <ul className="fixed z-[9999] w-44 bg-white text-gray-800 rounded-xl shadow-card py-2" style={{ top: `${pos.top}px`, left: `${pos.left}px` }}>
+              <li><a href="/profile" className="block px-4 py-2 hover:bg-gray-50">Profile</a></li>
+              <li><a href="/settings" className="block px-4 py-2 hover:bg-gray-50">Settings</a></li>
+              <li><a href="/logout" className="block px-4 py-2 hover:bg-gray-50">Logout</a></li>
             </ul>
           </>,
           document.body

@@ -1,52 +1,52 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { BookOpen, GraduationCap, Plus, X } from 'lucide-react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { BookOpen, GraduationCap, Plus, X } from "lucide-react";
 
-type CourseType = 'institution' | 'casual';
+type CourseType = "institution" | "casual";
 
 type Course = {
   id: string;
   type: CourseType;
-  code?: string; // for institution courses
+  code?: string;          // for institution courses
   title: string;
-  term?: string; // for institution courses
-  description?: string; // for casual topics
-  progress?: number; // 0..100
+  term?: string;          // for institution courses
+  description?: string;   // for casual topics
+  progress?: number;      // 0..100
 };
 
 export default function CoursesPage() {
   // --- Static demo data for the logged-in user
   const [courses, setCourses] = useState<Course[]>([
     {
-      id: 'c1',
-      type: 'institution',
-      code: 'CS201',
-      title: 'Data Structures',
-      term: '2025 · Semester 2',
+      id: "c1",
+      type: "institution",
+      code: "CS201",
+      title: "Data Structures",
+      term: "2025 · Semester 2",
       progress: 42,
     },
     {
-      id: 'c2',
-      type: 'institution',
-      code: 'MATH204',
-      title: 'Linear Algebra',
-      term: '2025 · Semester 2',
+      id: "c2",
+      type: "institution",
+      code: "MATH204",
+      title: "Linear Algebra",
+      term: "2025 · Semester 2",
       progress: 68,
     },
     {
-      id: 'c3',
-      type: 'casual',
-      title: 'Saturday Morning Problem Solving',
-      description: 'Peer-led meetups focused on past papers and puzzles.',
+      id: "c3",
+      type: "casual",
+      title: "Saturday Morning Problem Solving",
+      description: "Peer-led meetups focused on past papers and puzzles.",
       progress: 20,
     },
   ]);
 
   const [open, setOpen] = useState(false);
 
-  const addCourse = (c: Course) => setCourses((prev) => [c, ...prev]);
+  const addCourse = (c: Course) => setCourses(prev => [c, ...prev]);
 
-  const removeCourse = (id: string) => setCourses((prev) => prev.filter((c) => c.id !== id));
+  const removeCourse = (id: string) => setCourses(prev => prev.filter(c => c.id !== id));
 
   return (
     <div className="space-y-6">
@@ -73,7 +73,7 @@ export default function CoursesPage() {
         <EmptyState onAdd={() => setOpen(true)} />
       ) : (
         <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-          {courses.map((course) => (
+          {courses.map(course => (
             <CourseCard key={course.id} course={course} onRemove={() => removeCourse(course.id)} />
           ))}
         </div>
@@ -100,34 +100,26 @@ export default function CoursesPage() {
 /* ----------------------------- Course Card ------------------------------ */
 
 function CourseCard({ course, onRemove }: { course: Course; onRemove: () => void }) {
-  const isInstitution = course.type === 'institution';
+  const isInstitution = course.type === "institution";
 
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-50 text-emerald-700">
-            {isInstitution ? (
-              <GraduationCap className="h-5 w-5" />
-            ) : (
-              <BookOpen className="h-5 w-5" />
-            )}
+            {isInstitution ? <GraduationCap className="h-5 w-5" /> : <BookOpen className="h-5 w-5" />}
           </div>
           <div>
             <h3 className="font-semibold text-slate-900">
-              {isInstitution && course.code ? (
-                <span className="mr-2 text-slate-500">{course.code}</span>
-              ) : null}
+              {isInstitution && course.code ? <span className="mr-2 text-slate-500">{course.code}</span> : null}
               {course.title}
             </h3>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-              <Badge variant={isInstitution ? 'emerald' : 'slate'}>
-                {isInstitution ? 'Institution' : 'Casual topic'}
+              <Badge variant={isInstitution ? "emerald" : "slate"}>
+                {isInstitution ? "Institution" : "Casual topic"}
               </Badge>
               {isInstitution && course.term ? (
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">
-                  {course.term}
-                </span>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">{course.term}</span>
               ) : null}
             </div>
           </div>
@@ -143,7 +135,7 @@ function CourseCard({ course, onRemove }: { course: Course; onRemove: () => void
       </div>
 
       {/* Description (casual) */}
-      {course.type === 'casual' && course.description ? (
+      {course.type === "casual" && course.description ? (
         <p className="mt-3 text-sm text-slate-700">{course.description}</p>
       ) : null}
 
@@ -166,13 +158,15 @@ function CourseCard({ course, onRemove }: { course: Course; onRemove: () => void
 
 function Badge({
   children,
-  variant = 'slate',
+  variant = "slate",
 }: {
   children: React.ReactNode;
-  variant?: 'emerald' | 'slate';
+  variant?: "emerald" | "slate";
 }) {
   const cls =
-    variant === 'emerald' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-700';
+    variant === "emerald"
+      ? "bg-emerald-50 text-emerald-700"
+      : "bg-slate-100 text-slate-700";
   return <span className={`rounded-full px-2 py-0.5 text-[11px] ${cls}`}>{children}</span>;
 }
 
@@ -205,20 +199,20 @@ function AddCourseModal({
 }: {
   open: boolean;
   onClose: () => void;
-  onAdd: (c: Omit<Course, 'id' | 'progress'>) => void;
+  onAdd: (c: Omit<Course, "id" | "progress">) => void;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
-  const [tab, setTab] = useState<CourseType>('institution');
+  const [tab, setTab] = useState<CourseType>("institution");
 
   // Institution form state
-  const [code, setCode] = useState('CS301');
-  const [title, setTitle] = useState('Algorithms');
-  const [term, setTerm] = useState('2025 · Semester 2');
+  const [code, setCode] = useState("CS301");
+  const [title, setTitle] = useState("Algorithms");
+  const [term, setTerm] = useState("2025 · Semester 2");
 
   // Casual form state
-  const [cTitle, setCTitle] = useState('Evening Revision');
-  const [cDesc, setCDesc] = useState('Lightweight sessions to recap lecture material.');
+  const [cTitle, setCTitle] = useState("Evening Revision");
+  const [cDesc, setCDesc] = useState("Lightweight sessions to recap lecture material.");
 
   // a11y ids
   const instCodeId = useId();
@@ -234,8 +228,8 @@ function AddCourseModal({
     closeBtnRef.current?.focus();
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-      if (e.key === 'Tab') {
+      if (e.key === "Escape") onClose();
+      if (e.key === "Tab") {
         const nodes = dialogRef.current?.querySelectorAll<HTMLElement>(
           'a, button, textarea, input, select, [tabindex]:not([tabindex="-1"])'
         );
@@ -252,13 +246,13 @@ function AddCourseModal({
         }
       }
     };
-    document.addEventListener('keydown', onKey);
+    document.addEventListener("keydown", onKey);
 
     const { overflow } = document.body.style;
-    document.body.style.overflow = 'hidden';
+    document.body.style.overflow = "hidden";
 
     return () => {
-      document.removeEventListener('keydown', onKey);
+      document.removeEventListener("keydown", onKey);
       document.body.style.overflow = overflow;
       prev?.focus();
     };
@@ -269,18 +263,22 @@ function AddCourseModal({
   const submitInstitution = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
-    onAdd({ type: 'institution', code: code.trim(), title: title.trim(), term: term.trim() });
+    onAdd({ type: "institution", code: code.trim(), title: title.trim(), term: term.trim() });
   };
 
   const submitCasual = (e: React.FormEvent) => {
     e.preventDefault();
     if (!cTitle.trim()) return;
-    onAdd({ type: 'casual', title: cTitle.trim(), description: cDesc.trim() });
+    onAdd({ type: "casual", title: cTitle.trim(), description: cDesc.trim() });
   };
 
   return createPortal(
     <>
-      <div className="fixed inset-0 z-[9998] bg-black/40" onClick={onClose} aria-hidden="true" />
+      <div
+        className="fixed inset-0 z-[9998] bg-black/40"
+        onClick={onClose}
+        aria-hidden="true"
+      />
       <div
         role="dialog"
         aria-modal="true"
@@ -296,9 +294,7 @@ function AddCourseModal({
               <h2 id="add-course-title" className="text-lg font-semibold text-slate-900">
                 Add a course
               </h2>
-              <p className="text-sm text-slate-600">
-                Choose from your institution or add a casual topic.
-              </p>
+              <p className="text-sm text-slate-600">Choose from your institution or add a casual topic.</p>
             </div>
             <button
               ref={closeBtnRef}
@@ -311,33 +307,27 @@ function AddCourseModal({
           </div>
 
           {/* Tabs */}
-          <div
-            role="tablist"
-            aria-label="Course type"
-            className="mt-4 inline-flex rounded-xl border border-slate-200 p-1"
-          >
+          <div role="tablist" aria-label="Course type" className="mt-4 inline-flex rounded-xl border border-slate-200 p-1">
             <button
               role="tab"
-              aria-selected={tab === 'institution'}
-              onClick={() => setTab('institution')}
+              aria-selected={tab === "institution"}
+              onClick={() => setTab("institution")}
               className={[
-                'flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm',
-                tab === 'institution'
-                  ? 'bg-emerald-600 text-white'
-                  : 'text-slate-700 hover:bg-slate-50',
-              ].join(' ')}
+                "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm",
+                tab === "institution" ? "bg-emerald-600 text-white" : "text-slate-700 hover:bg-slate-50",
+              ].join(" ")}
             >
               <GraduationCap className="h-4 w-4" />
               Institution
             </button>
             <button
               role="tab"
-              aria-selected={tab === 'casual'}
-              onClick={() => setTab('casual')}
+              aria-selected={tab === "casual"}
+              onClick={() => setTab("casual")}
               className={[
-                'ml-1 flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm',
-                tab === 'casual' ? 'bg-emerald-600 text-white' : 'text-slate-700 hover:bg-slate-50',
-              ].join(' ')}
+                "ml-1 flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm",
+                tab === "casual" ? "bg-emerald-600 text-white" : "text-slate-700 hover:bg-slate-50",
+              ].join(" ")}
             >
               <BookOpen className="h-4 w-4" />
               Casual topic
@@ -346,7 +336,7 @@ function AddCourseModal({
 
           {/* Forms */}
           <div className="mt-5">
-            {tab === 'institution' ? (
+            {tab === "institution" ? (
               <form onSubmit={submitInstitution} className="grid gap-4">
                 <Field
                   id={instCodeId}
@@ -454,7 +444,7 @@ function Field({
       <input
         id={id}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
         required={required}
         className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
@@ -484,7 +474,7 @@ function TextArea({
       <textarea
         id={id}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
         rows={rows}
         className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"

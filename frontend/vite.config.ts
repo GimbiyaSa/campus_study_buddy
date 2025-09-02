@@ -12,7 +12,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/courses': { target: 'http://localhost:5000', changeOrigin: true },
-      '/users':   { target: 'http://localhost:5000', changeOrigin: true },
+      '/users': { target: 'http://localhost:5000', changeOrigin: true },
     },
   },
 });

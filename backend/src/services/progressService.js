@@ -5,8 +5,6 @@ const { authenticateToken } = require('../middleware/authMiddleware');
 const router = express.Router();
 const cosmosClient = new CosmosClient(process.env.COSMOS_CONNECTION_STRING);
 const database = cosmosClient.database('StudyBuddyDB');
-//const progressContainer = database.container('Progress')
-//const usersContainer = database.container('Users')
 
 let progressContainerPromise = (async () => {
   const { database } = await cosmosClient.databases.createIfNotExists({

@@ -1,11 +1,35 @@
+import { useEffect, useState } from 'react';
 import { Plus, MessageCircle, Bell, Target } from 'lucide-react';
 
 export default function Courses() {
-  const courses = [
-    { title: 'History of graphic design', teacher: 'William Joe', progress: 25 },
-    { title: 'App Design Course', teacher: 'William Joe', progress: 25 },
-    { title: 'Digital painting', teacher: 'William Joe', progress: 25 },
-  ];
+  const [courses, setCourses] = useState<{ title: string; teacher: string; progress: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchCourses() {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch('/api/v1/courses');
+        if (!res.ok) throw new Error('Failed to fetch courses');
+        const data = await res.json();
+        // Adapt data if needed to match { title, teacher, progress }
+        setCourses(
+          data.map((c: any) => ({
+            title: c.title,
+            teacher: c.teacher || c.ownerName || 'Unknown',
+            progress: c.progress ?? 0,
+          }))
+        );
+      } catch (err) {
+        setError('Failed to fetch courses.');
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchCourses();
+  }, []);
 
   const avg =
     Math.round((courses.reduce((s, c) => s + c.progress, 0) / Math.max(courses.length, 1)) * 10) /
@@ -28,35 +52,44 @@ export default function Courses() {
         </a>
       </div>
 
+      {/* Error message */}
+      {error && (
+        <div className="rounded-lg bg-red-100 text-red-800 px-4 py-2 mb-4">{error}</div>
+      )}
+
       {/* Course list */}
-      <ul className="space-y-4">
-        {courses.map((c, i) => (
-          <li
-            key={i}
-            className="flex items-center justify-between gap-4 p-4 rounded-xl border border-gray-100 hover:bg-gray-50/60 transition"
-          >
-            <div className="flex items-center gap-4 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-brand-100 text-brand-700 grid place-items-center font-semibold shadow-soft shrink-0">
-                {String(c.title.match(/[A-Z]/g)?.slice(0, 2).join('') ?? 'C')}
-              </div>
-              <div className="min-w-0">
-                <p className="font-medium text-gray-900 truncate">{c.title}</p>
-                <p className="text-xs text-gray-500">By {c.teacher}</p>
-                <div className="mt-2 w-44 h-2 rounded-full bg-gray-200 overflow-hidden">
-                  <div
-                    className="h-full bg-brand-500 rounded-full"
-                    style={{ width: `${c.progress}%` }}
-                  />
+      {loading ? (
+        <div className="text-center text-slate-600">Loading courses...</div>
+      ) : (
+        <ul className="space-y-4">
+          {courses.map((c, i) => (
+            <li
+              key={i}
+              className="flex items-center justify-between gap-4 p-4 rounded-xl border border-gray-100 hover:bg-gray-50/60 transition"
+            >
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-brand-100 text-brand-700 grid place-items-center font-semibold shadow-soft shrink-0">
+                  {String(c.title.match(/[A-Z]/g)?.slice(0, 2).join('') ?? 'C')}
+                </div>
+                <div className="min-w-0">
+                  <p className="font-medium text-gray-900 truncate">{c.title}</p>
+                  <p className="text-xs text-gray-500">By {c.teacher}</p>
+                  <div className="mt-2 w-44 h-2 rounded-full bg-gray-200 overflow-hidden">
+                    <div
+                      className="h-full bg-brand-500 rounded-full"
+                      style={{ width: `${c.progress}%` }}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <button className="px-3 py-1.5 rounded-full text-sm bg-white border border-gray-200 hover:bg-gray-50 shadow-soft shrink-0">
-              View Course
-            </button>
-          </li>
-        ))}
-      </ul>
+              <button className="px-3 py-1.5 rounded-full text-sm bg-white border border-gray-200 hover:bg-gray-50 shadow-soft shrink-0">
+                View Course
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {/* Fill area: Summary + Quick Actions (chips) */}
       <div className="mt-6 flex-1">

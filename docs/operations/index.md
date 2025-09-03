@@ -10,7 +10,3 @@ We use **Scrum** methodology:
 
 This approach fits a small, part-time student team because it provides structure without being overwhelming.
 
-
-- How to run locally
-- How to check logs and health
-- Where to file issues

@@ -11,26 +11,44 @@ jest.mock('../middleware/authMiddleware', () => ({
 // Mock Cosmos DB for Progress and Users
 jest.mock('@azure/cosmos', () => {
   const progressData = [
-    { id: 'u1', userId: 'u1', duration: 60, topics: ['a'], date: new Date().toISOString().split('T')[0], timestamp: new Date().toISOString(), subject: 'Math' },
+    {
+      id: 'u1',
+      userId: 'u1',
+      duration: 60,
+      topics: ['a'],
+      date: new Date().toISOString().split('T')[0],
+      timestamp: new Date().toISOString(),
+      subject: 'Math',
+    },
   ];
 
   const progressItems = {
     create: jest.fn().mockImplementation(async (p) => ({ resource: p })),
-    query: jest.fn().mockReturnValue({ fetchAll: jest.fn().mockResolvedValue({ resources: progressData }) }),
+    query: jest
+      .fn()
+      .mockReturnValue({ fetchAll: jest.fn().mockResolvedValue({ resources: progressData }) }),
   };
 
   const usersContainerLike = {
     item: jest.fn().mockImplementation(() => ({
-      read: jest.fn().mockResolvedValue({ resource: { id: 'u1', statistics: { totalStudyHours: 0, topicsCompleted: 0 } } }),
+      read: jest
+        .fn()
+        .mockResolvedValue({
+          resource: { id: 'u1', statistics: { totalStudyHours: 0, topicsCompleted: 0 } },
+        }),
       replace: jest.fn().mockResolvedValue({}),
     })),
   };
 
-  const fakeContainer = (name) => ({ items: name === 'Progress' ? progressItems : usersContainerLike });
+  const fakeContainer = (name) => ({
+    items: name === 'Progress' ? progressItems : usersContainerLike,
+  });
 
   const fakeDatabase = () => ({
     container: jest.fn().mockImplementation((name) => fakeContainer(name)),
-    containers: { createIfNotExists: jest.fn().mockResolvedValue({ container: fakeContainer('Progress') }) },
+    containers: {
+      createIfNotExists: jest.fn().mockResolvedValue({ container: fakeContainer('Progress') }),
+    },
   });
 
   const CosmosClient = jest.fn().mockImplementation(() => ({
@@ -46,7 +64,9 @@ const app = appModule.default || appModule;
 
 describe('Progress service', () => {
   test('POST /api/v1/progress/sessions logs a session and updates user stats', async () => {
-    const res = await request(app).post('/api/v1/progress/sessions').send({ subject: 'Math', topics: ['a'], duration: 60 });
+    const res = await request(app)
+      .post('/api/v1/progress/sessions')
+      .send({ subject: 'Math', topics: ['a'], duration: 60 });
     expect(res.statusCode).toBe(201);
     expect(res.body).toHaveProperty('userId', 'u1');
   });

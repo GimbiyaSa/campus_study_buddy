@@ -15,7 +15,9 @@ jest.mock('@azure/cosmos', () => {
   ];
 
   const fakeItems = {
-    query: jest.fn().mockReturnValue({ fetchAll: jest.fn().mockResolvedValue({ resources: fakeResources }) }),
+    query: jest
+      .fn()
+      .mockReturnValue({ fetchAll: jest.fn().mockResolvedValue({ resources: fakeResources }) }),
     create: jest.fn().mockImplementation(async (item) => ({ resource: item })),
   };
 
@@ -33,8 +35,8 @@ jest.mock('@azure/cosmos', () => {
   });
 
   const fakeDatabase = () => ({
-  containers: { createIfNotExists: jest.fn().mockResolvedValue({ container: fakeContainer() }) },
-  container: jest.fn().mockReturnValue(fakeContainer()),
+    containers: { createIfNotExists: jest.fn().mockResolvedValue({ container: fakeContainer() }) },
+    container: jest.fn().mockReturnValue(fakeContainer()),
   });
 
   const CosmosClient = jest.fn().mockImplementation(() => ({

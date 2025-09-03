@@ -31,12 +31,18 @@ jest.mock('@azure/cosmos', () => {
   ];
 
   const fakeItems = {
-    query: jest.fn().mockReturnValue({ fetchAll: jest.fn().mockResolvedValue({ resources: messages }) }),
+    query: jest
+      .fn()
+      .mockReturnValue({ fetchAll: jest.fn().mockResolvedValue({ resources: messages }) }),
     create: jest.fn().mockImplementation(async (m) => ({ resource: m })),
   };
 
   const fakeGroupsItems = {
-    query: jest.fn().mockImplementation(() => ({ fetchAll: jest.fn().mockResolvedValue({ resources: [groupCount] }) })),
+    query: jest
+      .fn()
+      .mockImplementation(() => ({
+        fetchAll: jest.fn().mockResolvedValue({ resources: [groupCount] }),
+      })),
   };
 
   const fakeContainer = (name) => ({
@@ -45,7 +51,9 @@ jest.mock('@azure/cosmos', () => {
 
   const fakeDatabase = () => ({
     container: jest.fn().mockImplementation((name) => fakeContainer(name)),
-    containers: { createIfNotExists: jest.fn().mockResolvedValue({ container: fakeContainer('Messages') }) },
+    containers: {
+      createIfNotExists: jest.fn().mockResolvedValue({ container: fakeContainer('Messages') }),
+    },
   });
 
   const CosmosClient = jest.fn().mockImplementation(() => ({
@@ -64,8 +72,8 @@ describe('Chat service', () => {
     groupCount = 1;
   });
   test('POST /api/v1/chat/negotiate denies access when not a member', async () => {
-  groupCount = 0;
-  const res = await request(app).post('/api/v1/chat/negotiate').send({ groupId: 'g1' });
+    groupCount = 0;
+    const res = await request(app).post('/api/v1/chat/negotiate').send({ groupId: 'g1' });
     expect(res.statusCode).toBe(403);
   });
 

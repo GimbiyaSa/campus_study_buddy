@@ -1,7 +1,7 @@
 const request = require('supertest');
 
 // Import app after basic environment is set
-const appModule = require('../app');
+const appModule = require('./app');
 const app = appModule.default || appModule;
 
 describe('Health endpoint', () => {

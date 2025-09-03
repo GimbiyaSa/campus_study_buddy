@@ -1,7 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, Mail, X } from 'lucide-react';
-import { navigate } from '../router';
 
 type Suggestion = {
   name: string;

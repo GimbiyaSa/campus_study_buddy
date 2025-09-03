@@ -37,7 +37,9 @@ jest.mock('@azure/cosmos', () => {
   ];
 
   const fakeItems = {
-    query: jest.fn().mockReturnValue({ fetchAll: jest.fn().mockResolvedValue({ resources: partners }) }),
+    query: jest
+      .fn()
+      .mockReturnValue({ fetchAll: jest.fn().mockResolvedValue({ resources: partners }) }),
   };
 
   const fakeContainer = () => ({ items: fakeItems });

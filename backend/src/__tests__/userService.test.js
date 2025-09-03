@@ -28,7 +28,9 @@ jest.mock('@azure/cosmos', () => {
   });
 
   const fakeDatabase = (data) => ({
-    containers: { createIfNotExists: jest.fn().mockResolvedValue({ container: fakeContainer(data) }) },
+    containers: {
+      createIfNotExists: jest.fn().mockResolvedValue({ container: fakeContainer(data) }),
+    },
     container: jest.fn().mockReturnValue(fakeContainer(data)),
   });
 

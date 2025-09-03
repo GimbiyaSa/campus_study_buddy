@@ -31,11 +31,9 @@ jest.mock('@azure/cosmos', () => {
 
   const usersContainerLike = {
     item: jest.fn().mockImplementation(() => ({
-      read: jest
-        .fn()
-        .mockResolvedValue({
-          resource: { id: 'u1', statistics: { totalStudyHours: 0, topicsCompleted: 0 } },
-        }),
+      read: jest.fn().mockResolvedValue({
+        resource: { id: 'u1', statistics: { totalStudyHours: 0, topicsCompleted: 0 } },
+      }),
       replace: jest.fn().mockResolvedValue({}),
     })),
   };

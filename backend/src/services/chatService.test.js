@@ -38,11 +38,9 @@ jest.mock('@azure/cosmos', () => {
   };
 
   const fakeGroupsItems = {
-    query: jest
-      .fn()
-      .mockImplementation(() => ({
-        fetchAll: jest.fn().mockResolvedValue({ resources: [groupCount] }),
-      })),
+    query: jest.fn().mockImplementation(() => ({
+      fetchAll: jest.fn().mockResolvedValue({ resources: [groupCount] }),
+    })),
   };
 
   const fakeContainer = (name) => ({

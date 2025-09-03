@@ -74,11 +74,7 @@ export default function CoursesPage() {
   return (
     <div className="space-y-6">
       {/* Error message */}
-      {error && (
-        <div className="rounded-lg bg-red-100 text-red-800 px-4 py-2">
-          {error}
-        </div>
-      )}
+      {error && <div className="rounded-lg bg-red-100 text-red-800 px-4 py-2">{error}</div>}
       {/* Header row */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>

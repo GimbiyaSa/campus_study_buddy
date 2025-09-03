@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { Plus, MessageCircle, Bell, Target } from 'lucide-react';
 
 export default function Courses() {
-  const [courses, setCourses] = useState<{ title: string; teacher: string; progress: number }[]>([]);
+  const [courses, setCourses] = useState<{ title: string; teacher: string; progress: number }[]>(
+    []
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,9 +55,7 @@ export default function Courses() {
       </div>
 
       {/* Error message */}
-      {error && (
-        <div className="rounded-lg bg-red-100 text-red-800 px-4 py-2 mb-4">{error}</div>
-      )}
+      {error && <div className="rounded-lg bg-red-100 text-red-800 px-4 py-2 mb-4">{error}</div>}
 
       {/* Course list */}
       {loading ? (

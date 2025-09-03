@@ -7,11 +7,16 @@ import {
   GraduationCap,
   LineChart,
   CalendarClock,
-  Settings,
 } from 'lucide-react';
 import logo from '../assets/logo.jpg';
 
 type NavLink = { label: string; href: string; icon: ComponentType<{ className?: string }> };
+{
+  /* before: <Sidebar /> */
+}
+<div className="hidden md:block">
+  <Sidebar />
+</div>;
 
 export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -27,7 +32,6 @@ export default function Sidebar() {
       courses: 'My courses',
       progress: 'Track my progress',
       sessions: 'Plan study sessions',
-      settings: 'Settings',
     };
     setActiveItem(map[path] || 'Dashboard');
   }, []);
@@ -38,7 +42,6 @@ export default function Sidebar() {
     { label: 'My courses', href: '/courses', icon: GraduationCap },
     { label: 'Track my progress', href: '/progress', icon: LineChart },
     { label: 'Plan study sessions', href: '/sessions', icon: CalendarClock },
-    { label: 'Settings', href: '/settings', icon: Settings },
   ];
 
   useEffect(() => {

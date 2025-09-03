@@ -11,6 +11,9 @@ import partnerService from './services/partnerService';
 import groupService from './services/groupService';
 import progressService from './services/progressService';
 import chatService from './services/chatService';
+import courseService from './services/courseService';
+
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; // For local dev with self-signed certs
 
 const app = express();
 
@@ -44,6 +47,7 @@ app.use('/api/v1/partners', partnerService);
 app.use('/api/v1/groups', groupService);
 app.use('/api/v1/progress', progressService);
 app.use('/api/v1/chat', chatService);
+app.use('/api/v1/courses', courseService);
 
 // Error handling middleware
 app.use((error: any, req: Request, res: Response, next: NextFunction) => {

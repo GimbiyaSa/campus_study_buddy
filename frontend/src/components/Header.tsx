@@ -1,22 +1,32 @@
+// src/components/Header.tsx
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Bell, ChevronDown, User } from 'lucide-react';
+
+type Me = { id: string; name?: string; given_name?: string; email?: string };
+
+function firstNameFrom(me: Me | null) {
+  if (!me) return 'there';
+  const raw = me.name || me.given_name || (me.email ? me.email.split('@')[0] : '');
+  if (!raw) return 'there';
+  const first = raw.trim().split(/\s+/)[0];
+  return first.charAt(0).toUpperCase() + first.slice(1);
+}
 
 export default function Header({ lessonCount = 0 }: { lessonCount?: number }) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  // position of the dropdown (anchored to the button)
+  const [me, setMe] = useState<Me | null>(null);
+  const [loadingMe, setLoadingMe] = useState(true);
+
   const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
-  const menuWidth = 176; // w-44
+  const menuWidth = 176;
 
   const updatePosition = () => {
     const r = buttonRef.current?.getBoundingClientRect();
     if (!r) return;
-    setPos({
-      top: r.bottom + 8 + window.scrollY,
-      left: r.right - menuWidth + window.scrollX,
-    });
+    setPos({ top: r.bottom + 8 + window.scrollY, left: r.right - menuWidth + window.scrollX });
   };
 
   useLayoutEffect(() => {
@@ -32,15 +42,47 @@ export default function Header({ lessonCount = 0 }: { lessonCount?: number }) {
     };
   }, [open]);
 
-  // close on outside click (safety)
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
       if (!open) return;
       if (buttonRef.current && buttonRef.current.contains(e.target as Node)) return;
+      setOpen(false);
     };
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
   }, [open]);
+
+  useEffect(() => {
+    const ac = new AbortController();
+    (async () => {
+      try {
+        const token = localStorage.getItem('access_token'); // from your login / MSAL flow
+        if (!token) throw new Error('no token');
+
+        const res = await fetch('/users/me', {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: ac.signal,
+        });
+
+        if (res.status === 401 || res.status === 403) {
+          // token missing/invalid – send the user to login
+          window.location.assign('/home');
+          return;
+        }
+
+        if (!res.ok) throw new Error(String(res.status));
+        const me = await res.json();
+        setMe(me);
+      } catch {
+        setMe(null);
+      } finally {
+        setLoadingMe(false);
+      }
+    })();
+    return () => ac.abort();
+  }, []);
+
+  const displayName = loadingMe ? 'there' : firstNameFrom(me);
 
   return (
     <header className="m-6 md:m-8">
@@ -48,14 +90,13 @@ export default function Header({ lessonCount = 0 }: { lessonCount?: number }) {
         <div className="rounded-2xl overflow-hidden bg-gradient-to-r from-brand-100 via-white to-brand-50 p-6 md:p-8">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Hi Martin!</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Hi {displayName}!</h1>
               <p className="mt-1 text-sm text-gray-600">
                 You have completed{' '}
                 <span className="font-semibold text-brand-700">{lessonCount} lessons</span> in the
                 last day. Start your learning today.
               </p>
             </div>
-
             <div className="flex items-center gap-4">
               <button
                 type="button"
@@ -65,8 +106,6 @@ export default function Header({ lessonCount = 0 }: { lessonCount?: number }) {
                 <Bell className="w-5 h-5 text-gray-700" />
                 <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full" />
               </button>
-
-              {/* Profile button (anchor) */}
               <button
                 type="button"
                 ref={buttonRef}
@@ -85,7 +124,6 @@ export default function Header({ lessonCount = 0 }: { lessonCount?: number }) {
         </div>
       </div>
 
-      {/* Portal menu */}
       {open &&
         createPortal(
           <>

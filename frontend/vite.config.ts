@@ -9,4 +9,10 @@ export default defineConfig({
       '@': '/src', // relative to project root
     },
   },
+  server: {
+    proxy: {
+      '/courses': { target: 'http://localhost:5000', changeOrigin: true },
+      '/users': { target: 'http://localhost:5000', changeOrigin: true },
+    },
+  },
 });

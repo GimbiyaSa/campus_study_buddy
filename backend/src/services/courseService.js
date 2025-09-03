@@ -18,7 +18,15 @@ const containerPromise = (async () => {
 })();
 
 // GET /courses - list user courses
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', /*authenticateToken,*/ async (req, res) => {
+
+  req.user = {
+    id: 'user123',
+    university: 'UniXYZ',
+    email: 'test@example.com',
+    name: 'Test User',
+    course: 'Computer Science'
+  };
   try {
     const container = await containerPromise;
     const querySpec = {
@@ -37,7 +45,16 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // POST /courses - add new course
-router.post('/', authenticateToken, async (req, res) => {
+router.post('/', /*authenticateToken,*/ async (req, res) => {
+
+  req.user = {
+    id: 'user123',
+    university: 'UniXYZ',
+    email: 'test@example.com',
+    name: 'Test User',
+    course: 'Computer Science'
+  };
+
   try {
     const { type, code, title, term, description } = req.body;
     if (!type || !['institution', 'casual'].includes(type)) {
@@ -73,7 +90,7 @@ router.post('/', authenticateToken, async (req, res) => {
 });
 
 // PUT /courses/:id - update a course
-router.put('/:id', authenticateToken, async (req, res) => {
+router.put('/:id', /*authenticateToken,*/ async (req, res) => {
   try {
     const container = await containerPromise;
     const id = req.params.id;
@@ -99,7 +116,15 @@ router.put('/:id', authenticateToken, async (req, res) => {
 });
 
 // DELETE /courses/:id - remove a course
-router.delete('/:id', authenticateToken, async (req, res) => {
+router.delete('/:id', /*authenticateToken,*/ async (req, res) => {
+  
+  req.user = {
+    id: 'user123',
+    university: 'UniXYZ',
+    email: 'test@example.com',
+    name: 'Test User',
+    course: 'Computer Science'
+  };
   try {
     const container = await containerPromise;
     const id = req.params.id;

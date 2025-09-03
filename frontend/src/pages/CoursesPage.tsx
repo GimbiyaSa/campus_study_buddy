@@ -15,41 +15,66 @@ type Course = {
 };
 
 export default function CoursesPage() {
-  // --- Static demo data for the logged-in user
-  const [courses, setCourses] = useState<Course[]>([
-    {
-      id: 'c1',
-      type: 'institution',
-      code: 'CS201',
-      title: 'Data Structures',
-      term: '2025 · Semester 2',
-      progress: 42,
-    },
-    {
-      id: 'c2',
-      type: 'institution',
-      code: 'MATH204',
-      title: 'Linear Algebra',
-      term: '2025 · Semester 2',
-      progress: 68,
-    },
-    {
-      id: 'c3',
-      type: 'casual',
-      title: 'Saturday Morning Problem Solving',
-      description: 'Peer-led meetups focused on past papers and puzzles.',
-      progress: 20,
-    },
-  ]);
-
+  console.log('CoursesPage rendered');
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null); // <-- Add error state
 
-  const addCourse = (c: Course) => setCourses((prev) => [c, ...prev]);
+  useEffect(() => {
+    async function fetchCourses() {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch('/api/v1/courses');
+        if (!res.ok) throw new Error('Failed to fetch courses');
+        const data = await res.json();
+        setCourses(data);
+      } catch (err) {
+        console.error('Error fetching courses:', err);
+        setError('Failed to fetch courses. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchCourses();
+  }, []);
 
-  const removeCourse = (id: string) => setCourses((prev) => prev.filter((c) => c.id !== id));
+  const addCourse = async (c: Omit<Course, 'id' | 'progress'>) => {
+    setError(null); // Clear previous error
+    try {
+      const res = await fetch('/api/v1/courses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(c),
+      });
+      if (!res.ok) throw new Error('Failed to add course');
+      const newCourse: Course = await res.json();
+      setCourses((prev) => [newCourse, ...prev]);
+    } catch (err) {
+      console.error('Error adding course:', err);
+      setError('Failed to add course. Please try again.'); // Show error to user
+    }
+  };
+
+  const removeCourse = async (id: string) => {
+    setError(null); // Clear previous error
+    try {
+      const res = await fetch(`/api/v1/courses/${id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Failed to remove course');
+      setCourses((prev) => prev.filter((c) => c.id !== id));
+    } catch (err) {
+      console.error('Error removing course:', err);
+      setError('Failed to remove course. Please try again.');
+    }
+  };
 
   return (
     <div className="space-y-6">
+      {/* Error message */}
+      {error && <div className="rounded-lg bg-red-100 text-red-800 px-4 py-2">{error}</div>}
       {/* Header row */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -69,7 +94,9 @@ export default function CoursesPage() {
       </div>
 
       {/* Grid of course cards / empty state */}
-      {courses.length === 0 ? (
+      {loading ? (
+        <div className="text-center text-slate-600">Loading courses...</div>
+      ) : courses.length === 0 ? (
         <EmptyState onAdd={() => setOpen(true)} />
       ) : (
         <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
@@ -83,13 +110,8 @@ export default function CoursesPage() {
       <AddCourseModal
         open={open}
         onClose={() => setOpen(false)}
-        onAdd={(payload) => {
-          const newCourse: Course = {
-            id: crypto.randomUUID(),
-            ...payload,
-            progress: 0,
-          };
-          addCourse(newCourse);
+        onAdd={async (payload) => {
+          await addCourse(payload);
           setOpen(false);
         }}
       />

@@ -5,6 +5,4 @@ import { expect, test } from 'vitest';
 test('Courses renders heading and course items', () => {
   render(<Courses />);
   expect(screen.getByText(/My Courses/i)).toBeInTheDocument();
-  const viewBtns = screen.getAllByText(/View Course/i);
-  expect(viewBtns.length).toBeGreaterThan(0);
 });

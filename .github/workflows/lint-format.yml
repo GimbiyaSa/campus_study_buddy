@@ -27,18 +27,15 @@ jobs:
 
       - name: Install dependencies (frontend)
         working-directory: frontend
-        run: |
-          npm ci
+        run: npm ci
 
       - name: Run ESLint (frontend)
         working-directory: frontend
-        run: |
-          npm run lint:fix
+        run: npm run lint:fix
 
       - name: Check Prettier formatting (frontend)
         working-directory: frontend
-        run: |
-          npm run format
+        run: npm run format
 
       - name: Commit & push autofixes (frontend)
         run: |

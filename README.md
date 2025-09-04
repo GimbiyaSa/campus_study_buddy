@@ -136,13 +136,22 @@ curl -X POST http://localhost:5000/api/users \
 ### Backend
 - `npm run dev` - Start development server with hot reloading
 - `npm run build` - Build TypeScript to JavaScript
+- `npm run lint` - Run Linter on code
+- `npm run lint:fix` - Run Linter and auto-fix
+- `npm run format` - Run Formatter
+- `npm run test` - Run tests (jest)
+- `npm run test:coverage` - Run test with coverage report
 - `npm start` - Start production server
 - `npm run clean` - Remove build directory
 
 ### Frontend
-- `npm start` - Start development server
+- `npm run dev` - Start development server
 - `npm run build` - Build for production
-- `npm test` - Run tests
+- `npm run lint` - Run Linter on code
+- `npm run lint:fix` - Run Linter and auto-fix
+- `npm run format` - Run Formatter
+- `npm run test` - Run tests (vitest)
+- `npm run test:coverage` - Run test with coverage report
 - `npm run eject` - Eject from Create React App (irreversible)
 
 ## 🌟 Features Walkthrough

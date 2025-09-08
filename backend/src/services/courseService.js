@@ -18,7 +18,7 @@ const containerPromise = (async () => {
 })();
 
 // GET /courses - list user courses
-router.get('/', /*authenticateToken,*/ async (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
 
   req.user = {
     id: 'user123',

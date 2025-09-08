@@ -3,7 +3,7 @@ const jwksClient = require('jwks-rsa');
 
 const client = jwksClient({
   jwksUri:
-    'https://studybuddyb2c.b2clogin.com/studybuddyb2c.onmicrosoft.com/B2C_1_SignUpSignIn/discovery/v2.0/keys',
+    'https://wits.ac.za.b2clogin.com/studybuddyb2c.onmicrosoft.com/B2C_1_SignUpSignIn/discovery/v2.0/keys',
 });
 
 function getKey(header, callback) {
@@ -26,7 +26,7 @@ const authenticateToken = (req, res, next) => {
     getKey,
     {
       audience: process.env.AZURE_CLIENT_ID,
-      issuer: `https://studybuddyb2c.b2clogin.com/${process.env.AZURE_TENANT_ID}/v2.0/`,
+      issuer: `https://wits.ac.za.b2clogin.com/${process.env.AZURE_TENANT_ID}/v2.0/`,
       algorithms: ['RS256'],
     },
     (err, decoded) => {

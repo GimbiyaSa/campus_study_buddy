@@ -13,23 +13,23 @@ const getPool = () => {
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const { moduleId, groupType, search, limit = 50, offset = 0 } = req.query;
-    
+
     const request = getPool().request();
     request.input('limit', sql.Int, parseInt(limit));
     request.input('offset', sql.Int, parseInt(offset));
 
     let whereClause = 'WHERE sg.is_active = 1';
-    
+
     if (moduleId) {
       request.input('moduleId', sql.Int, moduleId);
       whereClause += ' AND sg.module_id = @moduleId';
     }
-    
+
     if (groupType) {
       request.input('groupType', sql.NVarChar(50), groupType);
       whereClause += ' AND sg.group_type = @groupType';
     }
-    
+
     if (search) {
       request.input('search', sql.NVarChar(255), `%${search}%`);
       whereClause += ' AND (sg.group_name LIKE @search OR sg.description LIKE @search)';
@@ -54,9 +54,9 @@ router.get('/', authenticateToken, async (req, res) => {
       OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
     `);
 
-    const groups = result.recordset.map(group => ({
+    const groups = result.recordset.map((group) => ({
       ...group,
-      group_goals: group.group_goals ? JSON.parse(group.group_goals) : null
+      group_goals: group.group_goals ? JSON.parse(group.group_goals) : null,
     }));
 
     res.json(groups);
@@ -140,7 +140,7 @@ router.get('/:groupId/members', authenticateToken, async (req, res) => {
 router.post('/', authenticateToken, async (req, res) => {
   try {
     const { group_name, description, module_id, max_members, group_type, group_goals } = req.body;
-    
+
     if (!group_name || !module_id) {
       return res.status(400).json({ error: 'group_name and module_id are required' });
     }
@@ -152,7 +152,11 @@ router.post('/', authenticateToken, async (req, res) => {
     request.input('moduleId', sql.Int, module_id);
     request.input('maxMembers', sql.Int, max_members || 10);
     request.input('groupType', sql.NVarChar(50), group_type || 'study');
-    request.input('groupGoals', sql.NVarChar(sql.MAX), group_goals ? JSON.stringify(group_goals) : null);
+    request.input(
+      'groupGoals',
+      sql.NVarChar(sql.MAX),
+      group_goals ? JSON.stringify(group_goals) : null
+    );
 
     // Start transaction
     const transaction = getPool().transaction();
@@ -160,15 +164,19 @@ router.post('/', authenticateToken, async (req, res) => {
 
     try {
       // Create the study group
-      const groupResult = await transaction.request()
+      const groupResult = await transaction
+        .request()
         .input('groupName', sql.NVarChar(255), group_name)
         .input('description', sql.NText, description || null)
         .input('creatorId', sql.Int, req.user.id)
         .input('moduleId', sql.Int, module_id)
         .input('maxMembers', sql.Int, max_members || 10)
         .input('groupType', sql.NVarChar(50), group_type || 'study')
-        .input('groupGoals', sql.NVarChar(sql.MAX), group_goals ? JSON.stringify(group_goals) : null)
-        .query(`
+        .input(
+          'groupGoals',
+          sql.NVarChar(sql.MAX),
+          group_goals ? JSON.stringify(group_goals) : null
+        ).query(`
           INSERT INTO study_groups (group_name, description, creator_id, module_id, max_members, group_type, group_goals)
           OUTPUT inserted.*
           VALUES (@groupName, @description, @creatorId, @moduleId, @maxMembers, @groupType, @groupGoals)
@@ -177,10 +185,10 @@ router.post('/', authenticateToken, async (req, res) => {
       const newGroup = groupResult.recordset[0];
 
       // Add creator as admin member
-      await transaction.request()
+      await transaction
+        .request()
         .input('groupId', sql.Int, newGroup.group_id)
-        .input('userId', sql.Int, req.user.id)
-        .query(`
+        .input('userId', sql.Int, req.user.id).query(`
           INSERT INTO group_members (group_id, user_id, role, status)
           VALUES (@groupId, @userId, 'admin', 'active')
         `);
@@ -228,7 +236,7 @@ router.post('/:groupId/join', authenticateToken, async (req, res) => {
     }
 
     const group = groupCheck.recordset[0];
-    
+
     if (group.already_member) {
       return res.status(400).json({ error: 'Already a member of this group' });
     }
@@ -268,7 +276,9 @@ router.post('/:groupId/leave', authenticateToken, async (req, res) => {
     }
 
     if (creatorCheck.recordset[0].creator_id === req.user.id) {
-      return res.status(400).json({ error: 'Group creator cannot leave. Transfer ownership or delete the group.' });
+      return res
+        .status(400)
+        .json({ error: 'Group creator cannot leave. Transfer ownership or delete the group.' });
     }
 
     // Remove user from group
@@ -317,7 +327,7 @@ router.put('/:groupId', authenticateToken, async (req, res) => {
     const allowedFields = ['group_name', 'description', 'max_members', 'group_type', 'group_goals'];
     const updateFields = [];
 
-    allowedFields.forEach(field => {
+    allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) {
         updateFields.push(`${field} = @${field}`);
         if (field === 'group_goals') {
@@ -340,7 +350,9 @@ router.put('/:groupId', authenticateToken, async (req, res) => {
     `);
 
     const updatedGroup = result.recordset[0];
-    updatedGroup.group_goals = updatedGroup.group_goals ? JSON.parse(updatedGroup.group_goals) : null;
+    updatedGroup.group_goals = updatedGroup.group_goals
+      ? JSON.parse(updatedGroup.group_goals)
+      : null;
 
     res.json(updatedGroup);
   } catch (error) {
@@ -405,9 +417,9 @@ router.get('/user/my-groups', authenticateToken, async (req, res) => {
       ORDER BY gm.joined_at DESC
     `);
 
-    const groups = result.recordset.map(group => ({
+    const groups = result.recordset.map((group) => ({
       ...group,
-      group_goals: group.group_goals ? JSON.parse(group.group_goals) : null
+      group_goals: group.group_goals ? JSON.parse(group.group_goals) : null,
     }));
 
     res.json(groups);

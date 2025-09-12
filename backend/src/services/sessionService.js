@@ -13,28 +13,28 @@ const getPool = () => {
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const { groupId, status, startDate, endDate, limit = 50, offset = 0 } = req.query;
-    
+
     const request = getPool().request();
     request.input('limit', sql.Int, parseInt(limit));
     request.input('offset', sql.Int, parseInt(offset));
 
     let whereClause = 'WHERE 1=1';
-    
+
     if (groupId) {
       request.input('groupId', sql.Int, groupId);
       whereClause += ' AND ss.group_id = @groupId';
     }
-    
+
     if (status) {
       request.input('status', sql.NVarChar(50), status);
       whereClause += ' AND ss.status = @status';
     }
-    
+
     if (startDate) {
       request.input('startDate', sql.DateTime2, startDate);
       whereClause += ' AND ss.scheduled_start >= @startDate';
     }
-    
+
     if (endDate) {
       request.input('endDate', sql.DateTime2, endDate);
       whereClause += ' AND ss.scheduled_start <= @endDate';
@@ -146,19 +146,19 @@ router.get('/:sessionId/attendees', authenticateToken, async (req, res) => {
 // Create new study session
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { 
-      group_id, 
-      session_title, 
-      description, 
-      scheduled_start, 
-      scheduled_end, 
-      location, 
-      session_type 
+    const {
+      group_id,
+      session_title,
+      description,
+      scheduled_start,
+      scheduled_end,
+      location,
+      session_type,
     } = req.body;
-    
+
     if (!group_id || !session_title || !scheduled_start || !scheduled_end) {
-      return res.status(400).json({ 
-        error: 'group_id, session_title, scheduled_start, and scheduled_end are required' 
+      return res.status(400).json({
+        error: 'group_id, session_title, scheduled_start, and scheduled_end are required',
       });
     }
 
@@ -188,7 +188,9 @@ router.post('/', authenticateToken, async (req, res) => {
     `);
 
     if (memberCheck.recordset.length === 0) {
-      return res.status(403).json({ error: 'You must be a member of the group to respond to sessions' });
+      return res
+        .status(403)
+        .json({ error: 'You must be a member of the group to respond to sessions' });
     }
 
     // Check if attendance record exists
@@ -362,10 +364,17 @@ router.put('/:sessionId', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Cannot update a completed session' });
     }
 
-    const allowedFields = ['session_title', 'description', 'scheduled_start', 'scheduled_end', 'location', 'session_type'];
+    const allowedFields = [
+      'session_title',
+      'description',
+      'scheduled_start',
+      'scheduled_end',
+      'location',
+      'session_type',
+    ];
     const updateFields = [];
 
-    allowedFields.forEach(field => {
+    allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) {
         updateFields.push(`${field} = @${field}`);
         if (field === 'scheduled_start' || field === 'scheduled_end') {
@@ -420,7 +429,9 @@ router.delete('/:sessionId', authenticateToken, async (req, res) => {
 
     const session = organizerCheck.recordset[0];
     if (session.status === 'in_progress') {
-      return res.status(400).json({ error: 'Cannot delete a session that is currently in progress' });
+      return res
+        .status(400)
+        .json({ error: 'Cannot delete a session that is currently in progress' });
     }
 
     // Delete session and related data (cascading deletes will handle session_attendees)
@@ -439,7 +450,7 @@ router.delete('/:sessionId', authenticateToken, async (req, res) => {
 router.get('/user/upcoming', authenticateToken, async (req, res) => {
   try {
     const { limit = 10 } = req.query;
-    
+
     const request = getPool().request();
     request.input('userId', sql.Int, req.user.id);
     request.input('limit', sql.Int, parseInt(limit));

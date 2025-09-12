@@ -13,21 +13,22 @@ const getPool = () => {
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const { university, search, limit = 50, offset = 0 } = req.query;
-    
+
     const request = getPool().request();
     request.input('limit', sql.Int, parseInt(limit));
     request.input('offset', sql.Int, parseInt(offset));
 
     let whereClause = 'WHERE m.is_active = 1';
-    
+
     if (university) {
       request.input('university', sql.NVarChar(255), university);
       whereClause += ' AND m.university = @university';
     }
-    
+
     if (search) {
       request.input('search', sql.NVarChar(255), `%${search}%`);
-      whereClause += ' AND (m.module_name LIKE @search OR m.module_code LIKE @search OR m.description LIKE @search)';
+      whereClause +=
+        ' AND (m.module_name LIKE @search OR m.module_code LIKE @search OR m.description LIKE @search)';
     }
 
     const result = await request.query(`
@@ -130,9 +131,11 @@ router.get('/topics/:topicId/chapters', authenticateToken, async (req, res) => {
 router.post('/', authenticateToken, async (req, res) => {
   try {
     const { module_code, module_name, description, university } = req.body;
-    
+
     if (!module_code || !module_name || !university) {
-      return res.status(400).json({ error: 'module_code, module_name, and university are required' });
+      return res
+        .status(400)
+        .json({ error: 'module_code, module_name, and university are required' });
     }
 
     const request = getPool().request();
@@ -161,7 +164,7 @@ router.post('/', authenticateToken, async (req, res) => {
 router.post('/:moduleId/topics', authenticateToken, async (req, res) => {
   try {
     const { topic_name, description, order_sequence } = req.body;
-    
+
     if (!topic_name) {
       return res.status(400).json({ error: 'topic_name is required' });
     }
@@ -189,7 +192,7 @@ router.post('/:moduleId/topics', authenticateToken, async (req, res) => {
 router.post('/topics/:topicId/chapters', authenticateToken, async (req, res) => {
   try {
     const { chapter_name, description, order_sequence, content_summary } = req.body;
-    
+
     if (!chapter_name) {
       return res.status(400).json({ error: 'chapter_name is required' });
     }
@@ -223,7 +226,7 @@ router.put('/:moduleId', authenticateToken, async (req, res) => {
     const request = getPool().request();
     request.input('moduleId', sql.Int, req.params.moduleId);
 
-    allowedFields.forEach(field => {
+    allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) {
         updateFields.push(`${field} = @${field}`);
         request.input(field, sql.NVarChar, req.body[field]);

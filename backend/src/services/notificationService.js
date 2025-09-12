@@ -10,7 +10,14 @@ const getPool = () => {
 };
 
 // Create notification
-const createNotification = async (userId, notificationType, title, message, metadata = null, scheduledFor = null) => {
+const createNotification = async (
+  userId,
+  notificationType,
+  title,
+  message,
+  metadata = null,
+  scheduledFor = null
+) => {
   try {
     const request = getPool().request();
     request.input('userId', sql.Int, userId);
@@ -37,7 +44,7 @@ const createNotification = async (userId, notificationType, title, message, meta
 const sendSessionReminders = async () => {
   try {
     const request = getPool().request();
-    
+
     // Get sessions starting in the next hour that haven't had reminders sent
     const upcomingSessions = await request.query(`
       SELECT 
@@ -67,14 +74,16 @@ const sendSessionReminders = async () => {
       const metadata = {
         session_id: session.session_id,
         group_id: session.group_id,
-        scheduled_start: session.scheduled_start
+        scheduled_start: session.scheduled_start,
       };
 
       await createNotification(
         session.user_id,
         'session_reminder',
         'Study Session Reminder',
-        `Your study session "${session.session_title}" in ${session.group_name} starts at ${new Date(session.scheduled_start).toLocaleTimeString()}.`,
+        `Your study session "${session.session_title}" in ${
+          session.group_name
+        } starts at ${new Date(session.scheduled_start).toLocaleTimeString()}.`,
         metadata,
         new Date(Date.now() + 5 * 60 * 1000) // Send in 5 minutes
       );
@@ -90,18 +99,18 @@ const sendSessionReminders = async () => {
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const { unreadOnly = false, limit = 50, offset = 0, type } = req.query;
-    
+
     const request = getPool().request();
     request.input('userId', sql.Int, req.user.id);
     request.input('limit', sql.Int, parseInt(limit));
     request.input('offset', sql.Int, parseInt(offset));
 
     let whereClause = 'WHERE n.user_id = @userId';
-    
+
     if (unreadOnly === 'true') {
       whereClause += ' AND n.is_read = 0';
     }
-    
+
     if (type) {
       request.input('type', sql.NVarChar(100), type);
       whereClause += ' AND n.notification_type = @type';
@@ -116,9 +125,9 @@ router.get('/', authenticateToken, async (req, res) => {
     `);
 
     // Parse metadata JSON
-    const notifications = result.recordset.map(notification => ({
+    const notifications = result.recordset.map((notification) => ({
       ...notification,
-      metadata: notification.metadata ? JSON.parse(notification.metadata) : null
+      metadata: notification.metadata ? JSON.parse(notification.metadata) : null,
     }));
 
     res.json(notifications);
@@ -226,15 +235,22 @@ router.delete('/:notificationId', authenticateToken, async (req, res) => {
 router.post('/', authenticateToken, async (req, res) => {
   try {
     const { user_id, notification_type, title, message, metadata, scheduled_for } = req.body;
-    
+
     if (!user_id || !notification_type || !title || !message) {
-      return res.status(400).json({ 
-        error: 'user_id, notification_type, title, and message are required' 
+      return res.status(400).json({
+        error: 'user_id, notification_type, title, and message are required',
       });
     }
 
     // Validate notification type
-    const validTypes = ['session_reminder', 'group_invite', 'progress_update', 'partner_match', 'message', 'system'];
+    const validTypes = [
+      'session_reminder',
+      'group_invite',
+      'progress_update',
+      'partner_match',
+      'message',
+      'system',
+    ];
     if (!validTypes.includes(notification_type)) {
       return res.status(400).json({ error: 'Invalid notification type' });
     }
@@ -262,10 +278,10 @@ router.post('/', authenticateToken, async (req, res) => {
 router.post('/group/:groupId/notify', authenticateToken, async (req, res) => {
   try {
     const { notification_type, title, message, metadata } = req.body;
-    
+
     if (!notification_type || !title || !message) {
-      return res.status(400).json({ 
-        error: 'notification_type, title, and message are required' 
+      return res.status(400).json({
+        error: 'notification_type, title, and message are required',
       });
     }
 
@@ -287,7 +303,9 @@ router.post('/group/:groupId/notify', authenticateToken, async (req, res) => {
 
     const { creator_id, role } = permissionCheck.recordset[0];
     if (creator_id !== req.user.id && role !== 'admin') {
-      return res.status(403).json({ error: 'Only group creators and admins can send group notifications' });
+      return res
+        .status(403)
+        .json({ error: 'Only group creators and admins can send group notifications' });
     }
 
     // Get all group members
@@ -312,9 +330,9 @@ router.post('/group/:groupId/notify', authenticateToken, async (req, res) => {
       }
     }
 
-    res.json({ 
+    res.json({
       message: `Sent notifications to ${notifications.length} group members`,
-      notifications: notifications.length
+      notifications: notifications.length,
     });
   } catch (error) {
     console.error('Error sending group notifications:', error);
@@ -337,9 +355,9 @@ router.get('/pending', authenticateToken, async (req, res) => {
     `);
 
     // Parse metadata JSON
-    const notifications = result.recordset.map(notification => ({
+    const notifications = result.recordset.map((notification) => ({
       ...notification,
-      metadata: notification.metadata ? JSON.parse(notification.metadata) : null
+      metadata: notification.metadata ? JSON.parse(notification.metadata) : null,
     }));
 
     res.json(notifications);
@@ -353,24 +371,24 @@ router.get('/pending', authenticateToken, async (req, res) => {
 router.put('/mark-sent', authenticateToken, async (req, res) => {
   try {
     const { notification_ids } = req.body;
-    
+
     if (!notification_ids || !Array.isArray(notification_ids)) {
       return res.status(400).json({ error: 'notification_ids array is required' });
     }
 
     const request = getPool().request();
-    
+
     // Create a table-valued parameter for the IDs
-    const idList = notification_ids.map(id => `(${parseInt(id)})`).join(',');
-    
+    const idList = notification_ids.map((id) => `(${parseInt(id)})`).join(',');
+
     const result = await request.query(`
       UPDATE notifications 
       SET sent_at = GETUTCDATE()
       WHERE notification_id IN (${idList})
     `);
 
-    res.json({ 
-      message: `Marked ${result.rowsAffected[0]} notifications as sent`
+    res.json({
+      message: `Marked ${result.rowsAffected[0]} notifications as sent`,
     });
   } catch (error) {
     console.error('Error marking notifications as sent:', error);

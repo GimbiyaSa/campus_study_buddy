@@ -61,16 +61,28 @@ router.get('/me', authenticateToken, async (req, res) => {
       // Create new user profile
       const insertRequest = pool.request();
       insertRequest.input('email', sql.NVarChar(255), req.user.email);
-      insertRequest.input('firstName', sql.NVarChar(100), req.user.firstName || req.user.name?.split(' ')[0] || '');
-      insertRequest.input('lastName', sql.NVarChar(100), req.user.lastName || req.user.name?.split(' ').slice(1).join(' ') || '');
+      insertRequest.input(
+        'firstName',
+        sql.NVarChar(100),
+        req.user.firstName || req.user.name?.split(' ')[0] || ''
+      );
+      insertRequest.input(
+        'lastName',
+        sql.NVarChar(100),
+        req.user.lastName || req.user.name?.split(' ').slice(1).join(' ') || ''
+      );
       insertRequest.input('university', sql.NVarChar(255), req.user.university || '');
       insertRequest.input('course', sql.NVarChar(255), req.user.course || '');
       insertRequest.input('passwordHash', sql.NVarChar(255), ''); // Will be handled by Azure AD
-      insertRequest.input('studyPreferences', sql.NVarChar(sql.MAX), JSON.stringify({
-        preferredTimes: [],
-        studyStyle: 'visual',
-        groupSize: 'medium'
-      }));
+      insertRequest.input(
+        'studyPreferences',
+        sql.NVarChar(sql.MAX),
+        JSON.stringify({
+          preferredTimes: [],
+          studyStyle: 'visual',
+          groupSize: 'medium',
+        })
+      );
 
       const insertResult = await insertRequest.query(`
         INSERT INTO users (email, password_hash, first_name, last_name, university, course, study_preferences)
@@ -88,7 +100,7 @@ router.get('/me', authenticateToken, async (req, res) => {
     if (user.study_preferences) {
       user.study_preferences = JSON.parse(user.study_preferences);
     }
-    
+
     res.json(user);
   } catch (error) {
     console.error('Error fetching user:', error);
@@ -101,13 +113,22 @@ router.put('/me', authenticateToken, async (req, res) => {
   try {
     const request = pool.request();
     request.input('userId', sql.Int, req.user.id);
-    
+
     // Build dynamic update query based on provided fields
-    const allowedFields = ['first_name', 'last_name', 'university', 'course', 'year_of_study', 'bio', 'profile_image_url', 'study_preferences'];
+    const allowedFields = [
+      'first_name',
+      'last_name',
+      'university',
+      'course',
+      'year_of_study',
+      'bio',
+      'profile_image_url',
+      'study_preferences',
+    ];
     const updateFields = [];
     const updateValues = [];
 
-    allowedFields.forEach(field => {
+    allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) {
         updateFields.push(`${field} = @${field}`);
         if (field === 'study_preferences') {
@@ -236,7 +257,7 @@ router.get('/me/progress', authenticateToken, async (req, res) => {
 router.put('/me/progress', authenticateToken, async (req, res) => {
   try {
     const { topic_id, chapter_id, completion_status, hours_spent, notes } = req.body;
-    
+
     if (!topic_id && !chapter_id) {
       return res.status(400).json({ error: 'Either topic_id or chapter_id is required' });
     }
@@ -246,7 +267,7 @@ router.put('/me/progress', authenticateToken, async (req, res) => {
     request.input('topicId', sql.Int, topic_id || null);
     request.input('chapterId', sql.Int, chapter_id || null);
     request.input('completionStatus', sql.NVarChar(50), completion_status || 'not_started');
-    request.input('hoursSpent', sql.Decimal(5,2), hours_spent || 0);
+    request.input('hoursSpent', sql.Decimal(5, 2), hours_spent || 0);
     request.input('notes', sql.NText, notes || null);
 
     // Check if progress record exists
@@ -292,22 +313,22 @@ router.put('/me/progress', authenticateToken, async (req, res) => {
 router.get('/me/study-hours', authenticateToken, async (req, res) => {
   try {
     const { startDate, endDate, moduleId } = req.query;
-    
+
     const request = pool.request();
     request.input('userId', sql.Int, req.user.id);
 
     let whereClause = 'WHERE sh.user_id = @userId';
-    
+
     if (startDate) {
       request.input('startDate', sql.Date, startDate);
       whereClause += ' AND sh.study_date >= @startDate';
     }
-    
+
     if (endDate) {
       request.input('endDate', sql.Date, endDate);
       whereClause += ' AND sh.study_date <= @endDate';
     }
-    
+
     if (moduleId) {
       request.input('moduleId', sql.Int, moduleId);
       whereClause += ' AND sh.module_id = @moduleId';
@@ -339,7 +360,7 @@ router.get('/me/study-hours', authenticateToken, async (req, res) => {
 router.post('/me/study-hours', authenticateToken, async (req, res) => {
   try {
     const { module_id, topic_id, session_id, hours_logged, description, study_date } = req.body;
-    
+
     if (!hours_logged || hours_logged <= 0) {
       return res.status(400).json({ error: 'Valid hours_logged is required' });
     }
@@ -349,7 +370,7 @@ router.post('/me/study-hours', authenticateToken, async (req, res) => {
     request.input('moduleId', sql.Int, module_id || null);
     request.input('topicId', sql.Int, topic_id || null);
     request.input('sessionId', sql.Int, session_id || null);
-    request.input('hoursLogged', sql.Decimal(5,2), hours_logged);
+    request.input('hoursLogged', sql.Decimal(5, 2), hours_logged);
     request.input('description', sql.NText, description || null);
     request.input('studyDate', sql.Date, study_date || new Date().toISOString().split('T')[0]);
 
@@ -393,7 +414,7 @@ router.get('/me/statistics', authenticateToken, async (req, res) => {
       sessions_attended: 0,
       topics_completed: 0,
       chapters_completed: 0,
-      modules_enrolled: 0
+      modules_enrolled: 0,
     };
 
     res.json(stats);
@@ -407,7 +428,7 @@ router.get('/me/statistics', authenticateToken, async (req, res) => {
 router.get('/me/notifications', authenticateToken, async (req, res) => {
   try {
     const { unreadOnly = false, limit = 50 } = req.query;
-    
+
     const request = pool.request();
     request.input('userId', sql.Int, req.user.id);
     request.input('limit', sql.Int, parseInt(limit));
@@ -425,9 +446,9 @@ router.get('/me/notifications', authenticateToken, async (req, res) => {
     `);
 
     // Parse metadata JSON
-    const notifications = result.recordset.map(notification => ({
+    const notifications = result.recordset.map((notification) => ({
       ...notification,
-      metadata: notification.metadata ? JSON.parse(notification.metadata) : null
+      metadata: notification.metadata ? JSON.parse(notification.metadata) : null,
     }));
 
     res.json(notifications);

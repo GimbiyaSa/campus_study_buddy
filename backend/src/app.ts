@@ -44,11 +44,11 @@ app.get('/health', (req: Request, res: Response) => {
 });
 
 (async () => {
-    try {
-        await setupCampusStudyBuddyDatabase();
-    } catch (error) {
-        console.error('Error running setup:', error);
-    }
+  try {
+    await setupCampusStudyBuddyDatabase();
+  } catch (error) {
+    console.error('Error running setup:', error);
+  }
 })();
 
 // API routes

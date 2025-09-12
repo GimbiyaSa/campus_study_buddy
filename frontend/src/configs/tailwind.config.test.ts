@@ -1,4 +1,5 @@
 import { test, expect } from 'vitest';
+// @ts-ignore
 import tailwindConfig from '../../tailwind.config.js';
 
 test('tailwind config exports expected shape and tokens', () => {

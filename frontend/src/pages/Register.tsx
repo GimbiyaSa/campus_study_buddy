@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from 'react';
+import { useId, useMemo, useState, useEffect, useRef } from 'react';
 import { Eye, EyeOff, UserPlus, Building2 } from 'lucide-react';
 import { navigate } from '../router';
 import logo from '../assets/logo.jpg';
@@ -29,6 +29,81 @@ export default function Register() {
   const [oLocation, setOLocation] = useState('');
 
   const lrId = useId();
+  const googleBtnRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+    if (!clientId) {
+      console.warn('VITE_GOOGLE_CLIENT_ID is not set. Google Sign-In will be disabled.');
+      return;
+    }
+
+    const win = window as any;
+    // load the Google Identity script if not already loaded
+    const existing = document.getElementById('google-identity-script');
+    if (!existing) {
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.id = 'google-identity-script';
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+      script.onload = () => initializeGoogle();
+    } else {
+      initializeGoogle();
+    }
+
+    function initializeGoogle() {
+      if (!win.google?.accounts?.id) {
+        // Some delay could be necessary if script hasn't fully initialized
+        setTimeout(() => initializeGoogle(), 200);
+        return;
+      }
+
+      win.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: handleCredentialResponse,
+      });
+
+      if (googleBtnRef.current) {
+        win.google.accounts.id.renderButton(googleBtnRef.current, {
+          theme: 'outline',
+          size: 'large',
+        });
+      }
+    }
+  }, []);
+
+  async function handleCredentialResponse(response: { credential?: string }) {
+    const idToken = response?.credential;
+    if (!idToken) {
+      setError('Google sign-in failed (no token).');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) || '';
+      const url = apiBase.replace(/\/$/, '') + '/api/v1/users/me';
+      console.debug('Calling backend URL:', url);
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: { Authorization: 'Bearer ' + idToken },
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || 'Failed to sign in with Google');
+      }
+
+      // success: backend returns user object
+      navigate('/dashboard');
+    } catch (err: any) {
+      setError(err?.message || 'Google sign-in failed');
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   const requiredErrors = useMemo(() => {
     const errs: Record<string, string> = {};
@@ -281,6 +356,22 @@ export default function Register() {
                   {error}
                 </div>
               )}
+
+              {/* Divider + Google Sign-In */}
+              <div className="mt-4 flex items-center gap-3">
+                <div className="h-px flex-1 bg-slate-100" />
+                <div className="text-sm text-slate-400">or</div>
+                <div className="h-px flex-1 bg-slate-100" />
+              </div>
+
+              <div className="mt-3">
+                <div ref={googleBtnRef} />
+                {!import.meta.env.VITE_GOOGLE_CLIENT_ID && (
+                  <div className="mt-2 text-xs text-slate-500">
+                    Google Sign-In disabled (no client id)
+                  </div>
+                )}
+              </div>
             </form>
           </section>
 

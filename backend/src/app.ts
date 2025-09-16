@@ -23,7 +23,20 @@ const app = express();
 app.use(helmet());
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL,
+    // Allow FRONTEND_URL from env, otherwise allow localhost:5173 for local dev.
+    origin: (origin, callback) => {
+      const allowed = [
+        process.env.FRONTEND_URL || '',
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+      ].filter(Boolean);
+      // If no origin (same-origin or curl), allow it
+      if (!origin) return callback(null, true);
+      if (allowed.includes(origin)) return callback(null, true);
+      // In production, you may want to reject unknown origins.
+      console.warn('Blocked CORS request from origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
   })
 );

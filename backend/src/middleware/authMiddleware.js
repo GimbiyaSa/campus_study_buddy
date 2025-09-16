@@ -1,19 +1,10 @@
-const jwt = require('jsonwebtoken');
-const jwksClient = require('jwks-rsa');
+// Google-only authentication middleware.
+// Verifies Google ID tokens using google-auth-library and attaches a normalized `req.user`.
+const { OAuth2Client } = require('google-auth-library');
 
-const client = jwksClient({
-  jwksUri:
-    'https://wits.ac.za.b2clogin.com/studybuddyb2c.onmicrosoft.com/B2C_1_SignUpSignIn/discovery/v2.0/keys',
-});
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-function getKey(header, callback) {
-  client.getSigningKey(header.kid, (err, key) => {
-    const signingKey = key.publicKey || key.rsaPublicKey;
-    callback(null, signingKey);
-  });
-}
-
-const authenticateToken = (req, res, next) => {
+const authenticateToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -21,29 +12,28 @@ const authenticateToken = (req, res, next) => {
     return res.status(401).json({ error: 'Access token required' });
   }
 
-  jwt.verify(
-    token,
-    getKey,
-    {
-      audience: process.env.AZURE_CLIENT_ID,
-      issuer: `https://wits.ac.za.b2clogin.com/${process.env.AZURE_TENANT_ID}/v2.0/`,
-      algorithms: ['RS256'],
-    },
-    (err, decoded) => {
-      if (err) {
-        return res.status(403).json({ error: 'Invalid token' });
-      }
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken: token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
 
-      req.user = {
-        id: decoded.sub,
-        email: decoded.email || decoded.emails?.[0],
-        name: decoded.name,
-        university: decoded.extension_University,
-        course: decoded.extension_Course,
-      };
-      next();
-    }
-  );
+    req.user = {
+      id: payload.sub,
+      email: payload.email,
+      name: payload.name || `${payload.given_name || ''} ${payload.family_name || ''}`.trim(),
+      // Google ID tokens won't provide university/course by default.
+      university: payload.hd || undefined,
+      course: undefined,
+      provider: 'google',
+    };
+
+    return next();
+  } catch (err) {
+    console.error('Google token verification error:', err);
+    return res.status(403).json({ error: 'Invalid Google token' });
+  }
 };
 
 module.exports = { authenticateToken };

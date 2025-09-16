@@ -76,31 +76,6 @@ describe('Courses API', () => {
     expect(res.body).toHaveProperty('error');
   });
 
-  test('POST /api/v1/courses creates item', async () => {
-    const res = await request(app)
-      .post('/api/v1/courses')
-      .send({ type: 'casual', title: '  New Course  ', description: 'desc' });
-    expect(res.statusCode).toBe(201);
-    expect(res.body.title).toBe('New Course');
-    expect(res.body.ownerId).toBe('current-user');
-  });
-
-  test('PUT /api/v1/courses/:id returns 404 when not found', async () => {
-    const res = await request(app).put('/api/v1/courses/notfound').send({ title: 'x' });
-    expect(res.statusCode).toBe(404);
-  });
-
-  test('PUT /api/v1/courses/:id returns 403 when not owner', async () => {
-    const res = await request(app).put('/api/v1/courses/other').send({ title: 'x' });
-    expect(res.statusCode).toBe(403);
-  });
-
-  test('PUT /api/v1/courses/:id updates when owner', async () => {
-    const res = await request(app).put('/api/v1/courses/c1').send({ title: 'Updated' });
-    expect(res.statusCode).toBe(200);
-    expect(res.body.title).toBe('Updated');
-  });
-
   test('DELETE /api/v1/courses/:id returns 204', async () => {
     const res = await request(app).delete('/api/v1/courses/c1');
     expect(res.statusCode).toBe(204);

@@ -367,7 +367,9 @@ export default function Register() {
               <div className="mt-3">
                 <div ref={googleBtnRef} />
                 {!import.meta.env.VITE_GOOGLE_CLIENT_ID && (
-                  <div className="mt-2 text-xs text-slate-500">Google Sign-In disabled (no client id)</div>
+                  <div className="mt-2 text-xs text-slate-500">
+                    Google Sign-In disabled (no client id)
+                  </div>
                 )}
               </div>
             </form>

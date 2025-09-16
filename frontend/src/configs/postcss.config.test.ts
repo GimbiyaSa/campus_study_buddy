@@ -1,6 +1,7 @@
 import { test, expect } from 'vitest';
 
 test('postcss config exposes tailwindcss and autoprefixer plugins', async () => {
+  // @ts-ignore
   const mod = await import('../../postcss.config.js');
   const postcssConfig = (mod && mod.default) || mod;
 

@@ -25,7 +25,11 @@ app.use(
   cors({
     // Allow FRONTEND_URL from env, otherwise allow localhost:5173 for local dev.
     origin: (origin, callback) => {
-      const allowed = [process.env.FRONTEND_URL || '', 'http://localhost:5173', 'http://127.0.0.1:5173'].filter(Boolean);
+      const allowed = [
+        process.env.FRONTEND_URL || '',
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+      ].filter(Boolean);
       // If no origin (same-origin or curl), allow it
       if (!origin) return callback(null, true);
       if (allowed.includes(origin)) return callback(null, true);

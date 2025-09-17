@@ -1,34 +1,21 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BookOpen, GraduationCap, Plus, X } from 'lucide-react';
-
-type CourseType = 'institution' | 'casual';
-
-type Course = {
-  id: string;
-  type: CourseType;
-  code?: string; // for institution courses
-  title: string;
-  term?: string; // for institution courses
-  description?: string; // for casual topics
-  progress?: number; // 0..100
-};
+import { DataService, type Course } from '../services/dataService';
 
 export default function CoursesPage() {
   console.log('CoursesPage rendered');
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null); // <-- Add error state
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchCourses() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch('/api/v1/courses');
-        if (!res.ok) throw new Error('Failed to fetch courses');
-        const data = await res.json();
+        const data = await DataService.fetchCourses();
         setCourses(data);
       } catch (err) {
         console.error('Error fetching courses:', err);
@@ -231,7 +218,7 @@ function AddCourseModal({
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
-  const [tab, setTab] = useState<CourseType>('institution');
+  const [tab, setTab] = useState<'institution' | 'casual'>('institution');
 
   // Institution form state
   const [code, setCode] = useState('CS301');

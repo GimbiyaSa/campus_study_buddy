@@ -7,22 +7,18 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Dashboard from './pages/Dashboard';
 import Partners from './pages/Partners';
+import Groups from './pages/Groups';
 import CoursesPage from './pages/CoursesPage';
 import Progress from './pages/Progress';
 import Sessions from './pages/Sessions';
 import Settings from './pages/Settings';
 import Profile from './pages/Profile';
+import { useUser } from './contexts/UserContext';
 
 export default function App() {
-  const getRouteFromPath = () => getRouteFromPathname(); // <-- use helper
+  const { currentUser, loading } = useUser();
+  const getRouteFromPath = () => getRouteFromPathname();
   const [route, setRoute] = useState<string>(getRouteFromPath);
-
-  // BEFORE rendering, detect homepage route
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-  // If no token and route is "dashboard", you could redirect:
-  if (!token && route === 'dashboard') {
-    window.history.replaceState({}, '', '/dashboard');
-  }
 
   useEffect(() => {
     const onPop = () => setRoute(getRouteFromPath());
@@ -30,15 +26,24 @@ export default function App() {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
+  // Routes that don't require authentication
+  const publicRoutes = new Set(['home', 'register', 'forgot-password', 'forgot-username']);
+  
+  // Routes that need chrome (header/sidebar) when authenticated
+  const chromeRoutes = new Set(['dashboard', 'partners', 'groups', 'courses', 'progress', 'sessions', 'settings', 'profile']);
+
   const renderPage = () => {
     switch (route) {
       case 'home':
-      default:
         return <Home />;
       case 'register':
         return <Register />;
+      case 'dashboard':
+        return <Dashboard />;
       case 'partners':
         return <Partners />;
+      case 'groups':
+        return <Groups />;
       case 'courses':
         return <CoursesPage />;
       case 'progress':
@@ -49,21 +54,40 @@ export default function App() {
         return <Settings />;
       case 'profile':
         return <Profile />;
-      case 'dashboard':
-        return <Dashboard />;
+      default:
+        return <Home />;
     }
   };
 
-  // Hide chrome on these routes
-  const noChromeRoutes = new Set(['home', 'register', 'forgot-password', 'forgot-username']);
-  const chromeVisible = !noChromeRoutes.has(route);
+  // Show loading state while checking user
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500"></div>
+      </div>
+    );
+  }
+
+  // If user is not logged in and trying to access protected route, redirect to home
+  if (!currentUser && !publicRoutes.has(route)) {
+    // Redirect to home page
+    window.history.replaceState({}, '', '/');
+    setRoute('home');
+    return (
+      <main className="p-6 md:p-10">
+        <Home />
+      </main>
+    );
+  }
+
+  // Determine if we should show chrome (header/sidebar)
+  const shouldShowChrome = currentUser && chromeRoutes.has(route);
 
   return (
     <div className="min-h-screen relative">
-      {/* same green background as dashboard */}
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(1200px_600px_at_20%_0%,#E9FAF1_0%,transparent_50%),radial-gradient(1200px_600px_at_100%_0%,transparent_40%)]" />
 
-      {chromeVisible ? (
+      {shouldShowChrome ? (
         <div className="flex min-h-screen">
           <Sidebar />
           <div className="flex-1 flex flex-col">
@@ -72,7 +96,6 @@ export default function App() {
           </div>
         </div>
       ) : (
-        // Auth/marketing pages: full-bleed, no sidebar/header
         <main className="p-6 md:p-10">{renderPage()}</main>
       )}
     </div>

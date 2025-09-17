@@ -1,6 +1,7 @@
 import { useState, useId } from 'react';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
 import { navigate } from '../router';
+import { useUser } from '../contexts/UserContext';
 import logo from '../assets/logo.jpg';
 
 export default function Login() {
@@ -14,11 +15,27 @@ export default function Login() {
   const pwdId = useId();
   const errId = useId();
 
+  const { login } = useUser();
+
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
     try {
+      // Simple mock user for development testing
+      const mockUser = {
+        user_id: 1,
+        email: 'john.doe@university.edu',
+        first_name: 'John',
+        last_name: 'Doe',
+        university: 'University of Technology',
+        course: 'Computer Science',
+        year_of_study: 3,
+        is_active: true,
+      };
+
+      login(mockUser);
+
       // TODO: replace with real auth
       navigate('/dashboard');
     } catch (err: any) {

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Plus, MessageCircle, Bell, Target } from 'lucide-react';
+import { navigate } from '../router';
+import { DataService, type Course } from '../services/dataService';
 
 export default function Courses() {
-  const [courses, setCourses] = useState<{ title: string; teacher: string; progress: number }[]>(
-    []
-  );
+  const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -13,18 +13,10 @@ export default function Courses() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch('/api/v1/courses');
-        if (!res.ok) throw new Error('Failed to fetch courses');
-        const data = await res.json();
-        // Adapt data if needed to match { title, teacher, progress }
-        setCourses(
-          data.map((c: any) => ({
-            title: c.title,
-            teacher: c.teacher || c.ownerName || 'Unknown',
-            progress: c.progress ?? 0,
-          }))
-        );
+        const data = await DataService.fetchCourses();
+        setCourses(data);
       } catch (err) {
+        console.error('Failed to fetch courses:', err);
         setError('Failed to fetch courses.');
       } finally {
         setLoading(false);
@@ -33,9 +25,9 @@ export default function Courses() {
     fetchCourses();
   }, []);
 
-  const avg =
-    Math.round((courses.reduce((s, c) => s + c.progress, 0) / Math.max(courses.length, 1)) * 10) /
-    10;
+  const avg = courses.length > 0
+    ? Math.round((courses.reduce((s, c) => s + (c.progress ?? 0), 0) / courses.length) * 10) / 10
+    : 0;
 
   // donut sizes
   const size = 120;
@@ -49,41 +41,55 @@ export default function Courses() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-semibold text-gray-900">My Courses</h2>
-        <a href="/courses" className="text-sm font-medium text-brand-600 hover:text-brand-700">
+        <button
+          onClick={() => navigate('/courses')}
+          className="text-sm font-medium text-brand-600 hover:text-brand-700"
+        >
           See all
-        </a>
+        </button>
       </div>
 
-      {/* Error message */}
-      {error && <div className="rounded-lg bg-red-100 text-red-800 px-4 py-2 mb-4">{error}</div>}
+      {/* Error (soft) */}
+      {error && (
+        <div className="rounded-lg bg-blue-50 text-blue-800 px-4 py-2 mb-4">Showing demo courses</div>
+      )}
 
       {/* Course list */}
       {loading ? (
         <div className="text-center text-slate-600">Loading courses...</div>
       ) : (
         <ul className="space-y-4">
-          {courses.map((c, i) => (
+          {courses.slice(0, 3).map((course) => (
             <li
-              key={i}
+              key={course.id}
+              title={`${course.code ? course.code + ' · ' : ''}${course.title} • ${course.progress ?? 0}% complete`}
               className="flex items-center justify-between gap-4 p-4 rounded-xl border border-gray-100 hover:bg-gray-50/60 transition"
             >
               <div className="flex items-center gap-4 min-w-0">
                 <div className="w-10 h-10 rounded-xl bg-brand-100 text-brand-700 grid place-items-center font-semibold shadow-soft shrink-0">
-                  {String(c.title.match(/[A-Z]/g)?.slice(0, 2).join('') ?? 'C')}
+                  {course.code ? course.code.slice(0, 2).toUpperCase() : course.title.slice(0, 2).toUpperCase()}
                 </div>
                 <div className="min-w-0">
-                  <p className="font-medium text-gray-900 truncate">{c.title}</p>
-                  <p className="text-xs text-gray-500">By {c.teacher}</p>
+                  <p className="font-medium text-gray-900 truncate">
+                    {course.code && <span className="text-gray-500 mr-1">{course.code}</span>}
+                    {course.title}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {course.type === 'institution' ? course.term : 'Casual topic'}
+                  </p>
                   <div className="mt-2 w-44 h-2 rounded-full bg-gray-200 overflow-hidden">
                     <div
                       className="h-full bg-brand-500 rounded-full"
-                      style={{ width: `${c.progress}%` }}
+                      style={{ width: `${course.progress ?? 0}%` }}
                     />
                   </div>
                 </div>
               </div>
 
-              <button className="px-3 py-1.5 rounded-full text-sm bg-white border border-gray-200 hover:bg-gray-50 shadow-soft shrink-0">
+              <button 
+                onClick={() => navigate('/courses')} 
+                className="px-3 py-1.5 rounded-full text-sm bg-white border border-gray-200 hover:bg-gray-50 shadow-soft shrink-0"
+              >
                 View Course
               </button>
             </li>
@@ -144,34 +150,34 @@ export default function Courses() {
             <div className="flex flex-col justify-center">
               <p className="font-medium text-gray-900 mb-2">Quick actions</p>
               <div className="flex flex-wrap gap-2">
-                <a
-                  href="/courses"
+                <button
+                  onClick={() => navigate('/courses')}
                   className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm hover:bg-gray-50"
                 >
                   <Plus className="w-4 h-4" />
                   Add course
-                </a>
-                <a
-                  href="/partners"
+                </button>
+                <button
+                  onClick={() => navigate('/partners')}
                   className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm hover:bg-gray-50"
                 >
                   <MessageCircle className="w-4 h-4" />
                   Chat with study partners
-                </a>
-                <a
-                  href="/BuddySearch"
+                </button>
+                <button
+                  onClick={() => navigate('/sessions')}
                   className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm hover:bg-gray-50"
                 >
                   <Bell className="w-4 h-4" />
-                  View reminders
-                </a>
-                <a
-                  href="/goals"
+                  View sessions
+                </button>
+                <button
+                  onClick={() => navigate('/progress')}
                   className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm hover:bg-gray-50"
                 >
                   <Target className="w-4 h-4" />
-                  Set study goals
-                </a>
+                  View progress
+                </button>
               </div>
             </div>
           </div>

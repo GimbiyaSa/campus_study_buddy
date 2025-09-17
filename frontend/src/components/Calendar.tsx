@@ -1,90 +1,503 @@
-import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { ChevronLeft, ChevronRight, Plus, Clock, MapPin, Users, X } from 'lucide-react';
+import { DataService, type StudySession } from '../services/dataService';
+
+type ViewMode = 'day' | 'week' | 'month';
 
 export default function Calendar() {
-  const [cursor, setCursor] = useState(new Date());
+  const [sessions, setSessions] = useState<StudySession[]>([]);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [view, setView] = useState<ViewMode>('month');
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [hoveredDate, setHoveredDate] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const { monthLabel, year, days } = useMemo(() => {
-    const y = cursor.getFullYear();
-    const m = cursor.getMonth();
-    const first = new Date(y, m, 1);
-    const last = new Date(y, m + 1, 0);
-    const daysInMonth = last.getDate();
-    const toMonIdx = (d: number) => (d + 6) % 7;
-    const padStart = toMonIdx(first.getDay());
-    const padEnd = 6 - toMonIdx(last.getDay());
+  useEffect(() => {
+    async function fetchSessions() {
+      setLoading(true);
+      try {
+        const data = await DataService.fetchSessions();
+        setSessions(data);
+      } catch (error) {
+        console.error('Error fetching sessions:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
 
-    return {
-      monthLabel: cursor.toLocaleString(undefined, { month: 'long' }),
-      year: y,
-      days: [
-        ...Array.from({ length: padStart }, () => null),
-        ...Array.from({ length: daysInMonth }, (_, i) => new Date(y, m, i + 1)),
-        ...Array.from({ length: padEnd }, () => null),
-      ],
-    };
-  }, [cursor]);
+    fetchSessions();
+  }, []);
+
+  const formatTime = (time: string) => {
+    const [hours, minutes] = time.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}:${minutes} ${ampm}`;
+  };
+
+  const getSessionsForDate = (date: Date) => {
+    const dateStr = date.toISOString().split('T')[0];
+    return sessions.filter(session => session.date === dateStr);
+  };
+
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const startDate = new Date(firstDay);
+    startDate.setDate(startDate.getDate() - firstDay.getDay()); // Start from Sunday
+
+    const days = [];
+    const current = new Date(startDate);
+    
+    // Generate 42 days (6 weeks) for calendar grid
+    for (let i = 0; i < 42; i++) {
+      days.push(new Date(current));
+      current.setDate(current.getDate() + 1);
+    }
+    
+    return days;
+  };
+
+  const navigateMonth = (direction: 'prev' | 'next') => {
+    const newDate = new Date(currentDate);
+    newDate.setMonth(currentDate.getMonth() + (direction === 'next' ? 1 : -1));
+    setCurrentDate(newDate);
+  };
+
+  const handleDateClick = (date: Date) => {
+    setSelectedDate(date);
+    setShowScheduleModal(true);
+  };
+
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   const today = new Date();
-  const isToday = (d: Date | null) =>
-    !!d &&
-    d.getDate() === today.getDate() &&
-    d.getMonth() === today.getMonth() &&
-    d.getFullYear() === today.getFullYear();
+  const isToday = (date: Date) => {
+    return date.toDateString() === today.toDateString();
+  };
+
+  const isCurrentMonth = (date: Date) => {
+    return date.getMonth() === currentDate.getMonth();
+  };
+
+  const calendarDays = getDaysInMonth(currentDate);
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-900">Calendar</h2>
+          <div className="h-8 w-32 bg-slate-200 rounded animate-pulse"></div>
+        </div>
+        <div className="h-96 bg-slate-100 rounded-xl animate-pulse"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-white rounded-2xl shadow-card p-6">
+    <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-semibold text-gray-900">
-            {monthLabel} {year}
-          </h3>
-          <p className="text-xs text-gray-500">Mon — Sun</p>
-        </div>
+        <h2 className="text-lg font-semibold text-slate-900">Calendar</h2>
         <div className="flex items-center gap-2">
+          {/* View Toggle */}
+          <div className="flex rounded-lg border border-slate-200 p-1">
+            {(['day', 'week', 'month'] as ViewMode[]).map((viewMode) => (
+              <button
+                key={viewMode}
+                onClick={() => setView(viewMode)}
+                className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                  view === viewMode
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {viewMode.charAt(0).toUpperCase() + viewMode.slice(1)}
+              </button>
+            ))}
+          </div>
+          
           <button
-            aria-label="Previous month"
-            onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}
-            className="p-2 rounded-lg hover:bg-gray-50 border border-gray-200"
+            onClick={() => setShowScheduleModal(true)}
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white hover:bg-emerald-700"
           >
-            <ChevronLeft className="w-4 h-4 text-gray-700" />
-          </button>
-          <button
-            aria-label="Next month"
-            onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}
-            className="p-2 rounded-lg hover:bg-gray-50 border border-gray-200"
-          >
-            <ChevronRight className="w-4 h-4 text-gray-700" />
+            <Plus className="h-4 w-4" />
+            New session
           </button>
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-7 text-[11px] font-medium text-gray-500">
-        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
-          <div key={d} className="py-1 text-center">
-            {d}
-          </div>
-        ))}
+      {/* Month Navigation */}
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => navigateMonth('prev')}
+          className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
+        >
+          <ChevronLeft className="h-5 w-5 text-slate-600" />
+        </button>
+        
+        <h3 className="text-xl font-semibold text-slate-900">
+          {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
+        </h3>
+        
+        <button
+          onClick={() => navigateMonth('next')}
+          className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
+        >
+          <ChevronRight className="h-5 w-5 text-slate-600" />
+        </button>
       </div>
 
-      <div className="grid grid-cols-7 gap-y-1 text-sm">
-        {days.map((d, i) => (
-          <div key={i} className="h-10">
-            {d ? (
-              <div className="h-10 flex items-center justify-center">
-                <div
-                  className={`w-8 h-8 grid place-items-center rounded-full ${
-                    isToday(d) ? 'bg-brand-500 text-white' : 'text-gray-700 hover:bg-brand-50'
-                  }`}
-                  aria-current={isToday(d) ? 'date' : undefined}
-                >
-                  {d.getDate()}
-                </div>
-              </div>
-            ) : null}
+      {/* Calendar Grid */}
+      <div className="grid grid-cols-7 gap-1 bg-slate-50 p-4 rounded-xl">
+        {/* Day Headers */}
+        {dayNames.map((day) => (
+          <div key={day} className="text-center text-sm font-medium text-slate-600 p-2">
+            {day}
           </div>
         ))}
+
+        {/* Calendar Days */}
+        {calendarDays.map((date, index) => {
+          const dateStr = date.toISOString().split('T')[0];
+          const dateSessions = getSessionsForDate(date);
+          const isCurrentMonthDay = isCurrentMonth(date);
+          const isTodayDate = isToday(date);
+
+          return (
+            <div
+              key={index}
+              className={`relative min-h-[80px] p-2 rounded-lg cursor-pointer transition-all border ${
+                isTodayDate
+                  ? 'bg-emerald-50 border-emerald-200'
+                  : hoveredDate === dateStr
+                  ? 'bg-blue-50 border-blue-200'
+                  : isCurrentMonthDay
+                  ? 'bg-white border-slate-200 hover:bg-slate-50'
+                  : 'bg-slate-50 border-transparent text-slate-400'
+              }`}
+              onClick={() => handleDateClick(date)}
+              onMouseEnter={() => setHoveredDate(dateStr)}
+              onMouseLeave={() => setHoveredDate(null)}
+            >
+              {/* Date Number */}
+              <div className={`text-sm font-medium ${
+                isTodayDate
+                  ? 'text-emerald-700'
+                  : isCurrentMonthDay
+                  ? 'text-slate-900'
+                  : 'text-slate-400'
+              }`}>
+                {date.getDate()}
+              </div>
+
+              {/* Session Indicators */}
+              <div className="mt-1 space-y-1">
+                {dateSessions.slice(0, 2).map((session) => (
+                  <div
+                    key={session.id}
+                    className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md truncate"
+                    title={`${session.title} - ${formatTime(session.startTime)}`}
+                  >
+                    {formatTime(session.startTime)} {session.title}
+                  </div>
+                ))}
+                {dateSessions.length > 2 && (
+                  <div className="text-xs text-slate-500 px-2">
+                    +{dateSessions.length - 2} more
+                  </div>
+                )}
+              </div>
+
+              {/* Hover Tooltip */}
+              {hoveredDate === dateStr && dateSessions.length > 0 && (
+                <div className="absolute top-full left-0 z-10 mt-1 w-64 bg-white border border-slate-200 rounded-lg shadow-lg p-3">
+                  <div className="space-y-2">
+                    {dateSessions.map((session) => (
+                      <div key={session.id} className="text-sm">
+                        <div className="font-medium text-slate-900">{session.title}</div>
+                        <div className="text-slate-600 flex items-center gap-2">
+                          <Clock className="h-3 w-3" />
+                          {formatTime(session.startTime)} - {formatTime(session.endTime)}
+                        </div>
+                        <div className="text-slate-600 flex items-center gap-2">
+                          <MapPin className="h-3 w-3" />
+                          {session.location}
+                        </div>
+                        <div className="text-slate-600 flex items-center gap-2">
+                          <Users className="h-3 w-3" />
+                          {session.participants}{session.maxParticipants && `/${session.maxParticipants}`} participants
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
+
+      {/* Schedule Session Modal */}
+      <ScheduleSessionModal
+        open={showScheduleModal}
+        onClose={() => {
+          setShowScheduleModal(false);
+          setSelectedDate(null);
+        }}
+        selectedDate={selectedDate}
+        onSessionCreated={(newSession) => {
+          setSessions(prev => [...prev, newSession]);
+          setShowScheduleModal(false);
+          setSelectedDate(null);
+        }}
+      />
     </div>
+  );
+}
+
+function ScheduleSessionModal({
+  open,
+  onClose,
+  selectedDate,
+  onSessionCreated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  selectedDate: Date | null;
+  onSessionCreated: (session: StudySession) => void;
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const [title, setTitle] = useState('');
+  const [course, setCourse] = useState('');
+  const [courseCode, setCourseCode] = useState('');
+  const [date, setDate] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [location, setLocation] = useState('');
+  const [type, setType] = useState<StudySession['type']>('study');
+  const [maxParticipants, setMaxParticipants] = useState<number | undefined>();
+
+  useLayoutEffect(() => {
+    if (!open) return;
+
+    if (selectedDate) {
+      setDate(selectedDate.toISOString().split('T')[0]);
+    }
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = '';
+    };
+  }, [open, selectedDate, onClose]);
+
+  if (!open) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !date || !startTime || !endTime || !location.trim()) return;
+
+    const newSession: StudySession = {
+      id: Date.now().toString(),
+      title: title.trim(),
+      course: course.trim() || undefined,
+      courseCode: courseCode.trim() || undefined,
+      date,
+      startTime,
+      endTime,
+      location: location.trim(),
+      type,
+      participants: 1,
+      maxParticipants,
+    };
+
+    onSessionCreated(newSession);
+    
+    // Reset form
+    setTitle('');
+    setCourse('');
+    setCourseCode('');
+    setDate('');
+    setStartTime('');
+    setEndTime('');
+    setLocation('');
+    setType('study');
+    setMaxParticipants(undefined);
+  };
+
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-[9998] bg-black/40" onClick={onClose} />
+      <div className="fixed inset-0 z-[9999] grid place-items-center p-4">
+        <div
+          ref={dialogRef}
+          className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"
+        >
+          <div className="flex items-start justify-between mb-6">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Schedule Study Session</h2>
+              <p className="text-sm text-slate-600">Create a new collaborative study session</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="rounded-lg p-2 hover:bg-slate-50 transition-colors"
+            >
+              <X className="h-5 w-5 text-slate-600" />
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block mb-1 text-sm font-medium text-slate-800">
+                Session Title <span className="text-red-500">*</span>
+              </label>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g., Algorithm Study Group"
+                required
+                className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block mb-1 text-sm font-medium text-slate-800">Course Code</label>
+                <input
+                  value={courseCode}
+                  onChange={(e) => setCourseCode(e.target.value)}
+                  placeholder="e.g., CS301"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+              <div>
+                <label className="block mb-1 text-sm font-medium text-slate-800">Course Name</label>
+                <input
+                  value={course}
+                  onChange={(e) => setCourse(e.target.value)}
+                  placeholder="e.g., Data Structures"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block mb-1 text-sm font-medium text-slate-800">
+                Date <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                required
+                className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block mb-1 text-sm font-medium text-slate-800">
+                  Start Time <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  required
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+              <div>
+                <label className="block mb-1 text-sm font-medium text-slate-800">
+                  End Time <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  required
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block mb-1 text-sm font-medium text-slate-800">
+                Location <span className="text-red-500">*</span>
+              </label>
+              <input
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="e.g., Library Room 204"
+                required
+                className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block mb-1 text-sm font-medium text-slate-800">Session Type</label>
+                <select
+                  value={type}
+                  onChange={(e) => setType(e.target.value as StudySession['type'])}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                >
+                  <option value="study">Study Group</option>
+                  <option value="review">Review Session</option>
+                  <option value="project">Project Work</option>
+                  <option value="exam_prep">Exam Preparation</option>
+                  <option value="discussion">Discussion</option>
+                </select>
+              </div>
+              <div>
+                <label className="block mb-1 text-sm font-medium text-slate-800">Max Participants</label>
+                <input
+                  type="number"
+                  min="2"
+                  max="20"
+                  value={maxParticipants || ''}
+                  onChange={(e) => setMaxParticipants(e.target.value ? parseInt(e.target.value) : undefined)}
+                  placeholder="Optional"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="rounded-xl bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
+              >
+                Create Session
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </>,
+    document.body
   );
 }

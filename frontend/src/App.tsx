@@ -28,9 +28,18 @@ export default function App() {
 
   // Routes that don't require authentication
   const publicRoutes = new Set(['home', 'register', 'forgot-password', 'forgot-username']);
-  
+
   // Routes that need chrome (header/sidebar) when authenticated
-  const chromeRoutes = new Set(['dashboard', 'partners', 'groups', 'courses', 'progress', 'sessions', 'settings', 'profile']);
+  const chromeRoutes = new Set([
+    'dashboard',
+    'partners',
+    'groups',
+    'courses',
+    'progress',
+    'sessions',
+    'settings',
+    'profile',
+  ]);
 
   const renderPage = () => {
     switch (route) {

@@ -14,15 +14,57 @@ type NavigationItem = {
 export default function Sidebar() {
   const { currentUser, loading } = useUser();
   const [currentRoute, setCurrentRoute] = useState(getRouteFromPathname());
-  
+
   const navigationItems: NavigationItem[] = [
-    { id: '1', label: 'Dashboard', icon: Home, path: '/dashboard', active: currentRoute === 'dashboard' },
-    { id: '2', label: 'Find Buddies', icon: Users, path: '/partners', active: currentRoute === 'partners' },
-    { id: '3', label: 'Study Groups', icon: Users, path: '/groups', active: currentRoute === 'groups' },
-    { id: '4', label: 'Sessions', icon: Calendar, path: '/sessions', active: currentRoute === 'sessions' },
-    { id: '5', label: 'Courses', icon: BookOpen, path: '/courses', active: currentRoute === 'courses' },
-    { id: '6', label: 'Progress', icon: TrendingUp, path: '/progress', active: currentRoute === 'progress' },
-    { id: '7', label: 'Profile', icon: MessageSquare, path: '/profile', active: currentRoute === 'profile' },
+    {
+      id: '1',
+      label: 'Dashboard',
+      icon: Home,
+      path: '/dashboard',
+      active: currentRoute === 'dashboard',
+    },
+    {
+      id: '2',
+      label: 'Find Buddies',
+      icon: Users,
+      path: '/partners',
+      active: currentRoute === 'partners',
+    },
+    {
+      id: '3',
+      label: 'Study Groups',
+      icon: Users,
+      path: '/groups',
+      active: currentRoute === 'groups',
+    },
+    {
+      id: '4',
+      label: 'Sessions',
+      icon: Calendar,
+      path: '/sessions',
+      active: currentRoute === 'sessions',
+    },
+    {
+      id: '5',
+      label: 'Courses',
+      icon: BookOpen,
+      path: '/courses',
+      active: currentRoute === 'courses',
+    },
+    {
+      id: '6',
+      label: 'Progress',
+      icon: TrendingUp,
+      path: '/progress',
+      active: currentRoute === 'progress',
+    },
+    {
+      id: '7',
+      label: 'Profile',
+      icon: MessageSquare,
+      path: '/profile',
+      active: currentRoute === 'profile',
+    },
   ];
 
   // Listen for route changes
@@ -68,7 +110,7 @@ export default function Sidebar() {
       {/* Navigation - takes up full space now */}
       <nav className="flex-1 p-4">
         <ul className="space-y-2">
-          {navigationItems.map(item => {
+          {navigationItems.map((item) => {
             const IconComponent = item.icon;
             return (
               <li key={item.id}>

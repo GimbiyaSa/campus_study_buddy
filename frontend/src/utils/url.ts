@@ -4,7 +4,7 @@ export const getBaseUrl = (): string => {
   if (typeof window !== 'undefined' && window.location) {
     return window.location.origin;
   }
-  
+
   // In Node.js test environment, provide localhost fallback
   return 'http://localhost:3000';
 };

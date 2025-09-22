@@ -35,14 +35,18 @@ export default function BuddySearch() {
       try {
         const partners = await DataService.fetchPartners();
         // Transform StudyPartner to Suggestion format
-        const transformedSuggestions: Suggestion[] = partners.map(partner => ({
+        const transformedSuggestions: Suggestion[] = partners.map((partner) => ({
           id: partner.id,
           name: partner.name,
           major: partner.major || 'Unknown Major',
           overlap: `${Math.floor(Math.random() * 3) + 1} mutual courses`,
           tags: ['Morning', 'On-campus'], // Mock for now
-          initials: partner.name.split(' ').map(n => n[0]).join('').toUpperCase(),
-          bio: partner.bio
+          initials: partner.name
+            .split(' ')
+            .map((n) => n[0])
+            .join('')
+            .toUpperCase(),
+          bio: partner.bio,
         }));
         setSuggestions(transformedSuggestions);
       } catch (err) {
@@ -93,13 +97,20 @@ export default function BuddySearch() {
       <div className="bg-white p-6 rounded-xl shadow-card border border-gray-100">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold text-gray-900">Study Buddy Suggestions</h2>
-          <button onClick={() => navigate('/partners')} className="text-sm font-medium text-brand-600 hover:text-brand-700">
+          <button
+            onClick={() => navigate('/partners')}
+            className="text-sm font-medium text-brand-600 hover:text-brand-700"
+          >
             See all
           </button>
         </div>
 
         {/* Error message (following Courses.tsx pattern) */}
-        {error && <div className="rounded-lg bg-blue-50 text-blue-800 px-4 py-2 mb-4">Showing demo suggestions</div>}
+        {error && (
+          <div className="rounded-lg bg-blue-50 text-blue-800 px-4 py-2 mb-4">
+            Showing demo suggestions
+          </div>
+        )}
 
         {/* Loading and content (following Courses.tsx pattern) */}
         {loading ? (

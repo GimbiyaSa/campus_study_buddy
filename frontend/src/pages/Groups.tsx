@@ -125,10 +125,14 @@ export default function Groups() {
 
   const getGroupTypeColor = (type: string) => {
     switch (type) {
-      case 'exam_prep': return 'text-red-600 bg-red-100';
-      case 'project': return 'text-blue-600 bg-blue-100';
-      case 'discussion': return 'text-purple-600 bg-purple-100';
-      default: return 'text-green-600 bg-green-100';
+      case 'exam_prep':
+        return 'text-red-600 bg-red-100';
+      case 'project':
+        return 'text-blue-600 bg-blue-100';
+      case 'discussion':
+        return 'text-purple-600 bg-purple-100';
+      default:
+        return 'text-green-600 bg-green-100';
     }
   };
 
@@ -155,14 +159,21 @@ export default function Groups() {
         <div className="text-center text-slate-600">Loading study groups...</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {groups.filter(Boolean).map(group => {
+          {groups.filter(Boolean).map((group) => {
             if (!group || !group.group_name || !group.group_type) return null;
             return (
-              <div key={group.group_id} className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition">
+              <div
+                key={group.group_id}
+                className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition"
+              >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">{group.group_name}</h3>
-                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getGroupTypeColor(group.group_type)} mb-3`}>
+                    <span
+                      className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getGroupTypeColor(
+                        group.group_type
+                      )} mb-3`}
+                    >
                       {group.group_type.replace('_', ' ').toUpperCase()}
                     </span>
                   </div>
@@ -175,7 +186,9 @@ export default function Groups() {
                 <div className="space-y-2 text-sm text-gray-600 mb-4">
                   <div className="flex items-center gap-2">
                     <Users className="w-4 h-4" />
-                    <span>{group.member_count || 0}/{group.max_members} members</span>
+                    <span>
+                      {group.member_count || 0}/{group.max_members} members
+                    </span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

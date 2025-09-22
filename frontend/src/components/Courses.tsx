@@ -25,9 +25,10 @@ export default function Courses() {
     fetchCourses();
   }, []);
 
-  const avg = courses.length > 0
-    ? Math.round((courses.reduce((s, c) => s + (c.progress ?? 0), 0) / courses.length) * 10) / 10
-    : 0;
+  const avg =
+    courses.length > 0
+      ? Math.round((courses.reduce((s, c) => s + (c.progress ?? 0), 0) / courses.length) * 10) / 10
+      : 0;
 
   // donut sizes
   const size = 120;
@@ -51,7 +52,9 @@ export default function Courses() {
 
       {/* Error (soft) */}
       {error && (
-        <div className="rounded-lg bg-blue-50 text-blue-800 px-4 py-2 mb-4">Showing demo courses</div>
+        <div className="rounded-lg bg-blue-50 text-blue-800 px-4 py-2 mb-4">
+          Showing demo courses
+        </div>
       )}
 
       {/* Course list */}
@@ -62,12 +65,16 @@ export default function Courses() {
           {courses.slice(0, 3).map((course) => (
             <li
               key={course.id}
-              title={`${course.code ? course.code + ' · ' : ''}${course.title} • ${course.progress ?? 0}% complete`}
+              title={`${course.code ? course.code + ' · ' : ''}${course.title} • ${
+                course.progress ?? 0
+              }% complete`}
               className="flex items-center justify-between gap-4 p-4 rounded-xl border border-gray-100 hover:bg-gray-50/60 transition"
             >
               <div className="flex items-center gap-4 min-w-0">
                 <div className="w-10 h-10 rounded-xl bg-brand-100 text-brand-700 grid place-items-center font-semibold shadow-soft shrink-0">
-                  {course.code ? course.code.slice(0, 2).toUpperCase() : course.title.slice(0, 2).toUpperCase()}
+                  {course.code
+                    ? course.code.slice(0, 2).toUpperCase()
+                    : course.title.slice(0, 2).toUpperCase()}
                 </div>
                 <div className="min-w-0">
                   <p className="font-medium text-gray-900 truncate">
@@ -86,8 +93,8 @@ export default function Courses() {
                 </div>
               </div>
 
-              <button 
-                onClick={() => navigate('/courses')} 
+              <button
+                onClick={() => navigate('/courses')}
                 className="px-3 py-1.5 rounded-full text-sm bg-white border border-gray-200 hover:bg-gray-50 shadow-soft shrink-0"
               >
                 View Course

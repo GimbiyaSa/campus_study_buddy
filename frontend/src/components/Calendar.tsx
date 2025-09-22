@@ -40,7 +40,7 @@ export default function Calendar() {
 
   const getSessionsForDate = (date: Date) => {
     const dateStr = date.toISOString().split('T')[0];
-    return sessions.filter(session => session.date === dateStr);
+    return sessions.filter((session) => session.date === dateStr);
   };
 
   const getDaysInMonth = (date: Date) => {
@@ -52,13 +52,13 @@ export default function Calendar() {
 
     const days = [];
     const current = new Date(startDate);
-    
+
     // Generate 42 days (6 weeks) for calendar grid
     for (let i = 0; i < 42; i++) {
       days.push(new Date(current));
       current.setDate(current.getDate() + 1);
     }
-    
+
     return days;
   };
 
@@ -74,8 +74,18 @@ export default function Calendar() {
   };
 
   const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
   ];
 
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -125,7 +135,7 @@ export default function Calendar() {
               </button>
             ))}
           </div>
-          
+
           <button
             onClick={() => setShowScheduleModal(true)}
             className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white hover:bg-emerald-700"
@@ -144,11 +154,11 @@ export default function Calendar() {
         >
           <ChevronLeft className="h-5 w-5 text-slate-600" />
         </button>
-        
+
         <h3 className="text-xl font-semibold text-slate-900">
           {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
         </h3>
-        
+
         <button
           onClick={() => navigateMonth('next')}
           className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
@@ -190,13 +200,15 @@ export default function Calendar() {
               onMouseLeave={() => setHoveredDate(null)}
             >
               {/* Date Number */}
-              <div className={`text-sm font-medium ${
-                isTodayDate
-                  ? 'text-emerald-700'
-                  : isCurrentMonthDay
-                  ? 'text-slate-900'
-                  : 'text-slate-400'
-              }`}>
+              <div
+                className={`text-sm font-medium ${
+                  isTodayDate
+                    ? 'text-emerald-700'
+                    : isCurrentMonthDay
+                    ? 'text-slate-900'
+                    : 'text-slate-400'
+                }`}
+              >
                 {date.getDate()}
               </div>
 
@@ -212,9 +224,7 @@ export default function Calendar() {
                   </div>
                 ))}
                 {dateSessions.length > 2 && (
-                  <div className="text-xs text-slate-500 px-2">
-                    +{dateSessions.length - 2} more
-                  </div>
+                  <div className="text-xs text-slate-500 px-2">+{dateSessions.length - 2} more</div>
                 )}
               </div>
 
@@ -235,7 +245,8 @@ export default function Calendar() {
                         </div>
                         <div className="text-slate-600 flex items-center gap-2">
                           <Users className="h-3 w-3" />
-                          {session.participants}{session.maxParticipants && `/${session.maxParticipants}`} participants
+                          {session.participants}
+                          {session.maxParticipants && `/${session.maxParticipants}`} participants
                         </div>
                       </div>
                     ))}
@@ -256,7 +267,7 @@ export default function Calendar() {
         }}
         selectedDate={selectedDate}
         onSessionCreated={(newSession) => {
-          setSessions(prev => [...prev, newSession]);
+          setSessions((prev) => [...prev, newSession]);
           setShowScheduleModal(false);
           setSelectedDate(null);
         }}
@@ -328,7 +339,7 @@ function ScheduleSessionModal({
     };
 
     onSessionCreated(newSession);
-    
+
     // Reset form
     setTitle('');
     setCourse('');
@@ -452,7 +463,9 @@ function ScheduleSessionModal({
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block mb-1 text-sm font-medium text-slate-800">Session Type</label>
+                <label className="block mb-1 text-sm font-medium text-slate-800">
+                  Session Type
+                </label>
                 <select
                   value={type}
                   onChange={(e) => setType(e.target.value as StudySession['type'])}
@@ -466,13 +479,17 @@ function ScheduleSessionModal({
                 </select>
               </div>
               <div>
-                <label className="block mb-1 text-sm font-medium text-slate-800">Max Participants</label>
+                <label className="block mb-1 text-sm font-medium text-slate-800">
+                  Max Participants
+                </label>
                 <input
                   type="number"
                   min="2"
                   max="20"
                   value={maxParticipants || ''}
-                  onChange={(e) => setMaxParticipants(e.target.value ? parseInt(e.target.value) : undefined)}
+                  onChange={(e) =>
+                    setMaxParticipants(e.target.value ? parseInt(e.target.value) : undefined)
+                  }
                   placeholder="Optional"
                   className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
                 />

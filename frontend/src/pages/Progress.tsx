@@ -37,7 +37,7 @@ export default function Progress() {
     currentStreak: 0,
     longestStreak: 0,
   });
-  
+
   const [courses, setCourses] = useState<CourseProgress[]>([]);
   const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -132,10 +132,9 @@ export default function Progress() {
     fetchProgress();
   }, []);
 
-  const progressPercentage = stats.totalCourses > 0 
-    ? Math.round((stats.coursesCompleted / stats.totalCourses) * 100) 
-    : 0;
-  
+  const progressPercentage =
+    stats.totalCourses > 0 ? Math.round((stats.coursesCompleted / stats.totalCourses) * 100) : 0;
+
   const weeklyGoalPercentage = Math.round((stats.weeklyStudyHours / stats.weeklyGoal) * 100);
 
   if (loading) {
@@ -151,7 +150,9 @@ export default function Progress() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Track my progress</h1>
-        <p className="text-slate-600 text-sm">Monitor your study habits and academic achievements</p>
+        <p className="text-slate-600 text-sm">
+          Monitor your study habits and academic achievements
+        </p>
       </div>
 
       {/* Stats Overview */}
@@ -194,12 +195,12 @@ export default function Progress() {
         </div>
         <div className="flex items-end justify-between gap-2 h-48">
           {weeklyData.map((day) => {
-            const maxHours = Math.max(...weeklyData.map(d => d.hours));
+            const maxHours = Math.max(...weeklyData.map((d) => d.hours));
             const height = maxHours > 0 ? (day.hours / maxHours) * 100 : 0;
-            
+
             return (
               <div key={day.day} className="flex flex-col items-center gap-2 flex-1">
-                <div 
+                <div
                   className="w-full bg-emerald-500 rounded-t-md min-h-[4px] transition-all"
                   style={{ height: `${height}%` }}
                   title={`${day.hours} hours`}
@@ -240,10 +241,11 @@ export default function Progress() {
           />
         </div>
         <p className="text-sm text-slate-600 mt-2">
-          {weeklyGoalPercentage >= 100 
-            ? '🎉 Great job! You\'ve reached your weekly goal!' 
-            : `${(stats.weeklyGoal - stats.weeklyStudyHours).toFixed(1)} hours left to reach your goal`
-          }
+          {weeklyGoalPercentage >= 100
+            ? "🎉 Great job! You've reached your weekly goal!"
+            : `${(stats.weeklyGoal - stats.weeklyStudyHours).toFixed(
+                1
+              )} hours left to reach your goal`}
         </p>
       </div>
     </div>
@@ -292,7 +294,7 @@ function CourseProgressCard({ course }: { course: CourseProgress }) {
     const now = new Date();
     const diffTime = Math.abs(now.getTime() - date.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays === 1) return 'Yesterday';
     if (diffDays < 7) return `${diffDays} days ago`;
     return date.toLocaleDateString();
@@ -303,9 +305,7 @@ function CourseProgressCard({ course }: { course: CourseProgress }) {
       <div className="flex items-start justify-between mb-3">
         <div>
           <h3 className="font-medium text-slate-900">
-            {course.code && (
-              <span className="text-slate-500 mr-2">{course.code}</span>
-            )}
+            {course.code && <span className="text-slate-500 mr-2">{course.code}</span>}
             {course.title}
           </h3>
           <div className="flex items-center gap-4 text-sm text-slate-600 mt-1">
@@ -314,9 +314,7 @@ function CourseProgressCard({ course }: { course: CourseProgress }) {
             <span>Last studied: {formatDate(course.lastStudied)}</span>
           </div>
         </div>
-        <span className="text-sm font-medium text-slate-900">
-          {Math.round(course.progress)}%
-        </span>
+        <span className="text-sm font-medium text-slate-900">{Math.round(course.progress)}%</span>
       </div>
       <div className="w-full bg-slate-100 rounded-full h-2">
         <div

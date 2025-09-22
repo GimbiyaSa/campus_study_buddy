@@ -38,7 +38,9 @@ type AppPreferences = {
 };
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'privacy' | 'preferences' | 'account'>('profile');
+  const [activeTab, setActiveTab] = useState<
+    'profile' | 'notifications' | 'privacy' | 'preferences' | 'account'
+  >('profile');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -298,7 +300,9 @@ function ProfileSettings({
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-slate-900">Profile Information</h2>
-        <p className="text-sm text-slate-600">Update your personal details and academic information</p>
+        <p className="text-sm text-slate-600">
+          Update your personal details and academic information
+        </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -480,12 +484,16 @@ function PrivacySettings({
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-slate-900">Privacy Settings</h2>
-        <p className="text-sm text-slate-600">Control who can see your information and interact with you</p>
+        <p className="text-sm text-slate-600">
+          Control who can see your information and interact with you
+        </p>
       </div>
 
       <div className="space-y-4">
         <div>
-          <label className="block mb-2 text-sm font-medium text-slate-800">Profile Visibility</label>
+          <label className="block mb-2 text-sm font-medium text-slate-800">
+            Profile Visibility
+          </label>
           <select
             value={settings.profileVisibility}
             onChange={(e) => updateSetting('profileVisibility', e.target.value)}
@@ -692,7 +700,9 @@ function AccountSettings({
         <h3 className="font-medium text-slate-900 mb-4">Change Password</h3>
         <form onSubmit={onPasswordSubmit} className="space-y-4">
           <div>
-            <label className="block mb-1 text-sm font-medium text-slate-800">Current Password</label>
+            <label className="block mb-1 text-sm font-medium text-slate-800">
+              Current Password
+            </label>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
@@ -723,7 +733,9 @@ function AccountSettings({
           </div>
 
           <div>
-            <label className="block mb-1 text-sm font-medium text-slate-800">Confirm New Password</label>
+            <label className="block mb-1 text-sm font-medium text-slate-800">
+              Confirm New Password
+            </label>
             <input
               type={showPassword ? 'text' : 'password'}
               value={confirmPassword}
@@ -788,12 +800,16 @@ function ToggleOption({
           onChange={(e) => onChange(e.target.checked)}
           className="sr-only"
         />
-        <div className={`h-6 w-11 rounded-full transition-colors ${
-          checked ? 'bg-emerald-600' : 'bg-slate-300'
-        }`}>
-          <div className={`h-5 w-5 rounded-full bg-white transition-transform ${
-            checked ? 'translate-x-5' : 'translate-x-0.5'
-          } mt-0.5`} />
+        <div
+          className={`h-6 w-11 rounded-full transition-colors ${
+            checked ? 'bg-emerald-600' : 'bg-slate-300'
+          }`}
+        >
+          <div
+            className={`h-5 w-5 rounded-full bg-white transition-transform ${
+              checked ? 'translate-x-5' : 'translate-x-0.5'
+            } mt-0.5`}
+          />
         </div>
       </label>
     </div>

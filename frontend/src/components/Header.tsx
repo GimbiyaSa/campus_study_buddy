@@ -32,7 +32,7 @@ export default function Header() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   // Modal states
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -66,7 +66,7 @@ export default function Header() {
   useEffect(() => {
     async function fetchNotifications() {
       if (!currentUser) return;
-      
+
       try {
         const notifRes = await fetch(`/api/v1/notifications/${currentUser.user_id}`);
         if (notifRes.ok) {
@@ -104,11 +104,9 @@ export default function Header() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
       });
-      
-      setNotifications(prev =>
-        prev.map(notif =>
-          notif.id === notificationId ? { ...notif, is_read: true } : notif
-        )
+
+      setNotifications((prev) =>
+        prev.map((notif) => (notif.id === notificationId ? { ...notif, is_read: true } : notif))
       );
     } catch (err) {
       console.error('Error marking notification as read:', err);
@@ -139,25 +137,25 @@ export default function Header() {
     } catch (err) {
       console.error('Error logging out:', err);
     }
-    
+
     // Clear user data from context (this will sync with sidebar)
     logout();
     setNotifications([]);
-    
+
     // Redirect to login
     window.location.href = '/login';
   };
 
   const handleUpdateProfile = async (updatedData: Partial<User>) => {
     if (!currentUser) return;
-    
+
     try {
       const res = await fetch(`/api/v1/users/${currentUser.user_id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedData),
       });
-      
+
       if (res.ok) {
         const updatedUser = await res.json();
         updateUser(updatedUser);
@@ -168,14 +166,18 @@ export default function Header() {
     }
   };
 
-  const unreadCount = notifications.filter(n => !n.is_read).length;
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
-      case 'success': return '✅';
-      case 'warning': return '⚠️';
-      case 'error': return '❌';
-      default: return '📢';
+      case 'success':
+        return '✅';
+      case 'warning':
+        return '⚠️';
+      case 'error':
+        return '❌';
+      default:
+        return '📢';
     }
   };
 
@@ -186,7 +188,7 @@ export default function Header() {
   // If no user is logged in, show minimal header
   if (!currentUser && !loading) {
     return (
-  <header className="bg-white border-b border-gray-200 h-16 px-6 flex items-center">
+      <header className="bg-white border-b border-gray-200 h-16 px-6 flex items-center">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold text-brand-600">Campus Study Buddy</h1>
           <div className="text-sm text-gray-500">Please log in</div>
@@ -197,7 +199,7 @@ export default function Header() {
 
   if (loading) {
     return (
-  <header className="bg-white border-b border-gray-200 h-16 px-6 flex items-center">
+      <header className="bg-white border-b border-gray-200 h-16 px-6 flex items-center">
         <div className="flex items-center justify-between">
           <div className="animate-pulse h-8 bg-gray-200 rounded w-48"></div>
           <div className="animate-pulse h-8 bg-gray-200 rounded w-32"></div>
@@ -247,11 +249,9 @@ export default function Header() {
                   </div>
                   <div className="max-h-96 overflow-y-auto">
                     {notifications.length === 0 ? (
-                      <div className="p-4 text-center text-gray-500">
-                        No notifications
-                      </div>
+                      <div className="p-4 text-center text-gray-500">No notifications</div>
                     ) : (
-                      notifications.map(notification => (
+                      notifications.map((notification) => (
                         <div
                           key={notification.id}
                           className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${
@@ -264,12 +264,8 @@ export default function Header() {
                               {getNotificationIcon(notification.type)}
                             </span>
                             <div className="flex-1">
-                              <h4 className="font-medium text-gray-900">
-                                {notification.title}
-                              </h4>
-                              <p className="text-sm text-gray-600 mt-1">
-                                {notification.message}
-                              </p>
+                              <h4 className="font-medium text-gray-900">{notification.title}</h4>
+                              <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
                               <p className="text-xs text-gray-400 mt-1">
                                 {new Date(notification.created_at).toLocaleString()}
                               </p>
@@ -318,14 +314,14 @@ export default function Header() {
                 {showUserMenu && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
                     <div className="p-2">
-                      <button 
+                      <button
                         onClick={handleProfileClick}
                         className="w-full flex items-center gap-3 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition"
                       >
                         <User className="w-4 h-4" />
                         <span>Profile</span>
                       </button>
-                      <button 
+                      <button
                         onClick={handleSettingsClick}
                         className="w-full flex items-center gap-3 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition"
                       >
@@ -333,7 +329,7 @@ export default function Header() {
                         <span>Settings</span>
                       </button>
                       <hr className="my-2" />
-                      <button 
+                      <button
                         onClick={handleLogoutClick}
                         className="w-full flex items-center gap-3 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition"
                       >
@@ -421,89 +417,81 @@ function ProfileModal({
       <div className="fixed inset-0 z-[9999] grid place-items-center p-4">
         <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl border border-gray-100 p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-6">Edit Profile</h2>
-          
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  First Name
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
                 <input
                   type="text"
                   value={formData.first_name}
-                  onChange={(e) => setFormData({...formData, first_name: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Last Name
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
                 <input
                   type="text"
                   value={formData.last_name}
-                  onChange={(e) => setFormData({...formData, last_name: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500"
                   required
                 />
               </div>
             </div>
-            
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
               <input
                 type="email"
                 value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500"
                 required
               />
             </div>
-            
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Course
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Course</label>
               <input
                 type="text"
                 value={formData.course}
-                onChange={(e) => setFormData({...formData, course: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, course: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500"
                 required
               />
             </div>
-            
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Year of Study
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Year of Study</label>
               <select
                 value={formData.year_of_study}
-                onChange={(e) => setFormData({...formData, year_of_study: parseInt(e.target.value)})}
+                onChange={(e) =>
+                  setFormData({ ...formData, year_of_study: parseInt(e.target.value) })
+                }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500"
               >
-                {[1,2,3,4,5].map(year => (
-                  <option key={year} value={year}>Year {year}</option>
+                {[1, 2, 3, 4, 5].map((year) => (
+                  <option key={year} value={year}>
+                    Year {year}
+                  </option>
                 ))}
               </select>
             </div>
-            
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                University
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">University</label>
               <input
                 type="text"
                 value={formData.university}
-                onChange={(e) => setFormData({...formData, university: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, university: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500"
                 required
               />
             </div>
-            
+
             <div className="flex gap-3 pt-4">
               <button
                 type="button"
@@ -552,12 +540,12 @@ function SettingsModal({
       <div className="fixed inset-0 z-[9999] grid place-items-center p-4">
         <div className="w-full max-w-md rounded-2xl bg-white shadow-xl border border-gray-100 p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-6">Settings</h2>
-          
+
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-gray-700">Push Notifications</span>
               <button
-                onClick={() => setSettings({...settings, notifications: !settings.notifications})}
+                onClick={() => setSettings({ ...settings, notifications: !settings.notifications })}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                   settings.notifications ? 'bg-brand-500' : 'bg-gray-200'
                 }`}
@@ -569,11 +557,11 @@ function SettingsModal({
                 />
               </button>
             </div>
-            
+
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-gray-700">Email Updates</span>
               <button
-                onClick={() => setSettings({...settings, emailUpdates: !settings.emailUpdates})}
+                onClick={() => setSettings({ ...settings, emailUpdates: !settings.emailUpdates })}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                   settings.emailUpdates ? 'bg-brand-500' : 'bg-gray-200'
                 }`}
@@ -585,11 +573,13 @@ function SettingsModal({
                 />
               </button>
             </div>
-            
+
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-gray-700">Study Reminders</span>
               <button
-                onClick={() => setSettings({...settings, studyReminders: !settings.studyReminders})}
+                onClick={() =>
+                  setSettings({ ...settings, studyReminders: !settings.studyReminders })
+                }
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                   settings.studyReminders ? 'bg-brand-500' : 'bg-gray-200'
                 }`}
@@ -601,11 +591,11 @@ function SettingsModal({
                 />
               </button>
             </div>
-            
+
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-gray-700">Dark Mode</span>
               <button
-                onClick={() => setSettings({...settings, darkMode: !settings.darkMode})}
+                onClick={() => setSettings({ ...settings, darkMode: !settings.darkMode })}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                   settings.darkMode ? 'bg-brand-500' : 'bg-gray-200'
                 }`}
@@ -618,7 +608,7 @@ function SettingsModal({
               </button>
             </div>
           </div>
-          
+
           <div className="flex gap-3 pt-6">
             <button
               onClick={onClose}
@@ -656,7 +646,7 @@ function LogoutConfirmModal({
         <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl border border-gray-100 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Confirm Logout</h2>
           <p className="text-gray-600 mb-6">Are you sure you want to log out of your account?</p>
-          
+
           <div className="flex gap-3">
             <button
               onClick={onClose}

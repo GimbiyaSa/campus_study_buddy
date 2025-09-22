@@ -161,7 +161,8 @@ export const FALLBACK_GROUPS: StudyGroup[] = [
   {
     id: '1',
     name: 'CS Advanced Study Circle',
-    description: 'For students tackling advanced computer science topics like algorithms, data structures, and system design.',
+    description:
+      'For students tackling advanced computer science topics like algorithms, data structures, and system design.',
     course: 'Data Structures & Algorithms',
     courseCode: 'CS301',
     members: 12,
@@ -174,7 +175,8 @@ export const FALLBACK_GROUPS: StudyGroup[] = [
   {
     id: '2',
     name: 'Database Design Masters',
-    description: 'Learn database design patterns, SQL optimization, and modern database technologies.',
+    description:
+      'Learn database design patterns, SQL optimization, and modern database technologies.',
     course: 'Database Systems',
     courseCode: 'CS305',
     members: 8,
@@ -187,7 +189,8 @@ export const FALLBACK_GROUPS: StudyGroup[] = [
   {
     id: '3',
     name: 'Math Study Warriors',
-    description: 'Collaborative problem-solving for linear algebra, calculus, and discrete mathematics.',
+    description:
+      'Collaborative problem-solving for linear algebra, calculus, and discrete mathematics.',
     course: 'Linear Algebra',
     courseCode: 'MATH204',
     members: 6,
@@ -200,7 +203,8 @@ export const FALLBACK_GROUPS: StudyGroup[] = [
   {
     id: '4',
     name: 'Software Engineering Pros',
-    description: 'Best practices, design patterns, and agile methodologies for software development.',
+    description:
+      'Best practices, design patterns, and agile methodologies for software development.',
     course: 'Software Engineering',
     courseCode: 'CS403',
     members: 15,

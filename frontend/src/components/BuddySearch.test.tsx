@@ -25,6 +25,8 @@ describe('BuddySearch', () => {
     await userEvent.click(inviteBtn);
 
     // Just verify the button still exists (may or may not change state immediately in test)
-    expect(within(dialog).getByRole('button', { name: /send invite|invite sent/i })).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole('button', { name: /send invite|invite sent/i })
+    ).toBeInTheDocument();
   });
 });

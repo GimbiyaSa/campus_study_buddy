@@ -26,7 +26,9 @@ export default function Sessions() {
     fetchSessions();
   }, []);
 
-  const handleCreateSession = async (sessionData: Omit<StudySession, 'id' | 'participants' | 'status' | 'isCreator'>) => {
+  const handleCreateSession = async (
+    sessionData: Omit<StudySession, 'id' | 'participants' | 'status' | 'isCreator'>
+  ) => {
     try {
       const res = await fetch('/api/v1/sessions', {
         method: 'POST',
@@ -35,7 +37,7 @@ export default function Sessions() {
       });
       if (res.ok) {
         const newSession = await res.json();
-        setSessions(prev => [newSession, ...prev]);
+        setSessions((prev) => [newSession, ...prev]);
       }
     } catch (error) {
       console.error('Error creating session:', error);
@@ -47,13 +49,15 @@ export default function Sessions() {
         status: 'upcoming',
         isCreator: true,
       };
-      setSessions(prev => [newSession, ...prev]);
+      setSessions((prev) => [newSession, ...prev]);
     }
   };
 
-  const handleEditSession = async (sessionData: Omit<StudySession, 'id' | 'participants' | 'status' | 'isCreator'>) => {
+  const handleEditSession = async (
+    sessionData: Omit<StudySession, 'id' | 'participants' | 'status' | 'isCreator'>
+  ) => {
     if (!editingSession) return;
-    
+
     try {
       const res = await fetch(`/api/v1/sessions/${editingSession.id}`, {
         method: 'PUT',
@@ -62,16 +66,14 @@ export default function Sessions() {
       });
       if (res.ok) {
         const updatedSession = await res.json();
-        setSessions(prev => prev.map(s => s.id === editingSession.id ? updatedSession : s));
+        setSessions((prev) => prev.map((s) => (s.id === editingSession.id ? updatedSession : s)));
       }
     } catch (error) {
       console.error('Error updating session:', error);
       // Optimistic update for demo
-      setSessions(prev => prev.map(s => 
-        s.id === editingSession.id 
-          ? { ...s, ...sessionData }
-          : s
-      ));
+      setSessions((prev) =>
+        prev.map((s) => (s.id === editingSession.id ? { ...s, ...sessionData } : s))
+      );
     }
   };
 
@@ -81,12 +83,12 @@ export default function Sessions() {
         method: 'DELETE',
       });
       if (res.ok) {
-        setSessions(prev => prev.filter(s => s.id !== sessionId));
+        setSessions((prev) => prev.filter((s) => s.id !== sessionId));
       }
     } catch (error) {
       console.error('Error deleting session:', error);
       // Optimistic update for demo
-      setSessions(prev => prev.filter(s => s.id !== sessionId));
+      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
     }
   };
 
@@ -96,30 +98,31 @@ export default function Sessions() {
         method: 'POST',
       });
       if (res.ok) {
-        setSessions(prev => prev.map(s => 
-          s.id === sessionId 
-            ? { 
-                ...s, 
-                participants: s.participants + 1
-              }
-            : s
-        ));
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id === sessionId
+              ? {
+                  ...s,
+                  participants: s.participants + 1,
+                }
+              : s
+          )
+        );
       }
     } catch (error) {
       console.error('Error joining session:', error);
     }
   };
 
-  const filteredSessions = filter === 'all' 
-    ? sessions 
-    : sessions.filter(s => s.status === filter);
+  const filteredSessions =
+    filter === 'all' ? sessions : sessions.filter((s) => s.status === filter);
 
   const statusCounts = {
     all: sessions.length,
-    upcoming: sessions.filter(s => s.status === 'upcoming').length,
-    ongoing: sessions.filter(s => s.status === 'ongoing').length,
-    completed: sessions.filter(s => s.status === 'completed').length,
-    cancelled: sessions.filter(s => s.status === 'cancelled').length,
+    upcoming: sessions.filter((s) => s.status === 'upcoming').length,
+    ongoing: sessions.filter((s) => s.status === 'ongoing').length,
+    completed: sessions.filter((s) => s.status === 'completed').length,
+    cancelled: sessions.filter((s) => s.status === 'cancelled').length,
   };
 
   if (loading) {
@@ -136,7 +139,9 @@ export default function Sessions() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Plan study sessions</h1>
-          <p className="text-slate-600 text-sm">Schedule and manage your collaborative study sessions</p>
+          <p className="text-slate-600 text-sm">
+            Schedule and manage your collaborative study sessions
+          </p>
         </div>
 
         <button
@@ -170,10 +175,9 @@ export default function Sessions() {
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
           <p className="text-slate-800 font-medium">No sessions found</p>
           <p className="mt-1 text-sm text-slate-600">
-            {filter === 'all' 
+            {filter === 'all'
               ? 'Create your first study session to get started.'
-              : `No ${filter} sessions at the moment.`
-            }
+              : `No ${filter} sessions at the moment.`}
           </p>
           {filter === 'all' && (
             <button
@@ -191,12 +195,20 @@ export default function Sessions() {
             <SessionCard
               key={session.id}
               session={session}
-              onEdit={session.isCreator ? () => {
-                setEditingSession(session);
-                setShowModal(true);
-              } : undefined}
+              onEdit={
+                session.isCreator
+                  ? () => {
+                      setEditingSession(session);
+                      setShowModal(true);
+                    }
+                  : undefined
+              }
               onDelete={session.isCreator ? () => handleDeleteSession(session.id) : undefined}
-              onJoin={session.participants < (session.maxParticipants || 10) ? () => handleJoinSession(session.id) : undefined}
+              onJoin={
+                session.participants < (session.maxParticipants || 10)
+                  ? () => handleJoinSession(session.id)
+                  : undefined
+              }
             />
           ))}
         </div>
@@ -229,10 +241,10 @@ function SessionCard({
 }) {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'short', 
-      month: 'short', 
-      day: 'numeric' 
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
     });
   };
 
@@ -246,11 +258,16 @@ function SessionCard({
 
   const getStatusColor = (status?: StudySession['status']) => {
     switch (status) {
-      case 'upcoming': return 'bg-blue-50 text-blue-700';
-      case 'ongoing': return 'bg-emerald-50 text-emerald-700';
-      case 'completed': return 'bg-slate-50 text-slate-700';
-      case 'cancelled': return 'bg-red-50 text-red-700';
-      default: return 'bg-gray-50 text-gray-700';
+      case 'upcoming':
+        return 'bg-blue-50 text-blue-700';
+      case 'ongoing':
+        return 'bg-emerald-50 text-emerald-700';
+      case 'completed':
+        return 'bg-slate-50 text-slate-700';
+      case 'cancelled':
+        return 'bg-red-50 text-red-700';
+      default:
+        return 'bg-gray-50 text-gray-700';
     }
   };
 
@@ -266,7 +283,9 @@ function SessionCard({
               <h3 className="font-semibold text-slate-900">{session.title}</h3>
               {session.course && (
                 <p className="text-sm text-slate-600">
-                  {session.courseCode && <span className="text-slate-500 mr-1">{session.courseCode}</span>}
+                  {session.courseCode && (
+                    <span className="text-slate-500 mr-1">{session.courseCode}</span>
+                  )}
                   {session.course}
                 </p>
               )}
@@ -294,8 +313,13 @@ function SessionCard({
           </div>
 
           <div className="flex items-center gap-3 mt-4">
-            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${getStatusColor(session.status)}`}>
-              {(session.status || 'upcoming').charAt(0).toUpperCase() + (session.status || 'upcoming').slice(1)}
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${getStatusColor(
+                session.status
+              )}`}
+            >
+              {(session.status || 'upcoming').charAt(0).toUpperCase() +
+                (session.status || 'upcoming').slice(1)}
             </span>
             {session.participants > 0 && (
               <div className="text-sm text-slate-600">
@@ -346,7 +370,12 @@ function SessionModal({
 }: {
   open: boolean;
   onClose: () => void;
-  onSubmit: (session: Omit<StudySession, 'id' | 'isCreator' | 'participants' | 'currentParticipants' | 'status'>) => void;
+  onSubmit: (
+    session: Omit<
+      StudySession,
+      'id' | 'isCreator' | 'participants' | 'currentParticipants' | 'status'
+    >
+  ) => void;
   editingSession?: StudySession | null;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -522,7 +551,10 @@ function SessionModal({
               </div>
 
               <div>
-                <label htmlFor={locationId} className="block mb-1 text-sm font-medium text-slate-800">
+                <label
+                  htmlFor={locationId}
+                  className="block mb-1 text-sm font-medium text-slate-800"
+                >
                   Location <span className="text-emerald-700">*</span>
                 </label>
                 <input
@@ -536,7 +568,10 @@ function SessionModal({
               </div>
 
               <div>
-                <label htmlFor={startTimeId} className="block mb-1 text-sm font-medium text-slate-800">
+                <label
+                  htmlFor={startTimeId}
+                  className="block mb-1 text-sm font-medium text-slate-800"
+                >
                   Start time <span className="text-emerald-700">*</span>
                 </label>
                 <input
@@ -550,7 +585,10 @@ function SessionModal({
               </div>
 
               <div>
-                <label htmlFor={endTimeId} className="block mb-1 text-sm font-medium text-slate-800">
+                <label
+                  htmlFor={endTimeId}
+                  className="block mb-1 text-sm font-medium text-slate-800"
+                >
                   End time <span className="text-emerald-700">*</span>
                 </label>
                 <input
@@ -564,7 +602,10 @@ function SessionModal({
               </div>
 
               <div>
-                <label htmlFor={maxParticipantsId} className="block mb-1 text-sm font-medium text-slate-800">
+                <label
+                  htmlFor={maxParticipantsId}
+                  className="block mb-1 text-sm font-medium text-slate-800"
+                >
                   Max participants
                 </label>
                 <input
@@ -573,7 +614,9 @@ function SessionModal({
                   min="2"
                   max="20"
                   value={maxParticipants || ''}
-                  onChange={(e) => setMaxParticipants(e.target.value ? parseInt(e.target.value) : undefined)}
+                  onChange={(e) =>
+                    setMaxParticipants(e.target.value ? parseInt(e.target.value) : undefined)
+                  }
                   placeholder="Optional"
                   className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
                 />

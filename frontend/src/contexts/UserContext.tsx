@@ -85,11 +85,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     refreshUser,
   };
 
-  return (
-    <UserContext.Provider value={value}>
-      {children}
-    </UserContext.Provider>
-  );
+  return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
 }
 
 export function useUser() {

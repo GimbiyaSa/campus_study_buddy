@@ -44,7 +44,8 @@ export default function Notes() {
       author_id: 1,
       topic_id: 1,
       note_title: 'Binary Tree Traversal Methods',
-      note_content: 'In-order, pre-order, and post-order traversal techniques for binary trees. Key concepts include recursive approaches and iterative implementations using stacks.',
+      note_content:
+        'In-order, pre-order, and post-order traversal techniques for binary trees. Key concepts include recursive approaches and iterative implementations using stacks.',
       visibility: 'public',
       is_active: true,
       created_at: new Date().toISOString(),
@@ -59,7 +60,8 @@ export default function Notes() {
       author_id: 2,
       topic_id: 2,
       note_title: 'Matrix Operations',
-      note_content: 'Fundamental matrix operations including addition, multiplication, and determinant calculation. Important for linear algebra applications.',
+      note_content:
+        'Fundamental matrix operations including addition, multiplication, and determinant calculation. Important for linear algebra applications.',
       visibility: 'group',
       is_active: true,
       created_at: new Date().toISOString(),
@@ -87,8 +89,18 @@ export default function Notes() {
   ];
 
   const fallbackModules: Module[] = [
-    { module_id: 1, module_code: 'CS201', module_name: 'Data Structures', university: 'University' },
-    { module_id: 2, module_code: 'MATH204', module_name: 'Linear Algebra', university: 'University' },
+    {
+      module_id: 1,
+      module_code: 'CS201',
+      module_name: 'Data Structures',
+      university: 'University',
+    },
+    {
+      module_id: 2,
+      module_code: 'MATH204',
+      module_name: 'Linear Algebra',
+      university: 'University',
+    },
   ];
 
   useEffect(() => {
@@ -98,17 +110,14 @@ export default function Notes() {
       try {
         const [modulesRes, notesRes] = await Promise.all([
           fetch('/api/v1/modules'),
-          fetch('/api/v1/groups/notes')
+          fetch('/api/v1/groups/notes'),
         ]);
 
         if (!modulesRes.ok || !notesRes.ok) {
           throw new Error('Failed to fetch data');
         }
 
-        const [modulesData, notesData] = await Promise.all([
-          modulesRes.json(),
-          notesRes.json()
-        ]);
+        const [modulesData, notesData] = await Promise.all([modulesRes.json(), notesRes.json()]);
 
         setModules(modulesData);
         setNotes(notesData);
@@ -123,11 +132,12 @@ export default function Notes() {
     fetchData();
   }, []);
 
-  const filteredNotes = notes.filter(note => {
+  const filteredNotes = notes.filter((note) => {
     if (!note || !note.note_title || !note.note_content) return false;
-    const matchesSearch = note.note_title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         note.note_content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (note.author_name?.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesSearch =
+      note.note_title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      note.note_content.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      note.author_name?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesModule = !selectedModule || note.topic_id?.toString() === selectedModule;
     const matchesVisibility = !visibilityFilter || note.visibility === visibilityFilter;
     return matchesSearch && matchesModule && matchesVisibility && note.is_active;
@@ -135,10 +145,14 @@ export default function Notes() {
 
   const getVisibilityIcon = (visibility: string) => {
     switch (visibility) {
-      case 'public': return <Globe className="w-4 h-4 text-green-500" />;
-      case 'group': return <Users className="w-4 h-4 text-blue-500" />;
-      case 'private': return <Lock className="w-4 h-4 text-gray-500" />;
-      default: return null;
+      case 'public':
+        return <Globe className="w-4 h-4 text-green-500" />;
+      case 'group':
+        return <Users className="w-4 h-4 text-blue-500" />;
+      case 'private':
+        return <Lock className="w-4 h-4 text-gray-500" />;
+      default:
+        return null;
     }
   };
 
@@ -165,14 +179,14 @@ export default function Notes() {
             className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
           />
         </div>
-        
+
         <select
           value={selectedModule}
           onChange={(e) => setSelectedModule(e.target.value)}
           className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500"
         >
           <option value="">All Modules</option>
-          {modules.map(module => (
+          {modules.map((module) => (
             <option key={module.module_id} value={module.module_id.toString()}>
               {module.module_code} - {module.module_name}
             </option>
@@ -193,7 +207,9 @@ export default function Notes() {
 
       {/* Error message */}
       {error && (
-        <div className="rounded-lg bg-blue-50 text-blue-800 px-4 py-2 mb-4">Using demo data for preview</div>
+        <div className="rounded-lg bg-blue-50 text-blue-800 px-4 py-2 mb-4">
+          Using demo data for preview
+        </div>
       )}
 
       {/* Notes List */}
@@ -201,13 +217,16 @@ export default function Notes() {
         <div className="text-center text-slate-600">Loading notes...</div>
       ) : (
         <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredNotes.map(note => (
-            <div key={note.note_id} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition">
+          {filteredNotes.map((note) => (
+            <div
+              key={note.note_id}
+              className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition"
+            >
               <div className="flex items-start justify-between mb-3">
                 <h3 className="font-semibold text-gray-900 truncate">{note.note_title}</h3>
                 {getVisibilityIcon(note.visibility)}
               </div>
-              
+
               <div className="space-y-2 mb-4">
                 {note.author_name && (
                   <p className="text-sm text-gray-600">By: {note.author_name}</p>
@@ -227,15 +246,19 @@ export default function Notes() {
               </div>
 
               <p className="text-sm text-gray-700 mb-4 line-clamp-3">
-                {note.note_content.length > 150 
+                {note.note_content.length > 150
                   ? `${note.note_content.substring(0, 150)}...`
-                  : note.note_content
-                }
+                  : note.note_content}
               </p>
 
               <div className="flex items-center justify-between text-xs text-gray-500">
                 <span>Updated: {new Date(note.updated_at).toLocaleDateString()}</span>
-                <button onClick={() => setOpenNote(note)} className="text-brand-600 hover:text-brand-700 font-medium">View Full Note</button>
+                <button
+                  onClick={() => setOpenNote(note)}
+                  className="text-brand-600 hover:text-brand-700 font-medium"
+                >
+                  View Full Note
+                </button>
               </div>
             </div>
           ))}
@@ -243,9 +266,7 @@ export default function Notes() {
       )}
 
       {filteredNotes.length === 0 && !loading && (
-        <div className="text-center text-gray-500 py-8">
-          No notes found matching your criteria
-        </div>
+        <div className="text-center text-gray-500 py-8">No notes found matching your criteria</div>
       )}
 
       <NoteModal note={openNote} onClose={() => setOpenNote(null)} />
@@ -262,7 +283,9 @@ function NoteModal({ note, onClose }: { note: SharedNote | null; onClose: () => 
         <div className="w-full max-w-2xl rounded-2xl bg-white shadow-card border border-gray-100 p-6">
           <div className="flex items-start justify-between mb-2">
             <h3 className="text-lg font-semibold text-gray-900">{note.note_title}</h3>
-            <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-50"><X className="w-5 h-5 text-gray-500"/></button>
+            <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-50">
+              <X className="w-5 h-5 text-gray-500" />
+            </button>
           </div>
           <div className="text-sm text-gray-600 whitespace-pre-wrap">{note.note_content}</div>
         </div>

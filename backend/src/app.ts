@@ -74,7 +74,6 @@ process.on('unhandledRejection', (reason, promise) => {
       console.log(`Study Buddy API server running on port ${PORT}`);
     });
   }
-  
 })();
 
 // API routes

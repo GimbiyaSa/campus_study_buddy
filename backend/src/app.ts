@@ -56,12 +56,25 @@ app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
 
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 (async () => {
   try {
     await setupCampusStudyBuddyDatabase();
   } catch (error) {
     console.error('Error running setup:', error);
   }
+
+  // Start the server regardless of setup outcome
+  const PORT = process.env.PORT || 3000;
+  if (process.env.NODE_ENV !== 'test') {
+    app.listen(PORT, () => {
+      console.log(`Study Buddy API server running on port ${PORT}`);
+    });
+  }
+  
 })();
 
 // API routes
@@ -82,11 +95,11 @@ app.use((error: any, req: Request, res: Response, next: NextFunction) => {
   });
 });
 
-const PORT = process.env.PORT || 3000;
+/*const PORT = process.env.PORT || 3000;
 if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
     console.log(`Study Buddy API server running on port ${PORT}`);
   });
-}
+}*/
 
 export default app;

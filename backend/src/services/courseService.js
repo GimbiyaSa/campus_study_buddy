@@ -474,6 +474,44 @@ router.get('/available', authenticateToken, async (req, res) => {
   }
 });
 
+// DELETE /courses/:id - Remove/unenroll from a course
+router.delete(
+  '/:id',
+  /*authenticateToken,*/ async (req, res) => {
+    // For testing - remove this in production
+    req.user = {
+      id: 1,
+      university: 'UniXYZ',
+      email: 'test@example.com',
+      name: 'Test User',
+      course: 'Computer Science',
+    };
+
+    try {
+      const moduleId = req.params.id;
+      const pool = await getPool();
+      const request = pool.request();
+      request.input('userId', sql.Int, req.user.id);
+      request.input('moduleId', sql.NVarChar(50), moduleId);
+
+      // Delete enrollment record
+      const result = await request.query(`
+      DELETE FROM user_modules 
+      WHERE user_id = @userId AND module_id = @moduleId
+    `);
+
+      if (result.rowsAffected[0] === 0) {
+        return res.status(404).json({ error: 'Enrollment not found' });
+      }
+
+      res.status(204).send(); // No content response for successful deletion
+    } catch (error) {
+      console.error('Error removing course enrollment:', error);
+      res.status(500).json({ error: 'Failed to remove course enrollment' });
+    }
+  }
+);
+
 // GET /courses/:id/topics - get topics for a specific module
 router.get('/:id/topics', authenticateToken, async (req, res) => {
   // For testing - remove this in production

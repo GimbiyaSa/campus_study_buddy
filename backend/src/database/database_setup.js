@@ -113,7 +113,7 @@ class DatabaseSetup {
 
   // Method to set up the database schema
   async setupDatabase() {
-    // Read the SQL script from azure_sql_script.sql
+    // Read the ript from azure_sql_script.sql
     const scriptPath = path.join(__dirname, 'azure_sql_script.sql');
     let sqlScript;
     try {

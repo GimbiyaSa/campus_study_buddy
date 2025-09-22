@@ -177,7 +177,7 @@ router.get('/', async (req, res) => {
       WHERE is_active = 1
       ORDER BY created_at DESC
     `);
-    
+
     res.json(result.recordset);
   } catch (error) {
     console.error('Error fetching users:', error);

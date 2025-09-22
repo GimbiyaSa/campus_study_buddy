@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Bell, User, Shield, Palette, Globe, Clock, Save, Eye, EyeOff } from 'lucide-react';
+import { buildApiUrl } from '../utils/url';
 
 type UserProfile = {
   name: string;
@@ -86,10 +87,10 @@ export default function Settings() {
       try {
         // Fetch user settings from API
         const [profileRes, notificationsRes, privacyRes, preferencesRes] = await Promise.all([
-          fetch('/api/v1/user/profile'),
-          fetch('/api/v1/user/notifications'),
-          fetch('/api/v1/user/privacy'),
-          fetch('/api/v1/user/preferences'),
+          fetch(buildApiUrl('/api/v1/user/profile')),
+          fetch(buildApiUrl('/api/v1/user/notifications')),
+          fetch(buildApiUrl('/api/v1/user/privacy')),
+          fetch(buildApiUrl('/api/v1/user/preferences')),
         ]);
 
         if (profileRes.ok) {
@@ -159,7 +160,7 @@ export default function Settings() {
 
     setSaving(true);
     try {
-      const res = await fetch('/api/v1/user/password', {
+      const res = await fetch(buildApiUrl('/api/v1/user/password'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentPassword, newPassword }),

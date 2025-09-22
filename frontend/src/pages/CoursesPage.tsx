@@ -2,6 +2,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BookOpen, GraduationCap, Plus, X } from 'lucide-react';
 import { DataService, type Course } from '../services/dataService';
+import { buildApiUrl } from '../utils/url';
 
 export default function CoursesPage() {
   console.log('CoursesPage rendered');
@@ -30,7 +31,7 @@ export default function CoursesPage() {
   const addCourse = async (c: Omit<Course, 'id' | 'progress'>) => {
     setError(null); // Clear previous error
     try {
-      const res = await fetch('/api/v1/courses', {
+      const res = await fetch(buildApiUrl('/api/v1/courses'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(c),

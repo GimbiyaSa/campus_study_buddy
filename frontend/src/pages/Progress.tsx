@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { BarChart3, BookOpen, Calendar, Clock, TrendingUp, Trophy } from 'lucide-react';
+import { buildApiUrl } from '../utils/url';
 
 type ProgressStats = {
   totalStudyHours: number;
@@ -46,21 +47,21 @@ export default function Progress() {
       setLoading(true);
       try {
         // Fetch user progress stats
-        const statsRes = await fetch('/api/v1/user/progress');
+        const statsRes = await fetch(buildApiUrl('/api/v1/user/progress'));
         if (statsRes.ok) {
           const statsData = await statsRes.json();
           setStats(statsData);
         }
 
         // Fetch course progress
-        const coursesRes = await fetch('/api/v1/user/course-progress');
+        const coursesRes = await fetch(buildApiUrl('/api/v1/user/course-progress'));
         if (coursesRes.ok) {
           const coursesData = await coursesRes.json();
           setCourses(coursesData);
         }
 
         // Fetch weekly study data
-        const weeklyRes = await fetch('/api/v1/user/weekly-study-hours');
+        const weeklyRes = await fetch(buildApiUrl('/api/v1/user/weekly-study-hours'));
         if (weeklyRes.ok) {
           const weeklyDataRes = await weeklyRes.json();
           setWeeklyData(weeklyDataRes);

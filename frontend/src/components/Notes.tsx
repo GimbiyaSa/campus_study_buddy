@@ -68,6 +68,22 @@ export default function Notes() {
       group_name: 'Math Warriors',
       topic_name: 'Linear Algebra',
     },
+    // Add a fallback with all required fields to prevent undefined errors
+    {
+      note_id: 3,
+      group_id: 3,
+      author_id: 3,
+      topic_id: 3,
+      note_title: 'Fallback Note',
+      note_content: 'This is a fallback note for testing.',
+      visibility: 'private',
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      author_name: 'Fallback Author',
+      group_name: 'Fallback Group',
+      topic_name: 'Fallback Topic',
+    },
   ];
 
   const fallbackModules: Module[] = [
@@ -108,13 +124,12 @@ export default function Notes() {
   }, []);
 
   const filteredNotes = notes.filter(note => {
+    if (!note || !note.note_title || !note.note_content) return false;
     const matchesSearch = note.note_title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          note.note_content.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (note.author_name?.toLowerCase().includes(searchTerm.toLowerCase()));
-    
     const matchesModule = !selectedModule || note.topic_id?.toString() === selectedModule;
     const matchesVisibility = !visibilityFilter || note.visibility === visibilityFilter;
-    
     return matchesSearch && matchesModule && matchesVisibility && note.is_active;
   });
 

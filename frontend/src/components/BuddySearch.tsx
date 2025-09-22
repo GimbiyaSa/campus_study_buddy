@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Check, Mail, X } from 'lucide-react';
 import { navigate } from '../router';
 import { DataService } from '../services/dataService';
+import { buildApiUrl } from '../utils/url';
 
 type Suggestion = {
   id: string;
@@ -67,7 +68,7 @@ export default function BuddySearch() {
   const sendInvite = async () => {
     if (selected?.id) {
       try {
-        const res = await fetch('/api/v1/partners', {
+        const res = await fetch(buildApiUrl('/api/v1/partners'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

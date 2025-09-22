@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
+import { buildApiUrl } from '../utils/url';
 
 type User = {
   user_id: number;
@@ -32,13 +33,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     try {
       // Try to get current user first
-      const res = await fetch('/api/v1/users/me');
+      const res = await fetch(buildApiUrl('/api/v1/users/me'));
       if (res.ok) {
         const userData = await res.json();
         setCurrentUser(userData);
       } else {
         // Fallback - get first user for demo
-        const usersRes = await fetch('/api/v1/users');
+        const usersRes = await fetch(buildApiUrl('/api/v1/users'));
         if (usersRes.ok) {
           const usersData = await usersRes.json();
           if (usersData.length > 0) {

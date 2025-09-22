@@ -70,6 +70,22 @@ export default function Groups() {
       module_name: 'PHY 101 - Mechanics',
       creator_name: 'Alex Johnson',
     },
+    // Add a fallback with all required fields to prevent undefined errors
+    {
+      group_id: 4,
+      group_name: 'Fallback Group',
+      description: 'Fallback group for testing',
+      creator_id: 4,
+      module_id: 4,
+      max_members: 10,
+      group_type: 'discussion',
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      member_count: 1,
+      module_name: 'GEN 101 - General',
+      creator_name: 'Fallback User',
+    },
   ];
 
   useEffect(() => {
@@ -139,55 +155,46 @@ export default function Groups() {
         <div className="text-center text-slate-600">Loading study groups...</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {groups.map(group => (
-            <div key={group.group_id} className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">{group.group_name}</h3>
-                  <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getGroupTypeColor(group.group_type)} mb-3`}>
-                    {group.group_type.replace('_', ' ').toUpperCase()}
-                  </span>
+          {groups.filter(Boolean).map(group => {
+            if (!group || !group.group_name || !group.group_type) return null;
+            return (
+              <div key={group.group_id} className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">{group.group_name}</h3>
+                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getGroupTypeColor(group.group_type)} mb-3`}>
+                      {group.group_type.replace('_', ' ').toUpperCase()}
+                    </span>
+                  </div>
                 </div>
-              </div>
 
-              {group.description && (
-                <p className="text-gray-600 text-sm mb-4">{group.description}</p>
-              )}
+                {group.description && (
+                  <p className="text-gray-600 text-sm mb-4">{group.description}</p>
+                )}
 
-              <div className="space-y-2 text-sm text-gray-600 mb-4">
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4" />
-                  <span>{group.member_count || 0}/{group.max_members} members</span>
-                </div>
-                {group.module_name && (
+                <div className="space-y-2 text-sm text-gray-600 mb-4">
                   <div className="flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4" />
-                    <span>{group.module_name}</span>
+                    <Users className="w-4 h-4" />
+                    <span>{group.member_count || 0}/{group.max_members} members</span>
                   </div>
-                )}
-                {group.creator_name && (
-                  <div className="text-xs text-gray-500">
-                    Created by {group.creator_name}
-                  </div>
-                )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => joinGroup(group.group_id)}
+                    className="flex-1 px-3 py-2 bg-brand-500 text-white text-sm rounded-lg hover:bg-brand-600 transition"
+                  >
+                    Join Group
+                  </button>
+                  <button className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition">
+                    <MessageSquare className="w-4 h-4" />
+                  </button>
+                  <button className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition">
+                    <Calendar className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => joinGroup(group.group_id)}
-                  className="flex-1 px-3 py-2 bg-brand-500 text-white text-sm rounded-lg hover:bg-brand-600 transition"
-                >
-                  Join Group
-                </button>
-                <button className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition">
-                  <MessageSquare className="w-4 h-4" />
-                </button>
-                <button className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition">
-                  <Calendar className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

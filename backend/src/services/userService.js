@@ -166,6 +166,25 @@ router.put('/me', authenticateToken, async (req, res) => {
   }
 });
 
+// Get all users (for demo/fallback)
+router.get('/', async (req, res) => {
+  try {
+    const request = pool.request();
+    const result = await request.query(`
+      SELECT user_id, email, first_name, last_name, university, course, 
+             year_of_study, profile_image_url, is_active
+      FROM users 
+      WHERE is_active = 1
+      ORDER BY created_at DESC
+    `);
+    
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
 // Get user's enrolled modules
 router.get('/me/modules', authenticateToken, async (req, res) => {
   try {

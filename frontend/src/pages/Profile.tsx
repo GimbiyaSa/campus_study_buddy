@@ -112,7 +112,7 @@ export default function ProfilePage() {
                   {initials || <User className="h-10 w-10" aria-hidden="true" />}
                 </div>
               )}
-              
+
               <div className="mt-4 w-full text-center">
                 <div className="text-base font-semibold break-words">{form.fullName}</div>
                 <div className="text-sm text-slate-700 break-words">{form.email}</div>

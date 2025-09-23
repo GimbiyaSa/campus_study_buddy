@@ -85,7 +85,7 @@ export default function ProfilePage() {
             <p className="text-sm text-slate-700">Manage your personal details and preferences.</p>
           </div>
           {savedAt && (
-            <div className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-700">
+            <div className="inline-flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-3 py-1.5 text-brand-700">
               <CheckCircle2 className="h-4 w-4" />
               <span className="text-sm">Saved</span>
             </div>
@@ -108,14 +108,14 @@ export default function ProfilePage() {
                   className="h-28 w-28 rounded-full object-cover ring-2 ring-slate-200"
                 />
               ) : (
-                <div className="flex h-28 w-28 items-center justify-center rounded-full bg-indigo-100 text-2xl font-bold text-indigo-700 ring-2 ring-slate-200">
+                <div className="flex h-28 w-28 items-center justify-center rounded-full bg-brand-100 text-2xl font-bold text-brand-700 ring-2 ring-slate-200">
                   {initials || <User className="h-10 w-10" aria-hidden="true" />}
                 </div>
               )}
               <button
                 type="button"
                 aria-label="Change profile photo"
-                className="mt-3 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600"
+                className="mt-3 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600"
                 onClick={() => alert('Image upload not implemented. Hook up your uploader.')}
               >
                 <Pencil className="h-4 w-4" aria-hidden="true" />
@@ -210,7 +210,7 @@ export default function ProfilePage() {
                 <button
                   type="submit"
                   disabled={!isValid || saving}
-                  className="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2 text-white shadow-sm hover:bg-indigo-700 disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600"
+                  className="inline-flex items-center justify-center rounded-xl bg-brand-600 px-4 py-2 text-white shadow-sm hover:bg-brand-700 disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600"
                 >
                   {saving ? 'Saving…' : 'Save changes'}
                 </button>
@@ -285,7 +285,7 @@ function inputCls(hasError: boolean) {
     'w-full rounded-xl border bg-white px-3 py-2 outline-none transition',
     hasError
       ? 'border-rose-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-500'
-      : 'border-slate-300 focus:ring-2 focus:ring-indigo-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600',
+      : 'border-slate-300 focus:ring-2 focus:ring-brand-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600',
   ].join(' ');
 }
 
@@ -321,9 +321,9 @@ function ToggleRow({
         }}
         className={[
           'relative inline-flex items-center rounded-full transition',
-          'h-8 w-14', // larger target
-          checked ? 'bg-indigo-600' : 'bg-slate-300',
-          'focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600',
+          'h-8 w-14',
+          checked ? 'bg-brand-600' : 'bg-slate-300',
+          'focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600',
         ].join(' ')}
       >
         <span

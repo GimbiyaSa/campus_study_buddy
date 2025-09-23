@@ -112,16 +112,7 @@ export default function ProfilePage() {
                   {initials || <User className="h-10 w-10" aria-hidden="true" />}
                 </div>
               )}
-              <button
-                type="button"
-                aria-label="Change profile photo"
-                className="mt-3 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600"
-                onClick={() => alert('Image upload not implemented. Hook up your uploader.')}
-              >
-                <Pencil className="h-4 w-4" aria-hidden="true" />
-                Change photo
-              </button>
-
+              
               <div className="mt-4 w-full text-center">
                 <div className="text-base font-semibold break-words">{form.fullName}</div>
                 <div className="text-sm text-slate-700 break-words">{form.email}</div>

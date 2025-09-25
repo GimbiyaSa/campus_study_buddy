@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useId, cloneElement, isValidElement } from 'react';
-import { User, Mail, Pencil, CheckCircle2, AlertCircle } from 'lucide-react';
+import { User, Mail, CheckCircle2, AlertCircle } from 'lucide-react';
 
 type StudentProfile = {
   fullName: string;

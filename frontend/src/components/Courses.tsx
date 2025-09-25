@@ -114,7 +114,9 @@ export default function Courses() {
             return (
               <li
                 key={course.id}
-                title={`${course.code ? course.code + ' · ' : ''}${course.title} • ${pct}% complete`}
+                title={`${course.code ? course.code + ' · ' : ''}${
+                  course.title
+                } • ${pct}% complete`}
                 className="flex items-center justify-between gap-4 p-4 rounded-xl border border-gray-100 hover:bg-gray-50/60 transition"
               >
                 <div className="flex items-center gap-4 min-w-0">
@@ -127,9 +129,14 @@ export default function Courses() {
                       {course.title}
                     </p>
                     <p className="text-xs text-gray-500">
-                      {course.type === 'institution' ? course.term || 'Institution' : 'Casual topic'}
+                      {course.type === 'institution'
+                        ? course.term || 'Institution'
+                        : 'Casual topic'}
                     </p>
-                    <div className="mt-2 w-44 h-2 rounded-full bg-gray-200 overflow-hidden" aria-hidden="true">
+                    <div
+                      className="mt-2 w-44 h-2 rounded-full bg-gray-200 overflow-hidden"
+                      aria-hidden="true"
+                    >
                       <div
                         className="h-full bg-brand-500 rounded-full"
                         style={{ width: `${pct}%` }}
@@ -158,7 +165,13 @@ export default function Courses() {
             {/* Donut progress */}
             <div className="flex items-center justify-center">
               <figure className="relative" aria-label={`Average progress ${avg}%`}>
-                <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-hidden="true">
+                <svg
+                  width={size}
+                  height={size}
+                  viewBox={`0 0 ${size} ${size}`}
+                  role="img"
+                  aria-hidden="true"
+                >
                   {/* track */}
                   <circle
                     cx={size / 2}
@@ -186,7 +199,9 @@ export default function Courses() {
                 <figcaption className="absolute inset-0 grid place-items-center text-center">
                   <div>
                     <div className="text-2xl font-semibold text-gray-900">{avg}%</div>
-                    <div className="text-xs text-gray-500">Avg progress • {courses.length} active</div>
+                    <div className="text-xs text-gray-500">
+                      Avg progress • {courses.length} active
+                    </div>
                   </div>
                 </figcaption>
               </figure>

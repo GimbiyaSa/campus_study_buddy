@@ -6,6 +6,7 @@ import { buildApiUrl } from '../utils/url';
 
 export default function CoursesPage() {
   console.log('CoursesPage rendered');
+  // Courses state (fixed corrupted line)
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -17,10 +18,11 @@ export default function CoursesPage() {
       setError(null);
       try {
         const data = await DataService.fetchCourses();
-        setCourses(data);
+        setCourses(data || []); // Handle null/undefined response gracefully
       } catch (err) {
         console.error('Error fetching courses:', err);
-        setError('Failed to fetch courses. Please try again.');
+        setError('Failed to connect to server. Please check your connection and try again.');
+        setCourses([]); // Set empty array on error to show empty state instead of error
       } finally {
         setLoading(false);
       }
@@ -34,6 +36,7 @@ export default function CoursesPage() {
       const res = await fetch(buildApiUrl('/api/v1/courses'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // Include cookies for authentication
         body: JSON.stringify(c),
       });
       if (!res.ok) throw new Error('Failed to add course');
@@ -48,8 +51,10 @@ export default function CoursesPage() {
   const removeCourse = async (id: string) => {
     setError(null); // Clear previous error
     try {
-      const res = await fetch(`/api/v1/courses/${id}`, {
+      // Use buildApiUrl to ensure correct base URL
+      const res = await fetch(buildApiUrl(`/api/v1/courses/${id}`), {
         method: 'DELETE',
+        credentials: 'include', // Include cookies for authentication
       });
       if (!res.ok) throw new Error('Failed to remove course');
       setCourses((prev) => prev.filter((c) => c.id !== id));
@@ -70,15 +75,18 @@ export default function CoursesPage() {
           <p className="text-slate-600 text-sm">Institution modules and your casual topics</p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setOpen(true)}
-            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-white shadow-sm hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
-          >
-            <Plus className="h-4 w-4" />
-            New course
-          </button>
-        </div>
+        {/* Only show "New course" button when there are existing courses */}
+        {!loading && courses.length > 0 && (
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setOpen(true)}
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-white shadow-sm hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
+            >
+              <Plus className="h-4 w-4" />
+              New course
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Grid of course cards / empty state */}
@@ -221,14 +229,14 @@ function AddCourseModal({
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const [tab, setTab] = useState<'institution' | 'casual'>('institution');
 
-  // Institution form state
-  const [code, setCode] = useState('CS301');
-  const [title, setTitle] = useState('Algorithms');
-  const [term, setTerm] = useState('2025 · Semester 2');
+  // Institution form state - empty for proper placeholders
+  const [code, setCode] = useState('');
+  const [title, setTitle] = useState('');
+  const [term, setTerm] = useState('');
 
-  // Casual form state
-  const [cTitle, setCTitle] = useState('Evening Revision');
-  const [cDesc, setCDesc] = useState('Lightweight sessions to recap lecture material.');
+  // Casual form state - empty for proper placeholders
+  const [cTitle, setCTitle] = useState('');
+  const [cDesc, setCDesc] = useState('');
 
   // a11y ids
   const instCodeId = useId();
@@ -273,6 +281,18 @@ function AddCourseModal({
       prev?.focus();
     };
   }, [open, onClose]);
+
+  // Reset form fields each time the modal opens so user always starts from scratch
+  useEffect(() => {
+    if (open) {
+      setTab('institution');
+      setCode('');
+      setTitle('');
+      setTerm('');
+      setCTitle('');
+      setCDesc('');
+    }
+  }, [open]);
 
   if (!open) return null;
 
@@ -363,14 +383,14 @@ function AddCourseModal({
                   label="Course code"
                   value={code}
                   onChange={setCode}
-                  placeholder="e.g., CS201"
+                  placeholder="CS201"
                 />
                 <Field
                   id={instTitleId}
                   label="Course title"
                   value={title}
                   onChange={setTitle}
-                  placeholder="e.g., Data Structures"
+                  placeholder="Data Structures"
                   required
                 />
                 <Field
@@ -378,7 +398,7 @@ function AddCourseModal({
                   label="Term"
                   value={term}
                   onChange={setTerm}
-                  placeholder="e.g., 2025 · Semester 2"
+                  placeholder="2025 · Semester 2"
                 />
                 <div className="mt-2 flex items-center justify-end gap-3">
                   <button
@@ -403,7 +423,7 @@ function AddCourseModal({
                   label="Topic title"
                   value={cTitle}
                   onChange={setCTitle}
-                  placeholder="e.g., Evening Revision"
+                  placeholder="Evening Revision"
                   required
                 />
                 <TextArea

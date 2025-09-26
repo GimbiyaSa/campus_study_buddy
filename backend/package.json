@@ -6,19 +6,23 @@
   "main": "app.js",
   "scripts": {
     "start": "node dist/app.js",
-    "dev": "nodemon dist/app.js",
+    "dev": "nodemon",
     "test": "jest",
     "test:coverage": "jest --coverage",
     "test:ci": "jest --ci --coverage",
     "build": "tsc",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "format": "prettier --write \"**/*.{js,ts,json,md}\""
+    "format": "prettier --write \"**/*.{js,ts,json,md}\"",
+    "validate:env": "node validate-env.js"
   },
   "dependencies": {
     "@azure/communication-email": "^1.0.0",
     "@azure/cosmos": "^4.0.0",
+    "@azure/identity": "^4.0.1",
+    "@azure/keyvault-secrets": "^4.7.0",
     "@azure/service-bus": "^7.9.0",
+    "@azure/storage-blob": "^12.17.0",
     "@azure/web-pubsub": "^1.1.2",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
@@ -27,12 +31,17 @@
     "google-auth-library": "^10.3.0",
     "helmet": "^7.0.0",
     "jsonwebtoken": "^9.0.2",
-    "jwks-rsa": "^3.0.1"
+    "jwks-rsa": "^3.0.1",
+    "mssql": "^11.0.1",
+    "multer": "^2.0.2",
+    "bcryptjs": "^2.4.3"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/jest": "^30.0.0",
+    "@types/mssql": "^9.1.5",
+    "@types/multer": "^1.4.11",
     "@types/node": "^24.3.0",
     "@typescript-eslint/eslint-plugin": "^8.41.0",
     "@typescript-eslint/parser": "^8.41.0",

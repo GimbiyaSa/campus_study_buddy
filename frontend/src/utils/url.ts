@@ -1,12 +1,12 @@
 // URL helper for both browser and Node.js environments
 export const getBaseUrl = (): string => {
-  // In browser environment, window is available
-  if (typeof window !== 'undefined' && window.location) {
-    return window.location.origin;
+  // Use environment variable if available, otherwise default to local backend
+  if (typeof window !== 'undefined' && (window as any).VITE_API_URL) {
+    return (window as any).VITE_API_URL;
   }
-
-  // In Node.js test environment, provide localhost fallback
-  return 'http://localhost:3000';
+  
+  // For local development, always use the backend port
+  return 'http://localhost:3002';
 };
 
 export const buildApiUrl = (path: string): string => {

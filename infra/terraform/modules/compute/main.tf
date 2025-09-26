@@ -8,6 +8,27 @@
 ################################################################################
 
 # ==============================================================================
+# AZURE CONTAINER REGISTRY
+# ==============================================================================
+
+# Azure Container Registry - using 'acr' abbreviation per Azure CAF
+resource "azurerm_container_registry" "main" {
+  # Format: {project}{env}acr{suffix} (no hyphens allowed in ACR names)
+  name                = "${replace(var.naming_prefix, "-", "")}acr"
+  resource_group_name = var.resource_group_name
+  location            = var.location
+  sku                 = "Basic" # Basic tier for free/low-cost usage
+  admin_enabled       = false  # Use managed identity instead of admin
+
+  # Enable system-assigned managed identity for security
+  identity {
+    type = "SystemAssigned"
+  }
+
+  tags = var.common_tags
+}
+
+# ==============================================================================
 # CONTAINER APPS ENVIRONMENT
 # ==============================================================================
 
@@ -54,6 +75,13 @@ resource "azurerm_role_assignment" "container_apps_storage_contributor" {
   principal_id         = azurerm_user_assigned_identity.container_apps.principal_id
 }
 
+# AcrPull role for Container Apps to pull images from ACR
+resource "azurerm_role_assignment" "container_apps_acr_pull" {
+  scope                = azurerm_container_registry.main.id
+  role_definition_name = "AcrPull"
+  principal_id         = azurerm_user_assigned_identity.container_apps.principal_id
+}
+
 # ==============================================================================
 # API CONTAINER APP
 # ==============================================================================
@@ -73,7 +101,7 @@ resource "azurerm_container_app" "api" {
 
     container {
       name   = "api"
-      image  = var.api_container_image         # Node.js Express API
+      image  = var.api_container_image         # Node.js Express API from ACR
       cpu    = var.container_apps_cpu_limit    # 0.25 for free tier
       memory = var.container_apps_memory_limit # 0.5Gi for free tier
 
@@ -173,6 +201,12 @@ resource "azurerm_container_app" "api" {
     identity            = azurerm_user_assigned_identity.container_apps.id
   }
 
+  # Registry configuration for ACR access
+  registry {
+    server   = azurerm_container_registry.main.login_server
+    identity = azurerm_user_assigned_identity.container_apps.id
+  }
+
   # Managed identity configuration
   identity {
     type         = "UserAssigned"
@@ -183,7 +217,8 @@ resource "azurerm_container_app" "api" {
 
   depends_on = [
     azurerm_role_assignment.container_apps_kv_secrets_user,
-    azurerm_role_assignment.container_apps_storage_contributor
+    azurerm_role_assignment.container_apps_storage_contributor,
+    azurerm_role_assignment.container_apps_acr_pull
   ]
 }
 

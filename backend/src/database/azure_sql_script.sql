@@ -1,5 +1,9 @@
 -- Campus Study Buddy Database Creation Script for Azure SQL Database
 -- This script creates all tables with proper relationships and indexes
+-- 
+-- Version: 1.1 (Updated 2025-09-26)
+-- Changes: Added rating, total_study_hours, and last_active columns to users table
+--          for partner matching and user activity tracking functionality
 
 -- Drop tables in reverse dependency order if they exist (for development)
 IF OBJECT_ID('dbo.shared_notes', 'U') IS NOT NULL DROP TABLE dbo.shared_notes;
@@ -32,6 +36,9 @@ CREATE TABLE dbo.users (
     bio NTEXT,
     profile_image_url NVARCHAR(500),
     study_preferences NVARCHAR(MAX) CHECK (ISJSON(study_preferences) = 1),
+    rating DECIMAL(3,2) DEFAULT 0.0 CHECK (rating >= 0.0 AND rating <= 5.0),
+    total_study_hours INT DEFAULT 0 CHECK (total_study_hours >= 0),
+    last_active DATETIME2 DEFAULT GETUTCDATE(),
     is_active BIT DEFAULT 1,
     created_at DATETIME2 DEFAULT GETUTCDATE(),
     updated_at DATETIME2 DEFAULT GETUTCDATE()
@@ -262,6 +269,9 @@ CREATE TABLE dbo.shared_notes (
 -- Create indexes for better performance
 CREATE INDEX IX_users_email ON dbo.users(email);
 CREATE INDEX IX_users_university_course ON dbo.users(university, course);
+CREATE INDEX IX_users_rating ON dbo.users(rating);
+CREATE INDEX IX_users_last_active ON dbo.users(last_active);
+CREATE INDEX IX_users_rating_study_hours ON dbo.users(rating, total_study_hours);
 CREATE INDEX IX_modules_code ON dbo.modules(module_code);
 CREATE INDEX IX_modules_university ON dbo.modules(university);
 CREATE INDEX IX_user_modules_user_id ON dbo.user_modules(user_id);

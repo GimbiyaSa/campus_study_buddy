@@ -1,0 +1,33 @@
+properties:
+  configuration:
+    registries:
+    - server: csbprodacr.azurecr.io
+      identity: /subscriptions/7db47e1f-79a2-4a18-9797-c803ca806c29/resourceGroups/csb-prod-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/csb-prod-id-ca-7ndjbzgu
+  template:
+    containers:
+    - name: api
+      image: csbprodacr.azurecr.io/csb-backend:latest
+      env:
+      - name: NODE_ENV
+        value: "prod"
+      - name: PORT
+        value: "3000"
+      - name: DATABASE_URL
+        secretRef: database-connection-string
+      - name: JWT_SECRET
+        secretRef: jwt-secret
+      - name: JWT_EXPIRES_IN
+        value: "7d"
+      - name: AZURE_STORAGE_CONNECTION_STRING
+        secretRef: storage-connection-string
+      - name: AZURE_STORAGE_CONTAINER_NAME
+        value: "user-files"
+      - name: CORS_ORIGIN
+        value: "https://csb-prod-app-frontend-7ndjbzgu.azurewebsites.net"
+      - name: RATE_LIMIT_WINDOW_MS
+        value: "900000"
+      - name: RATE_LIMIT_MAX_REQUESTS
+        value: "100"
+      resources:
+        cpu: 0.25
+        memory: 0.5Gi

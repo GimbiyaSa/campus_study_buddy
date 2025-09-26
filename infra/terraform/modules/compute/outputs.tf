@@ -80,6 +80,34 @@ output "container_apps_identity_client_id" {
   value       = azurerm_user_assigned_identity.container_apps.client_id
 }
 
+# Azure Container Registry outputs
+output "container_registry_name" {
+  description = "The name of the Azure Container Registry"
+  value       = azurerm_container_registry.main.name
+}
+
+output "container_registry_id" {
+  description = "The ID of the Azure Container Registry"
+  value       = azurerm_container_registry.main.id
+}
+
+output "container_registry_login_server" {
+  description = "The login server URL of the Azure Container Registry"
+  value       = azurerm_container_registry.main.login_server
+}
+
+output "container_registry_admin_username" {
+  description = "The admin username of the Azure Container Registry"
+  value       = azurerm_container_registry.main.admin_username
+  sensitive   = true
+}
+
+output "container_registry_admin_password" {
+  description = "The admin password of the Azure Container Registry"
+  value       = azurerm_container_registry.main.admin_password
+  sensitive   = true
+}
+
 # Application Gateway outputs (when enabled)
 # Note: Application Gateway is not implemented in this configuration
 # output "app_gateway_public_ip" {

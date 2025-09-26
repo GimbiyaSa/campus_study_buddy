@@ -1,12 +1,13 @@
 const express = require('express');
 const sql = require('mssql');
 const { authenticateToken } = require('../middleware/authMiddleware');
+const { azureSQL } = require('./azureSQLService');
 
 const router = express.Router();
 
-// Get database pool (assuming it's initialized in userService.js)
-const getPool = () => {
-  return sql.globalPool || require('./userService').pool;
+// Get database pool using azureSQL service
+const getPool = async () => {
+  return await azureSQL.getPool();
 };
 
 // Get all study sessions (with filtering)
@@ -14,7 +15,8 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     const { groupId, status, startDate, endDate, limit = 50, offset = 0 } = req.query;
 
-    const request = getPool().request();
+    const pool = await getPool();
+    const request = pool.request();
     request.input('limit', sql.Int, parseInt(limit));
     request.input('offset', sql.Int, parseInt(offset));
 

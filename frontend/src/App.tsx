@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { getRouteFromPathname } from './router';
 import Home from './pages/Home';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Dashboard from './pages/Dashboard';
@@ -47,6 +48,8 @@ export default function App() {
         return <Home />;
       case 'register':
         return <Register />;
+      case 'forgot-password':
+        return <ForgotPassword />;
       case 'dashboard':
         return <Dashboard />;
       case 'partners':

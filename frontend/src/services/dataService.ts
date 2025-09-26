@@ -311,56 +311,62 @@ export class DataService {
   private static getBaseUrl(): string {
     // In browser, use relative URLs. In tests/Node.js, use localhost
     if (typeof window !== 'undefined') {
-      return '';
+      return 'http://localhost:3002';
     }
-    return 'http://localhost:3000';
+    return 'http://localhost:3002';
   }
 
   static async fetchCourses(): Promise<Course[]> {
     try {
-      const res = await fetch(`${this.getBaseUrl()}/api/v1/courses`);
-      if (res.ok) {
-        return await res.json();
+      const res = await fetch(`${this.getBaseUrl()}/api/v1/courses`, {
+        credentials: 'include' // Include cookies for authentication
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
       }
+      return await res.json();
     } catch (error) {
-      // Silently fall back to demo data - this is expected behavior
+      console.error('Failed to fetch courses:', error);
+      throw error; // Re-throw the error instead of falling back to mock data
     }
-    return FALLBACK_COURSES;
   }
 
   static async fetchSessions(): Promise<StudySession[]> {
     try {
       const res = await fetch(`${this.getBaseUrl()}/api/v1/sessions`);
-      if (res.ok) {
-        return await res.json();
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
       }
+      return await res.json();
     } catch (error) {
-      // Silently fall back to demo data - this is expected behavior
+      console.error('Failed to fetch sessions:', error);
+      throw error;
     }
-    return FALLBACK_SESSIONS;
   }
 
   static async fetchGroups(): Promise<StudyGroup[]> {
     try {
       const res = await fetch(`${this.getBaseUrl()}/api/v1/groups`);
-      if (res.ok) {
-        return await res.json();
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
       }
+      return await res.json();
     } catch (error) {
-      // Silently fall back to demo data - this is expected behavior
+      console.error('Failed to fetch groups:', error);
+      throw error;
     }
-    return FALLBACK_GROUPS;
   }
 
   static async fetchPartners(): Promise<StudyPartner[]> {
     try {
       const res = await fetch(`${this.getBaseUrl()}/api/v1/partners`);
-      if (res.ok) {
-        return await res.json();
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
       }
+      return await res.json();
     } catch (error) {
-      // Silently fall back to demo data - this is expected behavior
+      console.error('Failed to fetch partners:', error);
+      throw error;
     }
-    return FALLBACK_PARTNERS;
   }
 }

@@ -1,63 +1,31 @@
 const express = require('express');
 const sql = require('mssql');
 const { authenticateToken } = require('../middleware/authMiddleware');
+const { azureSQL } = require('./azureSQLService');
 
 const router = express.Router();
 
-// Azure SQL Database configuration
-const dbConfig = {
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  server: process.env.DB_SERVER,
-  database: process.env.DB_DATABASE,
-  options: {
-    encrypt: true, // Required for Azure SQL
-    enableArithAbort: true,
-    trustServerCertificate: false,
-    requestTimeout: 30000,
-    connectionTimeout: 30000,
-  },
-  pool: {
-    max: 10,
-    min: 0,
-    idleTimeoutMillis: 30000,
-  },
-};
-
-// Initialize connection pool
-let poolPromise = sql
-  .connect(dbConfig)
-  .then((pool) => {
-    console.log('Connected to Azure SQL Database for Course Service');
-    return pool;
-  })
-  .catch((err) => {
-    console.error('Database connection failed:', err);
-    throw err;
-  });
-
-// Helper function to get database pool
+// Use centralized Azure SQL pool 
 async function getPool() {
-  return await poolPromise;
+  return await azureSQL.getPool();
 }
+
+// getPool function already defined above
 
 // GET /courses - list user's enrolled modules/courses
 router.get(
   '/',
-  /*authenticateToken,*/ async (req, res) => {
-    // For testing - remove this in production
-    req.user = {
-      id: '1',
-      university: 'UniXYZ',
-      email: 'test@example.com',
-      name: 'Test User',
-      course: 'Computer Science',
-    };
+  authenticateToken, async (req, res) => {
 
     try {
       const pool = await getPool();
       const request = pool.request();
-      request.input('userId', sql.Int, req.user.id);
+      // Convert user ID to integer for database query
+      const userId = parseInt(req.user.id, 10);
+      if (isNaN(userId)) {
+        return res.status(400).json({ error: 'Invalid user ID' });
+      }
+      request.input('userId', sql.Int, userId);
 
       // Query to get user's enrolled modules with progress
       const query = `
@@ -125,15 +93,7 @@ router.get(
 // POST /courses - enroll in existing module or create custom study group
 router.post(
   '/',
-  /*authenticateToken,*/ async (req, res) => {
-    // For testing - remove this in production
-    req.user = {
-      id: '1',
-      university: 'UniXYZ',
-      email: 'test@example.com',
-      name: 'Test User',
-      course: 'Computer Science',
-    };
+  authenticateToken, async (req, res) => {
 
     try {
       const { type, code, title, term, description, moduleId } = req.body;
@@ -146,6 +106,12 @@ router.post(
       }
 
       const pool = await getPool();
+      // Convert user ID to integer for database query
+      const userId = parseInt(req.user.id, 10);
+      if (isNaN(userId)) {
+        return res.status(400).json({ error: 'Invalid user ID' });
+      }
+
       const transaction = new sql.Transaction(pool);
 
       try {
@@ -196,7 +162,7 @@ router.post(
 
         // Check if user is already enrolled
         const enrollmentCheckRequest = new sql.Request(transaction);
-        enrollmentCheckRequest.input('userId', sql.Int, req.user.id);
+        enrollmentCheckRequest.input('userId', sql.Int, userId);
         enrollmentCheckRequest.input('moduleId', sql.Int, finalModuleId);
 
         const enrollmentCheck = await enrollmentCheckRequest.query(`
@@ -211,7 +177,7 @@ router.post(
 
         // Enroll user in the module
         const enrollRequest = new sql.Request(transaction);
-        enrollRequest.input('userId', sql.Int, req.user.id);
+        enrollRequest.input('userId', sql.Int, userId);
         enrollRequest.input('moduleId', sql.Int, finalModuleId);
 
         await enrollRequest.query(`
@@ -250,15 +216,7 @@ router.post(
 // PUT /courses/:id - update user's enrollment or module preferences
 router.put(
   '/:id',
-  /*authenticateToken,*/ async (req, res) => {
-    // For testing - remove this in production
-    req.user = {
-      id: 'user123',
-      university: 'UniXYZ',
-      email: 'test@example.com',
-      name: 'Test User',
-      course: 'Computer Science',
-    };
+  authenticateToken, async (req, res) => {
 
     try {
       const moduleId = parseInt(req.params.id);
@@ -268,9 +226,15 @@ router.put(
         return res.status(400).json({ error: 'Invalid status' });
       }
 
+      // Convert user ID to integer for database query
+      const userId = parseInt(req.user.id, 10);
+      if (isNaN(userId)) {
+        return res.status(400).json({ error: 'Invalid user ID' });
+      }
+
       const pool = await getPool();
       const request = pool.request();
-      request.input('userId', sql.Int, req.user.id);
+      request.input('userId', sql.Int, userId);
       request.input('moduleId', sql.Int, moduleId);
 
       // Check if enrollment exists
@@ -299,7 +263,7 @@ router.put(
 
       // Get updated module data with progress
       const updatedRequest = pool.request();
-      updatedRequest.input('userId', sql.Int, req.user.id);
+      updatedRequest.input('userId', sql.Int, userId);
       updatedRequest.input('moduleId', sql.Int, moduleId);
 
       const updatedResult = await updatedRequest.query(`
@@ -361,22 +325,20 @@ router.put(
 // DELETE /courses/:id - unenroll from a course
 router.delete(
   '/:id',
-  /*authenticateToken,*/ async (req, res) => {
-    // For testing - remove this in production
-    req.user = {
-      id: 'user123',
-      university: 'UniXYZ',
-      email: 'test@example.com',
-      name: 'Test User',
-      course: 'Computer Science',
-    };
+  authenticateToken, async (req, res) => {
 
     try {
       const moduleId = parseInt(req.params.id);
 
+      // Convert user ID to integer for database query
+      const userId = parseInt(req.user.id, 10);
+      if (isNaN(userId)) {
+        return res.status(400).json({ error: 'Invalid user ID' });
+      }
+
       const pool = await getPool();
       const request = pool.request();
-      request.input('userId', sql.Int, req.user.id);
+      request.input('userId', sql.Int, userId);
       request.input('moduleId', sql.Int, moduleId);
 
       // Check if enrollment exists
@@ -474,40 +436,6 @@ router.get('/available', authenticateToken, async (req, res) => {
   }
 });
 
-// DELETE /courses/:id - Remove/unenroll from a course
-router.delete('/:id', /*authenticateToken,*/ async (req, res) => {
-  // For testing - remove this in production
-  req.user = {
-    id: 1,
-    university: 'UniXYZ',
-    email: 'test@example.com',
-    name: 'Test User',
-    course: 'Computer Science',
-  };
-
-  try {
-    const moduleId = req.params.id;
-    const pool = await getPool();
-    const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
-    request.input('moduleId', sql.NVarChar(50), moduleId);
-
-    // Delete enrollment record
-    const result = await request.query(`
-      DELETE FROM user_modules 
-      WHERE user_id = @userId AND module_id = @moduleId
-    `);
-
-    if (result.rowsAffected[0] === 0) {
-      return res.status(404).json({ error: 'Enrollment not found' });
-    }
-
-    res.status(204).send(); // No content response for successful deletion
-  } catch (error) {
-    console.error('Error removing course enrollment:', error);
-    res.status(500).json({ error: 'Failed to remove course enrollment' });
-  }
-});
 
 // GET /courses/:id/topics - get topics for a specific module
 router.get('/:id/topics', authenticateToken, async (req, res) => {

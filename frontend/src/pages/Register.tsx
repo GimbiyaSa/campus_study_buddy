@@ -3,6 +3,33 @@ import { Eye, EyeOff, UserPlus, Building2 } from 'lucide-react';
 import { navigate } from '../router';
 import logo from '../assets/logo.jpg';
 
+function GoogleGlyph({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 18 18"
+      aria-hidden="true"
+      className={className}
+    >
+      <path
+        fill="#4285F4"
+        d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18Z"
+      />
+      <path
+        fill="#34A853"
+        d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2.04a4.8 4.8 0 0 1-2.7.75c-2.09 0-3.86-1.4-4.49-3.29H1.83v2.07A8 8 0 0 0 8.98 17Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M4.49 10.48A4.77 4.77 0 0 1 4.25 9c0-.51.08-1.01.24-1.48V5.45H1.83A8 8 0 0 0 .98 9c0 1.3.31 2.52.85 3.6l2.66-2.12Z"
+      />
+      <path
+        fill="#EA4335"
+        d="M8.98 3.58c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 8.98 1a8 8 0 0 0-7.15 4.45l2.66 2.07c.63-1.89 2.4-3.29 4.49-3.29Z"
+      />
+    </svg>
+  );
+}
+
 type Tab = 'student' | 'organization';
 
 export default function Register() {
@@ -83,20 +110,26 @@ export default function Register() {
 
     setSubmitting(true);
     try {
-      const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) || '';
-      const url = apiBase.replace(/\/$/, '') + '/api/v1/users/me';
-      console.debug('Calling backend URL:', url);
-      const res = await fetch(url, {
-        method: 'GET',
-        headers: { Authorization: 'Bearer ' + idToken },
+      const apiBase = (import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:3002';
+      const base = apiBase.replace(/\/$/, '');
+      const exchange = await fetch(`${base}/api/v1/auth/google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ idToken }),
       });
-
+      if (!exchange.ok) {
+        const body = await exchange.json().catch(() => ({}));
+        throw new Error(body?.error || 'Failed to establish session');
+      }
+      const res = await fetch(`${base}/api/v1/users/me`, {
+        method: 'GET',
+        credentials: 'include',
+      });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error || 'Failed to sign in with Google');
+        throw new Error(body?.error || 'Failed to fetch profile');
       }
-
-      // success: backend returns user object
       navigate('/dashboard');
     } catch (err: any) {
       setError(err?.message || 'Google sign-in failed');
@@ -150,12 +183,92 @@ export default function Register() {
 
     setSubmitting(true);
     try {
-      // TODO: call your real endpoints:
-      // if (tab === "student") await fetch("/api/auth/register/student", { ... })
-      // else await fetch("/api/auth/register/org", { ... })
-      navigate('/login');
+      const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+      
+      if (tab === 'student') {
+        const studentData = {
+          first_name: sFullName.split(' ')[0],
+          last_name: sFullName.split(' ').slice(1).join(' '),
+          email: sEmail,
+          password: sPwd,
+          university: sUniversity,
+          course: sCourse,
+          year_of_study: parseInt(sYear),
+          user_type: 'student'
+        };
+
+        const response = await fetch(`${apiBase}/api/v1/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(studentData)
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Registration failed');
+        }
+
+        // Get the response data (student)
+        const responseData = await response.json();
+        console.log('Student registration successful:', responseData);
+        
+        // Show success message
+        setError('✅ Registration successful! Welcome to Campus Study Buddy. You can now sign in.');
+        
+        // Clear form fields
+        setSFullName('');
+        setSEmail('');
+        setSPwd('');
+        setSUniversity('');
+        setSCourse('');
+        setSYear('');
+        
+        // Redirect to login after showing success
+        setTimeout(() => navigate('/home'), 3000);
+        return; // Don't continue to the next navigation
+      } else {
+        const orgData = {
+          organization_name: oName,
+          admin_name: oAdminName,
+          admin_email: oAdminEmail,
+          password: oPwd,
+          email_domain: oDomain,
+          location: oLocation,
+          user_type: 'organization'
+        };
+
+        const response = await fetch(`${apiBase}/api/v1/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(orgData)
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Registration failed');
+        }
+
+        // Get the response data (organization)
+        const responseData = await response.json();
+        console.log('Organization registration successful:', responseData);
+        
+        // Show success message
+        setError('✅ Organization registration successful! Welcome to Campus Study Buddy. You can now sign in.');
+        
+        // Clear form fields
+        setOName('');
+        setOAdminName('');
+        setOAdminEmail('');
+        setOPwd('');
+        setODomain('');
+        setOLocation('');
+        
+        // Redirect to login after showing success
+        setTimeout(() => navigate('/home'), 3000);
+      }
     } catch (err: any) {
-      setError(err?.message || 'Registration failed');
+      console.error('Registration failed:', err);
+      setError(err.message || 'Registration failed. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -223,7 +336,7 @@ export default function Register() {
                     label="Full name"
                     value={sFullName}
                     onChange={setSFullName}
-                    placeholder="e.g., Aisha Mthembu"
+                    placeholder="John Doe"
                     required
                     error={requiredErrors.sFullName}
                   />
@@ -232,7 +345,7 @@ export default function Register() {
                     type="email"
                     value={sEmail}
                     onChange={setSEmail}
-                    placeholder="you@university.edu"
+                    placeholder="johndoe@university.edu"
                     required
                     error={requiredErrors.sEmail}
                     autoComplete="email"
@@ -250,7 +363,7 @@ export default function Register() {
                     label="University"
                     value={sUniversity}
                     onChange={setSUniversity}
-                    placeholder="e.g., UniXYZ"
+                    placeholder="University of Technology"
                     required
                     error={requiredErrors.sUniversity}
                   />
@@ -258,7 +371,7 @@ export default function Register() {
                     label="Course / Program"
                     value={sCourse}
                     onChange={setSCourse}
-                    placeholder="e.g., BSc Computer Science"
+                    placeholder="Computer Science"
                     required
                     error={requiredErrors.sCourse}
                   />
@@ -266,7 +379,7 @@ export default function Register() {
                     label="Year"
                     value={sYear}
                     onChange={setSYear}
-                    placeholder="e.g., 3"
+                    placeholder="3"
                     required
                     error={requiredErrors.sYear}
                     inputMode="numeric"
@@ -278,7 +391,7 @@ export default function Register() {
                     label="Organization name"
                     value={oName}
                     onChange={setOName}
-                    placeholder="e.g., Greenfields University"
+                    placeholder="University of Technology"
                     required
                     error={requiredErrors.oName}
                   />
@@ -286,7 +399,7 @@ export default function Register() {
                     label="Admin name"
                     value={oAdminName}
                     onChange={setOAdminName}
-                    placeholder="e.g., Thandi Dlamini"
+                    placeholder="John Doe"
                     required
                     error={requiredErrors.oAdminName}
                   />
@@ -341,7 +454,7 @@ export default function Register() {
                 Already have an account?{' '}
                 <button
                   type="button"
-                  onClick={() => navigate('/login')}
+                  onClick={() => navigate('/home')}
                   className="font-medium text-emerald-700 hover:text-emerald-800 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600 rounded"
                 >
                   Sign in
@@ -357,19 +470,31 @@ export default function Register() {
                 </div>
               )}
 
-              {/* Divider + Google Sign-In */}
-              <div className="mt-4 flex items-center gap-3">
-                <div className="h-px flex-1 bg-slate-100" />
-                <div className="text-sm text-slate-400">or</div>
-                <div className="h-px flex-1 bg-slate-100" />
+              {/* Divider */}
+              <div className="relative my-4">
+                <div className="h-px w-full bg-slate-200" />
+                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-3 text-xs text-slate-500">
+                  or
+                </span>
               </div>
 
-              <div className="mt-3">
-                <div ref={googleBtnRef} />
+              {/* Google Sign-In Button */}
+              <div className="flex flex-col items-stretch gap-2">
+                <div ref={googleBtnRef} className="flex justify-center" />
                 {!import.meta.env.VITE_GOOGLE_CLIENT_ID && (
-                  <div className="mt-2 text-xs text-slate-500">
-                    Google Sign-In disabled (no client id)
-                  </div>
+                  <>
+                    <button
+                      type="button"
+                      disabled
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 font-medium text-slate-800 shadow-sm opacity-70"
+                    >
+                      <GoogleGlyph className="h-5 w-5" />
+                      Continue with Google
+                    </button>
+                    <p className="text-center text-xs text-slate-500">
+                      Set <code>VITE_GOOGLE_CLIENT_ID</code> to enable Google Sign‑In.
+                    </p>
+                  </>
                 )}
               </div>
             </form>
@@ -506,7 +631,6 @@ function PasswordField(props: {
           {error}
         </p>
       )}
-      <p className="mt-1 text-xs text-slate-600">Use at least 8 characters.</p>
     </label>
   );
 }

@@ -519,7 +519,6 @@ function ProfileModal({
 function SettingsModal({
   open,
   onClose,
-  user,
 }: {
   open: boolean;
   onClose: () => void;

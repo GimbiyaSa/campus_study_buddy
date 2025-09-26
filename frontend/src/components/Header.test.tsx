@@ -1,5 +1,4 @@
-import { render, screen } from '../test-utils';
-import userEvent from '@testing-library/user-event';
+import { render } from '../test-utils';
 import Header from './Header';
 import { expect, test } from 'vitest';
 

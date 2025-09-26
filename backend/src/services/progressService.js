@@ -1,44 +1,13 @@
 const express = require('express');
 const sql = require('mssql');
 const { authenticateToken } = require('../middleware/authMiddleware');
+const { azureSQL } = require('./azureSQLService');
 
 const router = express.Router();
 
-// Azure SQL Database configuration
-const dbConfig = {
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  server: process.env.DB_SERVER,
-  database: process.env.DB_DATABASE,
-  options: {
-    encrypt: true, // Required for Azure SQL
-    enableArithAbort: true,
-    trustServerCertificate: false,
-    requestTimeout: 30000,
-    connectionTimeout: 30000,
-  },
-  pool: {
-    max: 10,
-    min: 0,
-    idleTimeoutMillis: 30000,
-  },
-};
-
-// Initialize connection pool
-let poolPromise = sql
-  .connect(dbConfig)
-  .then((pool) => {
-    console.log('Connected to Azure SQL Database for Progress Service');
-    return pool;
-  })
-  .catch((err) => {
-    console.error('Database connection failed:', err);
-    throw err;
-  });
-
-// Helper function to get database pool
+// Use centralized Azure SQL pool instead of creating our own
 async function getPool() {
-  return await poolPromise;
+  return await azureSQL.getPool();
 }
 
 // POST /progress/sessions - Log study session

@@ -38,6 +38,16 @@ output "container_apps_environment_name" {
   value       = module.compute.container_apps_environment_name
 }
 
+output "container_registry_name" {
+  description = "The name of the Azure Container Registry"
+  value       = module.compute.container_registry_name
+}
+
+output "container_registry_login_server" {
+  description = "The login server URL of the Azure Container Registry"
+  value       = module.compute.container_registry_login_server
+}
+
 # ==============================================================================
 # NETWORKING OUTPUTS
 # ==============================================================================

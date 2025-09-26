@@ -17,13 +17,13 @@ interface ChatWindowProps {
   className?: string;
 }
 
-export default function ChatWindow({ 
-  chatRoomId, 
-  chatRoomName, 
-  chatRoomType, 
-  participants, 
+export default function ChatWindow({
+  chatRoomId,
+  chatRoomName,
+  chatRoomType,
+  participants,
   onClose,
-  className = '' 
+  className = '',
 }: ChatWindowProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -31,7 +31,7 @@ export default function ChatWindow({
   const [isConnected, setIsConnected] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Set<number>>(new Set());
   const [isTyping, setIsTyping] = useState(false);
-  
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -78,37 +78,39 @@ export default function ChatWindow({
 
           azureService.onConnectionEvent('message', (message: ChatMessage) => {
             if (message.chatRoomId === chatRoomId) {
-              setMessages(prev => {
+              setMessages((prev) => {
                 // Avoid duplicates
-                if (prev.some(m => m.id === message.id)) {
+                if (prev.some((m) => m.id === message.id)) {
                   return prev;
                 }
-                return [...prev, message].sort((a, b) => 
-                  new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+                return [...prev, message].sort(
+                  (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
                 );
               });
               setTimeout(scrollToBottom, 100);
             }
           }),
 
-          azureService.onConnectionEvent('typing', (data: { userId: number; isTyping: boolean }) => {
-            setTypingUsers(prev => {
-              const newSet = new Set(prev);
-              if (data.isTyping) {
-                newSet.add(data.userId);
-              } else {
-                newSet.delete(data.userId);
-              }
-              return newSet;
-            });
-          }),
+          azureService.onConnectionEvent(
+            'typing',
+            (data: { userId: number; isTyping: boolean }) => {
+              setTypingUsers((prev) => {
+                const newSet = new Set(prev);
+                if (data.isTyping) {
+                  newSet.add(data.userId);
+                } else {
+                  newSet.delete(data.userId);
+                }
+                return newSet;
+              });
+            }
+          ),
         ];
 
         setUnsubscribeHandlers(handlers);
-        
+
         // Load initial messages
         await loadChatHistory();
-        
       } catch (error) {
         console.error('Error setting up real-time chat:', error);
         setIsConnected(false);
@@ -119,7 +121,7 @@ export default function ChatWindow({
 
     // Cleanup on unmount
     return () => {
-      unsubscribeHandlers.forEach(unsub => unsub());
+      unsubscribeHandlers.forEach((unsub) => unsub());
       azureService.leaveChatRoom(chatRoomId);
     };
   }, [chatRoomId, loadChatHistory, scrollToBottom]);
@@ -151,13 +153,13 @@ export default function ChatWindow({
     try {
       await azureService.sendChatMessage(chatRoomId, newMessage.trim(), 'text');
       setNewMessage('');
-      
+
       // Clear typing indicator
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
       setIsTyping(false);
-      
+
       // Focus back to input
       messageInputRef.current?.focus();
     } catch (error) {
@@ -184,25 +186,29 @@ export default function ChatWindow({
     if (diffInMinutes < 1) return 'Just now';
     if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
     if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
-    
+
     return date.toLocaleDateString();
   };
 
   // Get typing users text
   const getTypingText = () => {
     const typingUserNames = participants
-      .filter(p => typingUsers.has(p.id))
-      .map(p => p.name.split(' ')[0])
+      .filter((p) => typingUsers.has(p.id))
+      .map((p) => p.name.split(' ')[0])
       .slice(0, 3);
 
     if (typingUserNames.length === 0) return '';
     if (typingUserNames.length === 1) return `${typingUserNames[0]} is typing...`;
     if (typingUserNames.length === 2) return `${typingUserNames.join(' and ')} are typing...`;
-    return `${typingUserNames.slice(0, -1).join(', ')} and ${typingUserNames[typingUserNames.length - 1]} are typing...`;
+    return `${typingUserNames.slice(0, -1).join(', ')} and ${
+      typingUserNames[typingUserNames.length - 1]
+    } are typing...`;
   };
 
   return (
-    <div className={`flex flex-col h-full bg-white rounded-lg shadow-lg border border-gray-200 ${className}`}>
+    <div
+      className={`flex flex-col h-full bg-white rounded-lg shadow-lg border border-gray-200 ${className}`}
+    >
       {/* Chat Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50 rounded-t-lg">
         <div className="flex items-center gap-3">
@@ -214,11 +220,13 @@ export default function ChatWindow({
                 participants[0]?.name?.charAt(0) || 'C'
               )}
             </div>
-            <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${
-              isConnected ? 'bg-green-500' : 'bg-gray-400'
-            }`} />
+            <div
+              className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${
+                isConnected ? 'bg-green-500' : 'bg-gray-400'
+              }`}
+            />
           </div>
-          
+
           <div>
             <h3 className="font-semibold text-gray-900">{chatRoomName}</h3>
             <p className="text-sm text-gray-500">
@@ -239,13 +247,13 @@ export default function ChatWindow({
               </button>
             </>
           )}
-          
+
           <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
             <Settings className="w-5 h-5" />
           </button>
-          
+
           {onClose && (
-            <button 
+            <button
               onClick={onClose}
               className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
             >
@@ -270,10 +278,14 @@ export default function ChatWindow({
         ) : (
           messages.map((message, index) => {
             const isOwn = message.senderId === azureService['currentUser']?.id;
-            const showAvatar = !isOwn && (index === 0 || messages[index - 1]?.senderId !== message.senderId);
-            
+            const showAvatar =
+              !isOwn && (index === 0 || messages[index - 1]?.senderId !== message.senderId);
+
             return (
-              <div key={message.id} className={`flex ${isOwn ? 'justify-end' : 'justify-start'} gap-2`}>
+              <div
+                key={message.id}
+                className={`flex ${isOwn ? 'justify-end' : 'justify-start'} gap-2`}
+              >
                 {!isOwn && (
                   <div className="w-8 h-8 flex-shrink-0">
                     {showAvatar && (
@@ -283,17 +295,17 @@ export default function ChatWindow({
                     )}
                   </div>
                 )}
-                
+
                 <div className={`max-w-xs lg:max-w-md ${isOwn ? 'ml-auto' : 'mr-auto'}`}>
                   {!isOwn && showAvatar && (
                     <p className="text-xs text-gray-500 mb-1 px-3">{message.senderName}</p>
                   )}
-                  
-                  <div className={`px-4 py-2 rounded-2xl ${
-                    isOwn 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-gray-100 text-gray-900'
-                  }`}>
+
+                  <div
+                    className={`px-4 py-2 rounded-2xl ${
+                      isOwn ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'
+                    }`}
+                  >
                     {message.messageType === 'text' ? (
                       <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                     ) : message.messageType === 'file' ? (
@@ -304,10 +316,8 @@ export default function ChatWindow({
                     ) : (
                       <p className="text-sm italic text-gray-600">{message.content}</p>
                     )}
-                    
-                    <p className={`text-xs mt-1 ${
-                      isOwn ? 'text-blue-100' : 'text-gray-500'
-                    }`}>
+
+                    <p className={`text-xs mt-1 ${isOwn ? 'text-blue-100' : 'text-gray-500'}`}>
                       {formatTimestamp(message.timestamp)}
                     </p>
                   </div>
@@ -316,19 +326,28 @@ export default function ChatWindow({
             );
           })
         )}
-        
+
         {/* Typing Indicator */}
         {typingUsers.size > 0 && (
           <div className="flex items-center gap-2 text-sm text-gray-500 px-3">
             <div className="flex space-x-1">
-              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              <div
+                className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                style={{ animationDelay: '0ms' }}
+              />
+              <div
+                className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                style={{ animationDelay: '150ms' }}
+              />
+              <div
+                className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                style={{ animationDelay: '300ms' }}
+              />
             </div>
             <span>{getTypingText()}</span>
           </div>
         )}
-        
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -338,7 +357,7 @@ export default function ChatWindow({
           <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
             <Paperclip className="w-5 h-5" />
           </button>
-          
+
           <div className="flex-1 relative">
             <textarea
               ref={messageInputRef}
@@ -348,18 +367,18 @@ export default function ChatWindow({
                 handleTyping();
               }}
               onKeyPress={handleKeyPress}
-              placeholder={isConnected ? "Type a message..." : "Connecting..."}
+              placeholder={isConnected ? 'Type a message...' : 'Connecting...'}
               disabled={!isConnected}
               className="w-full px-4 py-2 pr-12 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none max-h-32 disabled:bg-gray-100 disabled:cursor-not-allowed"
               rows={1}
               style={{ minHeight: '40px' }}
             />
-            
+
             <button className="absolute right-2 top-2 p-1 text-gray-500 hover:text-gray-700 transition-colors">
               <Smile className="w-5 h-5" />
             </button>
           </div>
-          
+
           <button
             onClick={sendMessage}
             disabled={!newMessage.trim() || !isConnected}
@@ -368,7 +387,7 @@ export default function ChatWindow({
             <Send className="w-5 h-5" />
           </button>
         </div>
-        
+
         {/* Connection Status */}
         {!isConnected && (
           <div className="flex items-center gap-2 mt-2 text-sm text-amber-600">

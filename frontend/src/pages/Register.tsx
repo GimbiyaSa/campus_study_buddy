@@ -5,11 +5,7 @@ import logo from '../assets/logo.jpg';
 
 function GoogleGlyph({ className }: { className?: string }) {
   return (
-    <svg
-      viewBox="0 0 18 18"
-      aria-hidden="true"
-      className={className}
-    >
+    <svg viewBox="0 0 18 18" aria-hidden="true" className={className}>
       <path
         fill="#4285F4"
         d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18Z"
@@ -110,7 +106,8 @@ export default function Register() {
 
     setSubmitting(true);
     try {
-      const apiBase = (import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:3002';
+      const apiBase =
+        (import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:3002';
       const base = apiBase.replace(/\/$/, '');
       const exchange = await fetch(`${base}/api/v1/auth/google`, {
         method: 'POST',
@@ -184,7 +181,7 @@ export default function Register() {
     setSubmitting(true);
     try {
       const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:3002';
-      
+
       if (tab === 'student') {
         const studentData = {
           first_name: sFullName.split(' ')[0],
@@ -194,13 +191,13 @@ export default function Register() {
           university: sUniversity,
           course: sCourse,
           year_of_study: parseInt(sYear),
-          user_type: 'student'
+          user_type: 'student',
         };
 
         const response = await fetch(`${apiBase}/api/v1/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(studentData)
+          body: JSON.stringify(studentData),
         });
 
         if (!response.ok) {
@@ -211,10 +208,10 @@ export default function Register() {
         // Get the response data (student)
         const responseData = await response.json();
         console.log('Student registration successful:', responseData);
-        
+
         // Show success message
         setError('✅ Registration successful! Welcome to Campus Study Buddy. You can now sign in.');
-        
+
         // Clear form fields
         setSFullName('');
         setSEmail('');
@@ -222,7 +219,7 @@ export default function Register() {
         setSUniversity('');
         setSCourse('');
         setSYear('');
-        
+
         // Redirect to login after showing success
         setTimeout(() => navigate('/home'), 3000);
         return; // Don't continue to the next navigation
@@ -234,13 +231,13 @@ export default function Register() {
           password: oPwd,
           email_domain: oDomain,
           location: oLocation,
-          user_type: 'organization'
+          user_type: 'organization',
         };
 
         const response = await fetch(`${apiBase}/api/v1/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(orgData)
+          body: JSON.stringify(orgData),
         });
 
         if (!response.ok) {
@@ -251,10 +248,12 @@ export default function Register() {
         // Get the response data (organization)
         const responseData = await response.json();
         console.log('Organization registration successful:', responseData);
-        
+
         // Show success message
-        setError('✅ Organization registration successful! Welcome to Campus Study Buddy. You can now sign in.');
-        
+        setError(
+          '✅ Organization registration successful! Welcome to Campus Study Buddy. You can now sign in.'
+        );
+
         // Clear form fields
         setOName('');
         setOAdminName('');
@@ -262,7 +261,7 @@ export default function Register() {
         setOPwd('');
         setODomain('');
         setOLocation('');
-        
+
         // Redirect to login after showing success
         setTimeout(() => navigate('/home'), 3000);
       }

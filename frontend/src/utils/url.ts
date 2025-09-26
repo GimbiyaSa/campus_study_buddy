@@ -4,7 +4,7 @@ export const getBaseUrl = (): string => {
   if (typeof window !== 'undefined' && (window as any).VITE_API_URL) {
     return (window as any).VITE_API_URL;
   }
-  
+
   // For local development, always use the backend port
   return 'http://localhost:3002';
 };

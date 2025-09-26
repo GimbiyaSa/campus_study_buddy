@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
-import { 
-  Users, 
-  Calendar, 
-  Clock, 
-  Target, 
-  Award,
-  Bell,
-  Plus
-} from 'lucide-react';
-import { azureService, type StudyPartner, type StudyGroup, type StudySession, type ProgressData, type NotificationData } from '../services/azureIntegrationService';
+import { Users, Calendar, Clock, Target, Award, Bell, Plus } from 'lucide-react';
+import {
+  azureService,
+  type StudyPartner,
+  type StudyGroup,
+  type StudySession,
+  type ProgressData,
+  type NotificationData,
+} from '../services/azureIntegrationService';
 
 interface DashboardStats {
   totalStudyHours: number;
@@ -32,29 +31,35 @@ export default function Dashboard() {
     weeklyProgress: 0,
     partnerMatches: 0,
   });
-  
+
   const [upcomingSessions, setUpcomingSessions] = useState<StudySession[]>([]);
   const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [recommendedPartners, setRecommendedPartners] = useState<StudyPartner[]>([]);
   const [myGroups, setMyGroups] = useState<StudyGroup[]>([]);
-  
+
   const [loading, setLoading] = useState(true);
   const [selectedTimeframe, setSelectedTimeframe] = useState<'week' | 'month' | 'semester'>('week');
 
   useEffect(() => {
     loadDashboardData();
-    
-    // Setup real-time updates
-    const unsubscribeNotifications = azureService.onConnectionEvent('notification', (notification: any) => {
-      setNotifications(prev => [notification.data, ...prev].slice(0, 10));
-      updateStatsFromNotification(notification);
-    });
 
-    const unsubscribeGroupUpdates = azureService.onConnectionEvent('group_update', (update: any) => {
-      if (update.type === 'member_joined' || update.type === 'session_created') {
-        loadGroupsAndSessions();
+    // Setup real-time updates
+    const unsubscribeNotifications = azureService.onConnectionEvent(
+      'notification',
+      (notification: any) => {
+        setNotifications((prev) => [notification.data, ...prev].slice(0, 10));
+        updateStatsFromNotification(notification);
       }
-    });
+    );
+
+    const unsubscribeGroupUpdates = azureService.onConnectionEvent(
+      'group_update',
+      (update: any) => {
+        if (update.type === 'member_joined' || update.type === 'session_created') {
+          loadGroupsAndSessions();
+        }
+      }
+    );
 
     return () => {
       unsubscribeNotifications();
@@ -65,26 +70,20 @@ export default function Dashboard() {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      
+
       // Load all data in parallel
-      const [
-        progress,
-        sessions,
-        groups,
-        partners,
-        notifications,
-        matches
-      ] = await Promise.allSettled([
-        azureService.getProgressData({ timeframe: selectedTimeframe }),
-        azureService.getStudySessions({ 
-          startDate: new Date().toISOString(),
-          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-        }),
-        azureService.getMyGroups(),
-        azureService.getPartnerRecommendations(5),
-        azureService.getNotifications({ limit: 10, isRead: false }),
-        azureService.getPartnerMatches('pending')
-      ]);
+      const [progress, sessions, groups, partners, notifications, matches] =
+        await Promise.allSettled([
+          azureService.getProgressData({ timeframe: selectedTimeframe }),
+          azureService.getStudySessions({
+            startDate: new Date().toISOString(),
+            endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          }),
+          azureService.getMyGroups(),
+          azureService.getPartnerRecommendations(5),
+          azureService.getNotifications({ limit: 10, isRead: false }),
+          azureService.getPartnerMatches('pending'),
+        ]);
 
       // Process results
       if (progress.status === 'fulfilled') {
@@ -93,12 +92,12 @@ export default function Dashboard() {
 
       if (sessions.status === 'fulfilled') {
         setUpcomingSessions(sessions.value);
-        setStats(prev => ({ ...prev, upcomingSessions: sessions.value.length }));
+        setStats((prev) => ({ ...prev, upcomingSessions: sessions.value.length }));
       }
 
       if (groups.status === 'fulfilled') {
         setMyGroups(groups.value);
-        setStats(prev => ({ ...prev, activeGroups: groups.value.length }));
+        setStats((prev) => ({ ...prev, activeGroups: groups.value.length }));
       }
 
       if (partners.status === 'fulfilled') {
@@ -110,9 +109,8 @@ export default function Dashboard() {
       }
 
       if (matches.status === 'fulfilled') {
-        setStats(prev => ({ ...prev, partnerMatches: matches.value.length }));
+        setStats((prev) => ({ ...prev, partnerMatches: matches.value.length }));
       }
-
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
@@ -124,18 +122,18 @@ export default function Dashboard() {
     try {
       const [groups, sessions] = await Promise.all([
         azureService.getMyGroups(),
-        azureService.getStudySessions({ 
+        azureService.getStudySessions({
           startDate: new Date().toISOString(),
-          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-        })
+          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        }),
       ]);
-      
+
       setMyGroups(groups);
       setUpcomingSessions(sessions);
-      setStats(prev => ({ 
-        ...prev, 
+      setStats((prev) => ({
+        ...prev,
         activeGroups: groups.length,
-        upcomingSessions: sessions.length 
+        upcomingSessions: sessions.length,
       }));
     } catch (error) {
       console.error('Error loading groups and sessions:', error);
@@ -145,10 +143,10 @@ export default function Dashboard() {
   const updateStatsFromProgress = (progressData: ProgressData[]) => {
     const totalHours = progressData.reduce((sum, p) => sum + p.progress.totalStudyHours, 0);
     const totalCompleted = progressData.reduce((sum, p) => sum + p.progress.completedTopics, 0);
-    const currentStreak = Math.max(...progressData.map(p => p.progress.currentStreak), 0);
+    const currentStreak = Math.max(...progressData.map((p) => p.progress.currentStreak), 0);
     const weeklyProgress = progressData.reduce((sum, p) => sum + p.progress.weeklyProgress, 0);
 
-    setStats(prev => ({
+    setStats((prev) => ({
       ...prev,
       totalStudyHours: totalHours,
       completedTopics: totalCompleted,
@@ -159,7 +157,7 @@ export default function Dashboard() {
 
   const updateStatsFromNotification = (notification: any) => {
     if (notification.type === 'partner_request') {
-      setStats(prev => ({ ...prev, partnerMatches: prev.partnerMatches + 1 }));
+      setStats((prev) => ({ ...prev, partnerMatches: prev.partnerMatches + 1 }));
     }
   };
 
@@ -188,7 +186,7 @@ export default function Dashboard() {
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
           <p className="text-gray-600">Welcome back! Here's your study progress overview.</p>
         </div>
-        
+
         <div className="flex items-center gap-2">
           <select
             value={selectedTimeframe}
@@ -199,7 +197,7 @@ export default function Dashboard() {
             <option value="month">This Month</option>
             <option value="semester">This Semester</option>
           </select>
-          
+
           <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
             <Plus className="w-4 h-4 mr-2" />
             Quick Actions
@@ -232,9 +230,11 @@ export default function Dashboard() {
                 {stats.weeklyProgress}/{stats.weeklyGoal}h
               </p>
               <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                <div 
+                <div
                   className="bg-green-500 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${Math.min((stats.weeklyProgress / stats.weeklyGoal) * 100, 100)}%` }}
+                  style={{
+                    width: `${Math.min((stats.weeklyProgress / stats.weeklyGoal) * 100, 100)}%`,
+                  }}
                 />
               </div>
             </div>
@@ -280,7 +280,7 @@ export default function Dashboard() {
                 </button>
               </div>
             </div>
-            
+
             <div className="p-6">
               {upcomingSessions.length === 0 ? (
                 <div className="text-center py-8">
@@ -293,21 +293,32 @@ export default function Dashboard() {
               ) : (
                 <div className="space-y-4">
                   {upcomingSessions.slice(0, 3).map((session) => (
-                    <div key={session.id} className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                    <div
+                      key={session.id}
+                      className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
                       <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-white font-semibold">
                         {session.moduleCode.slice(0, 2)}
                       </div>
-                      
+
                       <div className="flex-1">
                         <h4 className="font-medium text-gray-900">{session.title}</h4>
-                        <p className="text-sm text-gray-600">{session.moduleCode} • {formatDuration(session.duration)}</p>
+                        <p className="text-sm text-gray-600">
+                          {session.moduleCode} • {formatDuration(session.duration)}
+                        </p>
                         <p className="text-sm text-blue-600">
-                          {new Date(session.scheduledAt).toLocaleDateString()} at {new Date(session.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(session.scheduledAt).toLocaleDateString()} at{' '}
+                          {new Date(session.scheduledAt).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
                         </p>
                       </div>
-                      
+
                       <div className="text-right">
-                        <p className="text-sm text-gray-600">{session.attendees.length} attendees</p>
+                        <p className="text-sm text-gray-600">
+                          {session.attendees.length} attendees
+                        </p>
                         <button className="text-blue-600 hover:text-blue-700 text-sm font-medium">
                           Join
                         </button>
@@ -329,7 +340,7 @@ export default function Dashboard() {
                 </button>
               </div>
             </div>
-            
+
             <div className="p-6">
               {myGroups.length === 0 ? (
                 <div className="text-center py-8">
@@ -342,7 +353,10 @@ export default function Dashboard() {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {myGroups.slice(0, 4).map((group) => (
-                    <div key={group.id} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                    <div
+                      key={group.id}
+                      className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
                       <div className="flex items-center gap-3 mb-3">
                         <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-blue-600 rounded-lg flex items-center justify-center text-white font-semibold">
                           {group.moduleCode.slice(0, 2)}
@@ -352,7 +366,7 @@ export default function Dashboard() {
                           <p className="text-sm text-gray-600">{group.moduleCode}</p>
                         </div>
                       </div>
-                      
+
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-600">{group.memberCount} members</span>
                         <span className="text-green-600 font-medium">Active</span>
@@ -382,7 +396,7 @@ export default function Dashboard() {
                 )}
               </div>
             </div>
-            
+
             <div className="p-6">
               {notifications.length === 0 ? (
                 <div className="text-center py-8">
@@ -392,7 +406,10 @@ export default function Dashboard() {
               ) : (
                 <div className="space-y-3">
                   {notifications.slice(0, 5).map((notification) => (
-                    <div key={notification.id} className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div
+                      key={notification.id}
+                      className="p-3 bg-blue-50 border border-blue-200 rounded-lg"
+                    >
                       <p className="text-sm font-medium text-gray-900">{notification.title}</p>
                       <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
                       <p className="text-xs text-gray-500 mt-2">
@@ -410,7 +427,7 @@ export default function Dashboard() {
             <div className="p-6 border-b border-gray-100">
               <h3 className="text-lg font-semibold text-gray-900">Recommended Partners</h3>
             </div>
-            
+
             <div className="p-6">
               {recommendedPartners.length === 0 ? (
                 <div className="text-center py-8">
@@ -420,17 +437,27 @@ export default function Dashboard() {
               ) : (
                 <div className="space-y-4">
                   {recommendedPartners.slice(0, 3).map((partner) => (
-                    <div key={partner.id} className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                    <div
+                      key={partner.id}
+                      className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
                       <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white font-semibold">
-                        {partner.name.split(' ').map(n => n[0]).join('')}
+                        {partner.name
+                          .split(' ')
+                          .map((n) => n[0])
+                          .join('')}
                       </div>
-                      
+
                       <div className="flex-1">
                         <h4 className="font-medium text-gray-900">{partner.name}</h4>
-                        <p className="text-sm text-gray-600">{partner.major} • {partner.year}</p>
-                        <p className="text-sm text-green-600">{Math.round(partner.compatibilityScore * 100)}% match</p>
+                        <p className="text-sm text-gray-600">
+                          {partner.major} • {partner.year}
+                        </p>
+                        <p className="text-sm text-green-600">
+                          {Math.round(partner.compatibilityScore * 100)}% match
+                        </p>
                       </div>
-                      
+
                       <button className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors">
                         Connect
                       </button>

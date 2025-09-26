@@ -292,7 +292,14 @@ export interface ChatMessage {
 export interface NotificationData {
   id: string;
   userId: number;
-  type: 'partner_request' | 'partner_response' | 'group_invitation' | 'session_reminder' | 'session_update' | 'progress_milestone' | 'system_announcement';
+  type:
+    | 'partner_request'
+    | 'partner_response'
+    | 'group_invitation'
+    | 'session_reminder'
+    | 'session_update'
+    | 'progress_milestone'
+    | 'system_announcement';
   title: string;
   message: string;
   actionUrl?: string;
@@ -317,7 +324,8 @@ class AzureIntegrationService {
 
   private constructor() {
     // Use Azure Container Apps URL from infrastructure
-    this.baseUrl = import.meta.env.VITE_API_URL || 'https://csb-prod-ca-api-7ndjbzgu.azurecontainerapps.io';
+    this.baseUrl =
+      import.meta.env.VITE_API_URL || 'https://csb-prod-ca-api-7ndjbzgu.azurecontainerapps.io';
     this.initializeAuth();
   }
 
@@ -361,7 +369,7 @@ class AzureIntegrationService {
 
   public async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    
+
     const config: RequestInit = {
       ...options,
       credentials: 'include', // Always include cookies for session auth
@@ -373,13 +381,13 @@ class AzureIntegrationService {
 
     try {
       const response = await fetch(url, config);
-      
+
       if (!response.ok) {
         if (response.status === 401) {
           this.clearAuth();
           throw new Error('Authentication required');
         }
-        
+
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
       }
@@ -397,10 +405,12 @@ class AzureIntegrationService {
 
     try {
       // Get connection token from backend
-      const tokenResponse = await this.request<{ token: string; url: string }>('/api/v1/chat/connection-token');
-      
+      const tokenResponse = await this.request<{ token: string; url: string }>(
+        '/api/v1/chat/connection-token'
+      );
+
       this.webPubSubClient = new WebPubSubClient(tokenResponse.url);
-      
+
       this.webPubSubClient.on('connected', () => {
         console.log('✅ Connected to Azure Web PubSub');
         this.handleConnectionEvent('connected', {});
@@ -416,10 +426,9 @@ class AzureIntegrationService {
       });
 
       await this.webPubSubClient.start();
-      
+
       // Join user-specific channel for notifications
       await this.webPubSubClient.joinGroup(`user-${this.currentUser.id}`);
-      
     } catch (error) {
       console.error('Failed to initialize real-time connection:', error);
     }
@@ -435,12 +444,12 @@ class AzureIntegrationService {
 
   private handleConnectionEvent(event: string, data: any) {
     const handlers = this.connectionHandlers.get(event) || [];
-    handlers.forEach(handler => handler(data));
+    handlers.forEach((handler) => handler(data));
   }
 
   private handleIncomingMessage(data: any) {
     const { type, payload } = data;
-    
+
     switch (type) {
       case 'chat_message':
         this.handleConnectionEvent('message', payload);
@@ -448,13 +457,13 @@ class AzureIntegrationService {
       case 'partner_request':
         this.handleConnectionEvent('notification', {
           type: 'partner_request',
-          data: payload
+          data: payload,
         });
         break;
       case 'session_reminder':
         this.handleConnectionEvent('notification', {
-          type: 'session_reminder', 
-          data: payload
+          type: 'session_reminder',
+          data: payload,
         });
         break;
       case 'group_update':
@@ -471,7 +480,7 @@ class AzureIntegrationService {
       this.connectionHandlers.set(event, []);
     }
     this.connectionHandlers.get(event)!.push(handler);
-    
+
     return () => {
       const handlers = this.connectionHandlers.get(event) || [];
       const index = handlers.indexOf(handler);
@@ -484,7 +493,7 @@ class AzureIntegrationService {
   // Partner Matching API (Complex Algorithm with Azure SQL)
   public async searchPartners(criteria: PartnerFilter): Promise<StudyPartner[]> {
     const queryParams = new URLSearchParams();
-    
+
     Object.entries(criteria).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
         if (Array.isArray(value)) {
@@ -502,13 +511,17 @@ class AzureIntegrationService {
     return this.request<StudyPartner[]>(`/api/v1/partners/recommendations?limit=${limit}`);
   }
 
-  public async sendPartnerRequest(partnerId: number, moduleId?: number, message?: string): Promise<void> {
+  public async sendPartnerRequest(
+    partnerId: number,
+    moduleId?: number,
+    message?: string
+  ): Promise<void> {
     return this.request('/api/v1/partners/match', {
       method: 'POST',
       body: JSON.stringify({
         matched_user_id: partnerId,
         module_id: moduleId,
-        message: message
+        message: message,
       }),
     });
   }
@@ -518,7 +531,10 @@ class AzureIntegrationService {
     return this.request<any[]>(`/api/v1/partners/matches${queryParams}`);
   }
 
-  public async respondToPartnerRequest(matchId: number, response: 'accepted' | 'declined'): Promise<void> {
+  public async respondToPartnerRequest(
+    matchId: number,
+    response: 'accepted' | 'declined'
+  ): Promise<void> {
     return this.request(`/api/v1/partners/matches/${matchId}/respond`, {
       method: 'PUT',
       body: JSON.stringify({ response }),
@@ -534,7 +550,7 @@ class AzureIntegrationService {
     availability?: string;
   }): Promise<StudyGroup[]> {
     const queryParams = new URLSearchParams();
-    
+
     if (filters) {
       Object.entries(filters).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
@@ -593,7 +609,7 @@ class AzureIntegrationService {
     limit?: number;
   }): Promise<StudySession[]> {
     const queryParams = new URLSearchParams();
-    
+
     if (filters) {
       Object.entries(filters).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
@@ -627,7 +643,10 @@ class AzureIntegrationService {
     });
   }
 
-  public async updateSessionAttendance(sessionId: number, status: 'confirmed' | 'tentative' | 'declined'): Promise<void> {
+  public async updateSessionAttendance(
+    sessionId: number,
+    status: 'confirmed' | 'tentative' | 'declined'
+  ): Promise<void> {
     return this.request(`/api/v1/sessions/${sessionId}/attendance`, {
       method: 'PUT',
       body: JSON.stringify({ status }),
@@ -641,7 +660,7 @@ class AzureIntegrationService {
     timeframe?: 'week' | 'month' | 'semester' | 'year';
   }): Promise<ProgressData[]> {
     const queryParams = new URLSearchParams();
-    
+
     if (filters) {
       Object.entries(filters).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
@@ -667,12 +686,15 @@ class AzureIntegrationService {
     });
   }
 
-  public async updateTopicProgress(topicId: number, progress: {
-    status: 'not_started' | 'in_progress' | 'completed' | 'mastered';
-    timeSpent: number;
-    confidence: number;
-    notes?: string;
-  }): Promise<void> {
+  public async updateTopicProgress(
+    topicId: number,
+    progress: {
+      status: 'not_started' | 'in_progress' | 'completed' | 'mastered';
+      timeSpent: number;
+      confidence: number;
+      notes?: string;
+    }
+  ): Promise<void> {
     return this.request(`/api/v1/progress/topics/${topicId}`, {
       method: 'PUT',
       body: JSON.stringify(progress),
@@ -680,12 +702,15 @@ class AzureIntegrationService {
   }
 
   // File Sharing API (Azure Blob Storage)
-  public async uploadFile(file: File, metadata?: {
-    moduleId?: number;
-    sessionId?: number;
-    description?: string;
-    isPublic?: boolean;
-  }): Promise<{
+  public async uploadFile(
+    file: File,
+    metadata?: {
+      moduleId?: number;
+      sessionId?: number;
+      description?: string;
+      isPublic?: boolean;
+    }
+  ): Promise<{
     url: string;
     fileName: string;
     fileSize: number;
@@ -693,7 +718,7 @@ class AzureIntegrationService {
   }> {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     if (metadata) {
       Object.entries(metadata).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
@@ -715,28 +740,40 @@ class AzureIntegrationService {
   }
 
   // Chat API (Real-time with Azure Web PubSub)
-  public async sendChatMessage(chatRoomId: string, content: string, messageType: string = 'text'): Promise<void> {
+  public async sendChatMessage(
+    chatRoomId: string,
+    content: string,
+    messageType: string = 'text'
+  ): Promise<void> {
     if (!this.webPubSubClient) {
       throw new Error('Real-time connection not established');
     }
 
-    await this.webPubSubClient.sendToGroup(chatRoomId, {
-      type: 'chat_message',
-      payload: {
-        chatRoomId,
-        content,
-        messageType,
-        senderId: this.currentUser?.id,
-        senderName: this.currentUser?.name,
-        timestamp: new Date().toISOString(),
-      }
-    }, 'json');
+    await this.webPubSubClient.sendToGroup(
+      chatRoomId,
+      {
+        type: 'chat_message',
+        payload: {
+          chatRoomId,
+          content,
+          messageType,
+          senderId: this.currentUser?.id,
+          senderName: this.currentUser?.name,
+          timestamp: new Date().toISOString(),
+        },
+      },
+      'json'
+    );
   }
 
-  public async getChatHistory(chatRoomId: string, limit: number = 50, before?: string): Promise<ChatMessage[]> {
+  public async getChatHistory(
+    chatRoomId: string,
+    limit: number = 50,
+    before?: string
+  ): Promise<ChatMessage[]> {
     const queryParams = new URLSearchParams({ limit: limit.toString() });
     if (before) queryParams.append('before', before);
-    
+
     return this.request<ChatMessage[]>(`/api/v1/chat/${chatRoomId}/messages?${queryParams}`);
   }
 
@@ -759,7 +796,7 @@ class AzureIntegrationService {
     limit?: number;
   }): Promise<NotificationData[]> {
     const queryParams = new URLSearchParams();
-    
+
     if (filters) {
       Object.entries(filters).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
@@ -802,13 +839,13 @@ class AzureIntegrationService {
   public async createSession(sessionData: Partial<StudySession>): Promise<StudySession> {
     return this.request<StudySession>('/api/v1/sessions', {
       method: 'POST',
-      body: JSON.stringify(sessionData)
+      body: JSON.stringify(sessionData),
     });
   }
 
   public async joinSession(sessionId: number): Promise<void> {
     return this.request(`/api/v1/sessions/${sessionId}/join`, {
-      method: 'POST'
+      method: 'POST',
     });
   }
 

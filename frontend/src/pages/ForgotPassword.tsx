@@ -22,7 +22,7 @@ export default function ForgotPassword() {
       const response = await fetch(`${apiBase}/api/v1/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ email }),
       });
 
       if (!response.ok) {
@@ -52,12 +52,12 @@ export default function ForgotPassword() {
                 We've sent password reset instructions to <strong>{email}</strong>
               </p>
             </div>
-            
+
             <div className="space-y-4">
               <p className="text-sm text-slate-600">
                 Didn't receive the email? Check your spam folder or try again in a few minutes.
               </p>
-              
+
               <div className="flex gap-3 justify-center">
                 <button
                   onClick={() => navigate('/home')}
@@ -66,7 +66,7 @@ export default function ForgotPassword() {
                   <ArrowLeft className="h-4 w-4" />
                   Back to Login
                 </button>
-                
+
                 <button
                   onClick={() => {
                     setSuccess(false);
@@ -96,7 +96,7 @@ export default function ForgotPassword() {
               <ArrowLeft className="h-4 w-4" />
               Back to Login
             </button>
-            
+
             <h1 className="text-2xl font-bold text-slate-900">Reset Your Password</h1>
             <p className="mt-2 text-slate-600">
               Enter your email address and we'll send you a link to reset your password.

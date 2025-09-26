@@ -8,9 +8,14 @@ import {
   Crown,
   MoreVertical,
   X,
-  Loader2
+  Loader2,
 } from 'lucide-react';
-import { azureService, type StudyGroup, type StudySession, type GroupMember } from '../services/azureIntegrationService';
+import {
+  azureService,
+  type StudyGroup,
+  type StudySession,
+  type GroupMember,
+} from '../services/azureIntegrationService';
 
 interface GroupManagementProps {
   onGroupSelect?: (groupId: number) => void;
@@ -22,13 +27,13 @@ export default function GroupManagement({ onGroupSelect }: GroupManagementProps)
   const [selectedGroup, setSelectedGroup] = useState<StudyGroup | null>(null);
   const [groupSessions, setGroupSessions] = useState<StudySession[]>([]);
   const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
-  
+
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'my-groups' | 'browse' | 'create'>('my-groups');
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<number | 'create' | null>(null);
-  
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [, setShowInviteModal] = useState(false);
   const [createGroupForm, setCreateGroupForm] = useState({
@@ -38,16 +43,19 @@ export default function GroupManagement({ onGroupSelect }: GroupManagementProps)
     isPrivate: false,
     maxMembers: 10,
     studyGoals: '',
-    meetingSchedule: ''
+    meetingSchedule: '',
   });
 
   useEffect(() => {
     loadGroupData();
-    
+
     // Subscribe to real-time group updates
-    const unsubscribe = azureService.onConnectionEvent('group_update', (update: { type: string; groupId: number }) => {
-      handleGroupUpdate(update);
-    });
+    const unsubscribe = azureService.onConnectionEvent(
+      'group_update',
+      (update: { type: string; groupId: number }) => {
+        handleGroupUpdate(update);
+      }
+    );
 
     return () => unsubscribe();
   }, []);
@@ -55,17 +63,18 @@ export default function GroupManagement({ onGroupSelect }: GroupManagementProps)
   const loadGroupData = async () => {
     try {
       setLoading(true);
-      
+
       const [myGroupsData, availableGroupsData] = await Promise.all([
         azureService.getMyGroups(),
-  azureService.getStudyGroups({})
+        azureService.getStudyGroups({}),
       ]);
-      
+
       setMyGroups(myGroupsData);
-      setAvailableGroups(availableGroupsData.filter(group => 
-        !myGroupsData.some(myGroup => myGroup.id === group.id)
-      ));
-      
+      setAvailableGroups(
+        availableGroupsData.filter(
+          (group) => !myGroupsData.some((myGroup) => myGroup.id === group.id)
+        )
+      );
     } catch (error) {
       console.error('Error loading group data:', error);
     } finally {
@@ -77,9 +86,9 @@ export default function GroupManagement({ onGroupSelect }: GroupManagementProps)
     try {
       const [sessions, members] = await Promise.all([
         azureService.getGroupSessions(groupId),
-        azureService.getGroupMembers(groupId)
+        azureService.getGroupMembers(groupId),
       ]);
-      
+
       setGroupSessions(sessions);
       setGroupMembers(members);
     } catch (error) {
@@ -115,16 +124,15 @@ export default function GroupManagement({ onGroupSelect }: GroupManagementProps)
   const handleJoinGroup = async (groupId: number) => {
     try {
       setActionLoading(groupId);
-      
+
       await azureService.joinGroup(groupId);
-      
+
       // Move group from available to my groups
-      const group = availableGroups.find(g => g.id === groupId);
+      const group = availableGroups.find((g) => g.id === groupId);
       if (group) {
-        setMyGroups(prev => [...prev, { ...group, memberCount: group.memberCount + 1 }]);
-        setAvailableGroups(prev => prev.filter(g => g.id !== groupId));
+        setMyGroups((prev) => [...prev, { ...group, memberCount: group.memberCount + 1 }]);
+        setAvailableGroups((prev) => prev.filter((g) => g.id !== groupId));
       }
-      
     } catch (error) {
       console.error('Error joining group:', error);
     } finally {
@@ -135,16 +143,15 @@ export default function GroupManagement({ onGroupSelect }: GroupManagementProps)
   const handleLeaveGroup = async (groupId: number) => {
     try {
       setActionLoading(groupId);
-      
+
       await azureService.leaveGroup(groupId);
-      
+
       // Remove from my groups
-      setMyGroups(prev => prev.filter(g => g.id !== groupId));
-      
+      setMyGroups((prev) => prev.filter((g) => g.id !== groupId));
+
       if (selectedGroup?.id === groupId) {
         setSelectedGroup(null);
       }
-      
     } catch (error) {
       console.error('Error leaving group:', error);
     } finally {
@@ -156,7 +163,7 @@ export default function GroupManagement({ onGroupSelect }: GroupManagementProps)
     e.preventDefault();
     try {
       setActionLoading('create');
-      
+
       const newGroup = await azureService.createStudyGroup({
         name: createGroupForm.name,
         description: createGroupForm.description,
@@ -165,7 +172,10 @@ export default function GroupManagement({ onGroupSelect }: GroupManagementProps)
         maxMembers: createGroupForm.maxMembers,
         tags: [],
         studyGoals: createGroupForm.studyGoals
-          ? createGroupForm.studyGoals.split(',').map(goal => goal.trim()).filter(Boolean)
+          ? createGroupForm.studyGoals
+              .split(',')
+              .map((goal) => goal.trim())
+              .filter(Boolean)
           : [],
         meetingSchedule: createGroupForm.meetingSchedule
           ? {
@@ -173,12 +183,12 @@ export default function GroupManagement({ onGroupSelect }: GroupManagementProps)
               preferredDays: [],
               preferredTimes: [],
               duration: createGroupForm.meetingSchedule,
-              location: createGroupForm.isPrivate ? 'online' : 'flexible'
+              location: createGroupForm.isPrivate ? 'online' : 'flexible',
             }
-          : undefined
+          : undefined,
       });
-      
-      setMyGroups(prev => [newGroup, ...prev]);
+
+      setMyGroups((prev) => [newGroup, ...prev]);
       setShowCreateModal(false);
       setCreateGroupForm({
         name: '',
@@ -187,9 +197,8 @@ export default function GroupManagement({ onGroupSelect }: GroupManagementProps)
         isPrivate: false,
         maxMembers: 10,
         studyGoals: '',
-        meetingSchedule: ''
+        meetingSchedule: '',
       });
-      
     } catch (error) {
       console.error('Error creating group:', error);
     } finally {
@@ -205,30 +214,33 @@ export default function GroupManagement({ onGroupSelect }: GroupManagementProps)
 
   const filteredGroups = (groups: StudyGroup[]) => {
     let filtered = groups;
-    
+
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(group =>
-        group.name.toLowerCase().includes(query) ||
-        group.moduleCode.toLowerCase().includes(query) ||
-        group.description?.toLowerCase().includes(query)
+      filtered = filtered.filter(
+        (group) =>
+          group.name.toLowerCase().includes(query) ||
+          group.moduleCode.toLowerCase().includes(query) ||
+          group.description?.toLowerCase().includes(query)
       );
     }
-    
+
     if (filterCategory !== 'all') {
-      filtered = filtered.filter(group => 
+      filtered = filtered.filter((group) =>
         group.moduleCode.toLowerCase().includes(filterCategory.toLowerCase())
       );
     }
-    
+
     return filtered;
   };
 
   const getGroupStatusColor = (group: StudyGroup) => {
     const now = new Date();
     const lastActivity = new Date(group.lastActivity || group.createdAt);
-    const daysSinceActivity = Math.floor((now.getTime() - lastActivity.getTime()) / (1000 * 60 * 60 * 24));
-    
+    const daysSinceActivity = Math.floor(
+      (now.getTime() - lastActivity.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
     if (daysSinceActivity <= 1) return 'bg-green-100 text-green-600';
     if (daysSinceActivity <= 7) return 'bg-blue-100 text-blue-600';
     if (daysSinceActivity <= 30) return 'bg-yellow-100 text-yellow-600';
@@ -254,7 +266,7 @@ export default function GroupManagement({ onGroupSelect }: GroupManagementProps)
           <h1 className="text-2xl font-bold text-gray-900">Study Groups</h1>
           <p className="text-gray-600">Join groups and collaborate with fellow students</p>
         </div>
-        
+
         <button
           onClick={() => setShowCreateModal(true)}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
@@ -300,7 +312,7 @@ export default function GroupManagement({ onGroupSelect }: GroupManagementProps)
             className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
           />
         </div>
-        
+
         <select
           value={filterCategory}
           onChange={(e) => setFilterCategory(e.target.value)}
@@ -346,18 +358,22 @@ export default function GroupManagement({ onGroupSelect }: GroupManagementProps)
                         <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-blue-600 rounded-lg flex items-center justify-center text-white font-semibold">
                           {group.moduleCode.slice(0, 2)}
                         </div>
-                        
+
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
                             <h3 className="font-semibold text-gray-900">{group.name}</h3>
                             {group.isPrivate && (
-                              <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">Private</span>
+                              <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
+                                Private
+                              </span>
                             )}
                           </div>
-                          
+
                           <p className="text-sm text-gray-600 mb-2">{group.moduleCode}</p>
-                          <p className="text-sm text-gray-700 mb-3 line-clamp-2">{group.description}</p>
-                          
+                          <p className="text-sm text-gray-700 mb-3 line-clamp-2">
+                            {group.description}
+                          </p>
+
                           <div className="flex items-center gap-4 text-sm text-gray-600">
                             <span className="flex items-center gap-1">
                               <Users className="w-4 h-4" />
@@ -365,17 +381,27 @@ export default function GroupManagement({ onGroupSelect }: GroupManagementProps)
                             </span>
                             <span className="flex items-center gap-1">
                               <Calendar className="w-4 h-4" />
-                              {groupSessions.filter(s => s.groupId === group.id && new Date(s.scheduledAt) > new Date()).length} upcoming
+                              {
+                                groupSessions.filter(
+                                  (s) =>
+                                    s.groupId === group.id && new Date(s.scheduledAt) > new Date()
+                                ).length
+                              }{' '}
+                              upcoming
                             </span>
                           </div>
                         </div>
                       </div>
-                      
+
                       <div className="flex items-center gap-2">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getGroupStatusColor(group)}`}>
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${getGroupStatusColor(
+                            group
+                          )}`}
+                        >
                           Active
                         </span>
-                        
+
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -407,31 +433,37 @@ export default function GroupManagement({ onGroupSelect }: GroupManagementProps)
                     <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center text-white font-semibold">
                       {group.moduleCode.slice(0, 2)}
                     </div>
-                    
+
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="font-semibold text-gray-900">{group.name}</h3>
                         {group.isPrivate && (
-                          <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">Private</span>
+                          <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
+                            Private
+                          </span>
                         )}
                       </div>
                       <p className="text-sm text-gray-600">{group.moduleCode}</p>
                     </div>
                   </div>
-                  
+
                   <p className="text-sm text-gray-700 mb-4 line-clamp-3">{group.description}</p>
-                  
+
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4 text-sm text-gray-600">
                       <span className="flex items-center gap-1">
                         <Users className="w-4 h-4" />
                         {group.memberCount}
                       </span>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getGroupStatusColor(group)}`}>
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${getGroupStatusColor(
+                          group
+                        )}`}
+                      >
                         Active
                       </span>
                     </div>
-                    
+
                     <button
                       onClick={() => handleJoinGroup(group.id)}
                       disabled={actionLoading === group.id}
@@ -458,18 +490,20 @@ export default function GroupManagement({ onGroupSelect }: GroupManagementProps)
               {/* Group Info */}
               <div className="bg-white rounded-xl border border-gray-200 p-6">
                 <h3 className="font-semibold text-gray-900 mb-4">Group Details</h3>
-                
+
                 <div className="space-y-3">
                   <div>
                     <span className="text-sm font-medium text-gray-700">Module:</span>
                     <p className="text-sm text-gray-600">{selectedGroup.moduleCode}</p>
                   </div>
-                  
+
                   <div>
                     <span className="text-sm font-medium text-gray-700">Members:</span>
-                    <p className="text-sm text-gray-600">{selectedGroup.memberCount} / {selectedGroup.maxMembers}</p>
+                    <p className="text-sm text-gray-600">
+                      {selectedGroup.memberCount} / {selectedGroup.maxMembers}
+                    </p>
                   </div>
-                  
+
                   <div>
                     <span className="text-sm font-medium text-gray-700">Created:</span>
                     <p className="text-sm text-gray-600">
@@ -477,7 +511,7 @@ export default function GroupManagement({ onGroupSelect }: GroupManagementProps)
                     </p>
                   </div>
                 </div>
-                
+
                 <div className="mt-4 pt-4 border-t border-gray-200">
                   <button
                     onClick={() => setShowInviteModal(true)}
@@ -492,7 +526,7 @@ export default function GroupManagement({ onGroupSelect }: GroupManagementProps)
               {/* Upcoming Sessions */}
               <div className="bg-white rounded-xl border border-gray-200 p-6">
                 <h3 className="font-semibold text-gray-900 mb-4">Upcoming Sessions</h3>
-                
+
                 {groupSessions.length === 0 ? (
                   <div className="text-center py-6">
                     <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
@@ -505,9 +539,9 @@ export default function GroupManagement({ onGroupSelect }: GroupManagementProps)
                         <h4 className="font-medium text-gray-900 text-sm">{session.title}</h4>
                         <p className="text-xs text-gray-600 mt-1">
                           {new Date(session.scheduledAt).toLocaleDateString()} at{' '}
-                          {new Date(session.scheduledAt).toLocaleTimeString([], { 
-                            hour: '2-digit', 
-                            minute: '2-digit' 
+                          {new Date(session.scheduledAt).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
                           })}
                         </p>
                       </div>
@@ -519,20 +553,21 @@ export default function GroupManagement({ onGroupSelect }: GroupManagementProps)
               {/* Recent Members */}
               <div className="bg-white rounded-xl border border-gray-200 p-6">
                 <h3 className="font-semibold text-gray-900 mb-4">Members</h3>
-                
+
                 <div className="space-y-3">
                   {groupMembers.slice(0, 5).map((member) => (
                     <div key={member.id} className="flex items-center gap-3">
                       <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
-                        {member.name.split(' ').map(n => n[0]).join('')}
+                        {member.name
+                          .split(' ')
+                          .map((n) => n[0])
+                          .join('')}
                       </div>
                       <div className="flex-1">
                         <p className="text-sm font-medium text-gray-900">{member.name}</p>
                         <p className="text-xs text-gray-600">{member.role}</p>
                       </div>
-                      {member.role === 'admin' && (
-                        <Crown className="w-4 h-4 text-yellow-500" />
-                      )}
+                      {member.role === 'admin' && <Crown className="w-4 h-4 text-yellow-500" />}
                     </div>
                   ))}
                 </div>
@@ -561,7 +596,7 @@ export default function GroupManagement({ onGroupSelect }: GroupManagementProps)
                   <X className="w-6 h-6" />
                 </button>
               </div>
-              
+
               <form onSubmit={handleCreateGroup} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -571,12 +606,14 @@ export default function GroupManagement({ onGroupSelect }: GroupManagementProps)
                     type="text"
                     required
                     value={createGroupForm.name}
-                    onChange={(e) => setCreateGroupForm({ ...createGroupForm, name: e.target.value })}
+                    onChange={(e) =>
+                      setCreateGroupForm({ ...createGroupForm, name: e.target.value })
+                    }
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                     placeholder="e.g., CS101 Study Group"
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Module Code *
@@ -585,32 +622,41 @@ export default function GroupManagement({ onGroupSelect }: GroupManagementProps)
                     type="text"
                     required
                     value={createGroupForm.moduleCode}
-                    onChange={(e) => setCreateGroupForm({ ...createGroupForm, moduleCode: e.target.value })}
+                    onChange={(e) =>
+                      setCreateGroupForm({ ...createGroupForm, moduleCode: e.target.value })
+                    }
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                     placeholder="e.g., CS101"
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Description
                   </label>
                   <textarea
                     value={createGroupForm.description}
-                    onChange={(e) => setCreateGroupForm({ ...createGroupForm, description: e.target.value })}
+                    onChange={(e) =>
+                      setCreateGroupForm({ ...createGroupForm, description: e.target.value })
+                    }
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                     rows={3}
                     placeholder="Describe your study group's goals and activities..."
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Max Members
                   </label>
                   <select
                     value={createGroupForm.maxMembers}
-                    onChange={(e) => setCreateGroupForm({ ...createGroupForm, maxMembers: parseInt(e.target.value) })}
+                    onChange={(e) =>
+                      setCreateGroupForm({
+                        ...createGroupForm,
+                        maxMembers: parseInt(e.target.value),
+                      })
+                    }
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value={5}>5 members</option>
@@ -619,19 +665,21 @@ export default function GroupManagement({ onGroupSelect }: GroupManagementProps)
                     <option value={20}>20 members</option>
                   </select>
                 </div>
-                
+
                 <div>
                   <label className="flex items-center gap-2">
                     <input
                       type="checkbox"
                       checked={createGroupForm.isPrivate}
-                      onChange={(e) => setCreateGroupForm({ ...createGroupForm, isPrivate: e.target.checked })}
+                      onChange={(e) =>
+                        setCreateGroupForm({ ...createGroupForm, isPrivate: e.target.checked })
+                      }
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
                     <span className="text-sm text-gray-700">Make this group private</span>
                   </label>
                 </div>
-                
+
                 <div className="flex gap-3 pt-4">
                   <button
                     type="button"

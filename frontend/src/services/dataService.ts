@@ -319,7 +319,7 @@ export class DataService {
   static async fetchCourses(): Promise<Course[]> {
     try {
       const res = await fetch(`${this.getBaseUrl()}/api/v1/courses`, {
-        credentials: 'include' // Include cookies for authentication
+        credentials: 'include', // Include cookies for authentication
       });
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);

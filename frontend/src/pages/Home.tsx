@@ -6,11 +6,7 @@ import logo from '../assets/logo.jpg';
 
 function GoogleGlyph({ className }: { className?: string }) {
   return (
-    <svg
-      viewBox="0 0 18 18"
-      aria-hidden="true"
-      className={className}
-    >
+    <svg viewBox="0 0 18 18" aria-hidden="true" className={className}>
       <path
         fill="#4285F4"
         d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18Z"
@@ -74,7 +70,7 @@ export default function Login() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ identifier: username, password: pwd })
+        body: JSON.stringify({ identifier: username, password: pwd }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -84,7 +80,7 @@ export default function Login() {
       // 2) Get the current user profile using session cookie
       const me = await fetch(`${base}/api/v1/users/me`, {
         method: 'GET',
-        credentials: 'include'
+        credentials: 'include',
       });
       if (!me.ok) {
         const body = await me.json().catch(() => ({}));
@@ -100,7 +96,7 @@ export default function Login() {
         course: user.course || '',
         year_of_study: user.yearOfStudy || user.year_of_study || 0,
         profile_image_url: user.profileImageUrl || user.profile_image_url,
-        is_active: user.isActive !== undefined ? user.isActive : (user.is_active ?? true),
+        is_active: user.isActive !== undefined ? user.isActive : user.is_active ?? true,
       });
       navigate('/dashboard');
     } catch (err: any) {
@@ -175,7 +171,8 @@ export default function Login() {
 
     setSubmitting(true);
     try {
-      const apiBase = (import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:3002';
+      const apiBase =
+        (import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:3002';
       const base = apiBase.replace(/\/$/, '');
       // Exchange Google ID token for app session cookie
       const exchange = await fetch(`${base}/api/v1/auth/google`, {
@@ -242,9 +239,7 @@ export default function Login() {
                   aria-invalid={!!error && !username ? true : undefined}
                   aria-describedby={error && !username ? errId : undefined}
                 />
-                <div className="mt-1 text-xs text-slate-500">
-                  Enter your email address
-                </div>
+                <div className="mt-1 text-xs text-slate-500">Enter your email address</div>
               </label>
 
               <label htmlFor={pwdId} className="block">
@@ -273,9 +268,7 @@ export default function Login() {
                     {showPwd ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
                 </div>
-                <div className="mt-1 text-xs text-slate-500">
-                  Minimum 8 characters required
-                </div>
+                <div className="mt-1 text-xs text-slate-500">Minimum 8 characters required</div>
               </label>
 
               <nav className="mt-1 space-y-1 text-sm">

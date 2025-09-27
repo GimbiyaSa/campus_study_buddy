@@ -796,7 +796,20 @@ function SessionModal({
 
 /* ----------------- helpers ----------------- */
 
-function authHeadersJSON(): Headers {
+function getToken(): string | null {
+  const raw = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === 'string') return parsed.replace(/^Bearer\s+/i, '').trim();
+  } catch {}
+  return raw
+    .replace(/^["']|["']$/g, '')
+    .replace(/^Bearer\s+/i, '')
+    .trim();
+}
+
+function authHeaders(): Headers {
   const h = new Headers();
   h.set('Content-Type', 'application/json');
   const raw = typeof window !== 'undefined' ? localStorage.getItem('token') : null;

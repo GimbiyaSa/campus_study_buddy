@@ -15,9 +15,9 @@ export type StudySession = {
   title: string;
   course?: string;
   courseCode?: string;
-  date: string;            // 'YYYY-MM-DD'
-  startTime: string;       // 'HH:mm'
-  endTime: string;         // 'HH:mm'
+  date: string; // 'YYYY-MM-DD'
+  startTime: string; // 'HH:mm'
+  endTime: string; // 'HH:mm'
   location: string;
   type: 'study' | 'review' | 'project' | 'exam_prep' | 'discussion';
   participants: number;
@@ -127,28 +127,29 @@ export class DataService {
     return FALLBACK_COURSES;
   }
 
-  /**
-   * Fetch sessions, with dev toggles:
-   * - forceFallback: return FALLBACK_SESSIONS regardless of API
-   * - fallbackOnEmpty: if API returns 200 but [], return FALLBACK_SESSIONS
-   * You can also set ?mockSessions=1 or localStorage.mockSessions='1'
-   */
-  static async fetchSessions(opts?: { forceFallback?: boolean; fallbackOnEmpty?: boolean }): Promise<StudySession[]> {
-    const force = opts?.forceFallback || this.devForceFallback();
-    if (force) return FALLBACK_SESSIONS;
-
+  static async fetchSessions(params?: {
+    status?: StudySession['status'] | 'all';
+    groupId?: string | number;
+    startDate?: string; // 'YYYY-MM-DD'
+    endDate?: string; // 'YYYY-MM-DD'
+    limit?: number;
+    offset?: number;
+  }): Promise<StudySession[]> {
     try {
-      const res = await fetch(`${this.getBaseUrl()}/api/v1/sessions`, {
-        headers: this.authHeaders(),
-        credentials: 'include',
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const list = (data as any[]).map(s => ({ ...s, isAttending: !!s.isAttending, id: String(s.id) }));
-        if (list.length === 0 && (opts?.fallbackOnEmpty ?? true)) return FALLBACK_SESSIONS;
-        return list;
+      const qs = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([k, v]) => {
+          if (v == null) return;
+          if (k === 'status' && v === 'all') return; // don't send "all" to API
+          qs.append(k, String(v));
+        });
       }
-    } catch {}
+      const url = `${this.getBaseUrl()}/api/v1/sessions${qs.toString() ? `?${qs}` : ''}`;
+      const res = await fetch(url, { headers: this.authHeaders() });
+      if (res.ok) return await res.json();
+    } catch {
+      // fall through
+    }
     return FALLBACK_SESSIONS;
   }
 

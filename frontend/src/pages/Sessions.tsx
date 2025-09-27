@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Calendar, Clock, MapPin, Plus, Users, X, Edit, Trash2 } from 'lucide-react';
 import { DataService, type StudySession } from '../services/dataService';
 
+
 export default function Sessions() {
   const [sessions, setSessions] = useState<StudySession[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,7 +46,7 @@ export default function Sessions() {
 
       const res = await fetch('/api/v1/sessions', {
         method: 'POST',
-        //headers: authHeaders(),
+        headers: authHeaders(),
         body: JSON.stringify(payload),
       });
 
@@ -87,7 +88,7 @@ export default function Sessions() {
 
       const res = await fetch(`/api/v1/sessions/${editingSession.id}`, {
         method: 'PUT',
-        //headers: authHeaders(),
+        headers: authHeaders(),
         body: JSON.stringify(payload),
       });
 
@@ -114,7 +115,7 @@ export default function Sessions() {
     try {
       const res = await fetch(`/api/v1/sessions/${sessionId}`, {
         method: 'DELETE',
-        //headers: authHeaders(),
+        headers: authHeaders(),
       });
       if (res.ok) {
         setSessions((prev) => prev.filter((s) => s.id !== sessionId));
@@ -131,7 +132,7 @@ export default function Sessions() {
     try {
       const res = await fetch(`/api/v1/sessions/${sessionId}/join`, {
         method: 'POST',
-        //headers: authHeaders(),
+        headers: authHeaders(),
       });
       if (res.ok) {
         setSessions((prev) =>
@@ -681,10 +682,20 @@ function SessionModal({
 
 /* ----------------- helpers ----------------- */
 
-/*function authHeaders() {
-  const t =
-    typeof window !== 'undefined' ? window.localStorage.getItem('token') : null;
-  return t
-    ? { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` }
-    : { 'Content-Type': 'application/json' };
-} */
+function getToken(): string | null {
+  const raw = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === 'string') return parsed.replace(/^Bearer\s+/i, '').trim();
+  } catch {}
+  return raw.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
+}
+
+function authHeaders(): Headers {
+  const h = new Headers();
+  h.set('Content-Type', 'application/json');
+  const t = getToken();
+  if (t) h.set('Authorization', `Bearer ${t}`);
+  return h;
+}

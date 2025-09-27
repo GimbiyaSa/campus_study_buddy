@@ -14,7 +14,7 @@ export default function Sessions() {
     async function fetchSessions() {
       setLoading(true);
       try {
-        const data = await DataService.fetchSessions();
+        const data = await DataService.fetchSessions(); // client-side filtering only
         setSessions(data);
       } catch (error) {
         console.error('Error fetching sessions:', error);
@@ -22,7 +22,6 @@ export default function Sessions() {
         setLoading(false);
       }
     }
-
     fetchSessions();
   }, []);
 
@@ -30,27 +29,44 @@ export default function Sessions() {
     sessionData: Omit<StudySession, 'id' | 'participants' | 'status' | 'isCreator'>
   ) => {
     try {
+      const scheduled_start = new Date(`${sessionData.date}T${sessionData.startTime}:00`);
+      const scheduled_end = new Date(`${sessionData.date}T${sessionData.endTime}:00`);
+
+      const payload = {
+        // Optionally include a selected group_id if you track it elsewhere
+        // group_id: selectedGroupId,
+        session_title: sessionData.title,
+        description: undefined,
+        scheduled_start,
+        scheduled_end,
+        location: sessionData.location,
+        session_type: sessionData.type || 'study',
+      };
+
       const res = await fetch('/api/v1/sessions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sessionData),
+        //headers: authHeaders(),
+        body: JSON.stringify(payload),
       });
+
       if (res.ok) {
-        const newSession = await res.json();
-        setSessions((prev) => [newSession, ...prev]);
+        const created = await res.json();
+        setSessions((prev) => [{ ...created, isCreator: true }, ...prev]);
+        return;
       }
     } catch (error) {
       console.error('Error creating session:', error);
-      // Optimistic update for demo
-      const newSession: StudySession = {
-        ...sessionData,
-        id: Date.now().toString(),
-        participants: 1,
-        status: 'upcoming',
-        isCreator: true,
-      };
-      setSessions((prev) => [newSession, ...prev]);
     }
+
+    // Optimistic fallback
+    const newSession: StudySession = {
+      ...sessionData,
+      id: Date.now().toString(),
+      participants: 1,
+      status: 'upcoming',
+      isCreator: true,
+    };
+    setSessions((prev) => [newSession, ...prev]);
   };
 
   const handleEditSession = async (
@@ -59,61 +75,78 @@ export default function Sessions() {
     if (!editingSession) return;
 
     try {
+      const payload = {
+        title: sessionData.title,
+        date: sessionData.date,
+        startTime: sessionData.startTime,
+        endTime: sessionData.endTime,
+        location: sessionData.location,
+        type: sessionData.type,
+        // description: optional
+      };
+
       const res = await fetch(`/api/v1/sessions/${editingSession.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sessionData),
+        //headers: authHeaders(),
+        body: JSON.stringify(payload),
       });
+
       if (res.ok) {
-        const updatedSession = await res.json();
-        setSessions((prev) => prev.map((s) => (s.id === editingSession.id ? updatedSession : s)));
+        const updated = await res.json();
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id === editingSession.id ? { ...updated, isCreator: s.isCreator ?? true } : s
+          )
+        );
+        return;
       }
     } catch (error) {
       console.error('Error updating session:', error);
-      // Optimistic update for demo
-      setSessions((prev) =>
-        prev.map((s) => (s.id === editingSession.id ? { ...s, ...sessionData } : s))
-      );
     }
+
+    // Optimistic update
+    setSessions((prev) =>
+      prev.map((s) => (s.id === editingSession.id ? { ...s, ...sessionData } : s))
+    );
   };
 
   const handleDeleteSession = async (sessionId: string) => {
     try {
       const res = await fetch(`/api/v1/sessions/${sessionId}`, {
         method: 'DELETE',
+        //headers: authHeaders(),
       });
       if (res.ok) {
         setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+        return;
       }
     } catch (error) {
       console.error('Error deleting session:', error);
-      // Optimistic update for demo
-      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
     }
+    // Optimistic fallback
+    setSessions((prev) => prev.filter((s) => s.id !== sessionId));
   };
 
   const handleJoinSession = async (sessionId: string) => {
     try {
       const res = await fetch(`/api/v1/sessions/${sessionId}/join`, {
         method: 'POST',
+        //headers: authHeaders(),
       });
       if (res.ok) {
         setSessions((prev) =>
           prev.map((s) =>
-            s.id === sessionId
-              ? {
-                  ...s,
-                  participants: s.participants + 1,
-                }
-              : s
+            s.id === sessionId ? { ...s, participants: (s.participants || 0) + 1 } : s
           )
         );
+        return;
       }
     } catch (error) {
       console.error('Error joining session:', error);
     }
   };
 
+  // Purely client-side filtering
   const filteredSessions =
     filter === 'all' ? sessions : sessions.filter((s) => s.status === filter);
 
@@ -456,7 +489,7 @@ function SessionModal({
       endTime,
       location: location.trim(),
       maxParticipants,
-      type: 'study', // Default type for centralized StudySession
+      type: 'study',
     });
 
     onClose();
@@ -645,3 +678,13 @@ function SessionModal({
     document.body
   );
 }
+
+/* ----------------- helpers ----------------- */
+
+/*function authHeaders() {
+  const t =
+    typeof window !== 'undefined' ? window.localStorage.getItem('token') : null;
+  return t
+    ? { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` }
+    : { 'Content-Type': 'application/json' };
+} */

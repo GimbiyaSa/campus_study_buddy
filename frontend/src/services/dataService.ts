@@ -15,9 +15,9 @@ export type StudySession = {
   title: string;
   course?: string;
   courseCode?: string;
-  date: string;
-  startTime: string;
-  endTime: string;
+  date: string;            // 'YYYY-MM-DD'
+  startTime: string;       // 'HH:mm'
+  endTime: string;         // 'HH:mm'
   location: string;
   type: 'study' | 'review' | 'project' | 'exam_prep' | 'discussion';
   participants: number;
@@ -306,60 +306,76 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
   },
 ];
 
-// API service functions that use consistent fallback data
 export class DataService {
   private static getBaseUrl(): string {
     // In browser, use relative URLs. In tests/Node.js, use localhost
-    if (typeof window !== 'undefined') {
-      return '';
-    }
+    if (typeof window !== 'undefined') return '';
     return 'http://localhost:3000';
+  }
+
+  private static authHeaders(): Record<string, string> {
+    const t = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    return t ? { Authorization: `Bearer ${t}` } : {};
   }
 
   static async fetchCourses(): Promise<Course[]> {
     try {
-      const res = await fetch(`${this.getBaseUrl()}/api/v1/courses`);
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch (error) {
-      // Silently fall back to demo data - this is expected behavior
+      const res = await fetch(`${this.getBaseUrl()}/api/v1/courses`, {
+        headers: this.authHeaders(),
+      });
+      if (res.ok) return await res.json();
+    } catch {
+      // fall through
     }
     return FALLBACK_COURSES;
   }
 
-  static async fetchSessions(): Promise<StudySession[]> {
+  static async fetchSessions(params?: {
+    status?: StudySession['status'] | 'all';
+    groupId?: string | number;
+    startDate?: string; // 'YYYY-MM-DD'
+    endDate?: string;   // 'YYYY-MM-DD'
+    limit?: number;
+    offset?: number;
+  }): Promise<StudySession[]> {
     try {
-      const res = await fetch(`${this.getBaseUrl()}/api/v1/sessions`);
-      if (res.ok) {
-        return await res.json();
+      const qs = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([k, v]) => {
+          if (v == null) return;
+          if (k === 'status' && v === 'all') return; // don't send "all" to API
+          qs.append(k, String(v));
+        });
       }
-    } catch (error) {
-      // Silently fall back to demo data - this is expected behavior
+      const url = `${this.getBaseUrl()}/api/v1/sessions${qs.toString() ? `?${qs}` : ''}`;
+      const res = await fetch(url, { headers: this.authHeaders() });
+      if (res.ok) return await res.json();
+    } catch {
+      // fall through
     }
     return FALLBACK_SESSIONS;
   }
 
   static async fetchGroups(): Promise<StudyGroup[]> {
     try {
-      const res = await fetch(`${this.getBaseUrl()}/api/v1/groups`);
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch (error) {
-      // Silently fall back to demo data - this is expected behavior
+      const res = await fetch(`${this.getBaseUrl()}/api/v1/groups`, {
+        headers: this.authHeaders(),
+      });
+      if (res.ok) return await res.json();
+    } catch {
+      // fall through
     }
     return FALLBACK_GROUPS;
   }
 
   static async fetchPartners(): Promise<StudyPartner[]> {
     try {
-      const res = await fetch(`${this.getBaseUrl()}/api/v1/partners`);
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch (error) {
-      // Silently fall back to demo data - this is expected behavior
+      const res = await fetch(`${this.getBaseUrl()}/api/v1/partners`, {
+        headers: this.authHeaders(),
+      });
+      if (res.ok) return await res.json();
+    } catch {
+      // fall through
     }
     return FALLBACK_PARTNERS;
   }

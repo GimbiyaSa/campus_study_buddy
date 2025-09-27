@@ -13,6 +13,8 @@ import progressService from './services/progressService';
 import chatService from './services/chatService';
 import courseService from './services/courseService';
 import moduleService from './services/moduleService';
+import sessionService from './services/sessionService';
+
 const { setupCampusStudyBuddyDatabase } = require('./database/run_database_setup');
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; // For local dev with self-signed certs
@@ -86,6 +88,7 @@ app.use('/api/v1/progress', progressService);
 app.use('/api/v1/chat', chatService);
 app.use('/api/v1/courses', courseService);
 app.use('/api/v1/modules', moduleService);
+app.use('/api/v1/sessions', sessionService);
 
 // Error handling middleware
 app.use((error: any, req: Request, res: Response, next: NextFunction) => {

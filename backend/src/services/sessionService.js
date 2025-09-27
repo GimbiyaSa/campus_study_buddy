@@ -12,15 +12,24 @@ const getPool = () => {
 /* ---------- helpers ---------- */
 function mapStatus(dbStatus) {
   switch (dbStatus) {
-    case 'scheduled': return 'upcoming';
-    case 'in_progress': return 'ongoing';
-    case 'completed': return 'completed';
-    case 'cancelled': return 'cancelled';
-    default: return 'upcoming';
+    case 'scheduled':
+      return 'upcoming';
+    case 'in_progress':
+      return 'ongoing';
+    case 'completed':
+      return 'completed';
+    case 'cancelled':
+      return 'cancelled';
+    default:
+      return 'upcoming';
   }
 }
-function hhmm(expr) { return `LEFT(CONVERT(VARCHAR(8), ${expr}, 108), 5)`; } // HH:mm
-function ymd(expr)  { return `CONVERT(VARCHAR(10), ${expr}, 23)`; }         // yyyy-mm-dd
+function hhmm(expr) {
+  return `LEFT(CONVERT(VARCHAR(8), ${expr}, 108), 5)`;
+} // HH:mm
+function ymd(expr) {
+  return `CONVERT(VARCHAR(10), ${expr}, 23)`;
+} // yyyy-mm-dd
 
 async function bumpStatuses(pool) {
   // scheduled -> in_progress
@@ -54,7 +63,10 @@ router.get('/', authenticateToken, async (req, res) => {
     request.input('userId', sql.Int, req.user.id);
 
     let whereClause = 'WHERE 1=1';
-    if (groupId) { request.input('groupId', sql.Int, groupId); whereClause += ' AND ss.group_id = @groupId'; }
+    if (groupId) {
+      request.input('groupId', sql.Int, groupId);
+      whereClause += ' AND ss.group_id = @groupId';
+    }
     if (status) {
       request.input('status', sql.NVarChar(50), status);
       whereClause += ` AND ss.status IN (
@@ -63,8 +75,14 @@ router.get('/', authenticateToken, async (req, res) => {
              ELSE @status END
       )`;
     }
-    if (startDate) { request.input('startDate', sql.DateTime2, startDate); whereClause += ' AND ss.scheduled_start >= @startDate'; }
-    if (endDate)   { request.input('endDate',   sql.DateTime2, endDate);   whereClause += ' AND ss.scheduled_start <= @endDate'; }
+    if (startDate) {
+      request.input('startDate', sql.DateTime2, startDate);
+      whereClause += ' AND ss.scheduled_start >= @startDate';
+    }
+    if (endDate) {
+      request.input('endDate', sql.DateTime2, endDate);
+      whereClause += ' AND ss.scheduled_start <= @endDate';
+    }
 
     const q = await request.query(`
       SELECT
@@ -107,14 +125,16 @@ router.get('/', authenticateToken, async (req, res) => {
       OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
     `);
 
-    res.json(q.recordset.map(r => ({
-      ...r,
-      id: String(r.id),
-      status: mapStatus(r.status),
-      isCreator: !!r.isCreator,
-      isAttending: !!r.isAttending,
-      isGroupOwner: !!r.isGroupOwner,
-    })));
+    res.json(
+      q.recordset.map((r) => ({
+        ...r,
+        id: String(r.id),
+        status: mapStatus(r.status),
+        isCreator: !!r.isCreator,
+        isAttending: !!r.isAttending,
+        isGroupOwner: !!r.isGroupOwner,
+      }))
+    );
   } catch (error) {
     console.error('Error fetching study sessions:', error);
     res.status(500).json({ error: 'Failed to fetch study sessions' });
@@ -173,13 +193,13 @@ router.get('/:sessionId', authenticateToken, async (req, res) => {
     if (!q.recordset.length) return res.status(404).json({ error: 'Study session not found' });
 
     const row = q.recordset[0];
-    res.json({ 
-      ...row, 
+    res.json({
+      ...row,
       id: String(row.id),
       status: mapStatus(row.status),
       isCreator: !!row.isCreator,
       isAttending: !!row.isAttending,
-      isGroupOwner: !!row.isGroupOwner
+      isGroupOwner: !!row.isGroupOwner,
     });
   } catch (error) {
     console.error('Error fetching study session:', error);
@@ -191,12 +211,19 @@ router.get('/:sessionId', authenticateToken, async (req, res) => {
 router.post('/', authenticateToken, async (req, res) => {
   try {
     const {
-      group_id, session_title, description,
-      scheduled_start, scheduled_end, location, session_type
+      group_id,
+      session_title,
+      description,
+      scheduled_start,
+      scheduled_end,
+      location,
+      session_type,
     } = req.body;
 
     if (!session_title || !scheduled_start || !scheduled_end || !location) {
-      return res.status(400).json({ error: 'session_title, scheduled_start, scheduled_end, location are required' });
+      return res
+        .status(400)
+        .json({ error: 'session_title, scheduled_start, scheduled_end, location are required' });
     }
     if (new Date(scheduled_start) >= new Date(scheduled_end)) {
       return res.status(400).json({ error: 'scheduled_end must be after scheduled_start' });
@@ -221,7 +248,8 @@ router.post('/', authenticateToken, async (req, res) => {
         WHERE gm.user_id=@organizerId AND gm.status='active'
         ORDER BY gm.joined_at DESC
       `);
-      if (!g.recordset.length) return res.status(400).json({ error: 'No active group found for user. Provide group_id.' });
+      if (!g.recordset.length)
+        return res.status(400).json({ error: 'No active group found for user. Provide group_id.' });
       request.input('groupId', sql.Int, g.recordset[0].group_id);
     }
 
@@ -258,19 +286,22 @@ router.post('/', authenticateToken, async (req, res) => {
     `);
 
     // Is this user a group owner/admin?
-    const ownerRes = await pool.request()
+    const ownerRes = await pool
+      .request()
       .input('groupId', sql.Int, created.groupId)
       .input('userId', sql.Int, req.user.id)
-      .query(`SELECT 1 FROM group_members WHERE group_id=@groupId AND user_id=@userId AND role IN ('owner','admin')`);
+      .query(
+        `SELECT 1 FROM group_members WHERE group_id=@groupId AND user_id=@userId AND role IN ('owner','admin')`
+      );
 
     res.status(201).json({
       ...created,
       id: String(created.id),
-      participants: 1,     // organizer
+      participants: 1, // organizer
       isCreator: true,
       isAttending: true,
       isGroupOwner: !!ownerRes.recordset.length,
-      status: mapStatus(created.status)
+      status: mapStatus(created.status),
     });
   } catch (error) {
     console.error('Error creating study session:', error);
@@ -288,7 +319,8 @@ router.post('/:sessionId/join', authenticateToken, async (req, res) => {
     // Guard: session exists & not cancelled
     const s = await request.query(`SELECT status FROM study_sessions WHERE session_id=@sessionId`);
     if (!s.recordset.length) return res.status(404).json({ error: 'Session not found' });
-    if (s.recordset[0].status === 'cancelled') return res.status(400).json({ error: 'Session is cancelled' });
+    if (s.recordset[0].status === 'cancelled')
+      return res.status(400).json({ error: 'Session is cancelled' });
 
     // Upsert attendance as "attending"
     const existing = await request.query(`
@@ -323,7 +355,9 @@ router.delete('/:sessionId/leave', authenticateToken, async (req, res) => {
     request.input('userId', sql.Int, req.user.id);
 
     // Organizer cannot leave
-    const org = await request.query(`SELECT organizer_id FROM study_sessions WHERE session_id=@sessionId`);
+    const org = await request.query(
+      `SELECT organizer_id FROM study_sessions WHERE session_id=@sessionId`
+    );
     if (!org.recordset.length) return res.status(404).json({ error: 'Session not found' });
     if (org.recordset[0].organizer_id === req.user.id) {
       return res.status(400).json({ error: 'Organizer cannot leave their own session' });
@@ -350,15 +384,29 @@ router.put('/:sessionId', authenticateToken, async (req, res) => {
     const org = await request.query(`
       SELECT organizer_id, status FROM study_sessions WHERE session_id=@sessionId AND organizer_id=@userId
     `);
-    if (!org.recordset.length) return res.status(403).json({ error: 'Only the session organizer can update the session' });
-    if (org.recordset[0].status === 'completed') return res.status(400).json({ error: 'Cannot update a completed session' });
+    if (!org.recordset.length)
+      return res.status(403).json({ error: 'Only the session organizer can update the session' });
+    if (org.recordset[0].status === 'completed')
+      return res.status(400).json({ error: 'Cannot update a completed session' });
 
     const { title, date, startTime, endTime, location, type, description } = req.body;
     const sets = [];
-    if (title !== undefined) { sets.push('session_title=@sessionTitle'); request.input('sessionTitle', sql.NVarChar(255), title); }
-    if (location !== undefined) { sets.push('location=@location'); request.input('location', sql.NVarChar(500), location); }
-    if (type !== undefined) { sets.push('session_type=@sessionType'); request.input('sessionType', sql.NVarChar(50), type); }
-    if (description !== undefined) { sets.push('description=@description'); request.input('description', sql.NText, description || null); }
+    if (title !== undefined) {
+      sets.push('session_title=@sessionTitle');
+      request.input('sessionTitle', sql.NVarChar(255), title);
+    }
+    if (location !== undefined) {
+      sets.push('location=@location');
+      request.input('location', sql.NVarChar(500), location);
+    }
+    if (type !== undefined) {
+      sets.push('session_type=@sessionType');
+      request.input('sessionType', sql.NVarChar(50), type);
+    }
+    if (description !== undefined) {
+      sets.push('description=@description');
+      request.input('description', sql.NText, description || null);
+    }
 
     if (date !== undefined && startTime !== undefined) {
       const startIso = new Date(`${date}T${startTime}:00`);
@@ -396,12 +444,12 @@ router.put('/:sessionId', authenticateToken, async (req, res) => {
     `);
 
     const row = q.recordset[0];
-    res.json({ 
-      ...row, 
-      id: String(row.id), 
-      status: mapStatus(row.status), 
-      isCreator: true, 
-      isAttending: true 
+    res.json({
+      ...row,
+      id: String(row.id),
+      status: mapStatus(row.status),
+      isCreator: true,
+      isAttending: true,
     });
   } catch (error) {
     console.error('Error updating study session:', error);
@@ -416,9 +464,13 @@ router.put('/:sessionId/start', authenticateToken, async (req, res) => {
     request.input('sessionId', sql.Int, req.params.sessionId);
     request.input('userId', sql.Int, req.user.id);
 
-    const org = await request.query(`SELECT organizer_id, status FROM study_sessions WHERE session_id=@sessionId AND organizer_id=@userId`);
-    if (!org.recordset.length) return res.status(403).json({ error: 'Only the session organizer can start the session' });
-    if (org.recordset[0].status !== 'scheduled') return res.status(400).json({ error: 'Session is not in scheduled status' });
+    const org = await request.query(
+      `SELECT organizer_id, status FROM study_sessions WHERE session_id=@sessionId AND organizer_id=@userId`
+    );
+    if (!org.recordset.length)
+      return res.status(403).json({ error: 'Only the session organizer can start the session' });
+    if (org.recordset[0].status !== 'scheduled')
+      return res.status(400).json({ error: 'Session is not in scheduled status' });
 
     const q = await request.query(`
       UPDATE study_sessions 
@@ -441,9 +493,13 @@ router.put('/:sessionId/end', authenticateToken, async (req, res) => {
     request.input('sessionId', sql.Int, req.params.sessionId);
     request.input('userId', sql.Int, req.user.id);
 
-    const org = await request.query(`SELECT organizer_id, status FROM study_sessions WHERE session_id=@sessionId AND organizer_id=@userId`);
-    if (!org.recordset.length) return res.status(403).json({ error: 'Only the session organizer can end the session' });
-    if (org.recordset[0].status !== 'in_progress') return res.status(400).json({ error: 'Session is not currently in progress' });
+    const org = await request.query(
+      `SELECT organizer_id, status FROM study_sessions WHERE session_id=@sessionId AND organizer_id=@userId`
+    );
+    if (!org.recordset.length)
+      return res.status(403).json({ error: 'Only the session organizer can end the session' });
+    if (org.recordset[0].status !== 'in_progress')
+      return res.status(400).json({ error: 'Session is not currently in progress' });
 
     const q = await request.query(`
       UPDATE study_sessions 
@@ -472,9 +528,13 @@ router.put('/:sessionId/cancel', authenticateToken, async (req, res) => {
     request.input('sessionId', sql.Int, req.params.sessionId);
     request.input('userId', sql.Int, req.user.id);
 
-    const org = await request.query(`SELECT organizer_id, status FROM study_sessions WHERE session_id=@sessionId AND organizer_id=@userId`);
-    if (!org.recordset.length) return res.status(403).json({ error: 'Only the session organizer can cancel the session' });
-    if (org.recordset[0].status === 'completed') return res.status(400).json({ error: 'Cannot cancel a completed session' });
+    const org = await request.query(
+      `SELECT organizer_id, status FROM study_sessions WHERE session_id=@sessionId AND organizer_id=@userId`
+    );
+    if (!org.recordset.length)
+      return res.status(403).json({ error: 'Only the session organizer can cancel the session' });
+    if (org.recordset[0].status === 'completed')
+      return res.status(400).json({ error: 'Cannot cancel a completed session' });
 
     const q = await request.query(`
       UPDATE study_sessions SET status='cancelled', updated_at=GETUTCDATE()
@@ -508,8 +568,13 @@ router.delete('/:sessionId', authenticateToken, async (req, res) => {
     request.input('sessionId', sql.Int, req.params.sessionId);
     request.input('userId', sql.Int, req.user.id);
 
-    const org = await request.query(`SELECT organizer_id, status FROM study_sessions WHERE session_id=@sessionId AND organizer_id=@userId`);
-    if (!org.recordset.length) return res.status(403).json({ error: 'Only the session organizer can delete (cancel) the session' });
+    const org = await request.query(
+      `SELECT organizer_id, status FROM study_sessions WHERE session_id=@sessionId AND organizer_id=@userId`
+    );
+    if (!org.recordset.length)
+      return res
+        .status(403)
+        .json({ error: 'Only the session organizer can delete (cancel) the session' });
 
     const q = await request.query(`
       UPDATE study_sessions SET status='cancelled', updated_at=GETUTCDATE()

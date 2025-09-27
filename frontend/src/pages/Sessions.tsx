@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { Calendar, Clock, MapPin, Plus, Users, X, Edit, Trash2 } from 'lucide-react';
 import { DataService, type StudySession } from '../services/dataService';
 
-
 export default function Sessions() {
   const [sessions, setSessions] = useState<StudySession[]>([]);
   const [loading, setLoading] = useState(true);
@@ -689,7 +688,10 @@ function getToken(): string | null {
     const parsed = JSON.parse(raw);
     if (typeof parsed === 'string') return parsed.replace(/^Bearer\s+/i, '').trim();
   } catch {}
-  return raw.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
+  return raw
+    .replace(/^["']|["']$/g, '')
+    .replace(/^Bearer\s+/i, '')
+    .trim();
 }
 
 function authHeaders(): Headers {

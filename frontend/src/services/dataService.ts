@@ -15,9 +15,9 @@ export type StudySession = {
   title: string;
   course?: string;
   courseCode?: string;
-  date: string;            // 'YYYY-MM-DD'
-  startTime: string;       // 'HH:mm'
-  endTime: string;         // 'HH:mm'
+  date: string; // 'YYYY-MM-DD'
+  startTime: string; // 'HH:mm'
+  endTime: string; // 'HH:mm'
   location: string;
   type: 'study' | 'review' | 'project' | 'exam_prep' | 'discussion';
   participants: number;
@@ -334,7 +334,7 @@ export class DataService {
     status?: StudySession['status'] | 'all';
     groupId?: string | number;
     startDate?: string; // 'YYYY-MM-DD'
-    endDate?: string;   // 'YYYY-MM-DD'
+    endDate?: string; // 'YYYY-MM-DD'
     limit?: number;
     offset?: number;
   }): Promise<StudySession[]> {

@@ -14,17 +14,73 @@ type Suggestion = {
 };
 
 const PEOPLE: Suggestion[] = [
-  { name: 'Aisha Khan', major: 'CS 201 · Data Structures', overlap: '3 mutual courses', tags: ['Morning', 'On-campus'], initials: 'AK' },
-  { name: 'Martin Nel', major: 'MATH 204 · Linear Algebra', overlap: '2 mutual courses', tags: ['Evenings', 'Remote'], initials: 'MN' },
-  { name: 'Zanele M.', major: 'PHY 101 · Mechanics', overlap: '1 mutual course', tags: ['Weekend', 'Library'], initials: 'ZM' },
-  { name: 'Sam Lee', major: 'ENG 110 · Writing', overlap: '1 mutual course', tags: ['Afternoons'], initials: 'SL' },
-  { name: 'Naledi S.', major: 'CS 301 · Algorithms', overlap: '2 mutual courses', tags: ['Morning', 'Library'], initials: 'NS' },
-  { name: 'Pranav R.', major: 'STA 202 · Statistics', overlap: '1 mutual course', tags: ['Remote', 'Evenings'], initials: 'PR' },
-  { name: 'Thando K.', major: 'CS 101 · Intro to CS', overlap: '1 mutual course', tags: ['On-campus', 'Afternoons'], initials: 'TK' },
-  { name: 'Megan D.', major: 'HCI 210 · UX Basics', overlap: '0 mutual courses', tags: ['Weekend', 'Remote'], initials: 'MD' },
+  {
+    name: 'Aisha Khan',
+    major: 'CS 201 · Data Structures',
+    overlap: '3 mutual courses',
+    tags: ['Morning', 'On-campus'],
+    initials: 'AK',
+  },
+  {
+    name: 'Martin Nel',
+    major: 'MATH 204 · Linear Algebra',
+    overlap: '2 mutual courses',
+    tags: ['Evenings', 'Remote'],
+    initials: 'MN',
+  },
+  {
+    name: 'Zanele M.',
+    major: 'PHY 101 · Mechanics',
+    overlap: '1 mutual course',
+    tags: ['Weekend', 'Library'],
+    initials: 'ZM',
+  },
+  {
+    name: 'Sam Lee',
+    major: 'ENG 110 · Writing',
+    overlap: '1 mutual course',
+    tags: ['Afternoons'],
+    initials: 'SL',
+  },
+  {
+    name: 'Naledi S.',
+    major: 'CS 301 · Algorithms',
+    overlap: '2 mutual courses',
+    tags: ['Morning', 'Library'],
+    initials: 'NS',
+  },
+  {
+    name: 'Pranav R.',
+    major: 'STA 202 · Statistics',
+    overlap: '1 mutual course',
+    tags: ['Remote', 'Evenings'],
+    initials: 'PR',
+  },
+  {
+    name: 'Thando K.',
+    major: 'CS 101 · Intro to CS',
+    overlap: '1 mutual course',
+    tags: ['On-campus', 'Afternoons'],
+    initials: 'TK',
+  },
+  {
+    name: 'Megan D.',
+    major: 'HCI 210 · UX Basics',
+    overlap: '0 mutual courses',
+    tags: ['Weekend', 'Remote'],
+    initials: 'MD',
+  },
 ];
 
-const TAGS = ['Morning', 'Afternoons', 'Evenings', 'Weekend', 'On-campus', 'Remote', 'Library'] as const;
+const TAGS = [
+  'Morning',
+  'Afternoons',
+  'Evenings',
+  'Weekend',
+  'On-campus',
+  'Remote',
+  'Library',
+] as const;
 
 export default function Partners() {
   const card = 'bg-white rounded-2xl shadow-card p-6';
@@ -78,7 +134,10 @@ export default function Partners() {
       setBuddiesLoading(true);
       setBuddiesError(null);
       try {
-        const res = await fetch('/api/v1/partners', { headers: authHeadersJSON(), credentials: 'include' });
+        const res = await fetch('/api/v1/partners', {
+          headers: authHeadersJSON(),
+          credentials: 'include',
+        });
         if (!res.ok) {
           if (mounted) {
             setBuddies(FALLBACK_PARTNERS); // testing fallback
@@ -176,7 +235,10 @@ export default function Partners() {
         </section>
 
         {/* My study buddies (right column spans both rows) */}
-        <aside className={card + ' lg:col-start-3 lg:row-span-2 lg:sticky lg:top-2'} aria-labelledby="buddies-title">
+        <aside
+          className={card + ' lg:col-start-3 lg:row-span-2 lg:sticky lg:top-2'}
+          aria-labelledby="buddies-title"
+        >
           <div className="mb-4 flex items-center justify-between">
             <h2 id="buddies-title" className="font-semibold text-gray-900">
               My study buddies
@@ -194,7 +256,8 @@ export default function Partners() {
             <div className="text-sm text-slate-600">Loading connections…</div>
           ) : buddies.length === 0 ? (
             <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-600">
-              No connections yet. Send a few invites from <span className="font-medium">Suggested for you</span>.
+              No connections yet. Send a few invites from{' '}
+              <span className="font-medium">Suggested for you</span>.
             </div>
           ) : (
             <ul className="space-y-3">
@@ -244,7 +307,10 @@ export default function Partners() {
               Search by name, course, tag
             </label>
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" aria-hidden="true" />
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400"
+                aria-hidden="true"
+              />
               <input
                 id="q"
                 value={query}
@@ -323,7 +389,10 @@ export default function Partners() {
                         {p.overlap}
                       </span>
                       {p.tags.map((t) => (
-                        <span key={t} className="text-[11px] px-2 py-0.5 rounded-full bg-brand-50 text-brand-700">
+                        <span
+                          key={t}
+                          className="text-[11px] px-2 py-0.5 rounded-full bg-brand-50 text-brand-700"
+                        >
                           {t}
                         </span>
                       ))}
@@ -421,8 +490,16 @@ function CompactProfileModal({
   return createPortal(
     <>
       <div className="fixed inset-0 z-[9998] bg-black/40" onClick={onClose} aria-hidden="true" />
-      <div role="dialog" aria-modal="true" aria-labelledby="p-title" className="fixed inset-0 z-[9999] grid place-items-center p-4">
-        <div ref={dialogRef} className="w-full max-w-md rounded-2xl bg-white shadow-card border border-gray-100 p-6">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="p-title"
+        className="fixed inset-0 z-[9999] grid place-items-center p-4"
+      >
+        <div
+          ref={dialogRef}
+          className="w-full max-w-md rounded-2xl bg-white shadow-card border border-gray-100 p-6"
+        >
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-brand-100 text-brand-700 grid place-items-center font-semibold">
@@ -435,34 +512,50 @@ function CompactProfileModal({
                 <p className="text-sm text-gray-500">{person.major}</p>
               </div>
             </div>
-            <button ref={closeBtnRef} aria-label="Close" onClick={onClose} className="p-2 rounded-full hover:bg-gray-50">
+            <button
+              ref={closeBtnRef}
+              aria-label="Close"
+              onClick={onClose}
+              className="p-2 rounded-full hover:bg-gray-50"
+            >
               <X className="w-5 h-5 text-gray-500" />
             </button>
           </div>
 
           <div className="mt-4 space-y-3">
             <div className="flex flex-wrap gap-2">
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{person.overlap}</span>
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                {person.overlap}
+              </span>
               {person.tags.map((t) => (
-                <span key={t} className="text-[11px] px-2 py-0.5 rounded-full bg-brand-50 text-brand-700">
+                <span
+                  key={t}
+                  className="text-[11px] px-2 py-0.5 rounded-full bg-brand-50 text-brand-700"
+                >
                   {t}
                 </span>
               ))}
             </div>
             <p className="text-sm text-gray-600">
-              {person.bio ?? 'Studies similar modules and prefers overlapping study windows. Looks for a consistent weekly session.'}
+              {person.bio ??
+                'Studies similar modules and prefers overlapping study windows. Looks for a consistent weekly session.'}
             </p>
           </div>
 
           <div className="mt-6 flex items-center justify-end gap-3">
-            <button onClick={onClose} className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm hover:bg-gray-50">
+            <button
+              onClick={onClose}
+              className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm hover:bg-gray-50"
+            >
               Cancel
             </button>
             <button
               onClick={onInvite}
               disabled={invited}
               className={`px-3 py-2 rounded-lg text-sm flex items-center gap-2 ${
-                invited ? 'bg-gray-100 text-gray-500 cursor-default' : 'bg-brand-500 text-white hover:opacity-95 shadow-card'
+                invited
+                  ? 'bg-gray-100 text-gray-500 cursor-default'
+                  : 'bg-brand-500 text-white hover:opacity-95 shadow-card'
               }`}
             >
               {invited ? (
@@ -494,7 +587,10 @@ function authHeadersJSON(): Headers {
       const p = JSON.parse(raw);
       if (typeof p === 'string') t = p;
     } catch {}
-    t = t.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
+    t = t
+      .replace(/^["']|["']$/g, '')
+      .replace(/^Bearer\s+/i, '')
+      .trim();
     if (t) h.set('Authorization', `Bearer ${t}`);
   }
   return h;
@@ -515,11 +611,9 @@ function toStudyPartner(anyObj: any): StudyPartner {
     id: String(anyObj?.id ?? anyObj?.user_id ?? anyObj?._id ?? cryptoRandomId()),
     name: String(
       anyObj?.name ??
-      (
-        [anyObj?.firstName, anyObj?.lastName].filter(Boolean).join(' ') ||
-        anyObj?.email ||
-        'Unknown'
-      )
+        ([anyObj?.firstName, anyObj?.lastName].filter(Boolean).join(' ') ||
+          anyObj?.email ||
+          'Unknown')
     ),
     avatar: anyObj?.avatar || undefined,
     year: anyObj?.year || anyObj?.profile?.year || '',

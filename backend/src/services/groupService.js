@@ -145,7 +145,9 @@ router.post('/:groupId/join', authenticateToken, async (req, res) => {
         delete m.leftAt;
       }
       group.lastActivity = new Date().toISOString();
-      const { resource: updated } = await groupsContainer.item(groupId, req.user.university).replace(group);
+      const { resource: updated } = await groupsContainer
+        .item(groupId, req.user.university)
+        .replace(group);
       return res.status(200).json(updated);
     }
 
@@ -163,7 +165,9 @@ router.post('/:groupId/join', authenticateToken, async (req, res) => {
     });
     group.lastActivity = new Date().toISOString();
 
-    const { resource: updated } = await groupsContainer.item(groupId, req.user.university).replace(group);
+    const { resource: updated } = await groupsContainer
+      .item(groupId, req.user.university)
+      .replace(group);
     res.status(200).json(updated);
   } catch (error) {
     console.error('Error joining group:', error);
@@ -202,7 +206,9 @@ router.post('/:groupId/leave', authenticateToken, async (req, res) => {
     m.leftAt = new Date().toISOString();
     group.lastActivity = new Date().toISOString();
 
-    const { resource: updated } = await groupsContainer.item(groupId, req.user.university).replace(group);
+    const { resource: updated } = await groupsContainer
+      .item(groupId, req.user.university)
+      .replace(group);
     res.status(200).json(updated);
   } catch (error) {
     console.error('Error leaving group:', error);
@@ -229,7 +235,9 @@ router.post('/:groupId/invite', authenticateToken, async (req, res) => {
     const isOwner = String(group.createdBy) === String(req.user.id);
     const isAdmin =
       Array.isArray(group.members) &&
-      group.members.some((m) => String(m.userId) === String(req.user.id) && m.role === 'admin' && isActiveMember(m));
+      group.members.some(
+        (m) => String(m.userId) === String(req.user.id) && m.role === 'admin' && isActiveMember(m)
+      );
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({ error: 'Not authorized to invite members' });

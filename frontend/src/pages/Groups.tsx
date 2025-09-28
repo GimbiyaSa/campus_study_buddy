@@ -32,6 +32,12 @@ export default function Groups() {
   const [meId, setMeId] = useState<string>('');
   const [owners, setOwners] = useState<Record<number, string>>({});
   const [idMap, setIdMap] = useState<Record<number, string>>({}); // local numeric → cosmos id
+  const [usingFallback, setUsingFallback] = useState<boolean>(false);
+
+  // join/leave UI state
+  const [joiningId, setJoiningId] = useState<number | null>(null);
+  const [pendingAction, setPendingAction] = useState<'join' | 'leave' | null>(null);
+  const [joinedByMe, setJoinedByMe] = useState<Record<number, boolean>>({}); // membership flag per card
 
   const fallbackGroups: StudyGroup[] = [
     {
@@ -123,11 +129,18 @@ export default function Groups() {
     setOwners(prev => (prev[numericId] ? prev : { ...prev, [numericId]: createdBy }));
     if (g?.id) setIdMap(prev => (prev[numericId] ? prev : { ...prev, [numericId]: String(g.id) }));
 
+    // membership hint from API if available
+    if (Array.isArray(g?.members) && meId) {
+      const iAmIn = g.members.some((m: any) => String(m?.userId ?? m?.id) === String(meId));
+      setJoinedByMe(prev => prev[numericId] === undefined ? { ...prev, [numericId]: iAmIn } : prev);
+    } else if (createdBy && meId && String(createdBy) === String(meId)) {
+      setJoinedByMe(prev => prev[numericId] === undefined ? { ...prev, [numericId]: true } : prev);
+    }
+
     const membersCount = Array.isArray(g?.members) ? g.members.length : (g?.member_count ?? 0);
     const createdAt = g?.createdAt || g?.created_at || new Date().toISOString();
     const updatedAt = g?.lastActivity || g?.updated_at || createdAt;
 
-    // Prefer course+courseCode from API (if your backend echoes it), else module_name
     const course = g?.course ?? '';
     const courseCode = g?.courseCode ?? '';
     const moduleName =
@@ -189,7 +202,14 @@ export default function Groups() {
     }
   }
 
-  async function refreshGroups() {
+  function mergeGroups(prev: StudyGroup[], incoming: StudyGroup[]): StudyGroup[] {
+    const byId = new Map<number, StudyGroup>();
+    for (const g of prev) byId.set(g.group_id, g);
+    for (const g of incoming) byId.set(g.group_id, g); // prefer incoming
+    return Array.from(byId.values());
+  }
+
+  async function refreshGroups(): Promise<boolean> {
     try {
       let res = await fetch('/api/v1/groups/my-groups', { headers: authHeadersJSON(), credentials: 'include' });
       if (!res.ok) {
@@ -198,9 +218,13 @@ export default function Groups() {
       if (!res.ok) throw new Error('Failed');
       const data = await res.json();
       const mapped = (Array.isArray(data) ? data : []).map((g) => toStudyGroup(g));
-      setGroups(mapped.length > 0 ? mapped : fallbackGroups);
+      setGroups(prev => mapped.length > 0 ? mergeGroups(prev, mapped) : (prev.length ? prev : fallbackGroups));
+      setUsingFallback(false);
+      return true;
     } catch {
-      setGroups(fallbackGroups);
+      setGroups(prev => prev.length ? prev : fallbackGroups);
+      setUsingFallback(true);
+      return false;
     }
   }
 
@@ -212,8 +236,20 @@ export default function Groups() {
   }, []);
 
   const joinGroup = async (groupId: number) => {
-    const realId = idMap[groupId] || String(groupId);
+    const realId = idMap[groupId]; // undefined => fallback/demo
+    setJoiningId(groupId);
+    setPendingAction('join');
+
+    // optimistic UI
     setGroups(prev => prev.map(g => g.group_id === groupId ? { ...g, member_count: (g.member_count || 0) + 1 } : g));
+    setJoinedByMe(prev => ({ ...prev, [groupId]: true }));
+
+    if (!realId) {
+      // demo: keep optimistic state, no server call
+      setTimeout(() => { setJoiningId(null); setPendingAction(null); }, 400);
+      return;
+    }
+
     try {
       const res = await fetch(`/api/v1/groups/${encodeURIComponent(realId)}/join`, {
         method: 'POST',
@@ -224,7 +260,46 @@ export default function Groups() {
       await refreshGroups();
     } catch (err) {
       console.error('Error joining group:', err);
+      // revert
       setGroups(prev => prev.map(g => g.group_id === groupId ? { ...g, member_count: Math.max((g.member_count || 0) - 1, 0) } : g));
+      setJoinedByMe(prev => ({ ...prev, [groupId]: false }));
+    } finally {
+      setJoiningId(null);
+      setPendingAction(null);
+    }
+  };
+
+  const leaveGroup = async (groupId: number) => {
+    const realId = idMap[groupId]; // undefined => fallback/demo
+    setJoiningId(groupId);
+    setPendingAction('leave');
+
+    // optimistic UI
+    setGroups(prev => prev.map(g => g.group_id === groupId ? { ...g, member_count: Math.max((g.member_count || 0) - 1, 0) } : g));
+    setJoinedByMe(prev => ({ ...prev, [groupId]: false }));
+
+    if (!realId) {
+      // demo: keep optimistic
+      setTimeout(() => { setJoiningId(null); setPendingAction(null); }, 400);
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/v1/groups/${encodeURIComponent(realId)}/leave`, {
+        method: 'POST',
+        headers: authHeadersJSON(),
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error(`leave ${res.status}`);
+      await refreshGroups();
+    } catch (err) {
+      console.error('Error leaving group:', err);
+      // revert
+      setGroups(prev => prev.map(g => g.group_id === groupId ? { ...g, member_count: (g.member_count || 0) + 1 } : g));
+      setJoinedByMe(prev => ({ ...prev, [groupId]: true }));
+    } finally {
+      setJoiningId(null);
+      setPendingAction(null);
     }
   };
 
@@ -248,7 +323,7 @@ export default function Groups() {
     }
   };
 
-  // ⬇️ create then **also refresh** so the card shows even if the API adds extra fields
+  // create then keep it; refresh merges (won’t remove local on failure)
   const createGroup = async (payload: {
     name: string;
     description?: string;
@@ -276,8 +351,12 @@ export default function Groups() {
 
       const created = await res.json();
       const sg = toStudyGroup(created);
-      setGroups((prev) => [sg, ...prev]);      // immediate visual add
-      await refreshGroups();                   // canonical refresh from API
+
+      // creator is always a member
+      setJoinedByMe(prev => ({ ...prev, [sg.group_id]: true }));
+
+      setGroups((prev) => [sg, ...prev]); // immediate add
+      await refreshGroups();               // merge with server view
     } catch (err) {
       console.error('Error creating group:', err);
     }
@@ -302,7 +381,10 @@ export default function Groups() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Study Groups</h1>
-          <p className="text-gray-600">Join or create study groups to collaborate with peers</p>
+          <p className="text-gray-600">
+            Join or create study groups to collaborate with peers
+            {usingFallback && <span className="ml-2 text-xs text-gray-500">(demo data)</span>}
+          </p>
         </div>
         <button
           onClick={() => setOpenCreate(true)}
@@ -325,6 +407,7 @@ export default function Groups() {
           {groups.filter(Boolean).map((group) => {
             if (!group || !group.group_name || !group.group_type) return null;
             const owner = isOwner(group);
+            const iJoined = !!joinedByMe[group.group_id];
 
             return (
               <div
@@ -397,12 +480,23 @@ export default function Groups() {
                     </>
                   ) : (
                     <>
-                      <button
-                        onClick={() => joinGroup(group.group_id)}
-                        className="flex-1 px-3 py-2 bg-brand-500 text-white text-sm rounded-lg hover:bg-brand-600 transition"
-                      >
-                        Join Group
-                      </button>
+                      {iJoined ? (
+                        <button
+                          onClick={() => leaveGroup(group.group_id)}
+                          disabled={joiningId === group.group_id}
+                          className="flex-1 px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition disabled:opacity-60"
+                        >
+                          {joiningId === group.group_id && pendingAction === 'leave' ? 'Leaving…' : 'Leave Group'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => joinGroup(group.group_id)}
+                          disabled={joiningId === group.group_id}
+                          className="flex-1 px-3 py-2 bg-brand-500 text-white text-sm rounded-lg hover:bg-brand-600 transition disabled:opacity-60"
+                        >
+                          {joiningId === group.group_id && pendingAction === 'join' ? 'Joining…' : 'Join Group'}
+                        </button>
+                      )}
                       <button className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition">
                         <MessageSquare className="w-4 h-4" />
                       </button>
@@ -421,7 +515,7 @@ export default function Groups() {
       {groups.length === 0 && !loading && (
         <div className="text-center py-12">
           <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No study groups found</h3>
+        <h3 className="text-lg font-medium text-gray-900 mb-2">No study groups found</h3>
           <p className="text-gray-600 mb-6">Create your first study group to start collaborating</p>
           <button
             onClick={() => setOpenCreate(true)}
@@ -603,7 +697,7 @@ function InviteMembersModal({
   };
 
   async function invite() {
-    if (selectedIds.length === 0) return;
+    if (selectedIds.length === 0 || sending || sent) return;
     setSending(true);
     try {
       const res = await fetch(`/api/v1/groups/${encodeURIComponent(groupId)}/invite`, {
@@ -664,7 +758,7 @@ function InviteMembersModal({
                       </div>
                       <div>
                         <div className="text-sm font-medium text-gray-900">{p.name}</div>
-                        <div className="text-xs text-gray-500">{p.major}</div>
+                        <div className="text-xs text-gray-500">{(p as any).major}</div>
                       </div>
                     </div>
                     <input

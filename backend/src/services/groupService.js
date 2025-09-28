@@ -1,3 +1,4 @@
+// groupService.js
 const express = require('express');
 const { CosmosClient } = require('@azure/cosmos');
 const { ServiceBusClient } = require('@azure/service-bus');
@@ -9,24 +10,43 @@ const database = cosmosClient.database('StudyBuddyDB');
 const groupsContainer = database.container('Groups');
 const sessionsContainer = database.container('Sessions');
 
+// Helpers
+function generateId() {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+}
+function formatDatePartition(dateString) {
+  return new Date(dateString).toISOString().split('T')[0]; // YYYY-MM-DD
+}
+function isActiveMember(m) {
+  // Treat missing status as active for backward compatibility
+  return !m || !m.status || m.status === 'active';
+}
+function activeMemberCount(group) {
+  if (!Array.isArray(group?.members)) return 0;
+  return group.members.filter(isActiveMember).length;
+}
+
 // Create study group
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { name, description, subjects, maxMembers, isPublic } = req.body;
+    const { name, description, subjects, maxMembers, isPublic, course, courseCode } = req.body;
 
     const group = {
       id: generateId(),
       name,
       description,
-      subjects,
+      subjects: Array.isArray(subjects) ? subjects : [],
       maxMembers,
       isPublic,
+      course: course || '',
+      courseCode: courseCode || '',
       createdBy: req.user.id,
       partitionKey: req.user.university,
       members: [
         {
           userId: req.user.id,
           role: 'admin',
+          status: 'active',
           joinedAt: new Date().toISOString(),
         },
       ],
@@ -36,7 +56,7 @@ router.post('/', authenticateToken, async (req, res) => {
 
     const { resource: createdGroup } = await groupsContainer.items.create(group);
 
-    // Send notification to invited members (optional)
+    // OPTIONAL: invitations on create (kept for compatibility; your UI now invites later)
     if (req.body.inviteUserIds && req.body.inviteUserIds.length > 0) {
       await sendGroupInvitations(createdGroup, req.body.inviteUserIds);
     }
@@ -48,15 +68,20 @@ router.post('/', authenticateToken, async (req, res) => {
   }
 });
 
-// List groups (same university; public OR ones you're a member of)
+// List groups (same university; public OR ones you're an active member of)
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const querySpec = {
       query: `
         SELECT * FROM groups g
         WHERE g.partitionKey = @university
-          AND (g.isPublic = true OR
-               EXISTS(SELECT VALUE m FROM m IN g.members WHERE m.userId = @userId))
+          AND (
+            g.isPublic = true OR
+            EXISTS(
+              SELECT VALUE m FROM m IN g.members 
+              WHERE m.userId = @userId AND (NOT IS_DEFINED(m.status) OR m.status = "active")
+            )
+          )
         ORDER BY g.lastActivity DESC
       `,
       parameters: [
@@ -73,17 +98,17 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
-// Get user's groups (member of)
+// Get user's groups (active member of)
 router.get('/my-groups', authenticateToken, async (req, res) => {
   try {
     const querySpec = {
       query: `
         SELECT * FROM groups g 
         WHERE g.partitionKey = @university 
-        AND EXISTS(
-          SELECT VALUE m FROM m IN g.members 
-          WHERE m.userId = @userId
-        )
+          AND EXISTS(
+            SELECT VALUE m FROM m IN g.members 
+            WHERE m.userId = @userId AND (NOT IS_DEFINED(m.status) OR m.status = "active")
+          )
         ORDER BY g.lastActivity DESC
       `,
       parameters: [
@@ -100,45 +125,45 @@ router.get('/my-groups', authenticateToken, async (req, res) => {
   }
 });
 
-// Join a group (idempotent; checks capacity)
+// Join a group (idempotent; revives if previously left; capacity checks use active members only)
 router.post('/:groupId/join', authenticateToken, async (req, res) => {
   try {
     const { groupId } = req.params;
 
-    // Read group by id + partitionKey (university)
     const { resource: group } = await groupsContainer.item(groupId, req.user.university).read();
+    if (!group) return res.status(404).json({ error: 'Group not found' });
 
-    if (!group) {
-      return res.status(404).json({ error: 'Group not found' });
+    group.members = Array.isArray(group.members) ? group.members : [];
+    const idx = group.members.findIndex((m) => String(m.userId) === String(req.user.id));
+
+    if (idx !== -1) {
+      // Member exists: if left/inactive, revive; otherwise idempotent join
+      const m = group.members[idx];
+      if (!isActiveMember(m)) {
+        m.status = 'active';
+        m.joinedAt = new Date().toISOString();
+        delete m.leftAt;
+      }
+      group.lastActivity = new Date().toISOString();
+      const { resource: updated } = await groupsContainer.item(groupId, req.user.university).replace(group);
+      return res.status(200).json(updated);
     }
 
-    // Already a member? Return OK and current group (idempotent)
-    const isMember = Array.isArray(group.members)
-      ? group.members.some((m) => m.userId === req.user.id)
-      : false;
-
-    if (isMember) {
-      return res.status(200).json(group);
-    }
-
-    // Capacity check (if defined)
-    const currentCount = Array.isArray(group.members) ? group.members.length : 0;
-    if (group.maxMembers && currentCount >= group.maxMembers) {
+    // fresh join → capacity against ACTIVE members
+    const count = activeMemberCount(group);
+    if (group.maxMembers && count >= group.maxMembers) {
       return res.status(409).json({ error: 'Group is full' });
     }
 
-    // Add as member
-    group.members = Array.isArray(group.members) ? group.members : [];
     group.members.push({
       userId: req.user.id,
       role: 'member',
+      status: 'active',
       joinedAt: new Date().toISOString(),
     });
     group.lastActivity = new Date().toISOString();
 
-    const { resource: updated } = await groupsContainer
-      .item(groupId, req.user.university)
-      .replace(group);
+    const { resource: updated } = await groupsContainer.item(groupId, req.user.university).replace(group);
     res.status(200).json(updated);
   } catch (error) {
     console.error('Error joining group:', error);
@@ -149,44 +174,76 @@ router.post('/:groupId/join', authenticateToken, async (req, res) => {
   }
 });
 
+// Leave a group (idempotent; marks status = left)
+router.post('/:groupId/leave', authenticateToken, async (req, res) => {
+  try {
+    const { groupId } = req.params;
+
+    const { resource: group } = await groupsContainer.item(groupId, req.user.university).read();
+    if (!group) return res.status(404).json({ error: 'Group not found' });
+
+    group.members = Array.isArray(group.members) ? group.members : [];
+    const idx = group.members.findIndex((m) => String(m.userId) === String(req.user.id));
+
+    if (idx === -1) {
+      // not a member → idempotent success
+      return res.status(200).json(group);
+    }
+
+    const m = group.members[idx];
+
+    // If already left/inactive, idempotent success
+    if (!isActiveMember(m)) {
+      return res.status(200).json(group);
+    }
+
+    // Optional: prevent owner from leaving if sole admin — keep it simple and allow leaving
+    m.status = 'left';
+    m.leftAt = new Date().toISOString();
+    group.lastActivity = new Date().toISOString();
+
+    const { resource: updated } = await groupsContainer.item(groupId, req.user.university).replace(group);
+    res.status(200).json(updated);
+  } catch (error) {
+    console.error('Error leaving group:', error);
+    if (error.code === 404) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+    res.status(500).json({ error: 'Failed to leave group' });
+  }
+});
+
 // Invite members to a group (owner/admin only)
 router.post('/:groupId/invite', authenticateToken, async (req, res) => {
   try {
     const { groupId } = req.params;
-    const { inviteUserIds } = req.body;
+    const inviteUserIds = Array.isArray(req.body?.inviteUserIds) ? req.body.inviteUserIds : [];
 
-    if (!Array.isArray(inviteUserIds) || inviteUserIds.length === 0) {
-      return res.status(400).json({ error: 'inviteUserIds array is required' });
+    if (inviteUserIds.length === 0) {
+      return res.status(400).json({ error: 'inviteUserIds is required' });
     }
 
     const { resource: group } = await groupsContainer.item(groupId, req.user.university).read();
+    if (!group) return res.status(404).json({ error: 'Group not found' });
 
-    if (!group) {
-      return res.status(404).json({ error: 'Group not found' });
-    }
+    const isOwner = String(group.createdBy) === String(req.user.id);
+    const isAdmin =
+      Array.isArray(group.members) &&
+      group.members.some((m) => String(m.userId) === String(req.user.id) && m.role === 'admin' && isActiveMember(m));
 
-    // Only creator/admin can invite
-    const memberEntry = (group.members || []).find((m) => m.userId === req.user.id);
-    const isOwnerOrAdmin =
-      req.user.id === group.createdBy || (memberEntry && memberEntry.role === 'admin');
-
-    if (!isOwnerOrAdmin) {
-      return res.status(403).json({ error: 'Only the group owner or admin can send invites' });
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ error: 'Not authorized to invite members' });
     }
 
     await sendGroupInvitations(group, inviteUserIds);
 
-    // Touch activity (no structural change needed)
     group.lastActivity = new Date().toISOString();
-    await groupsContainer.item(groupId, req.user.university).replace(group);
+    await groupsContainer.items.upsert(group);
 
-    res.status(202).json({ groupId, invitedCount: inviteUserIds.length });
+    return res.status(202).json({ ok: true, invited: inviteUserIds.length });
   } catch (error) {
-    console.error('Error inviting group members:', error);
-    if (error.code === 404) {
-      return res.status(404).json({ error: 'Group not found' });
-    }
-    res.status(500).json({ error: 'Failed to send invites' });
+    console.error('Error inviting members:', error);
+    return res.status(500).json({ error: 'Failed to send invites' });
   }
 });
 
@@ -196,9 +253,12 @@ router.post('/:groupId/sessions', authenticateToken, async (req, res) => {
     const { groupId } = req.params;
     const { title, description, startTime, endTime, location, topics } = req.body;
 
-    // Verify user is member of the group
     const { resource: group } = await groupsContainer.item(groupId, req.user.university).read();
-    const isMember = group.members.some((m) => m.userId === req.user.id);
+    if (!group) return res.status(404).json({ error: 'Group not found' });
+
+    const isMember =
+      Array.isArray(group.members) &&
+      group.members.some((m) => String(m.userId) === String(req.user.id) && isActiveMember(m));
 
     if (!isMember) {
       return res.status(403).json({ error: 'Not a member of this group' });
@@ -222,9 +282,8 @@ router.post('/:groupId/sessions', authenticateToken, async (req, res) => {
 
     const { resource: createdSession } = await sessionsContainer.items.create(session);
 
-    // Schedule reminder notifications
     if (typeof scheduleSessionReminders === 'function') {
-      await scheduleSessionReminders(createdSession, group.members);
+      await scheduleSessionReminders(createdSession, group.members.filter(isActiveMember));
     }
 
     res.status(201).json(createdSession);
@@ -254,14 +313,6 @@ async function sendGroupInvitations(group, userIds) {
     await sender.close();
     await serviceBusClient.close();
   }
-}
-
-function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2);
-}
-
-function formatDatePartition(dateString) {
-  return new Date(dateString).toISOString().split('T')[0]; // YYYY-MM-DD
 }
 
 module.exports = router;

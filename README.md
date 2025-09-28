@@ -114,6 +114,7 @@ REACT_APP_API_URL=http://localhost:5173/api
 
 ## 🏃‍♂️ Running the Application
 
+0. (If Local) Start the DB: `cd backend && docker compose up --build`
 1. Start the backend: `cd backend && npm run dev`
 2. Start the frontend: `cd frontend && npm run dev`
 3. Open your browser to `http://localhost:5173`

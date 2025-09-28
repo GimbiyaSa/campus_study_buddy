@@ -1,8 +1,9 @@
-import { useState, useId } from 'react';
+import { useState, useId, useRef, useEffect } from 'react';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
 import { navigate } from '../router';
 import { useUser } from '../contexts/UserContext';
 import logo from '../assets/logo.jpg';
+import { buildApiUrl } from '../utils/url';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -16,28 +17,76 @@ export default function Login() {
   const errId = useId();
 
   const { login } = useUser();
+  const googleBtnRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+    if (!clientId) return; // Google sign-in disabled when not configured
+
+    const win = window as any;
+    const existing = document.getElementById('google-identity-script');
+    if (!existing) {
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.id = 'google-identity-script';
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+      script.onload = () => initializeGoogle();
+    } else {
+      initializeGoogle();
+    }
+
+    function initializeGoogle() {
+      if (!win.google?.accounts?.id) {
+        setTimeout(() => initializeGoogle(), 200);
+        return;
+      }
+
+      win.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: async (response: { credential?: string }) => {
+          const idToken = response?.credential;
+          if (!idToken) return;
+
+          setSubmitting(true);
+          try {
+            const res = await fetch(buildApiUrl('/api/v1/users/me'), {
+              method: 'GET',
+              headers: { Authorization: 'Bearer ' + idToken },
+            });
+
+            if (!res.ok) {
+              const errText = await res.text();
+              throw new Error(`Sign-in failed: ${res.status} ${errText}`);
+            }
+
+            const user = await res.json();
+            login(user);
+            navigate('/dashboard');
+          } catch (err: any) {
+            setError(err?.message || 'Google sign-in failed');
+          } finally {
+            setSubmitting(false);
+          }
+        },
+      });
+
+      if (googleBtnRef.current) {
+        win.google.accounts.id.renderButton(googleBtnRef.current, {
+          theme: 'outline',
+          size: 'large',
+        });
+      }
+    }
+  }, []);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
     try {
-      // Simple mock user for development testing
-      const mockUser = {
-        user_id: 1,
-        email: 'john.doe@university.edu',
-        first_name: 'John',
-        last_name: 'Doe',
-        university: 'University of Technology',
-        course: 'Computer Science',
-        year_of_study: 3,
-        is_active: true,
-      };
 
-      login(mockUser);
-
-      // TODO: replace with real auth
-      navigate('/dashboard');
     } catch (err: any) {
       setError(err?.message || 'Login failed');
     } finally {
@@ -146,6 +195,8 @@ export default function Login() {
                   Get started
                 </button>
               </p>
+              {/* Google Sign-In button container (rendered by Google's JS) */}
+              <div className="mt-3" ref={googleBtnRef}></div>
 
               {error && (
                 <div

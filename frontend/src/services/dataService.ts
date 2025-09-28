@@ -1,3 +1,4 @@
+import { buildApiUrl } from '../utils/url';
 // Centralized data service to ensure consistency across the app
 
 export type Course = {
@@ -308,17 +309,9 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
 
 // API service functions that use consistent fallback data
 export class DataService {
-  private static getBaseUrl(): string {
-    // In browser, use relative URLs. In tests/Node.js, use localhost
-    if (typeof window !== 'undefined') {
-      return '';
-    }
-    return 'http://localhost:3000';
-  }
-
   static async fetchCourses(): Promise<Course[]> {
     try {
-      const res = await fetch(`${this.getBaseUrl()}/api/v1/courses`);
+      const res = await fetch(buildApiUrl('/api/v1/courses'));
       if (res.ok) {
         return await res.json();
       }
@@ -330,7 +323,7 @@ export class DataService {
 
   static async fetchSessions(): Promise<StudySession[]> {
     try {
-      const res = await fetch(`${this.getBaseUrl()}/api/v1/sessions`);
+      const res = await fetch(buildApiUrl('/api/v1/sessions'));
       if (res.ok) {
         return await res.json();
       }
@@ -342,7 +335,7 @@ export class DataService {
 
   static async fetchGroups(): Promise<StudyGroup[]> {
     try {
-      const res = await fetch(`${this.getBaseUrl()}/api/v1/groups`);
+      const res = await fetch(buildApiUrl('/api/v1/groups'));
       if (res.ok) {
         return await res.json();
       }
@@ -354,7 +347,7 @@ export class DataService {
 
   static async fetchPartners(): Promise<StudyPartner[]> {
     try {
-      const res = await fetch(`${this.getBaseUrl()}/api/v1/partners`);
+      const res = await fetch(buildApiUrl('/api/v1/partners'));
       if (res.ok) {
         return await res.json();
       }

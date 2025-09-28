@@ -8,15 +8,15 @@ class DatabaseSetup {
     if (typeof config === 'string') {
       this.config = config;
     } else {
+      // Allow overriding encryption/trust settings via env variables
       this.config = {
         user: config.user,
         password: config.password,
         server: config.server,
-        database: config.database,
         options: {
           encrypt: true,
           enableArithAbort: true,
-          trustServerCertificate: false,
+          trustServerCertificate: Boolean(process.env.DB_TRUST_SERVER_CERT),
           requestTimeout: 60000,
           connectionTimeout: 60000,
         },
@@ -164,10 +164,10 @@ class DatabaseSetup {
   async insertSampleData() {
     const sampleDataScript = `
         -- Insert sample users
-        INSERT INTO dbo.users (email, password_hash, first_name, last_name, university, course, year_of_study, bio, study_preferences) VALUES
-        ('john.doe@university.ac.za', 'hashed_password_1', 'John', 'Doe', 'University of the Witwatersrand', 'Computer Science', 2, 'Passionate about algorithms and data structures', '{"preferred_study_times": ["morning", "evening"], "subjects_of_interest": ["algorithms", "databases"]}'),
-        ('jane.smith@university.ac.za', 'hashed_password_2', 'Jane', 'Smith', 'University of the Witwatersrand', 'Computer Science', 2, 'Love collaborative learning', '{"preferred_study_times": ["afternoon"], "subjects_of_interest": ["web_development", "databases"]}'),
-        ('mike.jones@university.ac.za', 'hashed_password_3', 'Mike', 'Jones', 'University of the Witwatersrand', 'Computer Science', 3, 'Final year student, happy to help others', '{"preferred_study_times": ["evening"], "subjects_of_interest": ["machine_learning", "algorithms"]}');
+        INSERT INTO dbo.users (user_id, email, password_hash, first_name, last_name, university, course, year_of_study, bio, study_preferences) VALUES
+        ('1', 'john.doe@university.ac.za', 'hashed_password_1', 'John', 'Doe', 'University of the Witwatersrand', 'Computer Science', 2, 'Passionate about algorithms and data structures', '{"preferred_study_times": ["morning", "evening"], "subjects_of_interest": ["algorithms", "databases"]}'),
+        ('2', 'jane.smith@university.ac.za', 'hashed_password_2', 'Jane', 'Smith', 'University of the Witwatersrand', 'Computer Science', 2, 'Love collaborative learning', '{"preferred_study_times": ["afternoon"], "subjects_of_interest": ["web_development", "databases"]}'),
+        ('3', 'mike.jones@university.ac.za', 'hashed_password_3', 'Mike', 'Jones', 'University of the Witwatersrand', 'Computer Science', 3, 'Final year student, happy to help others', '{"preferred_study_times": ["evening"], "subjects_of_interest": ["machine_learning", "algorithms"]}');
 
         -- Insert sample modules
         INSERT INTO dbo.modules (module_code, module_name, description, university) VALUES
@@ -177,12 +177,12 @@ class DatabaseSetup {
 
         -- Insert user module enrollments
         INSERT INTO dbo.user_modules (user_id, module_id, enrollment_status) VALUES
-        (1, 1, 'active'),
-        (1, 2, 'active'),
-        (2, 1, 'active'),
-        (2, 3, 'active'),
-        (3, 2, 'active'),
-        (3, 3, 'active');
+        ('1', 1, 'active'),
+        ('1', 2, 'active'),
+        ('2', 1, 'active'),
+        ('2', 3, 'active'),
+        ('3', 2, 'active'),
+        ('3', 3, 'active');
 
         -- Insert sample topics
         INSERT INTO dbo.topics (module_id, topic_name, description, order_sequence) VALUES
@@ -201,15 +201,15 @@ class DatabaseSetup {
 
         -- Insert group members
         INSERT INTO dbo.group_members (group_id, user_id, role, status) VALUES
-        (1, 1, 'admin', 'active'),
-        (1, 2, 'member', 'active'),
-        (2, 3, 'admin', 'active'),
-        (2, 1, 'member', 'active');
+        (1, '1', 'admin', 'active'),
+        (1, '2', 'member', 'active'),
+        (2, '3', 'admin', 'active'),
+        (2, '1', 'member', 'active');
 
         -- Insert sample study session
         INSERT INTO dbo.study_sessions (group_id, organizer_id, session_title, description, scheduled_start, scheduled_end, location, session_type) VALUES
-        (1, 1, 'SQL Basics Workshop', 'Hands-on practice with SELECT statements and basic queries', DATEADD(day, 1, GETUTCDATE()), DATEADD(day, 1, DATEADD(hour, 2, GETUTCDATE())), 'Library Room 201', 'study'),
-        (2, 3, 'Binary Trees Deep Dive', 'Understanding tree traversal algorithms', DATEADD(day, 2, GETUTCDATE()), DATEADD(day, 2, DATEADD(hour, 1.5, GETUTCDATE())), 'Computer Lab 3', 'study');
+        (1, '1', 'SQL Basics Workshop', 'Hands-on practice with SELECT statements and basic queries', DATEADD(day, 1, GETUTCDATE()), DATEADD(day, 1, DATEADD(hour, 2, GETUTCDATE())), 'Library Room 201', 'study'),
+        (2, '3', 'Binary Trees Deep Dive', 'Understanding tree traversal algorithms', DATEADD(day, 2, GETUTCDATE()), DATEADD(day, 2, DATEADD(hour, 1.5, GETUTCDATE())), 'Computer Lab 3', 'study');
 
         PRINT 'Sample data inserted successfully!';
         `;

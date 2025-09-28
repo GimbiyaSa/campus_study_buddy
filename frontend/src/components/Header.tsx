@@ -3,6 +3,7 @@ import { useLayoutEffect, useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, Bell, ChevronDown, User, Settings, LogOut } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
+import { buildApiUrl } from '../utils/url';
 
 type User = {
   user_id: number;
@@ -64,24 +65,43 @@ export default function Header() {
   ];
 
   useEffect(() => {
-    async function fetchNotifications() {
-      if (!currentUser) return;
+    if (!currentUser) return;
 
+    let isMounted = true;
+    const controller = new AbortController();
+
+    const fetchNotifications = async () => {
       try {
-        const notifRes = await fetch(`/api/v1/notifications/${currentUser.user_id}`);
+        const notifRes = await fetch(buildApiUrl(`/api/v1/notifications`), {
+          signal: controller.signal,
+        });
+        if (!isMounted) return;
         if (notifRes.ok) {
           const notifData = await notifRes.json();
           setNotifications(notifData);
         } else {
           setNotifications(fallbackNotifications);
         }
-      } catch (err) {
+      } catch (err: unknown) {
+        // AbortController throws a DOMException with name 'AbortError'
+        const anyErr = err as { name?: string } | undefined;
+        if (anyErr?.name === 'AbortError') return;
         setNotifications(fallbackNotifications);
       }
-    }
+    };
 
+    // Initial fetch immediately
     fetchNotifications();
-  }, [currentUser, fallbackNotifications]);
+
+    // Then poll every 60 seconds
+    const interval = setInterval(fetchNotifications, 60 * 1000);
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+      clearInterval(interval);
+    };
+  }, [currentUser]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -100,7 +120,7 @@ export default function Header() {
 
   const markNotificationAsRead = async (notificationId: number) => {
     try {
-      await fetch(`/api/v1/notifications/${notificationId}/read`, {
+      await fetch(buildApiUrl(`/api/v1/notifications/${notificationId}/read`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -130,12 +150,31 @@ export default function Header() {
 
   const handleLogoutConfirm = async () => {
     try {
-      await fetch('/api/v1/auth/logout', {
+      await fetch(buildApiUrl('/api/v1/auth/logout'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
     } catch (err) {
       console.error('Error logging out:', err);
+    }
+
+    // Try to disable Google's auto sign-in and revoke session where possible
+    try {
+      const win = window as any;
+      if (win.google?.accounts?.id?.disableAutoSelect) {
+        win.google.accounts.id.disableAutoSelect();
+      }
+      // revoke the last used credential if stored in localStorage (best-effort)
+      const lastToken = localStorage.getItem('last_google_id_token');
+      if (lastToken && win.google?.accounts?.id?.revoke) {
+        win.google.accounts.id.revoke(lastToken, () => {
+          /* no-op */
+        });
+      }
+      // Clear stored token
+      localStorage.removeItem('last_google_id_token');
+    } catch (e) {
+      // ignore
     }
 
     // Clear user data from context (this will sync with sidebar)
@@ -150,7 +189,7 @@ export default function Header() {
     if (!currentUser) return;
 
     try {
-      const res = await fetch(`/api/v1/users/${currentUser.user_id}`, {
+      const res = await fetch(buildApiUrl(`/api/v1/users/${currentUser.user_id}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedData),
@@ -374,7 +413,7 @@ export default function Header() {
 function ProfileModal({
   open,
   onClose,
-  user,
+  user: userParam,
   onUpdate,
 }: {
   open: boolean;
@@ -392,24 +431,24 @@ function ProfileModal({
   });
 
   useLayoutEffect(() => {
-    if (user && open) {
+    if (userParam && open) {
       setFormData({
-        first_name: user.first_name,
-        last_name: user.last_name,
-        email: user.email,
-        course: user.course,
-        year_of_study: user.year_of_study,
-        university: user.university,
+        first_name: userParam.first_name,
+        last_name: userParam.last_name,
+        email: userParam.email,
+        course: userParam.course,
+        year_of_study: userParam.year_of_study,
+        university: userParam.university,
       });
     }
-  }, [user, open]);
+  }, [userParam, open]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onUpdate(formData);
   };
 
-  if (!open || !user) return null;
+  if (!open || !userParam) return null;
 
   return createPortal(
     <>
@@ -519,7 +558,7 @@ function ProfileModal({
 function SettingsModal({
   open,
   onClose,
-  user,
+  user: _user,
 }: {
   open: boolean;
   onClose: () => void;

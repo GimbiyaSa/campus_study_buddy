@@ -38,7 +38,7 @@ local.settings.json
 *.p12
 *.pfx
 .env
-.env.*
+.env
 secrets.json
 *.secret
 

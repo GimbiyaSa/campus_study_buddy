@@ -13,6 +13,7 @@ import progressService from './services/progressService';
 import chatService from './services/chatService';
 import courseService from './services/courseService';
 import moduleService from './services/moduleService';
+import notificationService from './services/notificationService';
 const { setupCampusStudyBuddyDatabase } = require('./database/run_database_setup');
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; // For local dev with self-signed certs
@@ -46,7 +47,7 @@ app.use(
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 1000, // limit each IP to 100 requests per windowMs
 });
 app.use('/api/', limiter);
 
@@ -83,6 +84,7 @@ app.use('/api/v1/users', userService);
 app.use('/api/v1/partners', partnerService);
 app.use('/api/v1/groups', groupService);
 app.use('/api/v1/progress', progressService);
+app.use('/api/v1/notifications', notificationService);
 app.use('/api/v1/chat', chatService);
 app.use('/api/v1/courses', courseService);
 app.use('/api/v1/modules', moduleService);

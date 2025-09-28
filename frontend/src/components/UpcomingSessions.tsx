@@ -3,75 +3,180 @@ import { Clock, MapPin, Users, Calendar, CheckCircle, XCircle, AlertCircle } fro
 import { navigate } from '../router';
 import { DataService, type StudySession } from '../services/dataService';
 
+type SessionWithOwner = StudySession & { isGroupOwner?: boolean };
+
 export default function UpcomingSessions() {
-  const [sessions, setSessions] = useState<StudySession[]>([]);
+  const [sessions, setSessions] = useState<SessionWithOwner[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Helpers
+  const toDateTime = (s: StudySession) => {
+    const t = s.startTime ? s.startTime : '00:00';
+    return new Date(`${s.date}T${t}:00`);
+  };
+
+  const filterUpcomingNext7Days = (list: SessionWithOwner[]) => {
+    const now = new Date();
+    const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    return list
+      .filter((s) => (s.status ?? 'upcoming') === 'upcoming' && toDateTime(s) >= now && toDateTime(s) <= nextWeek)
+      .sort((a, b) => toDateTime(a).getTime() - toDateTime(b).getTime());
+  };
+
   useEffect(() => {
+    let mounted = true;
+
     async function fetchUpcomingSessions() {
       setLoading(true);
       setError(null);
       try {
         const allSessions = await DataService.fetchSessions();
-
-        // Filter for upcoming sessions (next 7 days)
-        const now = new Date();
-        const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-        const upcomingSessions = allSessions.filter((session: StudySession) => {
-          const sessionDate = new Date(session.date);
-          return sessionDate >= now && sessionDate <= nextWeek && session.status === 'upcoming';
-        });
-
-        setSessions(upcomingSessions);
+        const upcoming = filterUpcomingNext7Days(allSessions as SessionWithOwner[]);
+        if (!mounted) return;
+        setSessions(upcoming);
       } catch (err) {
         console.error('Failed to fetch upcoming sessions:', err);
-        setError('Failed to load upcoming sessions');
+        if (mounted) setError('Failed to load upcoming sessions');
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     }
+
     fetchUpcomingSessions();
+
+    // When any session is created elsewhere, include it here if it matches our window
+    const onCreated = (e: Event) => {
+      const detail = (e as CustomEvent<SessionWithOwner>).detail;
+      if (!detail) return;
+
+      // Only include if it matches our 7-day "upcoming" window
+      const maybe = filterUpcomingNext7Days([detail]);
+      if (maybe.length === 0) return;
+
+      setSessions((prev) => {
+        if (prev.some((s) => s.id === detail.id)) return prev;
+        return [...prev, ...maybe].sort((a, b) => toDateTime(a).getTime() - toDateTime(b).getTime());
+      });
+    };
+
+    // Optional invalidation hook if you broadcast it anywhere
+    const onInvalidate = async () => {
+      try {
+        const all = await DataService.fetchSessions();
+        setSessions(filterUpcomingNext7Days(all as SessionWithOwner[]));
+      } catch {
+        // keep current list
+      }
+    };
+
+    window.addEventListener('session:created', onCreated as EventListener);
+    window.addEventListener('sessions:invalidate', onInvalidate);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener('session:created', onCreated as EventListener);
+      window.removeEventListener('sessions:invalidate', onInvalidate);
+    };
   }, []);
 
-  const updateAttendance = async (sessionId: string, status: string) => {
-    // optimistic update
+  // --- Attend / Leave (optimistic, mirrors Sessions.tsx) ---
+  const handleAttend = async (sessionId: string) => {
     setSessions((prev) =>
-      prev.map((s) => (s.id === sessionId ? { ...s, status: status as any } : s))
+      prev.map((s) =>
+        s.id === sessionId
+          ? {
+              ...s,
+              isAttending: true,
+              participants: (s.participants || 0) + (s.isAttending ? 0 : 1),
+            }
+          : s
+      )
     );
+
     try {
-      await fetch(`/api/v1/groups/sessions/${sessionId}/attendance`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attendance_status: status }),
+      const res = await fetch(`/api/v1/sessions/${sessionId}/join`, {
+        method: 'POST',
+        headers: authHeadersJSON(),
       });
+      if (!res.ok) {
+        // Roll back only for hard failures
+        if ([409, 403, 404].includes(res.status)) {
+          setSessions((prev) =>
+            prev.map((s) =>
+              s.id === sessionId
+                ? {
+                    ...s,
+                    isAttending: false,
+                    participants: Math.max(0, (s.participants || 0) - 1),
+                  }
+                : s
+            )
+          );
+        } else {
+          console.warn('Attend failed (keeping optimistic state for local testing):', res.status);
+        }
+      }
     } catch (err) {
-      // revert on error
-      setSessions((prev) =>
-        prev.map((s) => (s.id === sessionId ? { ...s, status: 'upcoming' } : s))
-      );
-      console.error('Error updating attendance:', err);
+      console.warn('Attend request error (keeping optimistic state):', err);
     }
   };
 
-  const getTimeUntilSession = (sessionDate: string) => {
-    const now = new Date();
-    const sessionTime = new Date(sessionDate);
-    const diffMs = sessionTime.getTime() - now.getTime();
+  const handleLeave = async (sessionId: string) => {
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === sessionId
+          ? {
+              ...s,
+              isAttending: false,
+              participants: Math.max(0, (s.participants || 0) - 1),
+            }
+          : s
+      )
+    );
 
-    if (diffMs < 0) return 'Starting soon';
+    try {
+      const res = await fetch(`/api/v1/sessions/${sessionId}/leave`, {
+        method: 'DELETE',
+        headers: authHeadersJSON(),
+      });
+
+      if (!res.ok) {
+        // Organizer can't leave; roll back on hard failures.
+        if ([400, 403, 404].includes(res.status)) {
+          setSessions((prev) =>
+            prev.map((s) =>
+              s.id === sessionId
+                ? {
+                    ...s,
+                    isAttending: true,
+                    participants: (s.participants || 0) + 1,
+                  }
+                : s
+            )
+          );
+        } else {
+          console.warn('Leave failed (keeping optimistic state for local testing):', res.status);
+        }
+      }
+    } catch (err) {
+      console.warn('Leave request error (keeping optimistic state):', err);
+    }
+  };
+
+  const getTimeUntilSession = (session: StudySession) => {
+    const now = new Date();
+    const when = toDateTime(session);
+    const diffMs = when.getTime() - now.getTime();
+
+    if (diffMs <= 0) return 'Starting soon';
 
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
 
-    if (diffHours > 24) {
-      return `${Math.floor(diffHours / 24)} days`;
-    } else if (diffHours > 0) {
-      return `${diffHours}h ${diffMins}m`;
-    } else {
-      return `${diffMins}m`;
-    }
+    if (diffHours >= 24) return `${Math.floor(diffHours / 24)} days`;
+    if (diffHours > 0) return `${diffHours}h ${diffMins}m`;
+    return `${diffMins}m`;
   };
 
   const getSessionTypeColor = (type: string) => {
@@ -104,6 +209,10 @@ export default function UpcomingSessions() {
     }
   };
 
+  const openCalendarScheduleModal = () => {
+    window.dispatchEvent(new CustomEvent('calendar:openSchedule'));
+  };
+
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
@@ -128,99 +237,148 @@ export default function UpcomingSessions() {
           <p className="text-sm text-center mb-4">
             You don't have any study sessions scheduled for the next week.
           </p>
-          <button className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition">
+          <button
+            onClick={openCalendarScheduleModal}
+            className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition"
+          >
             Schedule a Session
           </button>
         </div>
       ) : (
         <div className="flex-1 space-y-4">
-          {sessions.map((session) => (
-            <div
-              key={session.id}
-              className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-lg font-semibold text-gray-900">{session.title}</h3>
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${getSessionTypeColor(
-                        session.type
-                      )}`}
-                    >
-                      {session.type.replace('_', ' ').toUpperCase()}
+          {sessions.map((session) => {
+            const canAttend =
+              !session.isAttending &&
+              (session.status ?? 'upcoming') === 'upcoming' &&
+              (session.participants || 0) < (session.maxParticipants || 10);
+
+            const canLeave =
+              !!session.isAttending &&
+              (session.status ?? 'upcoming') === 'upcoming' &&
+              !session.isCreator; // organizer cannot leave (backend will 400)
+
+            return (
+              <div
+                key={session.id}
+                className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <h3 className="text-lg font-semibold text-gray-900">{session.title}</h3>
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${getSessionTypeColor(
+                          session.type
+                        )}`}
+                      >
+                        {session.type.replace('_', ' ').toUpperCase()}
+                      </span>
+                      {session.isCreator ? (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700">
+                          Organizer
+                        </span>
+                      ) : session.isAttending ? (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
+                          Attending
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4" />
+                        <span>
+                          {new Date(session.date).toLocaleDateString()} at {session.startTime}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4" />
+                        <span>
+                          {session.participants}
+                          {session.maxParticipants ? ` / ${session.maxParticipants}` : ''} participants
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-4 h-4" />
+                        <span>{session.location}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-brand-600 font-medium">
+                          {getTimeUntilSession(session)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {getAttendanceStatusIcon(session.status)}
+                    <span className="text-sm text-gray-600 capitalize">
+                      {session.status || 'upcoming'}
                     </span>
                   </div>
+                </div>
 
-                  <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4" />
-                      <span>
-                        {new Date(session.date).toLocaleDateString()} at {session.startTime}
-                      </span>
-                    </div>
+                <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                  <div className="text-sm text-gray-500">
+                    {session.course && `Course: ${session.course}`}
+                  </div>
 
-                    <div className="flex items-center gap-2">
-                      <Users className="w-4 h-4" />
-                      <span>{session.participants} participants</span>
-                    </div>
+                  <div className="flex gap-2">
+                    {(session.status ?? 'upcoming') === 'upcoming' && (
+                      <>
+                        {canAttend && (
+                          <button
+                            onClick={() => handleAttend(session.id)}
+                            className="px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600 transition"
+                          >
+                            Attend
+                          </button>
+                        )}
+                        {canLeave && (
+                          <button
+                            onClick={() => handleLeave(session.id)}
+                            className="px-3 py-1 bg-gray-500 text-white text-sm rounded hover:bg-gray-600 transition"
+                          >
+                            Leave
+                          </button>
+                        )}
+                      </>
+                    )}
 
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4" />
-                      <span>{session.location}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className="text-brand-600 font-medium">
-                        {getTimeUntilSession(session.date)}
-                      </span>
-                    </div>
+                    <button
+                      onClick={() => navigate('/sessions')}
+                      className="px-3 py-1 border border-gray-300 text-gray-700 text-sm rounded hover:bg-gray-50 transition"
+                    >
+                      View Details
+                    </button>
                   </div>
                 </div>
-
-                <div className="flex items-center gap-2">
-                  {getAttendanceStatusIcon(session.status)}
-                  <span className="text-sm text-gray-600 capitalize">
-                    {session.status || 'upcoming'}
-                  </span>
-                </div>
               </div>
-
-              <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                <div className="text-sm text-gray-500">
-                  {session.course && `Course: ${session.course}`}
-                </div>
-
-                <div className="flex gap-2">
-                  {session.status === 'upcoming' && (
-                    <>
-                      <button
-                        onClick={() => updateAttendance(session.id, 'ongoing')}
-                        className="px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600 transition"
-                      >
-                        Join Session
-                      </button>
-                      <button
-                        onClick={() => updateAttendance(session.id, 'cancelled')}
-                        className="px-3 py-1 bg-gray-500 text-white text-sm rounded hover:bg-gray-600 transition"
-                      >
-                        Cancel
-                      </button>
-                    </>
-                  )}
-
-                  <button
-                    onClick={() => navigate('/sessions')}
-                    className="px-3 py-1 border border-gray-300 text-gray-700 text-sm rounded hover:bg-gray-50 transition"
-                  >
-                    View Details
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
   );
+}
+
+/* ----------------- helpers ----------------- */
+
+function authHeadersJSON(): Headers {
+  const h = new Headers();
+  h.set('Content-Type', 'application/json');
+  const raw = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  if (raw) {
+    let t: string = raw;
+    try {
+      const p = JSON.parse(raw);
+      if (typeof p === 'string') t = p;
+    } catch {}
+    t = t.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
+    if (t) h.set('Authorization', `Bearer ${t}`);
+  }
+  return h;
 }

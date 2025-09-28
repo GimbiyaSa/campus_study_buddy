@@ -1,3 +1,4 @@
+// frontend/src/pages/Sessions.tsx
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar, Clock, MapPin, Plus, Users, X, Edit, Trash2, MessageSquare } from 'lucide-react';
@@ -25,6 +26,15 @@ export default function Sessions() {
     fetchSessions();
   }, []);
 
+  // --- broadcast helpers so other components (Calendar) can react in real-time ---
+  function broadcastSessionCreated(session: StudySession) {
+    try {
+      window.dispatchEvent(new CustomEvent('session:created', { detail: session }));
+      // Optional: tell listeners to refetch if they prefer to pull fresh data
+      window.dispatchEvent(new Event('sessions:invalidate'));
+    } catch {}
+  }
+
   const handleCreateSession = async (
     sessionData: Omit<StudySession, 'id' | 'participants' | 'status' | 'isCreator' | 'isAttending'>
   ) => {
@@ -49,7 +59,27 @@ export default function Sessions() {
 
       if (res.ok) {
         const created = await res.json();
-        setSessions((prev) => [{ ...created, id: String(created.id) }, ...prev]);
+        const createdNorm: StudySession = {
+          ...created,
+          id: String(created.id),
+          // defensive defaults if API doesn't echo these
+          title: created.title ?? sessionData.title,
+          date: created.date ?? sessionData.date,
+          startTime: created.startTime ?? sessionData.startTime,
+          endTime: created.endTime ?? sessionData.endTime,
+          location: created.location ?? sessionData.location,
+          type: created.type ?? (sessionData.type || 'study'),
+          participants: created.participants ?? 1,
+          status: created.status ?? 'upcoming',
+          isCreator: created.isCreator ?? true,
+          isAttending: created.isAttending ?? true,
+          course: created.course ?? sessionData.course,
+          courseCode: created.courseCode ?? sessionData.courseCode,
+          maxParticipants: created.maxParticipants ?? sessionData.maxParticipants,
+          groupId: created.groupId ?? sessionData.groupId,
+        };
+        setSessions((prev) => [createdNorm, ...prev]);
+        broadcastSessionCreated(createdNorm);
         return;
       }
     } catch (error) {
@@ -66,6 +96,7 @@ export default function Sessions() {
       isAttending: true,
     };
     setSessions((prev) => [newSession, ...prev]);
+    broadcastSessionCreated(newSession);
   };
 
   const handleEditSession = async (
@@ -132,92 +163,93 @@ export default function Sessions() {
       prev.map((s) => (s.id === sessionId ? { ...s, status: 'cancelled' } : s))
     );
   };
+
   const handleJoinSession = async (sessionId: string) => {
-  // Optimistic UI first (so it works even when you're using fallbacks / unauthenticated)
-  setSessions((prev) =>
-    prev.map((s) =>
-      s.id === sessionId
-        ? {
-            ...s,
-            isAttending: true,
-            participants: (s.participants || 0) + (s.isAttending ? 0 : 1),
-          }
-        : s
-    )
-  );
+    // Optimistic UI first (so it works even when you're using fallbacks / unauthenticated)
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === sessionId
+          ? {
+              ...s,
+              isAttending: true,
+              participants: (s.participants || 0) + (s.isAttending ? 0 : 1),
+            }
+          : s
+      )
+    );
 
-  try {
-    const res = await fetch(`/api/v1/sessions/${sessionId}/join`, {
-      method: 'POST',
-      headers: authHeadersJSON(),
-    });
+    try {
+      const res = await fetch(`/api/v1/sessions/${sessionId}/join`, {
+        method: 'POST',
+        headers: authHeadersJSON(),
+      });
 
-    if (!res.ok) {
-      // Roll back only for hard failures (capacity, forbidden, not found).
-      if ([409, 403, 404].includes(res.status)) {
-        setSessions((prev) =>
-          prev.map((s) =>
-            s.id === sessionId
-              ? {
-                  ...s,
-                  isAttending: false,
-                  participants: Math.max(0, (s.participants || 0) - 1),
-                }
-              : s
-          )
-        );
-      } else {
-        console.warn('Join failed (keeping optimistic state for local testing):', res.status);
+      if (!res.ok) {
+        // Roll back only for hard failures (capacity, forbidden, not found).
+        if ([409, 403, 404].includes(res.status)) {
+          setSessions((prev) =>
+            prev.map((s) =>
+              s.id === sessionId
+                ? {
+                    ...s,
+                    isAttending: false,
+                    participants: Math.max(0, (s.participants || 0) - 1),
+                  }
+                : s
+            )
+          );
+        } else {
+          console.warn('Join failed (keeping optimistic state for local testing):', res.status);
+        }
       }
+    } catch (err) {
+      // Network error — keep optimistic state so you can test against fallbacks
+      console.warn('Join request error (keeping optimistic state):', err);
     }
-  } catch (err) {
-    // Network error — keep optimistic state so you can test against fallbacks
-    console.warn('Join request error (keeping optimistic state):', err);
-  }
-};
+  };
 
-const handleLeaveSession = async (sessionId: string) => {
-  // Optimistic UI first
-  setSessions((prev) =>
-    prev.map((s) =>
-      s.id === sessionId
-        ? {
-            ...s,
-            isAttending: false,
-            participants: Math.max(0, (s.participants || 0) - 1),
-          }
-        : s
-    )
-  );
+  const handleLeaveSession = async (sessionId: string) => {
+    // Optimistic UI first
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === sessionId
+          ? {
+              ...s,
+              isAttending: false,
+              participants: Math.max(0, (s.participants || 0) - 1),
+            }
+          : s
+      )
+    );
 
-  try {
-    const res = await fetch(`/api/v1/sessions/${sessionId}/leave`, {
-      method: 'DELETE',
-      headers: authHeadersJSON(),
-    });
+    try {
+      const res = await fetch(`/api/v1/sessions/${sessionId}/leave`, {
+        method: 'DELETE',
+        headers: authHeadersJSON(),
+      });
 
-    if (!res.ok) {
-      // Roll back on hard failures (organizer can't leave, forbidden, not found)
-      if ([400, 403, 404].includes(res.status)) {
-        setSessions((prev) =>
-          prev.map((s) =>
-            s.id === sessionId
-              ? {
-                  ...s,
-                  isAttending: true,
-                  participants: (s.participants || 0) + 1,
-                }
-              : s
-          )
-        );
-      } else {
-        console.warn('Leave failed (keeping optimistic state for local testing):', res.status);
+      if (!res.ok) {
+        // Roll back on hard failures (organizer can't leave, forbidden, not found)
+        if ([400, 403, 404].includes(res.status)) {
+          setSessions((prev) =>
+            prev.map((s) =>
+              s.id === sessionId
+                ? {
+                    ...s,
+                    isAttending: true,
+                    participants: (s.participants || 0) + 1,
+                  }
+                : s
+            )
+          );
+        } else {
+          console.warn('Leave failed (keeping optimistic state for local testing):', res.status);
+        }
       }
+    } catch (err) {
+      console.warn('Leave request error (keeping optimistic state):', err);
     }
-  } catch (err) {
-    console.warn('Leave request error (keeping optimistic state):', err);
-  }
-};
+  };
 
   const handleOpenChat = (session: StudySession) => {
     if (!session.groupId) return;
@@ -447,15 +479,14 @@ function SessionCard({
                 (session.status || 'upcoming').slice(1)}
             </span>
             {session.isCreator ? (
-            <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-amber-50 text-amber-700">
-              Organizer
-            </span>
+              <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-amber-50 text-amber-700">
+                Organizer
+              </span>
             ) : session.isAttending ? (
-            <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-emerald-50 text-emerald-700">
-              Attending
-            </span>
+              <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-emerald-50 text-emerald-700">
+                Attending
+              </span>
             ) : null}
-
           </div>
         </div>
 
@@ -536,6 +567,7 @@ function SessionModal({
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [location, setLocation] = useState('');
+  const [type, setType] = useState<StudySession['type']>('study'); // NEW
   const [maxParticipants, setMaxParticipants] = useState<number | undefined>();
 
   const titleId = useId();
@@ -545,6 +577,7 @@ function SessionModal({
   const startTimeId = useId();
   const endTimeId = useId();
   const locationId = useId();
+  const typeId = useId(); // NEW
   const maxParticipantsId = useId();
 
   useEffect(() => {
@@ -556,6 +589,7 @@ function SessionModal({
       setStartTime(editingSession.startTime);
       setEndTime(editingSession.endTime);
       setLocation(editingSession.location);
+      setType(editingSession.type || 'study'); // NEW
       setMaxParticipants(editingSession.maxParticipants);
     } else {
       setTitle('');
@@ -565,6 +599,7 @@ function SessionModal({
       setStartTime('');
       setEndTime('');
       setLocation('');
+      setType('study'); // NEW
       setMaxParticipants(undefined);
     }
   }, [editingSession, open]);
@@ -604,7 +639,7 @@ function SessionModal({
       endTime,
       location: location.trim(),
       maxParticipants,
-      type: 'study',
+      type, // NEW
     });
 
     onClose();
@@ -749,6 +784,25 @@ function SessionModal({
                 />
               </div>
 
+              {/* NEW: Session Type select */}
+              <div>
+                <label htmlFor={typeId} className="block mb-1 text-sm font-medium text-slate-800">
+                  Session type
+                </label>
+                <select
+                  id={typeId}
+                  value={type}
+                  onChange={(e) => setType(e.target.value as StudySession['type'])}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                >
+                  <option value="study">Study Group</option>
+                  <option value="review">Review Session</option>
+                  <option value="project">Project Work</option>
+                  <option value="exam_prep">Exam Preparation</option>
+                  <option value="discussion">Discussion</option>
+                </select>
+              </div>
+
               <div>
                 <label
                   htmlFor={maxParticipantsId}
@@ -803,7 +857,7 @@ function authHeadersJSON(): Headers {
   if (raw) {
     let t = raw;
     try { const p = JSON.parse(raw); if (typeof p === 'string') t = p; } catch {}
-    t = t.replace(/^["']|["']$/g, '').replace(/^Bearer\\s+/i, '').trim();
+    t = t.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
     if (t) h.set('Authorization', `Bearer ${t}`);
   }
   return h;

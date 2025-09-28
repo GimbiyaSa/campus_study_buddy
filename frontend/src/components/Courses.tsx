@@ -1,6 +1,6 @@
 // src/components/Courses.tsx
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, MessageCircle, Bell, Target } from 'lucide-react';
+import { Plus, Bell, Target } from 'lucide-react';
 import { navigate } from '../router';
 import { DataService, type Course } from '../services/dataService';
 
@@ -217,13 +217,6 @@ export default function Courses() {
                 >
                   <Plus className="w-4 h-4" />
                   Add course
-                </button>
-                <button
-                  onClick={() => navigate('/partners')}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm hover:bg-gray-50"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  Chat with study partners
                 </button>
                 <button
                   onClick={() => navigate('/sessions')}

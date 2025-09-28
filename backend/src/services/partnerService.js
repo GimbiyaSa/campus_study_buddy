@@ -1,4 +1,4 @@
-// services/partnerService.js 
+// services/partnerService.js
 const express = require('express');
 const { CosmosClient } = require('@azure/cosmos');
 const { authenticateToken } = require('../middleware/authMiddleware');
@@ -60,9 +60,7 @@ router.get('/', authenticateToken, async (req, res) => {
 
     // Extract the "other side" of each accepted connection
     const buddyIds = Array.from(
-      new Set(
-        links.map((c) => (c.requesterId === userId ? c.recipientId : c.requesterId))
-      )
+      new Set(links.map((c) => (c.requesterId === userId ? c.recipientId : c.requesterId)))
     );
 
     if (buddyIds.length === 0) {
@@ -84,11 +82,7 @@ router.get('/', authenticateToken, async (req, res) => {
     // Normalize response minimally (keep most user fields intact)
     const payload = buddies.map((u) => ({
       id: u.id,
-      name:
-        u.name ||
-        [u.firstName, u.lastName].filter(Boolean).join(' ') ||
-        u.email ||
-        'Unknown',
+      name: u.name || [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || 'Unknown',
       email: u.email,
       university: u.university,
       course: u.course,

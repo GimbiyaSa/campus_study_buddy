@@ -27,7 +27,9 @@ export default function Groups() {
   const [error, setError] = useState<string | null>(null);
 
   const [openCreate, setOpenCreate] = useState(false);
-  const [openInvite, setOpenInvite] = useState<{ open: boolean; groupId?: string }>({ open: false });
+  const [openInvite, setOpenInvite] = useState<{ open: boolean; groupId?: string }>({
+    open: false,
+  });
   const [connections, setConnections] = useState<StudyPartner[]>([]);
   const [connLoading, setConnLoading] = useState(false);
 
@@ -114,7 +116,10 @@ export default function Groups() {
         const p = JSON.parse(raw);
         if (typeof p === 'string') t = p;
       } catch {}
-      t = t.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
+      t = t
+        .replace(/^["']|["']$/g, '')
+        .replace(/^Bearer\s+/i, '')
+        .trim();
       if (t) h.set('Authorization', `Bearer ${t}`);
     }
     return h;
@@ -140,29 +145,41 @@ export default function Groups() {
   function toStudyGroup(g: any): StudyGroup {
     const idStr = String(g?.id ?? g?.group_id ?? '');
     let hash = 0;
-    for (let i = 0; i < idStr.length; i++) hash = ((hash << 5) - hash) + idStr.charCodeAt(i) | 0;
+    for (let i = 0; i < idStr.length; i++) hash = ((hash << 5) - hash + idStr.charCodeAt(i)) | 0;
     const numericId = Number.isFinite(g?.group_id) ? g.group_id : Math.abs(hash || Date.now());
 
-    const createdBy = g?.createdBy != null ? String(g.createdBy) : (g?.creator_id != null ? String(g.creator_id) : '');
-    setOwners(prev => (prev[numericId] ? prev : { ...prev, [numericId]: createdBy }));
-    if (g?.id) setIdMap(prev => (prev[numericId] ? prev : { ...prev, [numericId]: String(g.id) }));
+    const createdBy =
+      g?.createdBy != null
+        ? String(g.createdBy)
+        : g?.creator_id != null
+        ? String(g.creator_id)
+        : '';
+    setOwners((prev) => (prev[numericId] ? prev : { ...prev, [numericId]: createdBy }));
+    if (g?.id)
+      setIdMap((prev) => (prev[numericId] ? prev : { ...prev, [numericId]: String(g.id) }));
 
     // membership hint from API if available
     if (Array.isArray(g?.members) && meId) {
       const iAmIn = g.members.some((m: any) => String(m?.userId ?? m?.id) === String(meId));
-      setJoinedByMe(prev => prev[numericId] === undefined ? { ...prev, [numericId]: iAmIn } : prev);
+      setJoinedByMe((prev) =>
+        prev[numericId] === undefined ? { ...prev, [numericId]: iAmIn } : prev
+      );
     } else if (createdBy && meId && String(createdBy) === String(meId)) {
-      setJoinedByMe(prev => prev[numericId] === undefined ? { ...prev, [numericId]: true } : prev);
+      setJoinedByMe((prev) =>
+        prev[numericId] === undefined ? { ...prev, [numericId]: true } : prev
+      );
     }
 
-    const membersCount = Array.isArray(g?.members) ? g.members.length : (g?.member_count ?? 0);
+    const membersCount = Array.isArray(g?.members) ? g.members.length : g?.member_count ?? 0;
     const createdAt = g?.createdAt || g?.created_at || new Date().toISOString();
     const updatedAt = g?.lastActivity || g?.updated_at || createdAt;
 
     const course = g?.course ?? '';
     const courseCode = g?.courseCode ?? '';
     const moduleName =
-      (course || courseCode) ? [courseCode, course].filter(Boolean).join(' - ') : (g?.module_name ?? undefined);
+      course || courseCode
+        ? [courseCode, course].filter(Boolean).join(' - ')
+        : g?.module_name ?? undefined;
 
     return {
       group_id: numericId,
@@ -170,7 +187,7 @@ export default function Groups() {
       description: g?.description ?? '',
       creator_id: Number.isFinite(g?.creator_id) ? g.creator_id : 0,
       module_id: Number.isFinite(g?.module_id) ? g.module_id : 0,
-      max_members: Number.isFinite(g?.maxMembers) ? g.maxMembers : (g?.max_members ?? 10),
+      max_members: Number.isFinite(g?.maxMembers) ? g.maxMembers : g?.max_members ?? 10,
       group_type: (g?.group_type ?? 'study') as StudyGroup['group_type'],
       group_goals: g?.group_goals,
       is_active: g?.is_active ?? true,
@@ -183,7 +200,8 @@ export default function Groups() {
   }
 
   function isOwner(group: StudyGroup): boolean {
-    const owner = owners[group.group_id] || (group.creator_id != null ? String(group.creator_id) : '');
+    const owner =
+      owners[group.group_id] || (group.creator_id != null ? String(group.creator_id) : '');
     if (!owner || !meId) return false;
     return String(owner) === String(meId);
   }
@@ -192,10 +210,14 @@ export default function Groups() {
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch('/api/v1/users/me', { headers: authHeadersJSON(), credentials: 'include' });
+        const res = await fetch('/api/v1/users/me', {
+          headers: authHeadersJSON(),
+          credentials: 'include',
+        });
         if (res.ok) {
           const data = await res.json();
-          const id = data?.user_id != null ? String(data.user_id) : (data?.id != null ? String(data.id) : '');
+          const id =
+            data?.user_id != null ? String(data.user_id) : data?.id != null ? String(data.id) : '';
           if (mounted) setMeId(id);
         } else {
           if (mounted) setMeId('1');
@@ -204,12 +226,16 @@ export default function Groups() {
         if (mounted) setMeId('1');
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   // listen for broadcasted changes (created elsewhere)
   useEffect(() => {
-    const onInv = () => { refreshGroups(); };
+    const onInv = () => {
+      refreshGroups();
+    };
     window.addEventListener('groups:invalidate', onInv);
     // @ts-ignore
     const hasBC = 'BroadcastChannel' in window;
@@ -248,18 +274,23 @@ export default function Groups() {
 
   async function refreshGroups(): Promise<boolean> {
     try {
-      let res = await fetch('/api/v1/groups/my-groups', { headers: authHeadersJSON(), credentials: 'include' });
+      let res = await fetch('/api/v1/groups/my-groups', {
+        headers: authHeadersJSON(),
+        credentials: 'include',
+      });
       if (!res.ok) {
         res = await fetch('/api/v1/groups', { headers: authHeadersJSON(), credentials: 'include' });
       }
       if (!res.ok) throw new Error('Failed');
       const data = await res.json();
       const mapped = (Array.isArray(data) ? data : []).map((g) => toStudyGroup(g));
-      setGroups(prev => mapped.length > 0 ? mergeGroups(prev, mapped) : (prev.length ? prev : fallbackGroups));
+      setGroups((prev) =>
+        mapped.length > 0 ? mergeGroups(prev, mapped) : prev.length ? prev : fallbackGroups
+      );
       setUsingFallback(false);
       return true;
     } catch {
-      setGroups(prev => prev.length ? prev : fallbackGroups);
+      setGroups((prev) => (prev.length ? prev : fallbackGroups));
       setUsingFallback(true);
       return false;
     }
@@ -269,7 +300,6 @@ export default function Groups() {
     setLoading(true);
     setError(null);
     refreshGroups().finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const joinGroup = async (groupId: number) => {
@@ -278,11 +308,18 @@ export default function Groups() {
     setPendingAction('join');
 
     // optimistic UI
-    setGroups(prev => prev.map(g => g.group_id === groupId ? { ...g, member_count: (g.member_count || 0) + 1 } : g));
-    setJoinedByMe(prev => ({ ...prev, [groupId]: true }));
+    setGroups((prev) =>
+      prev.map((g) =>
+        g.group_id === groupId ? { ...g, member_count: (g.member_count || 0) + 1 } : g
+      )
+    );
+    setJoinedByMe((prev) => ({ ...prev, [groupId]: true }));
 
     if (!realId) {
-      setTimeout(() => { setJoiningId(null); setPendingAction(null); }, 400);
+      setTimeout(() => {
+        setJoiningId(null);
+        setPendingAction(null);
+      }, 400);
       return;
     }
 
@@ -297,8 +334,14 @@ export default function Groups() {
     } catch (err) {
       console.error('Error joining group:', err);
       // revert on hard error
-      setGroups(prev => prev.map(g => g.group_id === groupId ? { ...g, member_count: Math.max((g.member_count || 0) - 1, 0) } : g));
-      setJoinedByMe(prev => ({ ...prev, [groupId]: false }));
+      setGroups((prev) =>
+        prev.map((g) =>
+          g.group_id === groupId
+            ? { ...g, member_count: Math.max((g.member_count || 0) - 1, 0) }
+            : g
+        )
+      );
+      setJoinedByMe((prev) => ({ ...prev, [groupId]: false }));
     } finally {
       setJoiningId(null);
       setPendingAction(null);
@@ -311,11 +354,18 @@ export default function Groups() {
     setPendingAction('leave');
 
     // optimistic UI
-    setGroups(prev => prev.map(g => g.group_id === groupId ? { ...g, member_count: Math.max((g.member_count || 0) - 1, 0) } : g));
-    setJoinedByMe(prev => ({ ...prev, [groupId]: false }));
+    setGroups((prev) =>
+      prev.map((g) =>
+        g.group_id === groupId ? { ...g, member_count: Math.max((g.member_count || 0) - 1, 0) } : g
+      )
+    );
+    setJoinedByMe((prev) => ({ ...prev, [groupId]: false }));
 
     if (!realId) {
-      setTimeout(() => { setJoiningId(null); setPendingAction(null); }, 400);
+      setTimeout(() => {
+        setJoiningId(null);
+        setPendingAction(null);
+      }, 400);
       return;
     }
 
@@ -330,8 +380,12 @@ export default function Groups() {
     } catch (err) {
       console.error('Error leaving group:', err);
       // revert
-      setGroups(prev => prev.map(g => g.group_id === groupId ? { ...g, member_count: (g.member_count || 0) + 1 } : g));
-      setJoinedByMe(prev => ({ ...prev, [groupId]: true }));
+      setGroups((prev) =>
+        prev.map((g) =>
+          g.group_id === groupId ? { ...g, member_count: (g.member_count || 0) + 1 } : g
+        )
+      );
+      setJoinedByMe((prev) => ({ ...prev, [groupId]: true }));
     } finally {
       setJoiningId(null);
       setPendingAction(null);
@@ -343,7 +397,7 @@ export default function Groups() {
     if (!window.confirm('Delete this group? This action cannot be undone.')) return;
 
     const snapshot = groups;
-    setGroups(prev => prev.filter(g => g.group_id !== groupId));
+    setGroups((prev) => prev.filter((g) => g.group_id !== groupId));
     try {
       const res = await fetch(`/api/v1/groups/${encodeURIComponent(realId)}`, {
         method: 'DELETE',
@@ -387,10 +441,10 @@ export default function Groups() {
         const created = await res.json();
         const sg = toStudyGroup(created);
         // creator is always a member
-        setJoinedByMe(prev => ({ ...prev, [sg.group_id]: true }));
+        setJoinedByMe((prev) => ({ ...prev, [sg.group_id]: true }));
         setGroups((prev) => [sg, ...prev]); // immediate card
         broadcastGroupCreated(sg);
-        await refreshGroups();               // merge canonical data
+        await refreshGroups(); // merge canonical data
         return;
       }
     } catch (err) {
@@ -414,7 +468,7 @@ export default function Groups() {
       group_type: 'study',
     });
 
-    setJoinedByMe(prev => ({ ...prev, [localGroup.group_id]: true }));
+    setJoinedByMe((prev) => ({ ...prev, [localGroup.group_id]: true }));
     setGroups((prev) => [localGroup, ...prev]);
     broadcastGroupCreated(localGroup);
   };
@@ -543,7 +597,9 @@ export default function Groups() {
                           disabled={joiningId === group.group_id}
                           className="flex-1 px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition disabled:opacity-60"
                         >
-                          {joiningId === group.group_id && pendingAction === 'leave' ? 'Leaving…' : 'Leave Group'}
+                          {joiningId === group.group_id && pendingAction === 'leave'
+                            ? 'Leaving…'
+                            : 'Leave Group'}
                         </button>
                       ) : (
                         <button
@@ -551,7 +607,9 @@ export default function Groups() {
                           disabled={joiningId === group.group_id}
                           className="flex-1 px-3 py-2 bg-brand-500 text-white text-sm rounded-lg hover:bg-brand-600 transition disabled:opacity-60"
                         >
-                          {joiningId === group.group_id && pendingAction === 'join' ? 'Joining…' : 'Join Group'}
+                          {joiningId === group.group_id && pendingAction === 'join'
+                            ? 'Joining…'
+                            : 'Join Group'}
                         </button>
                       )}
                       <button className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition">
@@ -878,7 +936,10 @@ function InviteMembersModal({
         const p = JSON.parse(raw);
         if (typeof p === 'string') t = p;
       } catch {}
-      t = t.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
+      t = t
+        .replace(/^["']|["']$/g, '')
+        .replace(/^Bearer\s+/i, '')
+        .trim();
       if (t) h.set('Authorization', `Bearer ${t}`);
     }
     return h;
@@ -940,7 +1001,7 @@ function InviteMembersModal({
             disabled={selectedIds.length === 0 || sending || sent}
             className="rounded-xl bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
           >
-            {sent ? 'Invites sent' : (sending ? 'Sending…' : 'Send Invites')}
+            {sent ? 'Invites sent' : sending ? 'Sending…' : 'Send Invites'}
           </button>
         </div>
       </div>

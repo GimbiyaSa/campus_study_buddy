@@ -136,7 +136,9 @@ router.post('/:groupId/join', authenticateToken, async (req, res) => {
     });
     group.lastActivity = new Date().toISOString();
 
-    const { resource: updated } = await groupsContainer.item(groupId, req.user.university).replace(group);
+    const { resource: updated } = await groupsContainer
+      .item(groupId, req.user.university)
+      .replace(group);
     res.status(200).json(updated);
   } catch (error) {
     console.error('Error joining group:', error);
@@ -165,7 +167,8 @@ router.post('/:groupId/invite', authenticateToken, async (req, res) => {
 
     // Only creator/admin can invite
     const memberEntry = (group.members || []).find((m) => m.userId === req.user.id);
-    const isOwnerOrAdmin = req.user.id === group.createdBy || (memberEntry && memberEntry.role === 'admin');
+    const isOwnerOrAdmin =
+      req.user.id === group.createdBy || (memberEntry && memberEntry.role === 'admin');
 
     if (!isOwnerOrAdmin) {
       return res.status(403).json({ error: 'Only the group owner or admin can send invites' });

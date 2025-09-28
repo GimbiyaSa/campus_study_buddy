@@ -16,36 +16,35 @@ export default function Calendar() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-  const open = () => {
-    setSelectedDate(new Date()); // or leave null; 
-    setShowScheduleModal(true);
-  };
-  window.addEventListener('calendar:openSchedule', open);
-  return () => window.removeEventListener('calendar:openSchedule', open);
+    const open = () => {
+      setSelectedDate(new Date()); // or leave null;
+      setShowScheduleModal(true);
+    };
+    window.addEventListener('calendar:openSchedule', open);
+    return () => window.removeEventListener('calendar:openSchedule', open);
   }, []);
 
   useEffect(() => {
-  const onCreated = (e: Event) => {
-    const newSession = (e as CustomEvent<StudySession>).detail;
-    if (!newSession) return;
+    const onCreated = (e: Event) => {
+      const newSession = (e as CustomEvent<StudySession>).detail;
+      if (!newSession) return;
 
-    setSessions(prev =>
-      prev.some(s => s.id === newSession.id) ? prev : [...prev, newSession]
-    );
-  };
+      setSessions((prev) =>
+        prev.some((s) => s.id === newSession.id) ? prev : [...prev, newSession]
+      );
+    };
 
-  const onInvalidate = () => {
-    DataService.fetchSessions().then(setSessions).catch(console.error);
-  };
+    const onInvalidate = () => {
+      DataService.fetchSessions().then(setSessions).catch(console.error);
+    };
 
-  window.addEventListener('session:created', onCreated as EventListener);
-  window.addEventListener('sessions:invalidate', onInvalidate);
-  return () => {
-    window.removeEventListener('session:created', onCreated as EventListener);
-    window.removeEventListener('sessions:invalidate', onInvalidate);
-  };
-}, []);
-
+    window.addEventListener('session:created', onCreated as EventListener);
+    window.addEventListener('sessions:invalidate', onInvalidate);
+    return () => {
+      window.removeEventListener('session:created', onCreated as EventListener);
+      window.removeEventListener('sessions:invalidate', onInvalidate);
+    };
+  }, []);
 
   useEffect(() => {
     async function fetchSessions() {

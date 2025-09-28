@@ -150,7 +150,9 @@ export default function Sessions() {
         const updated = await res.json(); // backend returns the cancelled row
         setSessions((prev) =>
           prev.map((s) =>
-            s.id === sessionId ? { ...s, ...updated, id: String(updated.id), status: 'cancelled' } : s
+            s.id === sessionId
+              ? { ...s, ...updated, id: String(updated.id), status: 'cancelled' }
+              : s
           )
         );
         return;
@@ -856,8 +858,14 @@ function authHeadersJSON(): Headers {
   const raw = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   if (raw) {
     let t = raw;
-    try { const p = JSON.parse(raw); if (typeof p === 'string') t = p; } catch {}
-    t = t.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
+    try {
+      const p = JSON.parse(raw);
+      if (typeof p === 'string') t = p;
+    } catch {}
+    t = t
+      .replace(/^["']|["']$/g, '')
+      .replace(/^Bearer\s+/i, '')
+      .trim();
     if (t) h.set('Authorization', `Bearer ${t}`);
   }
   return h;

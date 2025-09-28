@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
-import { Users, Plus, MessageSquare, Calendar, Trash2 } from 'lucide-react';
+// frontend/src/pages/Groups.tsx
+import { useState, useEffect, useId, useLayoutEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { Users, Plus, MessageSquare, Calendar, Trash2, X } from 'lucide-react';
 import { DataService, type StudyPartner, FALLBACK_PARTNERS } from '../services/dataService';
 
 type StudyGroup = {
@@ -25,9 +27,7 @@ export default function Groups() {
   const [error, setError] = useState<string | null>(null);
 
   const [openCreate, setOpenCreate] = useState(false);
-  const [openInvite, setOpenInvite] = useState<{ open: boolean; groupId?: string }>({
-    open: false,
-  });
+  const [openInvite, setOpenInvite] = useState<{ open: boolean; groupId?: string }>({ open: false });
   const [connections, setConnections] = useState<StudyPartner[]>([]);
   const [connLoading, setConnLoading] = useState(false);
 
@@ -39,7 +39,17 @@ export default function Groups() {
   // join/leave UI state
   const [joiningId, setJoiningId] = useState<number | null>(null);
   const [pendingAction, setPendingAction] = useState<'join' | 'leave' | null>(null);
-  const [joinedByMe, setJoinedByMe] = useState<Record<number, boolean>>({}); // membership flag per card
+  const [joinedByMe, setJoinedByMe] = useState<Record<number, boolean>>({});
+
+  // schedule-session modal state (new)
+  const [openSchedule, setOpenSchedule] = useState<{
+    open: boolean;
+    groupId?: string;     // cosmos id
+    groupLocalId?: number;
+    groupName?: string;
+    course?: string;
+    courseCode?: string;
+  }>({ open: false });
 
   const fallbackGroups: StudyGroup[] = [
     {
@@ -114,54 +124,66 @@ export default function Groups() {
         const p = JSON.parse(raw);
         if (typeof p === 'string') t = p;
       } catch {}
-      t = t
-        .replace(/^["']|["']$/g, '')
-        .replace(/^Bearer\s+/i, '')
-        .trim();
+      t = t.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
       if (t) h.set('Authorization', `Bearer ${t}`);
     }
     return h;
   }
 
-  // map API → local card shape; also capture owner + cosmos id
+  // --- broadcast helpers so other views can react in real-time ---
+  function broadcastGroupCreated(group: any) {
+    try {
+      const detail = { type: 'group.created', group, ts: Date.now() };
+      window.dispatchEvent(new CustomEvent('groups:invalidate', { detail }));
+      // @ts-ignore
+      if ('BroadcastChannel' in window) {
+        const bc = new BroadcastChannel('studybuddy-events');
+        bc.postMessage(detail);
+        bc.close();
+      }
+    } catch {}
+  }
+
+  function broadcastSessionCreated(session: any) {
+    try {
+      window.dispatchEvent(new CustomEvent('session:created', { detail: session }));
+      window.dispatchEvent(new Event('sessions:invalidate'));
+      // @ts-ignore
+      if ('BroadcastChannel' in window) {
+        const bc = new BroadcastChannel('studybuddy-events');
+        bc.postMessage({ type: 'session.created', session, ts: Date.now() });
+        bc.close();
+      }
+    } catch {}
+  }
+
+  // map API → local card shape; capture owner + cosmos id + my membership
   function toStudyGroup(g: any): StudyGroup {
     const idStr = String(g?.id ?? g?.group_id ?? '');
     let hash = 0;
-    for (let i = 0; i < idStr.length; i++) hash = ((hash << 5) - hash + idStr.charCodeAt(i)) | 0;
+    for (let i = 0; i < idStr.length; i++) hash = ((hash << 5) - hash) + idStr.charCodeAt(i) | 0;
     const numericId = Number.isFinite(g?.group_id) ? g.group_id : Math.abs(hash || Date.now());
 
-    const createdBy =
-      g?.createdBy != null
-        ? String(g.createdBy)
-        : g?.creator_id != null
-        ? String(g.creator_id)
-        : '';
-    setOwners((prev) => (prev[numericId] ? prev : { ...prev, [numericId]: createdBy }));
-    if (g?.id)
-      setIdMap((prev) => (prev[numericId] ? prev : { ...prev, [numericId]: String(g.id) }));
+    const createdBy = g?.createdBy != null ? String(g.createdBy) : (g?.creator_id != null ? String(g.creator_id) : '');
+    setOwners(prev => (prev[numericId] ? prev : { ...prev, [numericId]: createdBy }));
+    if (g?.id) setIdMap(prev => (prev[numericId] ? prev : { ...prev, [numericId]: String(g.id) }));
 
     // membership hint from API if available
     if (Array.isArray(g?.members) && meId) {
       const iAmIn = g.members.some((m: any) => String(m?.userId ?? m?.id) === String(meId));
-      setJoinedByMe((prev) =>
-        prev[numericId] === undefined ? { ...prev, [numericId]: iAmIn } : prev
-      );
+      setJoinedByMe(prev => prev[numericId] === undefined ? { ...prev, [numericId]: iAmIn } : prev);
     } else if (createdBy && meId && String(createdBy) === String(meId)) {
-      setJoinedByMe((prev) =>
-        prev[numericId] === undefined ? { ...prev, [numericId]: true } : prev
-      );
+      setJoinedByMe(prev => prev[numericId] === undefined ? { ...prev, [numericId]: true } : prev);
     }
 
-    const membersCount = Array.isArray(g?.members) ? g.members.length : g?.member_count ?? 0;
+    const membersCount = Array.isArray(g?.members) ? g.members.length : (g?.member_count ?? 0);
     const createdAt = g?.createdAt || g?.created_at || new Date().toISOString();
     const updatedAt = g?.lastActivity || g?.updated_at || createdAt;
 
     const course = g?.course ?? '';
     const courseCode = g?.courseCode ?? '';
     const moduleName =
-      course || courseCode
-        ? [courseCode, course].filter(Boolean).join(' - ')
-        : g?.module_name ?? undefined;
+      (course || courseCode) ? [courseCode, course].filter(Boolean).join(' - ') : (g?.module_name ?? undefined);
 
     return {
       group_id: numericId,
@@ -169,7 +191,7 @@ export default function Groups() {
       description: g?.description ?? '',
       creator_id: Number.isFinite(g?.creator_id) ? g.creator_id : 0,
       module_id: Number.isFinite(g?.module_id) ? g.module_id : 0,
-      max_members: Number.isFinite(g?.maxMembers) ? g.maxMembers : g?.max_members ?? 10,
+      max_members: Number.isFinite(g?.maxMembers) ? g.maxMembers : (g?.max_members ?? 10),
       group_type: (g?.group_type ?? 'study') as StudyGroup['group_type'],
       group_goals: g?.group_goals,
       is_active: g?.is_active ?? true,
@@ -182,8 +204,7 @@ export default function Groups() {
   }
 
   function isOwner(group: StudyGroup): boolean {
-    const owner =
-      owners[group.group_id] || (group.creator_id != null ? String(group.creator_id) : '');
+    const owner = owners[group.group_id] || (group.creator_id != null ? String(group.creator_id) : '');
     if (!owner || !meId) return false;
     return String(owner) === String(meId);
   }
@@ -192,14 +213,10 @@ export default function Groups() {
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch('/api/v1/users/me', {
-          headers: authHeadersJSON(),
-          credentials: 'include',
-        });
+        const res = await fetch('/api/v1/users/me', { headers: authHeadersJSON(), credentials: 'include' });
         if (res.ok) {
           const data = await res.json();
-          const id =
-            data?.user_id != null ? String(data.user_id) : data?.id != null ? String(data.id) : '';
+          const id = data?.user_id != null ? String(data.user_id) : (data?.id != null ? String(data.id) : '');
           if (mounted) setMeId(id);
         } else {
           if (mounted) setMeId('1');
@@ -208,8 +225,25 @@ export default function Groups() {
         if (mounted) setMeId('1');
       }
     })();
+    return () => { mounted = false; };
+  }, []);
+
+  // listen for broadcasted changes (created elsewhere)
+  useEffect(() => {
+    const onInv = () => { refreshGroups(); };
+    window.addEventListener('groups:invalidate', onInv);
+    // @ts-ignore
+    const hasBC = 'BroadcastChannel' in window;
+    // @ts-ignore
+    const bc = hasBC ? new BroadcastChannel('studybuddy-events') : null;
+    if (bc) {
+      bc.onmessage = (ev: MessageEvent) => {
+        if (ev?.data?.type === 'group.created') refreshGroups();
+      };
+    }
     return () => {
-      mounted = false;
+      window.removeEventListener('groups:invalidate', onInv);
+      if (bc) bc.close();
     };
   }, []);
 
@@ -235,23 +269,18 @@ export default function Groups() {
 
   async function refreshGroups(): Promise<boolean> {
     try {
-      let res = await fetch('/api/v1/groups/my-groups', {
-        headers: authHeadersJSON(),
-        credentials: 'include',
-      });
+      let res = await fetch('/api/v1/groups/my-groups', { headers: authHeadersJSON(), credentials: 'include' });
       if (!res.ok) {
         res = await fetch('/api/v1/groups', { headers: authHeadersJSON(), credentials: 'include' });
       }
       if (!res.ok) throw new Error('Failed');
       const data = await res.json();
       const mapped = (Array.isArray(data) ? data : []).map((g) => toStudyGroup(g));
-      setGroups((prev) =>
-        mapped.length > 0 ? mergeGroups(prev, mapped) : prev.length ? prev : fallbackGroups
-      );
+      setGroups(prev => mapped.length > 0 ? mergeGroups(prev, mapped) : (prev.length ? prev : fallbackGroups));
       setUsingFallback(false);
       return true;
     } catch {
-      setGroups((prev) => (prev.length ? prev : fallbackGroups));
+      setGroups(prev => prev.length ? prev : fallbackGroups);
       setUsingFallback(true);
       return false;
     }
@@ -261,6 +290,7 @@ export default function Groups() {
     setLoading(true);
     setError(null);
     refreshGroups().finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const joinGroup = async (groupId: number) => {
@@ -269,19 +299,11 @@ export default function Groups() {
     setPendingAction('join');
 
     // optimistic UI
-    setGroups((prev) =>
-      prev.map((g) =>
-        g.group_id === groupId ? { ...g, member_count: (g.member_count || 0) + 1 } : g
-      )
-    );
-    setJoinedByMe((prev) => ({ ...prev, [groupId]: true }));
+    setGroups(prev => prev.map(g => g.group_id === groupId ? { ...g, member_count: (g.member_count || 0) + 1 } : g));
+    setJoinedByMe(prev => ({ ...prev, [groupId]: true }));
 
     if (!realId) {
-      // demo: keep optimistic state, no server call
-      setTimeout(() => {
-        setJoiningId(null);
-        setPendingAction(null);
-      }, 400);
+      setTimeout(() => { setJoiningId(null); setPendingAction(null); }, 400);
       return;
     }
 
@@ -295,15 +317,9 @@ export default function Groups() {
       await refreshGroups();
     } catch (err) {
       console.error('Error joining group:', err);
-      // revert
-      setGroups((prev) =>
-        prev.map((g) =>
-          g.group_id === groupId
-            ? { ...g, member_count: Math.max((g.member_count || 0) - 1, 0) }
-            : g
-        )
-      );
-      setJoinedByMe((prev) => ({ ...prev, [groupId]: false }));
+      // revert on hard error
+      setGroups(prev => prev.map(g => g.group_id === groupId ? { ...g, member_count: Math.max((g.member_count || 0) - 1, 0) } : g));
+      setJoinedByMe(prev => ({ ...prev, [groupId]: false }));
     } finally {
       setJoiningId(null);
       setPendingAction(null);
@@ -316,19 +332,11 @@ export default function Groups() {
     setPendingAction('leave');
 
     // optimistic UI
-    setGroups((prev) =>
-      prev.map((g) =>
-        g.group_id === groupId ? { ...g, member_count: Math.max((g.member_count || 0) - 1, 0) } : g
-      )
-    );
-    setJoinedByMe((prev) => ({ ...prev, [groupId]: false }));
+    setGroups(prev => prev.map(g => g.group_id === groupId ? { ...g, member_count: Math.max((g.member_count || 0) - 1, 0) } : g));
+    setJoinedByMe(prev => ({ ...prev, [groupId]: false }));
 
     if (!realId) {
-      // demo: keep optimistic
-      setTimeout(() => {
-        setJoiningId(null);
-        setPendingAction(null);
-      }, 400);
+      setTimeout(() => { setJoiningId(null); setPendingAction(null); }, 400);
       return;
     }
 
@@ -343,12 +351,8 @@ export default function Groups() {
     } catch (err) {
       console.error('Error leaving group:', err);
       // revert
-      setGroups((prev) =>
-        prev.map((g) =>
-          g.group_id === groupId ? { ...g, member_count: (g.member_count || 0) + 1 } : g
-        )
-      );
-      setJoinedByMe((prev) => ({ ...prev, [groupId]: true }));
+      setGroups(prev => prev.map(g => g.group_id === groupId ? { ...g, member_count: (g.member_count || 0) + 1 } : g));
+      setJoinedByMe(prev => ({ ...prev, [groupId]: true }));
     } finally {
       setJoiningId(null);
       setPendingAction(null);
@@ -360,7 +364,7 @@ export default function Groups() {
     if (!window.confirm('Delete this group? This action cannot be undone.')) return;
 
     const snapshot = groups;
-    setGroups((prev) => prev.filter((g) => g.group_id !== groupId));
+    setGroups(prev => prev.filter(g => g.group_id !== groupId));
     try {
       const res = await fetch(`/api/v1/groups/${encodeURIComponent(realId)}`, {
         method: 'DELETE',
@@ -375,8 +379,8 @@ export default function Groups() {
     }
   };
 
-  // create then keep it; refresh merges (won’t remove local on failure)
-  const createGroup = async (payload: {
+  // --- create group (API-first; optimistic fallback; broadcast) ---
+  const handleCreateGroup = async (form: {
     name: string;
     description?: string;
     course?: string;
@@ -390,27 +394,130 @@ export default function Groups() {
         headers: authHeadersJSON(),
         credentials: 'include',
         body: JSON.stringify({
-          name: payload.name,
-          description: payload.description || '',
+          name: form.name,
+          description: form.description || '',
           subjects: [],
-          maxMembers: payload.maxMembers ?? 8,
-          isPublic: payload.isPublic ?? true,
-          course: payload.course || '',
-          courseCode: payload.courseCode || '',
+          maxMembers: form.maxMembers ?? 8,
+          isPublic: form.isPublic ?? true,
+          course: form.course || '',
+          courseCode: form.courseCode || '',
         }),
       });
-      if (!res.ok) throw new Error('Failed to create group');
 
-      const created = await res.json();
-      const sg = toStudyGroup(created);
-
-      // creator is always a member
-      setJoinedByMe((prev) => ({ ...prev, [sg.group_id]: true }));
-
-      setGroups((prev) => [sg, ...prev]); // immediate add
-      await refreshGroups(); // merge with server view
+      if (res.ok) {
+        const created = await res.json();
+        const sg = toStudyGroup(created);
+        setJoinedByMe(prev => ({ ...prev, [sg.group_id]: true }));
+        setGroups((prev) => [sg, ...prev]);
+        broadcastGroupCreated(sg);
+        await refreshGroups();
+        return;
+      }
     } catch (err) {
       console.error('Error creating group:', err);
+    }
+
+    // Optimistic fallback
+    const localId = Date.now();
+    const localGroup = toStudyGroup({
+      id: String(localId),
+      name: form.name,
+      description: form.description || '',
+      maxMembers: form.maxMembers ?? 8,
+      isPublic: form.isPublic ?? true,
+      course: form.course || '',
+      courseCode: form.courseCode || '',
+      createdBy: meId,
+      members: [{ userId: meId, role: 'admin', joinedAt: new Date().toISOString() }],
+      createdAt: new Date().toISOString(),
+      lastActivity: new Date().toISOString(),
+      group_type: 'study',
+    });
+
+    setJoinedByMe(prev => ({ ...prev, [localGroup.group_id]: true }));
+    setGroups((prev) => [localGroup, ...prev]);
+    broadcastGroupCreated(localGroup);
+  };
+
+  // --- schedule a session for a group (NEW) ---
+  const handleScheduleSession = async (groupCtx: {
+    groupId: string;                // cosmos id
+    groupLocalId: number;
+    groupName: string;
+    course?: string;
+    courseCode?: string;
+  }, form: { title: string; date: string; startTime: string; endTime: string; location: string; description?: string }) => {
+    // Build payload expected by your backend
+    const startISO = new Date(`${form.date}T${form.startTime}:00`).toISOString();
+    const endISO   = new Date(`${form.date}T${form.endTime}:00`).toISOString();
+    const payload = {
+      title: form.title,
+      description: form.description || '',
+      startTime: startISO,
+      endTime: endISO,
+      location: form.location,
+      topics: [], // optional
+    };
+
+    // optimistic broadcast first so Calendar feels instant
+    const optimistic = {
+      id: String(Date.now()),
+      title: form.title,
+      date: form.date,
+      startTime: form.startTime,
+      endTime: form.endTime,
+      location: form.location,
+      type: 'study',
+      participants: 1,
+      status: 'upcoming',
+      isCreator: true,
+      isAttending: true,
+      groupId: groupCtx.groupId,
+      course: groupCtx.course,
+      courseCode: groupCtx.courseCode,
+    };
+    broadcastSessionCreated(optimistic);
+
+    // If there is no real cosmos id (fallback groups), stop here
+    if (!groupCtx.groupId || groupCtx.groupId === String(groupCtx.groupLocalId)) return;
+
+    try {
+      const res = await fetch(`/api/v1/groups/${encodeURIComponent(groupCtx.groupId)}/sessions`, {
+        method: 'POST',
+        headers: authHeadersJSON(),
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const created = await res.json();
+        // try to normalize for listeners (Sessions/Calendar)
+        const sDate = payload.startTime.slice(0, 10);
+        const sStart = new Date(payload.startTime).toISOString().slice(11,16); // HH:MM
+        const sEnd = new Date(payload.endTime).toISOString().slice(11,16);
+
+        const createdForBroadcast = {
+          id: String(created.id),
+          title: created.title ?? form.title,
+          date: created.date ?? sDate,
+          startTime: created.startTime ? new Date(created.startTime).toISOString().slice(11,16) : sStart,
+          endTime: created.endTime ? new Date(created.endTime).toISOString().slice(11,16) : sEnd,
+          location: created.location ?? form.location,
+          type: created.type ?? 'study',
+          participants: created.participants ?? 1,
+          status: created.status ?? 'upcoming',
+          isCreator: true,
+          isAttending: true,
+          groupId: created.groupId ?? groupCtx.groupId,
+          course: created.course ?? groupCtx.course,
+          courseCode: created.courseCode ?? groupCtx.courseCode,
+        };
+        broadcastSessionCreated(createdForBroadcast);
+      } else {
+        console.warn('Schedule session failed:', res.status);
+      }
+    } catch (err) {
+      console.error('Error scheduling session:', err);
     }
   };
 
@@ -426,6 +533,16 @@ export default function Groups() {
         return 'text-green-600 bg-green-100';
     }
   };
+
+  // helper: derive course + code from module_name like "CS 201 - Data Structures"
+  function splitModuleName(mod?: string): { courseCode?: string; course?: string } {
+    if (!mod) return {};
+    const parts = String(mod).split(' - ');
+    if (parts.length >= 2) {
+      return { courseCode: parts[0], course: parts.slice(1).join(' - ') };
+    }
+    return { course: mod };
+    }
 
   return (
     <div className="space-y-6">
@@ -460,6 +577,9 @@ export default function Groups() {
             if (!group || !group.group_name || !group.group_type) return null;
             const owner = isOwner(group);
             const iJoined = !!joinedByMe[group.group_id];
+
+            const realId = idMap[group.group_id] || String(group.group_id);
+            const coursePieces = splitModuleName(group.module_name);
 
             return (
               <div
@@ -508,7 +628,6 @@ export default function Groups() {
                       <button
                         onClick={async () => {
                           await loadConnections();
-                          const realId = idMap[group.group_id] || String(group.group_id);
                           setOpenInvite({ open: true, groupId: realId });
                         }}
                         className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
@@ -523,10 +642,23 @@ export default function Groups() {
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
-                      <button className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition">
+                      <button className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition" title="Open chat">
                         <MessageSquare className="w-4 h-4" />
                       </button>
-                      <button className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition">
+                      <button
+                        onClick={() =>
+                          setOpenSchedule({
+                            open: true,
+                            groupId: realId,
+                            groupLocalId: group.group_id,
+                            groupName: group.group_name,
+                            course: coursePieces.course,
+                            courseCode: coursePieces.courseCode,
+                          })
+                        }
+                        className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
+                        title="Schedule a session"
+                      >
                         <Calendar className="w-4 h-4" />
                       </button>
                     </>
@@ -538,9 +670,7 @@ export default function Groups() {
                           disabled={joiningId === group.group_id}
                           className="flex-1 px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition disabled:opacity-60"
                         >
-                          {joiningId === group.group_id && pendingAction === 'leave'
-                            ? 'Leaving…'
-                            : 'Leave Group'}
+                          {joiningId === group.group_id && pendingAction === 'leave' ? 'Leaving…' : 'Leave Group'}
                         </button>
                       ) : (
                         <button
@@ -548,15 +678,26 @@ export default function Groups() {
                           disabled={joiningId === group.group_id}
                           className="flex-1 px-3 py-2 bg-brand-500 text-white text-sm rounded-lg hover:bg-brand-600 transition disabled:opacity-60"
                         >
-                          {joiningId === group.group_id && pendingAction === 'join'
-                            ? 'Joining…'
-                            : 'Join Group'}
+                          {joiningId === group.group_id && pendingAction === 'join' ? 'Joining…' : 'Join Group'}
                         </button>
                       )}
-                      <button className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition">
+                      <button className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition" title="Open chat">
                         <MessageSquare className="w-4 h-4" />
                       </button>
-                      <button className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition">
+                      <button
+                        onClick={() =>
+                          setOpenSchedule({
+                            open: true,
+                            groupId: realId,
+                            groupLocalId: group.group_id,
+                            groupName: group.group_name,
+                            course: coursePieces.course,
+                            courseCode: coursePieces.courseCode,
+                          })
+                        }
+                        className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
+                        title="Schedule a session"
+                      >
                         <Calendar className="w-4 h-4" />
                       </button>
                     </>
@@ -582,10 +723,40 @@ export default function Groups() {
         </div>
       )}
 
-      {openCreate && (
-        <CreateGroupModal onClose={() => setOpenCreate(false)} onCreate={createGroup} />
-      )}
+      {/* Create Group Modal (Sessions-style) */}
+      <GroupModal
+        open={openCreate}
+        onClose={() => setOpenCreate(false)}
+        onSubmit={handleCreateGroup}
+      />
 
+      {/* NEW: Schedule Session Modal */}
+      <ScheduleSessionModal
+        open={openSchedule.open}
+        onClose={() => setOpenSchedule({ open: false })}
+        groupName={openSchedule.groupName}
+        defaults={{
+          // sensible defaults; type is always "study"
+          title: openSchedule.groupName ? `Study session: ${openSchedule.groupName}` : 'Study session',
+          course: openSchedule.course,
+          courseCode: openSchedule.courseCode,
+        }}
+        onSubmit={(form) => {
+          if (!openSchedule.groupId || !openSchedule.groupLocalId || !openSchedule.groupName) return;
+          handleScheduleSession(
+            {
+              groupId: openSchedule.groupId,
+              groupLocalId: openSchedule.groupLocalId,
+              groupName: openSchedule.groupName,
+              course: openSchedule.course,
+              courseCode: openSchedule.courseCode,
+            },
+            form
+          );
+        }}
+      />
+
+      {/* Invite Members Modal */}
       {openInvite.open && (
         <InviteMembersModal
           onClose={() => setOpenInvite({ open: false })}
@@ -597,141 +768,453 @@ export default function Groups() {
   );
 }
 
-/* ---------------- Create Group Modal (adds Course + Course code) ---------------- */
-function CreateGroupModal({
+/* ---------------- Group Modal (portal; matches Sessions style) ---------------- */
+function GroupModal({
+  open,
   onClose,
-  onCreate,
+  onSubmit,
+  defaults,
 }: {
+  open: boolean;
   onClose: () => void;
-  onCreate: (payload: {
+  onSubmit: (g: {
     name: string;
     description?: string;
     course?: string;
     courseCode?: string;
     maxMembers?: number;
     isPublic?: boolean;
-  }) => Promise<void>;
+  }) => void;
+  defaults?: Partial<{
+    name: string;
+    description: string;
+    course: string;
+    courseCode: string;
+    maxMembers: number;
+    isPublic: boolean;
+  }>;
 }) {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [course, setCourse] = useState('');
-  const [courseCode, setCourseCode] = useState('');
-  const [maxMembers, setMaxMembers] = useState<number>(8);
-  const [isPublic, setIsPublic] = useState<boolean>(true);
-  const [sending, setSending] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
 
-  return (
-    <div className="fixed inset-0 z-[9999] grid place-items-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative w-full max-w-lg rounded-2xl bg-white border border-gray-200 p-6 shadow-xl">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Create Group</h3>
+  const [name, setName] = useState(defaults?.name || '');
+  const [description, setDescription] = useState(defaults?.description || '');
+  const [course, setCourse] = useState(defaults?.course || '');
+  const [courseCode, setCourseCode] = useState(defaults?.courseCode || '');
+  const [maxMembers, setMaxMembers] = useState<number>(defaults?.maxMembers ?? 8);
+  const [isPublic, setIsPublic] = useState<boolean>(defaults?.isPublic ?? true);
 
-        <div className="space-y-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-800 mb-1">Group name</label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g., Algorithms Crew"
-              className="w-full rounded-xl border border-gray-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
-            />
-          </div>
+  const titleId = useId();
+  const nameId = useId();
+  const descId = useId();
+  const courseId = useId();
+  const codeId = useId();
+  const maxId = useId();
 
-          <div>
-            <label className="block text-sm font-medium text-gray-800 mb-1">Description</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              placeholder="Optional"
-              className="w-full rounded-xl border border-gray-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
-            />
-          </div>
+  useEffect(() => {
+    if (!open) return;
+    setName(defaults?.name || '');
+    setDescription(defaults?.description || '');
+    setCourse(defaults?.course || '');
+    setCourseCode(defaults?.courseCode || '');
+    setMaxMembers(defaults?.maxMembers ?? 8);
+    setIsPublic(defaults?.isPublic ?? true);
+  }, [open, defaults]);
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+  useLayoutEffect(() => {
+    if (!open) return;
+    const prev = document.activeElement as HTMLElement | null;
+    closeBtnRef.current?.focus();
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+      prev?.focus();
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    onSubmit({
+      name: name.trim(),
+      description: description.trim() || undefined,
+      course: course.trim() || undefined,
+      courseCode: courseCode.trim() || undefined,
+      maxMembers,
+      isPublic,
+    });
+    onClose();
+  };
+
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-[9998] bg-black/40" onClick={onClose} aria-hidden="true" />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="fixed inset-0 z-[9999] grid place-items-center p-4"
+      >
+        <div
+          ref={dialogRef}
+          className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto"
+        >
+          <div className="flex items-start justify-between mb-6">
             <div>
-              <label className="block text-sm font-medium text-gray-800 mb-1">Course</label>
-              <input
-                value={course}
-                onChange={(e) => setCourse(e.target.value)}
-                placeholder="e.g., Data Structures & Algorithms"
-                className="w-full rounded-xl border border-gray-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
-              />
+              <h2 id={titleId} className="text-lg font-semibold text-slate-900">
+                Create new group
+              </h2>
+              <p className="text-sm text-slate-600">Organize a study group with your peers</p>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-800 mb-1">Course code</label>
-              <input
-                value={courseCode}
-                onChange={(e) => setCourseCode(e.target.value)}
-                placeholder="e.g., CS301"
-                className="w-full rounded-xl border border-gray-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
-              />
-            </div>
+            <button
+              ref={closeBtnRef}
+              onClick={onClose}
+              aria-label="Close"
+              className="rounded-lg p-2 hover:bg-slate-50"
+            >
+              <X className="h-5 w-5 text-slate-600" />
+            </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-800 mb-1">Max members</label>
-              <input
-                type="number"
-                min={2}
-                max={50}
-                value={maxMembers}
-                onChange={(e) => setMaxMembers(parseInt(e.target.value || '8', 10))}
-                className="w-full rounded-xl border border-gray-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
-              />
-            </div>
-            <div className="flex items-end gap-2">
-              <input
-                id="isPublic"
-                type="checkbox"
-                checked={isPublic}
-                onChange={(e) => setIsPublic(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300"
-              />
-              <label htmlFor="isPublic" className="text-sm text-gray-700 select-none">
-                Public group
-              </label>
-            </div>
-          </div>
-        </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label htmlFor={nameId} className="block mb-1 text-sm font-medium text-slate-800">
+                  Group name <span className="text-emerald-700">*</span>
+                </label>
+                <input
+                  id={nameId}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g., Algorithms Crew"
+                  required
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
 
-        <div className="mt-6 flex items-center justify-end gap-3">
-          <button
-            onClick={onClose}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50"
-          >
-            Cancel
-          </button>
-          <button
-            disabled={!name.trim() || sending}
-            onClick={async () => {
-              try {
-                setSending(true);
-                await onCreate({
-                  name: name.trim(),
-                  description: description.trim(),
-                  course: course.trim(),
-                  courseCode: courseCode.trim(),
-                  maxMembers,
-                  isPublic,
-                });
-                onClose();
-              } finally {
-                setSending(false);
-              }
-            }}
-            className="rounded-xl bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-          >
-            {sending ? 'Creating…' : 'Create Group'}
-          </button>
+              <div className="sm:col-span-2">
+                <label htmlFor={descId} className="block mb-1 text-sm font-medium text-slate-800">
+                  Description
+                </label>
+                <textarea
+                  id={descId}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={3}
+                  placeholder="Optional"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+
+              <div>
+                <label htmlFor={codeId} className="block mb-1 text-sm font-medium text-slate-800">
+                  Course code
+                </label>
+                <input
+                  id={codeId}
+                  value={courseCode}
+                  onChange={(e) => setCourseCode(e.target.value)}
+                  placeholder="e.g., CS301"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label htmlFor={courseId} className="block mb-1 text-sm font-medium text-slate-800">
+                  Course name
+                </label>
+                <input
+                  id={courseId}
+                  value={course}
+                  onChange={(e) => setCourse(e.target.value)}
+                  placeholder="e.g., Data Structures"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+
+              <div>
+                <label htmlFor={maxId} className="block mb-1 text-sm font-medium text-slate-800">
+                  Max members
+                </label>
+                <input
+                  id={maxId}
+                  type="number"
+                  min={2}
+                  max={50}
+                  value={maxMembers}
+                  onChange={(e) => setMaxMembers(parseInt(e.target.value || '8', 10))}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+
+              <div className="flex items-end gap-2">
+                <input
+                  id="gg_isPublic"
+                  type="checkbox"
+                  checked={isPublic}
+                  onChange={(e) => setIsPublic(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300"
+                />
+                <label htmlFor="gg_isPublic" className="text-sm text-slate-700 select-none">
+                  Public group
+                </label>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="rounded-xl bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
+              >
+                Create group
+              </button>
+            </div>
+          </form>
         </div>
       </div>
-    </div>
+    </>,
+    document.body
   );
 }
 
-/* ---------------- Invite Members Modal ---------------- */
+/* --------------- NEW: Schedule Session Modal (Sessions-style) --------------- */
+function ScheduleSessionModal({
+  open,
+  onClose,
+  onSubmit,
+  groupName,
+  defaults,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSubmit: (data: { title: string; date: string; startTime: string; endTime: string; location: string; description?: string }) => void;
+  groupName?: string;
+  defaults?: Partial<{ title: string; course: string; courseCode: string }>;
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
+
+  const [title, setTitle] = useState(defaults?.title || (groupName ? `Study session: ${groupName}` : 'Study session'));
+  const [date, setDate] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [location, setLocation] = useState('');
+  const [description, setDescription] = useState('');
+
+  const titleId = useId();
+  const dateId = useId();
+  const stId = useId();
+  const etId = useId();
+  const locId = useId();
+  const descId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    setTitle(defaults?.title || (groupName ? `Study session: ${groupName}` : 'Study session'));
+    setDate('');
+    setStartTime('');
+    setEndTime('');
+    setLocation('');
+    setDescription('');
+  }, [open, defaults, groupName]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const prev = document.activeElement as HTMLElement | null;
+    closeBtnRef.current?.focus();
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+      prev?.focus();
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !date || !startTime || !endTime || !location.trim()) return;
+    onSubmit({
+      title: title.trim(),
+      date,
+      startTime,
+      endTime,
+      location: location.trim(),
+      description: description.trim() || undefined,
+    });
+    onClose();
+  };
+
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-[9998] bg-black/40" onClick={onClose} aria-hidden="true" />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="fixed inset-0 z-[9999] grid place-items-center p-4"
+      >
+        <div
+          ref={dialogRef}
+          className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto"
+        >
+          <div className="flex items-start justify-between mb-6">
+            <div>
+              <h2 id={titleId} className="text-lg font-semibold text-slate-900">
+                Schedule a session
+              </h2>
+              <p className="text-sm text-slate-600">
+                {groupName ? `For ${groupName}` : 'Plan a study session'}
+              </p>
+            </div>
+            <button
+              ref={closeBtnRef}
+              onClick={onClose}
+              aria-label="Close"
+              className="rounded-lg p-2 hover:bg-slate-50"
+            >
+              <X className="h-5 w-5 text-slate-600" />
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label htmlFor={titleId} className="block mb-1 text-sm font-medium text-slate-800">
+                  Session title <span className="text-emerald-700">*</span>
+                </label>
+                <input
+                  id={titleId}
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="e.g., Midterm Review"
+                  required
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+
+              <div>
+                <label htmlFor={dateId} className="block mb-1 text-sm font-medium text-slate-800">
+                  Date <span className="text-emerald-700">*</span>
+                </label>
+                <input
+                  id={dateId}
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  required
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+
+              <div>
+                <label htmlFor={stId} className="block mb-1 text-sm font-medium text-slate-800">
+                  Start time <span className="text-emerald-700">*</span>
+                </label>
+                <input
+                  id={stId}
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  required
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+
+              <div>
+                <label htmlFor={etId} className="block mb-1 text-sm font-medium text-slate-800">
+                  End time <span className="text-emerald-700">*</span>
+                </label>
+                <input
+                  id={etId}
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  required
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label htmlFor={locId} className="block mb-1 text-sm font-medium text-slate-800">
+                  Location <span className="text-emerald-700">*</span>
+                </label>
+                <input
+                  id={locId}
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder="e.g., Library Room 204"
+                  required
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label htmlFor={descId} className="block mb-1 text-sm font-medium text-slate-800">
+                  Notes (optional)
+                </label>
+                <textarea
+                  id={descId}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={3}
+                  placeholder="What will you cover?"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="rounded-xl bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
+              >
+                Schedule
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </>,
+    document.body
+  );
+}
+
+/* ---------------- Invite Members Modal (unchanged behavior) ---------------- */
 function InviteMembersModal({
   onClose,
   groupId,
@@ -778,10 +1261,7 @@ function InviteMembersModal({
         const p = JSON.parse(raw);
         if (typeof p === 'string') t = p;
       } catch {}
-      t = t
-        .replace(/^["']|["']$/g, '')
-        .replace(/^Bearer\s+/i, '')
-        .trim();
+      t = t.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
       if (t) h.set('Authorization', `Bearer ${t}`);
     }
     return h;
@@ -843,7 +1323,7 @@ function InviteMembersModal({
             disabled={selectedIds.length === 0 || sending || sent}
             className="rounded-xl bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
           >
-            {sent ? 'Invites sent' : sending ? 'Sending…' : 'Send Invites'}
+            {sent ? 'Invites sent' : (sending ? 'Sending…' : 'Send Invites')}
           </button>
         </div>
       </div>

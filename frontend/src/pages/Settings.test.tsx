@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen } from '../test-utils';
 import Settings from './Settings';
 import { expect, test } from 'vitest';
 
@@ -6,5 +6,5 @@ import { expect, test } from 'vitest';
 test('Settings page shows heading and placeholder', () => {
   render(<Settings />);
   expect(screen.getByRole('heading', { name: /Settings/i })).toBeInTheDocument();
-  expect(screen.getByText(/Placeholder for user and app settings/i)).toBeInTheDocument();
+  expect(screen.getByText(/Loading settings/i)).toBeInTheDocument();
 });

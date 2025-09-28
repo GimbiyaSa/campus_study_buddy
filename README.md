@@ -1,4 +1,4 @@
-# Study Buddy Application
+# Campus Study Buddy Application
 
 A simple full-stack application built with React (frontend) and Node.js (backend), both using TypeScript for type safety and better development experience.
 
@@ -38,22 +38,34 @@ Before running this application, make sure you have the following installed:
 campus-study-buddy/
 ├── backend/
 │   ├── src/
-│   │   └── app.ts
-│   ├── package.json
-│   ├── tsconfig.json
-│   └── .env
-├── frontend/
-│   ├── public/
-│   ├── src/
-│   │   ├── types/
-│   │   │   └── index.ts
+│   │   ├── app.ts
 │   │   ├── services/
-│   │   │   └── api.ts
-│   │   ├── App.tsx
-│   │   ├── App.css
-│   │   └── index.tsx
+│   │   │   ├── userService.js
+│   │   │   ├── courseService.js
+│   │   │   ├── partnerService.js
+│   │   │   ├── groupService.js
+│   │   │   ├── progressService.js
+│   │   │   └── chatService.js
+│   │   ├── database/
+│   │   │   ├── run_database_setup.js
+│   │   │   └── database_setup.js
+│   ├── .env
 │   ├── package.json
-│   └── .env
+│   └── tsconfig.json
+├── frontend/
+│   ├── src/
+│   │   ├── pages/
+│   │   │   ├── CoursesPage.tsx
+│   │   │   └── ...other pages
+│   │   ├── components/
+│   │   │   ├── Courses.tsx
+│   │   │   └── ...other components
+│   │   ├── types/
+│   │   ├── App.tsx
+│   │   └── router.ts
+│   ├── .env
+│   ├── package.json
+│   └── vite.config.js
 └── README.md
 ```
 
@@ -110,12 +122,21 @@ The backend server will run on `http://localhost:5000` and the frontend on `http
 
 ## 📡 API Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/health` | Health check endpoint |
-| GET | `/api/users` | Get all users |
-| GET | `/api/users/:id` | Get user by ID |
-| POST | `/api/users` | Create new user |
+| Method | Endpoint                       | Description                  |
+|--------|------------------------------- |-----------------------------|
+| GET    | `/api/v1/health`               | Health check                 |
+| GET    | `/api/v1/users/me`             | Get current user profile     |
+| PUT    | `/api/v1/users/me`             | Update current user profile  |
+| GET    | `/api/v1/courses`              | List user's enrolled courses |
+| POST   | `/api/v1/courses`              | Add/enroll in a course       |
+| DELETE | `/api/v1/courses/:id`          | Remove a course              |
+| GET    | `/api/v1/partners/search`      | Search for study partners    |
+| GET    | `/api/v1/groups`               | List study groups            |
+| POST   | `/api/v1/groups`               | Create a study group         |
+| GET    | `/api/v1/progress/analytics`   | Get progress analytics       |
+| POST   | `/api/v1/progress/sessions`    | Log a study session          |
+| GET    | `/api/v1/chat/rooms`           | List chat rooms              |
+| POST   | `/api/v1/chat/messages`        | Send a chat message          |
 
 ### Example API Usage
 

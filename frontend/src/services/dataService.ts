@@ -15,15 +15,18 @@ export type StudySession = {
   title: string;
   course?: string;
   courseCode?: string;
-  date: string;
-  startTime: string;
-  endTime: string;
+  date: string; // 'YYYY-MM-DD'
+  startTime: string; // 'HH:mm'
+  endTime: string; // 'HH:mm'
   location: string;
   type: 'study' | 'review' | 'project' | 'exam_prep' | 'discussion';
   participants: number;
   maxParticipants?: number;
   status?: 'upcoming' | 'ongoing' | 'completed' | 'cancelled';
   isCreator?: boolean;
+  /** RSVP + chat */
+  isAttending?: boolean;
+  groupId?: number;
 };
 
 export type StudyGroup = {
@@ -53,7 +56,7 @@ export type StudyPartner = {
   lastActive: string;
 };
 
-// Consistent fallback data across the entire app
+// -------- Demo fallback data --------
 export const FALLBACK_COURSES: Course[] = [
   {
     id: '1',
@@ -111,6 +114,8 @@ export const FALLBACK_SESSIONS: StudySession[] = [
     maxParticipants: 6,
     status: 'upcoming',
     isCreator: true,
+    groupId: 1,
+    isAttending: true,
   },
   {
     id: '2',
@@ -126,6 +131,8 @@ export const FALLBACK_SESSIONS: StudySession[] = [
     maxParticipants: 8,
     status: 'upcoming',
     isCreator: false,
+    groupId: 2,
+    isAttending: false,
   },
   {
     id: '3',
@@ -141,6 +148,8 @@ export const FALLBACK_SESSIONS: StudySession[] = [
     maxParticipants: 5,
     status: 'upcoming',
     isCreator: true,
+    groupId: 3,
+    isAttending: true,
   },
   {
     id: '4',
@@ -154,6 +163,8 @@ export const FALLBACK_SESSIONS: StudySession[] = [
     participants: 3,
     status: 'completed',
     isCreator: true,
+    groupId: 5,
+    isAttending: true,
   },
 ];
 
@@ -306,61 +317,100 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
   },
 ];
 
-// API service functions that use consistent fallback data
+// -------- Service --------
 export class DataService {
   private static getBaseUrl(): string {
     // In browser, use relative URLs. In tests/Node.js, use localhost
-    if (typeof window !== 'undefined') {
-      return '';
-    }
+    if (typeof window !== 'undefined') return '';
     return 'http://localhost:3000';
+  }
+
+  private static authHeaders(): Headers {
+    const h = new Headers();
+    const raw = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (raw) {
+      let t = raw;
+      try {
+        const p = JSON.parse(raw);
+        if (typeof p === 'string') t = p;
+      } catch {}
+      t = t
+        .replace(/^["']|["']$/g, '')
+        .replace(/^Bearer\s+/i, '')
+        .trim();
+      if (t) h.set('Authorization', `Bearer ${t}`);
+    }
+    return h;
+  }
+
+  private static devForceFallback(): boolean {
+    if (typeof window === 'undefined') return false;
+    const q = new URLSearchParams(window.location.search);
+    return q.get('mockSessions') === '1' || localStorage.getItem('mockSessions') === '1';
   }
 
   static async fetchCourses(): Promise<Course[]> {
     try {
-      const res = await fetch(`${this.getBaseUrl()}/api/v1/courses`);
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch (error) {
-      // Silently fall back to demo data - this is expected behavior
-    }
+      const res = await fetch(`${this.getBaseUrl()}/api/v1/courses`, {
+        headers: this.authHeaders(),
+        credentials: 'include',
+      });
+      if (res.ok) return await res.json();
+    } catch {}
     return FALLBACK_COURSES;
   }
 
-  static async fetchSessions(): Promise<StudySession[]> {
+  /**
+   * Fetch sessions, with dev toggles:
+   * - forceFallback: return FALLBACK_SESSIONS regardless of API
+   * - fallbackOnEmpty: if API returns 200 but [], return FALLBACK_SESSIONS
+   * You can also set ?mockSessions=1 or localStorage.mockSessions='1'
+   */
+  static async fetchSessions(opts?: {
+    forceFallback?: boolean;
+    fallbackOnEmpty?: boolean;
+  }): Promise<StudySession[]> {
+    const force = opts?.forceFallback || this.devForceFallback();
+    if (force) return FALLBACK_SESSIONS;
+
     try {
-      const res = await fetch(`${this.getBaseUrl()}/api/v1/sessions`);
+      const res = await fetch(`${this.getBaseUrl()}/api/v1/sessions`, {
+        headers: this.authHeaders(),
+        credentials: 'include',
+      });
       if (res.ok) {
-        return await res.json();
+        const data = await res.json();
+        const list = (data as any[]).map((s) => ({
+          ...s,
+          isAttending: !!s.isAttending,
+          id: String(s.id),
+        }));
+        if (list.length === 0 && (opts?.fallbackOnEmpty ?? true)) return FALLBACK_SESSIONS;
+        return list;
       }
-    } catch (error) {
-      // Silently fall back to demo data - this is expected behavior
-    }
+    } catch {}
     return FALLBACK_SESSIONS;
   }
 
   static async fetchGroups(): Promise<StudyGroup[]> {
     try {
-      const res = await fetch(`${this.getBaseUrl()}/api/v1/groups`);
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch (error) {
-      // Silently fall back to demo data - this is expected behavior
-    }
+      const res = await fetch(`${this.getBaseUrl()}/api/v1/groups`, {
+        headers: this.authHeaders(),
+        credentials: 'include',
+      });
+      if (res.ok) return await res.json();
+    } catch {}
     return FALLBACK_GROUPS;
   }
 
   static async fetchPartners(): Promise<StudyPartner[]> {
     try {
-      const res = await fetch(`${this.getBaseUrl()}/api/v1/partners`);
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch (error) {
-      // Silently fall back to demo data - this is expected behavior
-    }
+      const res = await fetch(`${this.getBaseUrl()}/api/v1/partners`, {
+        headers: this.authHeaders(),
+        credentials: 'include',
+      });
+      if (res.ok) return await res.json();
+    } catch {}
     return FALLBACK_PARTNERS;
   }
 }

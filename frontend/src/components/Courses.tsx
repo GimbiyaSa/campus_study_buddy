@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { Plus, MessageCircle, Bell, Target } from 'lucide-react';
+// src/components/Courses.tsx
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Plus, Bell, Target } from 'lucide-react';
 import { navigate } from '../router';
 import { DataService, type Course } from '../services/dataService';
 
@@ -7,35 +8,48 @@ export default function Courses() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  async function fetchCourses() {
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await DataService.fetchCourses();
+      if (!ctrl.signal.aborted) setCourses(data);
+    } catch (err) {
+      if (!ctrl.signal.aborted) {
+        console.error('Failed to fetch courses:', err);
+        setError('Showing demo courses (backend unreachable).');
+      }
+    } finally {
+      if (!ctrl.signal.aborted) setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    async function fetchCourses() {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await DataService.fetchCourses();
-        setCourses(data);
-      } catch (err) {
-        console.error('Failed to fetch courses:', err);
-        setError('Failed to fetch courses.');
-      } finally {
-        setLoading(false);
-      }
-    }
     fetchCourses();
+    return () => abortRef.current?.abort();
   }, []);
 
-  const avg =
-    courses.length > 0
-      ? Math.round((courses.reduce((s, c) => s + (c.progress ?? 0), 0) / courses.length) * 10) / 10
-      : 0;
+  // clamp helper
+  const clamp = (n: number) => Math.max(0, Math.min(100, n));
+
+  const avg = useMemo(() => {
+    if (!courses.length) return 0;
+    const total = courses.reduce((s, c) => s + clamp(c.progress ?? 0), 0);
+    return Math.round((total / courses.length) * 10) / 10;
+  }, [courses]);
 
   // donut sizes
   const size = 120;
   const stroke = 10;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
-  const offset = c * (1 - avg / 100);
+  const offset = c * (1 - clamp(avg) / 100);
 
   return (
     <div className="h-full flex flex-col">
@@ -50,57 +64,97 @@ export default function Courses() {
         </button>
       </div>
 
-      {/* Error (soft) */}
+      {/* Live region for SR users */}
+      <div aria-live="polite" className="sr-only">
+        {loading ? 'Loading courses...' : `Loaded ${courses.length} courses.`}
+      </div>
+
+      {/* Info banner (soft) */}
       {error && (
-        <div className="rounded-lg bg-blue-50 text-blue-800 px-4 py-2 mb-4">
-          Showing demo courses
+        <div className="mb-4 flex items-center justify-between rounded-lg bg-emerald-50 text-emerald-900 px-4 py-2">
+          <span className="text-sm">{error}</span>
+          <button
+            onClick={fetchCourses}
+            className="text-sm font-medium underline underline-offset-2 hover:opacity-80"
+          >
+            Retry
+          </button>
         </div>
       )}
 
       {/* Course list */}
       {loading ? (
-        <div className="text-center text-slate-600">Loading courses...</div>
-      ) : (
         <ul className="space-y-4">
-          {courses.slice(0, 3).map((course) => (
+          {Array.from({ length: 3 }).map((_, i) => (
             <li
-              key={course.id}
-              title={`${course.code ? course.code + ' · ' : ''}${course.title} • ${
-                course.progress ?? 0
-              }% complete`}
-              className="flex items-center justify-between gap-4 p-4 rounded-xl border border-gray-100 hover:bg-gray-50/60 transition"
+              key={i}
+              className="flex items-center justify-between gap-4 p-4 rounded-xl border border-gray-100"
             >
-              <div className="flex items-center gap-4 min-w-0">
-                <div className="w-10 h-10 rounded-xl bg-brand-100 text-brand-700 grid place-items-center font-semibold shadow-soft shrink-0">
-                  {course.code
-                    ? course.code.slice(0, 2).toUpperCase()
-                    : course.title.slice(0, 2).toUpperCase()}
+              <div className="flex items-center gap-4 min-w-0 w-full">
+                <div className="w-10 h-10 rounded-xl bg-gray-100 animate-pulse" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="h-3 w-40 rounded bg-gray-100 animate-pulse" />
+                  <div className="h-2 w-28 rounded bg-gray-100 animate-pulse" />
+                  <div className="mt-2 h-2 w-44 rounded-full bg-gray-100 animate-pulse" />
                 </div>
-                <div className="min-w-0">
-                  <p className="font-medium text-gray-900 truncate">
-                    {course.code && <span className="text-gray-500 mr-1">{course.code}</span>}
-                    {course.title}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {course.type === 'institution' ? course.term : 'Casual topic'}
-                  </p>
-                  <div className="mt-2 w-44 h-2 rounded-full bg-gray-200 overflow-hidden">
-                    <div
-                      className="h-full bg-brand-500 rounded-full"
-                      style={{ width: `${course.progress ?? 0}%` }}
-                    />
-                  </div>
-                </div>
+                <div className="h-7 w-24 rounded-full bg-gray-100 animate-pulse shrink-0" />
               </div>
-
-              <button
-                onClick={() => navigate('/courses')}
-                className="px-3 py-1.5 rounded-full text-sm bg-white border border-gray-200 hover:bg-gray-50 shadow-soft shrink-0"
-              >
-                View Course
-              </button>
             </li>
           ))}
+        </ul>
+      ) : (
+        <ul className="space-y-4">
+          {courses.slice(0, 3).map((course) => {
+            const pct = clamp(course.progress ?? 0);
+            const initials = (course.code || course.title || '?')
+              .toUpperCase()
+              .replace(/[^A-Z0-9]/g, '')
+              .slice(0, 2);
+
+            return (
+              <li
+                key={course.id}
+                title={`${course.code ? course.code + ' · ' : ''}${
+                  course.title
+                } • ${pct}% complete`}
+                className="flex items-center justify-between gap-4 p-4 rounded-xl border border-gray-100 hover:bg-gray-50/60 transition"
+              >
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-brand-100 text-brand-700 grid place-items-center font-semibold shadow-soft shrink-0">
+                    {initials || '—'}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-900 truncate">
+                      {course.code && <span className="text-gray-500 mr-1">{course.code}</span>}
+                      {course.title}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {course.type === 'institution'
+                        ? course.term || 'Institution'
+                        : 'Casual topic'}
+                    </p>
+                    <div
+                      className="mt-2 w-44 h-2 rounded-full bg-gray-200 overflow-hidden"
+                      aria-hidden="true"
+                    >
+                      <div
+                        className="h-full bg-brand-500 rounded-full"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => navigate('/courses')}
+                  className="px-3 py-1.5 rounded-full text-sm bg-white border border-gray-200 hover:bg-gray-50 shadow-soft shrink-0"
+                  aria-label={`View ${course.title}`}
+                >
+                  View Course
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
 
@@ -163,13 +217,6 @@ export default function Courses() {
                 >
                   <Plus className="w-4 h-4" />
                   Add course
-                </button>
-                <button
-                  onClick={() => navigate('/partners')}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm hover:bg-gray-50"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  Chat with study partners
                 </button>
                 <button
                   onClick={() => navigate('/sessions')}

@@ -6,7 +6,7 @@ async function setupCampusStudyBuddyDatabase() {
   const dbConfig = {
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
-    server: process.env.DB_SERVER
+    server: process.env.DB_SERVER,
   };
 
   console.log('Starting Campus Study Buddy Database Setup...\n');

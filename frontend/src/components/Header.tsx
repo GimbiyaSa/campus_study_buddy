@@ -1,5 +1,5 @@
 // src/components/Header.tsx
-import { useLayoutEffect, useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, Bell, ChevronDown, User, Settings, LogOut } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
@@ -28,14 +28,13 @@ type Notification = {
 };
 
 export default function Header() {
-  const { currentUser, loading, logout, updateUser } = useUser();
+  const { currentUser, loading, logout } = useUser();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
   // Modal states
-  const [showProfileModal, setShowProfileModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -131,11 +130,6 @@ export default function Header() {
     } catch (err) {
       console.error('Error marking notification as read:', err);
     }
-  };
-
-  const handleProfileClick = () => {
-    setShowUserMenu(false);
-    setShowProfileModal(true);
   };
 
   const handleSettingsClick = () => {
@@ -354,13 +348,6 @@ export default function Header() {
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
                     <div className="p-2">
                       <button
-                        onClick={handleProfileClick}
-                        className="w-full flex items-center gap-3 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition"
-                      >
-                        <User className="w-4 h-4" />
-                        <span>Profile</span>
-                      </button>
-                      <button
                         onClick={handleSettingsClick}
                         className="w-full flex items-center gap-3 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition"
                       >
@@ -384,14 +371,6 @@ export default function Header() {
         </div>
       </header>
 
-      {/* Profile Modal */}
-      <ProfileModal
-        open={showProfileModal}
-        onClose={() => setShowProfileModal(false)}
-        user={currentUser}
-        onUpdate={handleUpdateProfile}
-      />
-
       {/* Settings Modal */}
       <SettingsModal
         open={showSettingsModal}
@@ -409,7 +388,6 @@ export default function Header() {
   );
 }
 
-/* ---------- Profile Modal ---------- */
 function ProfileModal({
   open,
   onClose,

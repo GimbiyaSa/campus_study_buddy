@@ -13,6 +13,7 @@ import progressService from './services/progressService';
 import chatService from './services/chatService';
 import courseService from './services/courseService';
 import moduleService from './services/moduleService';
+import sessionService from './services/sessionService';
 import notificationService from './services/notificationService';
 const { setupCampusStudyBuddyDatabase } = require('./database/run_database_setup');
 
@@ -88,6 +89,7 @@ app.use('/api/v1/notifications', notificationService);
 app.use('/api/v1/chat', chatService);
 app.use('/api/v1/courses', courseService);
 app.use('/api/v1/modules', moduleService);
+app.use('/api/v1/sessions', sessionService);
 
 // Error handling middleware
 app.use((error: any, req: Request, res: Response, next: NextFunction) => {

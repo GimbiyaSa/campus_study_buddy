@@ -5,6 +5,7 @@ import { DataService, type StudySession } from '../services/dataService';
 
 type ViewMode = 'day' | 'week' | 'month';
 
+//listen for broadcast events for session creation/invalidation
 export default function Calendar() {
   const [sessions, setSessions] = useState<StudySession[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -13,6 +14,37 @@ export default function Calendar() {
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const open = () => {
+      setSelectedDate(new Date()); // or leave null;
+      setShowScheduleModal(true);
+    };
+    window.addEventListener('calendar:openSchedule', open);
+    return () => window.removeEventListener('calendar:openSchedule', open);
+  }, []);
+
+  useEffect(() => {
+    const onCreated = (e: Event) => {
+      const newSession = (e as CustomEvent<StudySession>).detail;
+      if (!newSession) return;
+
+      setSessions((prev) =>
+        prev.some((s) => s.id === newSession.id) ? prev : [...prev, newSession]
+      );
+    };
+
+    const onInvalidate = () => {
+      DataService.fetchSessions().then(setSessions).catch(console.error);
+    };
+
+    window.addEventListener('session:created', onCreated as EventListener);
+    window.addEventListener('sessions:invalidate', onInvalidate);
+    return () => {
+      window.removeEventListener('session:created', onCreated as EventListener);
+      window.removeEventListener('sessions:invalidate', onInvalidate);
+    };
+  }, []);
 
   useEffect(() => {
     async function fetchSessions() {
@@ -268,8 +300,10 @@ export default function Calendar() {
         selectedDate={selectedDate}
         onSessionCreated={(newSession) => {
           setSessions((prev) => [...prev, newSession]);
+          // Do not setSessions here — let the event listener handle it
           setShowScheduleModal(false);
           setSelectedDate(null);
+          window.dispatchEvent(new CustomEvent('session:created', { detail: newSession }));
         }}
       />
     </div>
@@ -336,6 +370,7 @@ function ScheduleSessionModal({
       type,
       participants: 1,
       maxParticipants,
+      status: 'upcoming',
     };
 
     onSessionCreated(newSession);

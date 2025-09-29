@@ -12,6 +12,10 @@ import groupService from './services/groupService';
 import progressService from './services/progressService';
 import chatService from './services/chatService';
 import courseService from './services/courseService';
+import moduleService from './services/moduleService';
+import sessionService from './services/sessionService';
+
+const { setupCampusStudyBuddyDatabase } = require('./database/run_database_setup');
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; // For local dev with self-signed certs
 
@@ -21,7 +25,22 @@ const app = express();
 app.use(helmet());
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL,
+    // Allow FRONTEND_URL from env, otherwise allow localhost:5173 for local dev.
+    origin: (origin, callback) => {
+      const allowed = [
+        process.env.FRONTEND_URL || '',
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://127.0.0.1:8000',
+        'http://localhost:8000',
+      ].filter(Boolean);
+      // If no origin (same-origin or curl), allow it
+      if (!origin) return callback(null, true);
+      if (allowed.includes(origin)) return callback(null, true);
+      // In production, you may want to reject unknown origins.
+      console.warn('Blocked CORS request from origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
   })
 );
@@ -41,6 +60,26 @@ app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
 
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+(async () => {
+  try {
+    await setupCampusStudyBuddyDatabase();
+  } catch (error) {
+    console.error('Error running setup:', error);
+  }
+
+  // Start the server regardless of setup outcome
+  const PORT = process.env.PORT || 3000;
+  if (process.env.NODE_ENV !== 'test') {
+    app.listen(PORT, () => {
+      console.log(`Study Buddy API server running on port ${PORT}`);
+    });
+  }
+})();
+
 // API routes
 app.use('/api/v1/users', userService);
 app.use('/api/v1/partners', partnerService);
@@ -48,6 +87,8 @@ app.use('/api/v1/groups', groupService);
 app.use('/api/v1/progress', progressService);
 app.use('/api/v1/chat', chatService);
 app.use('/api/v1/courses', courseService);
+app.use('/api/v1/modules', moduleService);
+app.use('/api/v1/sessions', sessionService);
 
 // Error handling middleware
 app.use((error: any, req: Request, res: Response, next: NextFunction) => {
@@ -58,9 +99,11 @@ app.use((error: any, req: Request, res: Response, next: NextFunction) => {
   });
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Study Buddy API server running on port ${PORT}`);
-});
+/*const PORT = process.env.PORT || 3000;
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`Study Buddy API server running on port ${PORT}`);
+  });
+}*/
 
 export default app;

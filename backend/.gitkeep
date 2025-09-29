@@ -1,1 +1,2 @@
 # This file ensures the backend directory is tracked by Git
+.env.example

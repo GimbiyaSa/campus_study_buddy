@@ -1,3 +1,4 @@
+import { buildApiUrl } from '../utils/url';
 // Centralized data service to ensure consistency across the app
 
 export type Course = {
@@ -351,7 +352,7 @@ export class DataService {
 
   static async fetchCourses(): Promise<Course[]> {
     try {
-      const res = await fetch(`${this.getBaseUrl()}/api/v1/courses`, {
+      const res = await fetch(buildApiUrl('/api/v1/courses'), {
         headers: this.authHeaders(),
         credentials: 'include',
       });
@@ -374,7 +375,7 @@ export class DataService {
     if (force) return FALLBACK_SESSIONS;
 
     try {
-      const res = await fetch(`${this.getBaseUrl()}/api/v1/sessions`, {
+      const res = await fetch(buildApiUrl('/api/v1/sessions'), {
         headers: this.authHeaders(),
         credentials: 'include',
       });
@@ -394,7 +395,7 @@ export class DataService {
 
   static async fetchGroups(): Promise<StudyGroup[]> {
     try {
-      const res = await fetch(`${this.getBaseUrl()}/api/v1/groups`, {
+      const res = await fetch(buildApiUrl('/api/v1/groups'), {
         headers: this.authHeaders(),
         credentials: 'include',
       });
@@ -405,7 +406,7 @@ export class DataService {
 
   static async fetchPartners(): Promise<StudyPartner[]> {
     try {
-      const res = await fetch(`${this.getBaseUrl()}/api/v1/partners`, {
+      const res = await fetch(buildApiUrl('/api/v1/partners'), {
         headers: this.authHeaders(),
         credentials: 'include',
       });

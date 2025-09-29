@@ -7,12 +7,11 @@ const router = express.Router();
 // Database configuration
 const dbConfig = {
   server: process.env.DB_SERVER,
-  database: process.env.DB_DATABASE,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   options: {
-    encrypt: true, // Use encryption for Azure SQL
-    trustServerCertificate: false,
+    encrypt: true,
+    trustServerCertificate: Boolean(process.env.DB_TRUST_SERVER_CERT),
     requestTimeout: 30000,
     connectionTimeout: 30000,
   },
@@ -42,24 +41,38 @@ initializeDatabase();
 router.get('/me', authenticateToken, async (req, res) => {
   try {
     const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
+    request.input('userId', sql.NVarChar, req.user.id);
 
     const result = await request.query(`
       SELECT 
-        u.*,
+        u.user_id,
+        u.email,
+        u.password_hash,
+        u.first_name,
+        u.last_name,
+        u.university,
+        u.course,
+        u.year_of_study,
+        MAX(CAST(u.bio AS NVARCHAR(MAX))) AS bio,
+        u.profile_image_url,
+        MAX(CAST(u.study_preferences AS NVARCHAR(MAX))) AS study_preferences,
+        u.is_active,
+        u.created_at,
+        u.updated_at,
         STRING_AGG(m.module_code, ',') as enrolled_modules
       FROM users u
       LEFT JOIN user_modules um ON u.user_id = um.user_id AND um.enrollment_status = 'active'
       LEFT JOIN modules m ON um.module_id = m.module_id
       WHERE u.user_id = @userId AND u.is_active = 1
       GROUP BY u.user_id, u.email, u.password_hash, u.first_name, u.last_name, 
-               u.university, u.course, u.year_of_study, u.bio, u.profile_image_url, 
-               u.study_preferences, u.is_active, u.created_at, u.updated_at
+               u.university, u.course, u.year_of_study, u.profile_image_url, 
+               u.is_active, u.created_at, u.updated_at
     `);
 
     if (result.recordset.length === 0) {
       // Create new user profile
       const insertRequest = pool.request();
+      insertRequest.input('user_id', sql.NVarChar(255), req.user.id);
       insertRequest.input('email', sql.NVarChar(255), req.user.email);
       insertRequest.input(
         'firstName',
@@ -85,9 +98,9 @@ router.get('/me', authenticateToken, async (req, res) => {
       );
 
       const insertResult = await insertRequest.query(`
-        INSERT INTO users (email, password_hash, first_name, last_name, university, course, study_preferences)
+        INSERT INTO users (user_id, email, password_hash, first_name, last_name, university, course, study_preferences)
         OUTPUT inserted.*
-        VALUES (@email, @passwordHash, @firstName, @lastName, @university, @course, @studyPreferences)
+        VALUES (@user_id, @email, @passwordHash, @firstName, @lastName, @university, @course, @studyPreferences)
       `);
 
       const newUser = insertResult.recordset[0];
@@ -112,7 +125,7 @@ router.get('/me', authenticateToken, async (req, res) => {
 router.put('/me', authenticateToken, async (req, res) => {
   try {
     const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
+    request.input('userId', sql.NVarChar, req.user.id);
 
     // Build dynamic update query based on provided fields
     const allowedFields = [
@@ -189,7 +202,7 @@ router.get('/', async (req, res) => {
 router.get('/me/modules', authenticateToken, async (req, res) => {
   try {
     const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
+    request.input('userId', sql.NVarChar, req.user.id);
 
     const result = await request.query(`
       SELECT 
@@ -217,7 +230,7 @@ router.get('/me/modules', authenticateToken, async (req, res) => {
 router.post('/me/modules/:moduleId/enroll', authenticateToken, async (req, res) => {
   try {
     const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
+    request.input('userId', sql.NVarChar, req.user.id);
     request.input('moduleId', sql.Int, req.params.moduleId);
 
     // Check if already enrolled
@@ -248,7 +261,7 @@ router.post('/me/modules/:moduleId/enroll', authenticateToken, async (req, res) 
 router.get('/me/progress', authenticateToken, async (req, res) => {
   try {
     const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
+    request.input('userId', sql.NVarChar, req.user.id);
 
     const result = await request.query(`
       SELECT 
@@ -282,7 +295,7 @@ router.put('/me/progress', authenticateToken, async (req, res) => {
     }
 
     const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
+    request.input('userId', sql.NVarChar, req.user.id);
     request.input('topicId', sql.Int, topic_id || null);
     request.input('chapterId', sql.Int, chapter_id || null);
     request.input('completionStatus', sql.NVarChar(50), completion_status || 'not_started');
@@ -334,7 +347,7 @@ router.get('/me/study-hours', authenticateToken, async (req, res) => {
     const { startDate, endDate, moduleId } = req.query;
 
     const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
+    request.input('userId', sql.NVarChar, req.user.id);
 
     let whereClause = 'WHERE sh.user_id = @userId';
 
@@ -385,7 +398,7 @@ router.post('/me/study-hours', authenticateToken, async (req, res) => {
     }
 
     const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
+    request.input('userId', sql.NVarChar, req.user.id);
     request.input('moduleId', sql.Int, module_id || null);
     request.input('topicId', sql.Int, topic_id || null);
     request.input('sessionId', sql.Int, session_id || null);
@@ -410,7 +423,7 @@ router.post('/me/study-hours', authenticateToken, async (req, res) => {
 router.get('/me/statistics', authenticateToken, async (req, res) => {
   try {
     const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
+    request.input('userId', sql.NVarChar, req.user.id);
 
     const result = await request.query(`
       SELECT 
@@ -449,7 +462,7 @@ router.get('/me/notifications', authenticateToken, async (req, res) => {
     const { unreadOnly = false, limit = 50 } = req.query;
 
     const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
+    request.input('userId', sql.NVarChar, req.user.id);
     request.input('limit', sql.Int, parseInt(limit));
 
     let whereClause = 'WHERE n.user_id = @userId';
@@ -481,7 +494,7 @@ router.get('/me/notifications', authenticateToken, async (req, res) => {
 router.put('/me/notifications/:notificationId/read', authenticateToken, async (req, res) => {
   try {
     const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
+    request.input('userId', sql.NVarChar, req.user.id);
     request.input('notificationId', sql.Int, req.params.notificationId);
 
     const result = await request.query(`

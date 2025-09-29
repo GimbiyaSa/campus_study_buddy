@@ -118,8 +118,18 @@ export default function Calendar() {
   };
 
   const monthNames = [
-    'January','February','March','April','May','June',
-    'July','August','September','October','November','December',
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
   ];
 
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -368,7 +378,7 @@ function ScheduleSessionModal({
       participants: 1,
       maxParticipants,
       status: 'upcoming',
-      isCreator: true,   // organizer label everywhere
+      isCreator: true, // organizer label everywhere
       isAttending: true, // organizer auto-attends
     };
 

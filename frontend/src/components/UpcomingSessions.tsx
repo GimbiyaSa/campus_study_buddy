@@ -1,5 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Clock, MapPin, Users, Calendar, CheckCircle, XCircle, AlertCircle, Trash2 } from 'lucide-react';
+import {
+  Clock,
+  MapPin,
+  Users,
+  Calendar,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Trash2,
+} from 'lucide-react';
 import { navigate } from '../router';
 import { DataService, type StudySession } from '../services/dataService';
 
@@ -20,7 +29,12 @@ export default function UpcomingSessions() {
     const now = new Date();
     const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     return list
-      .filter((s) => (s.status ?? 'upcoming') === 'upcoming' && toDateTime(s) >= now && toDateTime(s) <= nextWeek)
+      .filter(
+        (s) =>
+          (s.status ?? 'upcoming') === 'upcoming' &&
+          toDateTime(s) >= now &&
+          toDateTime(s) <= nextWeek
+      )
       .sort((a, b) => toDateTime(a).getTime() - toDateTime(b).getTime());
   };
 
@@ -55,7 +69,9 @@ export default function UpcomingSessions() {
 
       setSessions((prev) => {
         if (prev.some((s) => s.id === detail.id)) return prev;
-        return [...prev, ...maybe].sort((a, b) => toDateTime(a).getTime() - toDateTime(b).getTime());
+        return [...prev, ...maybe].sort(
+          (a, b) => toDateTime(a).getTime() - toDateTime(b).getTime()
+        );
       });
     };
 
@@ -316,7 +332,8 @@ export default function UpcomingSessions() {
                         <Users className="w-4 h-4" />
                         <span>
                           {session.participants}
-                          {session.maxParticipants ? ` / ${session.maxParticipants}` : ''} participants
+                          {session.maxParticipants ? ` / ${session.maxParticipants}` : ''}{' '}
+                          participants
                         </span>
                       </div>
 
@@ -410,7 +427,10 @@ function authHeadersJSON(): Headers {
       const p = JSON.parse(raw);
       if (typeof p === 'string') t = p;
     } catch {}
-    t = t.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
+    t = t
+      .replace(/^["']|["']$/g, '')
+      .replace(/^Bearer\s+/i, '')
+      .trim();
     if (t) h.set('Authorization', `Bearer ${t}`);
   }
   return h;

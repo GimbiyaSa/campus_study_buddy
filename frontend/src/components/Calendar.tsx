@@ -5,6 +5,18 @@ import { DataService, type StudySession } from '../services/dataService';
 
 type ViewMode = 'day' | 'week' | 'month';
 
+/* ----------------- local date helpers (avoid UTC drift) ----------------- */
+function formatDateLocal(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`; // YYYY-MM-DD in local time
+}
+
+function dateKey(d: Date) {
+  return formatDateLocal(d);
+}
+
 //listen for broadcast events for session creation/invalidation
 export default function Calendar() {
   const [sessions, setSessions] = useState<StudySession[]>([]);
@@ -17,7 +29,7 @@ export default function Calendar() {
 
   useEffect(() => {
     const open = () => {
-      setSelectedDate(new Date()); // or leave null;
+      setSelectedDate(new Date()); // or leave null
       setShowScheduleModal(true);
     };
     window.addEventListener('calendar:openSchedule', open);
@@ -71,7 +83,7 @@ export default function Calendar() {
   };
 
   const getSessionsForDate = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = dateKey(date); // local date
     return sessions.filter((session) => session.date === dateStr);
   };
 
@@ -82,7 +94,7 @@ export default function Calendar() {
     const startDate = new Date(firstDay);
     startDate.setDate(startDate.getDate() - firstDay.getDay()); // Start from Sunday
 
-    const days = [];
+    const days: Date[] = [];
     const current = new Date(startDate);
 
     // Generate 42 days (6 weeks) for calendar grid
@@ -106,30 +118,15 @@ export default function Calendar() {
   };
 
   const monthNames = [
-    'January',
-    'February',
-    'March',
-    'April',
-    'May',
-    'June',
-    'July',
-    'August',
-    'September',
-    'October',
-    'November',
-    'December',
+    'January','February','March','April','May','June',
+    'July','August','September','October','November','December',
   ];
 
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   const today = new Date();
-  const isToday = (date: Date) => {
-    return date.toDateString() === today.toDateString();
-  };
-
-  const isCurrentMonth = (date: Date) => {
-    return date.getMonth() === currentDate.getMonth();
-  };
+  const isToday = (date: Date) => date.toDateString() === today.toDateString();
+  const isCurrentMonth = (date: Date) => date.getMonth() === currentDate.getMonth();
 
   const calendarDays = getDaysInMonth(currentDate);
 
@@ -210,7 +207,7 @@ export default function Calendar() {
 
         {/* Calendar Days */}
         {calendarDays.map((date, index) => {
-          const dateStr = date.toISOString().split('T')[0];
+          const dateStr = dateKey(date); // local
           const dateSessions = getSessionsForDate(date);
           const isCurrentMonthDay = isCurrentMonth(date);
           const isTodayDate = isToday(date);
@@ -300,7 +297,6 @@ export default function Calendar() {
         selectedDate={selectedDate}
         onSessionCreated={(newSession) => {
           setSessions((prev) => [...prev, newSession]);
-          // Do not setSessions here — let the event listener handle it
           setShowScheduleModal(false);
           setSelectedDate(null);
           window.dispatchEvent(new CustomEvent('session:created', { detail: newSession }));
@@ -336,7 +332,8 @@ function ScheduleSessionModal({
     if (!open) return;
 
     if (selectedDate) {
-      setDate(selectedDate.toISOString().split('T')[0]);
+      // Use local date, not UTC ISO
+      setDate(formatDateLocal(selectedDate));
     }
 
     const handleEscape = (e: KeyboardEvent) => {
@@ -363,7 +360,7 @@ function ScheduleSessionModal({
       title: title.trim(),
       course: course.trim() || undefined,
       courseCode: courseCode.trim() || undefined,
-      date,
+      date, // already local YYYY-MM-DD
       startTime,
       endTime,
       location: location.trim(),
@@ -371,6 +368,8 @@ function ScheduleSessionModal({
       participants: 1,
       maxParticipants,
       status: 'upcoming',
+      isCreator: true,   // organizer label everywhere
+      isAttending: true, // organizer auto-attends
     };
 
     onSessionCreated(newSession);

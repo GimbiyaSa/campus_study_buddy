@@ -3,6 +3,7 @@ import { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, Bell, ChevronDown, User, Settings, LogOut } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
+import { buildApiUrl } from '../utils/url';
 
 type User = {
   user_id: number;
@@ -63,24 +64,43 @@ export default function Header() {
   ];
 
   useEffect(() => {
-    async function fetchNotifications() {
-      if (!currentUser) return;
+    if (!currentUser) return;
 
+    let isMounted = true;
+    const controller = new AbortController();
+
+    const fetchNotifications = async () => {
       try {
-        const notifRes = await fetch(`/api/v1/notifications/${currentUser.user_id}`);
+        const notifRes = await fetch(buildApiUrl(`/api/v1/notifications`), {
+          signal: controller.signal,
+        });
+        if (!isMounted) return;
         if (notifRes.ok) {
           const notifData = await notifRes.json();
           setNotifications(notifData);
         } else {
           setNotifications(fallbackNotifications);
         }
-      } catch (err) {
+      } catch (err: unknown) {
+        // AbortController throws a DOMException with name 'AbortError'
+        const anyErr = err as { name?: string } | undefined;
+        if (anyErr?.name === 'AbortError') return;
         setNotifications(fallbackNotifications);
       }
-    }
+    };
 
+    // Initial fetch immediately
     fetchNotifications();
-  }, [currentUser, fallbackNotifications]);
+
+    // Then poll every 60 seconds
+    const interval = setInterval(fetchNotifications, 60 * 1000);
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+      clearInterval(interval);
+    };
+  }, [currentUser]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -99,7 +119,7 @@ export default function Header() {
 
   const markNotificationAsRead = async (notificationId: number) => {
     try {
-      await fetch(`/api/v1/notifications/${notificationId}/read`, {
+      await fetch(buildApiUrl(`/api/v1/notifications/${notificationId}/read`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -124,12 +144,31 @@ export default function Header() {
 
   const handleLogoutConfirm = async () => {
     try {
-      await fetch('/api/v1/auth/logout', {
+      await fetch(buildApiUrl('/api/v1/auth/logout'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
     } catch (err) {
       console.error('Error logging out:', err);
+    }
+
+    // Try to disable Google's auto sign-in and revoke session where possible
+    try {
+      const win = window as any;
+      if (win.google?.accounts?.id?.disableAutoSelect) {
+        win.google.accounts.id.disableAutoSelect();
+      }
+      // revoke the last used credential if stored in localStorage (best-effort)
+      const lastToken = localStorage.getItem('last_google_id_token');
+      if (lastToken && win.google?.accounts?.id?.revoke) {
+        win.google.accounts.id.revoke(lastToken, () => {
+          /* no-op */
+        });
+      }
+      // Clear stored token
+      localStorage.removeItem('last_google_id_token');
+    } catch (e) {
+      // ignore
     }
 
     // Clear user data from context (this will sync with sidebar)
@@ -138,6 +177,26 @@ export default function Header() {
 
     // Redirect to login
     window.location.href = '/login';
+  };
+
+  const handleUpdateProfile = async (updatedData: Partial<User>) => {
+    if (!currentUser) return;
+
+    try {
+      const res = await fetch(buildApiUrl(`/api/v1/users/${currentUser.user_id}`), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedData),
+      });
+
+      if (res.ok) {
+        const updatedUser = await res.json();
+        updateUser(updatedUser);
+        setShowProfileModal(false);
+      }
+    } catch (err) {
+      console.error('Error updating profile:', err);
+    }
   };
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
@@ -329,10 +388,155 @@ export default function Header() {
   );
 }
 
+function ProfileModal({
+  open,
+  onClose,
+  user: userParam,
+  onUpdate,
+}: {
+  open: boolean;
+  onClose: () => void;
+  user: User | null;
+  onUpdate: (data: Partial<User>) => void;
+}) {
+  const [formData, setFormData] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    course: '',
+    year_of_study: 1,
+    university: '',
+  });
+
+  useLayoutEffect(() => {
+    if (userParam && open) {
+      setFormData({
+        first_name: userParam.first_name,
+        last_name: userParam.last_name,
+        email: userParam.email,
+        course: userParam.course,
+        year_of_study: userParam.year_of_study,
+        university: userParam.university,
+      });
+    }
+  }, [userParam, open]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onUpdate(formData);
+  };
+
+  if (!open || !userParam) return null;
+
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-[9998] bg-black/40" onClick={onClose} />
+      <div className="fixed inset-0 z-[9999] grid place-items-center p-4">
+        <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl border border-gray-100 p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-6">Edit Profile</h2>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                <input
+                  type="text"
+                  value={formData.first_name}
+                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                <input
+                  type="text"
+                  value={formData.last_name}
+                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Course</label>
+              <input
+                type="text"
+                value={formData.course}
+                onChange={(e) => setFormData({ ...formData, course: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Year of Study</label>
+              <select
+                value={formData.year_of_study}
+                onChange={(e) =>
+                  setFormData({ ...formData, year_of_study: parseInt(e.target.value) })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500"
+              >
+                {[1, 2, 3, 4, 5].map((year) => (
+                  <option key={year} value={year}>
+                    Year {year}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">University</label>
+              <input
+                type="text"
+                value={formData.university}
+                onChange={(e) => setFormData({ ...formData, university: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500"
+                required
+              />
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="flex-1 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600"
+              >
+                Save Changes
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </>,
+    document.body
+  );
+}
+
 /* ---------- Settings Modal ---------- */
 function SettingsModal({
   open,
   onClose,
+  user: _user,
 }: {
   open: boolean;
   onClose: () => void;

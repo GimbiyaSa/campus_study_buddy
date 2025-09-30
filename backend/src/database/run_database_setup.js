@@ -4,20 +4,19 @@ const DatabaseSetup = require('./database_setup');
 async function setupCampusStudyBuddyDatabase() {
   // Azure SQL Database configuration
   const dbConfig = {
-    user: process.env.DB_USER || 'admin_studybuddy',
-    password: process.env.DB_PASSWORD || 'SDP@Project',
-    server: process.env.DB_SERVER || 'studybuddysqlserver.database.windows.net',
-    database: process.env.DB_DATABASE || 'StudyBuddyDb',
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    server: process.env.DB_SERVER,
   };
 
   console.log('Starting Campus Study Buddy Database Setup...\n');
   console.log(`Connecting to: ${dbConfig.server}/${dbConfig.database}`);
 
-  const dbSetup = new DatabaseSetup(process.env.DB_CONNECTION_STRING || 'StudyBuddyDb');
+  const dbSetup = new DatabaseSetup(dbConfig);
 
   try {
     // Step 1: Connect to Azure SQL Database
-    console.log('\nConnecting to Azure SQL Database...');
+    console.log('\nConnecting to SQL Server...');
     await dbSetup.connect();
 
     // Step 2: Create all tables and relationships

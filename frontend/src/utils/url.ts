@@ -1,12 +1,12 @@
 // URL helper for both browser and Node.js environments
 export const getBaseUrl = (): string => {
-  // In browser environment, window is available
-  if (typeof window !== 'undefined' && window.location) {
-    return window.location.origin;
+  const envApiBase = import.meta.env.VITE_API_BASE_URL as string | undefined;
+  if (envApiBase) {
+    return envApiBase.replace(/\/$/, ''); // Remove trailing slash if present
   }
 
   // In Node.js test environment, provide localhost fallback
-  return 'http://localhost:3000';
+  return 'http://localhost:5000';
 };
 
 export const buildApiUrl = (path: string): string => {

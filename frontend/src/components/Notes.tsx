@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, BookOpen, Users, Lock, Globe, Plus, X } from 'lucide-react';
+import { buildApiUrl } from '../utils/url';
 
 type SharedNote = {
   note_id: number;
@@ -109,8 +110,8 @@ export default function Notes() {
       setError(null);
       try {
         const [modulesRes, notesRes] = await Promise.all([
-          fetch('/api/v1/modules'),
-          fetch('/api/v1/groups/notes'),
+          fetch(buildApiUrl('/api/v1/modules')),
+          fetch(buildApiUrl('/api/v1/groups/notes')),
         ]);
 
         if (!modulesRes.ok || !notesRes.ok) {

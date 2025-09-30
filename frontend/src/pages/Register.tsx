@@ -2,6 +2,7 @@ import { useId, useMemo, useState, useEffect, useRef } from 'react';
 import { Eye, EyeOff, UserPlus, Building2 } from 'lucide-react';
 import { navigate } from '../router';
 import logo from '../assets/logo.jpg';
+import { buildApiUrl } from '../utils/url';
 
 type Tab = 'student' | 'organization';
 
@@ -83,10 +84,8 @@ export default function Register() {
 
     setSubmitting(true);
     try {
-      const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) || '';
-      const url = apiBase.replace(/\/$/, '') + '/api/v1/users/me';
-      console.debug('Calling backend URL:', url);
-      const res = await fetch(url, {
+      console.debug('Calling backend URL:', buildApiUrl('/api/v1/users/me'));
+      const res = await fetch(buildApiUrl('/api/v1/users/me'), {
         method: 'GET',
         headers: { Authorization: 'Bearer ' + idToken },
       });

@@ -1,36 +1,38 @@
 // services/partnerService.js
 const express = require('express');
-const { CosmosClient } = require('@azure/cosmos');
+const sql = require('mssql');
 const { authenticateToken } = require('../middleware/authMiddleware');
 
 const router = express.Router();
-const cosmosClient = new CosmosClient(process.env.COSMOS_CONNECTION_STRING);
 
-// Users container
-let containerPromise = (async () => {
-  const { database } = await cosmosClient.databases.createIfNotExists({
-    id: 'StudyBuddyDB',
-    throughput: 400,
-  });
-  const { container } = await database.containers.createIfNotExists({
-    id: 'Users',
-    partitionKey: { paths: ['/id'] },
-  });
-  return container;
-})();
+// Initialize Azure SQL connection pool
+let pool;
+const initializeDatabase = async () => {
+  try {
+    // Try to use Azure configuration first
+    try {
+      const { azureConfig } = require('../config/azureConfig');
+      const dbConfig = await azureConfig.getDatabaseConfig();
+      pool = await sql.connect(dbConfig);
+      console.log('✅ Connected to Azure SQL Database for Partner Service (via Azure Config)');
+    } catch (azureError) {
+      console.warn('Azure config not available, using environment variables');
+      // Fallback to connection string
+      if (process.env.DATABASE_CONNECTION_STRING) {
+        pool = await sql.connect(process.env.DATABASE_CONNECTION_STRING);
+        console.log('✅ Connected to Azure SQL Database for Partner Service (via connection string)');
+      } else {
+        throw new Error('DATABASE_CONNECTION_STRING not found in environment variables');
+      }
+    }
+  } catch (error) {
+    console.error('❌ Database connection failed:', error);
+    throw error;
+  }
+};
 
-// NEW: Connections container (stores connection requests / accepted links)
-let connectionsContainerPromise = (async () => {
-  const { database } = await cosmosClient.databases.createIfNotExists({
-    id: 'StudyBuddyDB',
-    throughput: 400,
-  });
-  const { container } = await database.containers.createIfNotExists({
-    id: 'Connections',
-    partitionKey: { paths: ['/id'] },
-  });
-  return container;
-})();
+// Initialize database connection
+initializeDatabase();
 
 /**
  * GET /api/v1/partners
@@ -40,23 +42,24 @@ let connectionsContainerPromise = (async () => {
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    const connectionsContainer = await connectionsContainerPromise;
+    const request = pool.request();
+    request.input('userId', sql.NVarChar, userId);
 
     // Find accepted connections where current user is requester or recipient
-    const { resources: links } = await connectionsContainer.items
-      .query({
-        query: `
-          SELECT c.id, c.requesterId, c.recipientId, c.status, c.createdAt, c.updatedAt
-          FROM c
-          WHERE c.status = @accepted
-          AND (c.requesterId = @uid OR c.recipientId = @uid)
-        `,
-        parameters: [
-          { name: '@accepted', value: 'accepted' },
-          { name: '@uid', value: userId },
-        ],
-      })
-      .fetchAll();
+    const connectionsResult = await request.query(`
+      SELECT 
+        pm.match_id as id,
+        pm.user_id as requesterId,
+        pm.matched_user_id as recipientId,
+        pm.status,
+        pm.created_at as createdAt,
+        pm.updated_at as updatedAt
+      FROM partner_matches pm
+      WHERE pm.status = 'accepted'
+      AND (pm.user_id = @userId OR pm.matched_user_id = @userId)
+    `);
+
+    const links = connectionsResult.recordset;
 
     // Extract the "other side" of each accepted connection
     const buddyIds = Array.from(
@@ -68,18 +71,27 @@ router.get('/', authenticateToken, async (req, res) => {
     }
 
     // Fetch users for those IDs
-    const usersContainer = await containerPromise;
-    const { resources: buddies } = await usersContainer.items
-      .query({
-        query: `
-          SELECT * FROM users u
-          WHERE ARRAY_CONTAINS(@ids, u.id)
-        `,
-        parameters: [{ name: '@ids', value: buddyIds }],
-      })
-      .fetchAll();
+    const usersRequest = pool.request();
+    const buddyIdsString = buddyIds.map(id => `'${id}'`).join(',');
+    
+    const usersResult = await usersRequest.query(`
+      SELECT 
+        u.user_id as id,
+        u.email,
+        u.first_name,
+        u.last_name,
+        u.university,
+        u.course,
+        u.year_of_study,
+        u.bio,
+        u.study_preferences,
+        u.created_at,
+        u.updated_at
+      FROM users u
+      WHERE u.user_id IN (${buddyIdsString})
+    `);
 
-    // Normalize response minimally (keep most user fields intact)
+    const buddies = usersResult.recordset;
     const payload = buddies.map((u) => ({
       id: u.id,
       name: u.name || [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || 'Unknown',

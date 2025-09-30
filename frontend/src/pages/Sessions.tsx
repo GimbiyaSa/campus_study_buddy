@@ -1,717 +1,608 @@
-// frontend/src/pages/Groups.tsx
-import { useState, useEffect, useId, useLayoutEffect, useRef } from 'react';
+// frontend/src/pages/Sessions.tsx
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Users, Plus, MessageSquare, Calendar, Trash2, X } from 'lucide-react';
-import { DataService, type StudyPartner, FALLBACK_PARTNERS } from '../services/dataService';
+import { Calendar, Clock, MapPin, Plus, Users, X, Edit, Trash2, MessageSquare } from 'lucide-react';
+import { DataService, type StudySession } from '../services/dataService';
 
-type StudyGroup = {
-  group_id: number;
-  group_name: string;
-  description?: string;
-  creator_id: number;
-  module_id: number;
-  max_members: number;
-  group_type: 'study' | 'project' | 'exam_prep' | 'discussion';
-  group_goals?: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-  member_count?: number;
-  module_name?: string;
-  creator_name?: string;
-};
-
-export default function Groups() {
-  const [groups, setGroups] = useState<StudyGroup[]>([]);
+export default function Sessions() {
+  const [sessions, setSessions] = useState<StudySession[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<'all' | StudySession['status']>('all');
+  const [showModal, setShowModal] = useState(false);
+  const [editingSession, setEditingSession] = useState<StudySession | null>(null);
 
-  const [openCreate, setOpenCreate] = useState(false);
-  const [openInvite, setOpenInvite] = useState<{ open: boolean; groupId?: string }>({
-    open: false,
-  });
-  const [connections, setConnections] = useState<StudyPartner[]>([]);
-  const [connLoading, setConnLoading] = useState(false);
-
-  const [meId, setMeId] = useState<string>('');
-  const [owners, setOwners] = useState<Record<number, string>>({});
-  const [idMap, setIdMap] = useState<Record<number, string>>({}); // local numeric → cosmos id
-  const [usingFallback, setUsingFallback] = useState<boolean>(false);
-
-  // join/leave UI state
-  const [joiningId, setJoiningId] = useState<number | null>(null);
-  const [pendingAction, setPendingAction] = useState<'join' | 'leave' | null>(null);
-  const [joinedByMe, setJoinedByMe] = useState<Record<number, boolean>>({});
-
-  const fallbackGroups: StudyGroup[] = [
-    {
-      group_id: 1,
-      group_name: 'CS Advanced Study Group',
-      description: 'Advanced computer science topics and algorithms',
-      creator_id: 1,
-      module_id: 1,
-      max_members: 8,
-      group_type: 'study',
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      member_count: 5,
-      module_name: 'CS 201 - Data Structures',
-      creator_name: 'John Doe',
-    },
-    {
-      group_id: 2,
-      group_name: 'Math Warriors',
-      description: 'Tackling linear algebra together',
-      creator_id: 2,
-      module_id: 2,
-      max_members: 6,
-      group_type: 'exam_prep',
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      member_count: 4,
-      module_name: 'MATH 204 - Linear Algebra',
-      creator_name: 'Jane Smith',
-    },
-    {
-      group_id: 3,
-      group_name: 'Physics Lab Partners',
-      description: 'Lab work and problem solving',
-      creator_id: 3,
-      module_id: 3,
-      max_members: 4,
-      group_type: 'project',
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      member_count: 3,
-      module_name: 'PHY 101 - Mechanics',
-      creator_name: 'Alex Johnson',
-    },
-    {
-      group_id: 4,
-      group_name: 'Fallback Group',
-      description: 'Fallback group for testing',
-      creator_id: 4,
-      module_id: 4,
-      max_members: 10,
-      group_type: 'discussion',
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      member_count: 1,
-      module_name: 'GEN 101 - General',
-      creator_name: 'Fallback User',
-    },
-  ];
-
-  function authHeadersJSON(): Headers {
-    const h = new Headers();
-    h.set('Content-Type', 'application/json');
-    const raw = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    if (raw) {
-      let t = raw;
+  useEffect(() => {
+    async function fetchSessions() {
+      setLoading(true);
       try {
-        const p = JSON.parse(raw);
-        if (typeof p === 'string') t = p;
-      } catch {}
-      t = t
-        .replace(/^["']|["']$/g, '')
-        .replace(/^Bearer\s+/i, '')
-        .trim();
-      if (t) h.set('Authorization', `Bearer ${t}`);
-    }
-    return h;
-  }
-
-  // --- broadcast helpers so other views can react in real-time ---
-  function broadcastGroupCreated(group: any) {
-    try {
-      const detail = { type: 'group.created', group, ts: Date.now() };
-      // same-tab listeners
-      window.dispatchEvent(new CustomEvent('groups:invalidate', { detail }));
-      // cross-tab
-      // @ts-ignore
-      if ('BroadcastChannel' in window) {
-        const bc = new BroadcastChannel('studybuddy-events');
-        bc.postMessage(detail);
-        bc.close();
+        const data = await DataService.fetchSessions(); // client-side filtering only
+        setSessions(data);
+      } catch (error) {
+        console.error('Error fetching sessions:', error);
+      } finally {
+        setLoading(false);
       }
+    }
+    fetchSessions();
+  }, []);
+
+  // --- broadcast helpers so other components (Calendar) can react in real-time ---
+  function broadcastSessionCreated(session: StudySession) {
+    try {
+      window.dispatchEvent(new CustomEvent('session:created', { detail: session }));
+      // Optional: tell listeners to refetch if they prefer to pull fresh data
+      window.dispatchEvent(new Event('sessions:invalidate'));
     } catch {}
   }
 
-  // map API → local card shape; also capture owner + cosmos id + my membership
-  function toStudyGroup(g: any): StudyGroup {
-    const idStr = String(g?.id ?? g?.group_id ?? '');
-    let hash = 0;
-    for (let i = 0; i < idStr.length; i++) hash = ((hash << 5) - hash + idStr.charCodeAt(i)) | 0;
-    const numericId = Number.isFinite(g?.group_id) ? g.group_id : Math.abs(hash || Date.now());
+  const handleCreateSession = async (
+    sessionData: Omit<StudySession, 'id' | 'participants' | 'status' | 'isCreator' | 'isAttending'>
+  ) => {
+    try {
+      const scheduled_start = new Date(`${sessionData.date}T${sessionData.startTime}:00`);
+      const scheduled_end = new Date(`${sessionData.date}T${sessionData.endTime}:00`);
 
-    const createdBy =
-      g?.createdBy != null
-        ? String(g.createdBy)
-        : g?.creator_id != null
-        ? String(g.creator_id)
-        : '';
-    setOwners((prev) => (prev[numericId] ? prev : { ...prev, [numericId]: createdBy }));
-    if (g?.id)
-      setIdMap((prev) => (prev[numericId] ? prev : { ...prev, [numericId]: String(g.id) }));
-
-    // membership hint from API if available
-    if (Array.isArray(g?.members) && meId) {
-      const iAmIn = g.members.some((m: any) => String(m?.userId ?? m?.id) === String(meId));
-      setJoinedByMe((prev) =>
-        prev[numericId] === undefined ? { ...prev, [numericId]: iAmIn } : prev
-      );
-    } else if (createdBy && meId && String(createdBy) === String(meId)) {
-      setJoinedByMe((prev) =>
-        prev[numericId] === undefined ? { ...prev, [numericId]: true } : prev
-      );
-    }
-
-    const membersCount = Array.isArray(g?.members) ? g.members.length : g?.member_count ?? 0;
-    const createdAt = g?.createdAt || g?.created_at || new Date().toISOString();
-    const updatedAt = g?.lastActivity || g?.updated_at || createdAt;
-
-    const course = g?.course ?? '';
-    const courseCode = g?.courseCode ?? '';
-    const moduleName =
-      course || courseCode
-        ? [courseCode, course].filter(Boolean).join(' - ')
-        : g?.module_name ?? undefined;
-
-    return {
-      group_id: numericId,
-      group_name: g?.name ?? g?.group_name ?? 'Untitled group',
-      description: g?.description ?? '',
-      creator_id: Number.isFinite(g?.creator_id) ? g.creator_id : 0,
-      module_id: Number.isFinite(g?.module_id) ? g.module_id : 0,
-      max_members: Number.isFinite(g?.maxMembers) ? g.maxMembers : g?.max_members ?? 10,
-      group_type: (g?.group_type ?? 'study') as StudyGroup['group_type'],
-      group_goals: g?.group_goals,
-      is_active: g?.is_active ?? true,
-      created_at: createdAt,
-      updated_at: updatedAt,
-      member_count: membersCount,
-      module_name: moduleName,
-      creator_name: g?.createdByName || g?.creator_name,
-    };
-  }
-
-  function isOwner(group: StudyGroup): boolean {
-    const owner =
-      owners[group.group_id] || (group.creator_id != null ? String(group.creator_id) : '');
-    if (!owner || !meId) return false;
-    return String(owner) === String(meId);
-  }
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const res = await fetch('/api/v1/users/me', {
-          headers: authHeadersJSON(),
-          credentials: 'include',
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const id =
-            data?.user_id != null ? String(data.user_id) : data?.id != null ? String(data.id) : '';
-          if (mounted) setMeId(id);
-        } else {
-          if (mounted) setMeId('1');
-        }
-      } catch {
-        if (mounted) setMeId('1');
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  // listen for broadcasted changes (created elsewhere)
-  useEffect(() => {
-    const onInv = () => {
-      refreshGroups();
-    };
-    window.addEventListener('groups:invalidate', onInv);
-    // @ts-ignore
-    const hasBC = 'BroadcastChannel' in window;
-    // @ts-ignore
-    const bc = hasBC ? new BroadcastChannel('studybuddy-events') : null;
-    if (bc) {
-      bc.onmessage = (ev: MessageEvent) => {
-        if (ev?.data?.type === 'group.created') refreshGroups();
+      const payload = {
+        session_title: sessionData.title,
+        description: undefined,
+        scheduled_start,
+        scheduled_end,
+        location: sessionData.location,
+        session_type: sessionData.type || 'study',
       };
-    }
-    return () => {
-      window.removeEventListener('groups:invalidate', onInv);
-      if (bc) bc.close();
-    };
-  }, []);
 
-  async function loadConnections() {
-    if (connLoading || connections.length > 0) return;
-    setConnLoading(true);
-    try {
-      const list = await DataService.fetchPartners();
-      setConnections(Array.isArray(list) && list.length > 0 ? list : FALLBACK_PARTNERS);
-    } catch {
-      setConnections(FALLBACK_PARTNERS);
-    } finally {
-      setConnLoading(false);
-    }
-  }
-
-  function mergeGroups(prev: StudyGroup[], incoming: StudyGroup[]): StudyGroup[] {
-    const byId = new Map<number, StudyGroup>();
-    for (const g of prev) byId.set(g.group_id, g);
-    for (const g of incoming) byId.set(g.group_id, g); // prefer incoming
-    return Array.from(byId.values());
-  }
-
-  async function refreshGroups(): Promise<boolean> {
-    try {
-      let res = await fetch('/api/v1/groups/my-groups', {
-        headers: authHeadersJSON(),
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        res = await fetch('/api/v1/groups', { headers: authHeadersJSON(), credentials: 'include' });
-      }
-      if (!res.ok) throw new Error('Failed');
-      const data = await res.json();
-      const mapped = (Array.isArray(data) ? data : []).map((g) => toStudyGroup(g));
-      setGroups((prev) =>
-        mapped.length > 0 ? mergeGroups(prev, mapped) : prev.length ? prev : fallbackGroups
-      );
-      setUsingFallback(false);
-      return true;
-    } catch {
-      setGroups((prev) => (prev.length ? prev : fallbackGroups));
-      setUsingFallback(true);
-      return false;
-    }
-  }
-
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    refreshGroups().finally(() => setLoading(false));
-  }, []);
-
-  const joinGroup = async (groupId: number) => {
-    const realId = idMap[groupId]; // undefined => fallback/demo
-    setJoiningId(groupId);
-    setPendingAction('join');
-
-    // optimistic UI
-    setGroups((prev) =>
-      prev.map((g) =>
-        g.group_id === groupId ? { ...g, member_count: (g.member_count || 0) + 1 } : g
-      )
-    );
-    setJoinedByMe((prev) => ({ ...prev, [groupId]: true }));
-
-    if (!realId) {
-      setTimeout(() => {
-        setJoiningId(null);
-        setPendingAction(null);
-      }, 400);
-      return;
-    }
-
-    try {
-      const res = await fetch(`/api/v1/groups/${encodeURIComponent(realId)}/join`, {
+      const res = await fetch('/api/v1/sessions', {
         method: 'POST',
         headers: authHeadersJSON(),
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error(`join ${res.status}`);
-      await refreshGroups();
-    } catch (err) {
-      console.error('Error joining group:', err);
-      // revert on hard error
-      setGroups((prev) =>
-        prev.map((g) =>
-          g.group_id === groupId
-            ? { ...g, member_count: Math.max((g.member_count || 0) - 1, 0) }
-            : g
-        )
-      );
-      setJoinedByMe((prev) => ({ ...prev, [groupId]: false }));
-    } finally {
-      setJoiningId(null);
-      setPendingAction(null);
-    }
-  };
-
-  const leaveGroup = async (groupId: number) => {
-    const realId = idMap[groupId]; // undefined => fallback/demo
-    setJoiningId(groupId);
-    setPendingAction('leave');
-
-    // optimistic UI
-    setGroups((prev) =>
-      prev.map((g) =>
-        g.group_id === groupId ? { ...g, member_count: Math.max((g.member_count || 0) - 1, 0) } : g
-      )
-    );
-    setJoinedByMe((prev) => ({ ...prev, [groupId]: false }));
-
-    if (!realId) {
-      setTimeout(() => {
-        setJoiningId(null);
-        setPendingAction(null);
-      }, 400);
-      return;
-    }
-
-    try {
-      const res = await fetch(`/api/v1/groups/${encodeURIComponent(realId)}/leave`, {
-        method: 'POST',
-        headers: authHeadersJSON(),
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error(`leave ${res.status}`);
-      await refreshGroups();
-    } catch (err) {
-      console.error('Error leaving group:', err);
-      // revert
-      setGroups((prev) =>
-        prev.map((g) =>
-          g.group_id === groupId ? { ...g, member_count: (g.member_count || 0) + 1 } : g
-        )
-      );
-      setJoinedByMe((prev) => ({ ...prev, [groupId]: true }));
-    } finally {
-      setJoiningId(null);
-      setPendingAction(null);
-    }
-  };
-
-  const deleteGroup = async (groupId: number) => {
-    const realId = idMap[groupId] || String(groupId);
-    if (!window.confirm('Delete this group? This action cannot be undone.')) return;
-
-    const snapshot = groups;
-    setGroups((prev) => prev.filter((g) => g.group_id !== groupId));
-    try {
-      const res = await fetch(`/api/v1/groups/${encodeURIComponent(realId)}`, {
-        method: 'DELETE',
-        headers: authHeadersJSON(),
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error(`delete ${res.status}`);
-      await refreshGroups();
-    } catch (err) {
-      console.error('Error deleting group:', err);
-      setGroups(snapshot);
-    }
-  };
-
-  // --- Sessions-style create handler: API-first, optimistic fallback, broadcast ---
-  const handleCreateGroup = async (form: {
-    name: string;
-    description?: string;
-    course?: string;
-    courseCode?: string;
-    maxMembers?: number;
-    isPublic?: boolean;
-  }) => {
-    try {
-      const res = await fetch('/api/v1/groups', {
-        method: 'POST',
-        headers: authHeadersJSON(),
-        credentials: 'include',
-        body: JSON.stringify({
-          name: form.name,
-          description: form.description || '',
-          subjects: [],
-          maxMembers: form.maxMembers ?? 8,
-          isPublic: form.isPublic ?? true,
-          course: form.course || '',
-          courseCode: form.courseCode || '',
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
         const created = await res.json();
-        const sg = toStudyGroup(created);
-        // creator is always a member
-        setJoinedByMe((prev) => ({ ...prev, [sg.group_id]: true }));
-        setGroups((prev) => [sg, ...prev]); // immediate card
-        broadcastGroupCreated(sg);
-        await refreshGroups(); // merge canonical data
+        const createdNorm: StudySession = {
+          ...created,
+          id: String(created.id),
+          // defensive defaults if API doesn't echo these
+          title: created.title ?? sessionData.title,
+          date: created.date ?? sessionData.date,
+          startTime: created.startTime ?? sessionData.startTime,
+          endTime: created.endTime ?? sessionData.endTime,
+          location: created.location ?? sessionData.location,
+          type: created.type ?? (sessionData.type || 'study'),
+          participants: created.participants ?? 1,
+          status: created.status ?? 'upcoming',
+          isCreator: created.isCreator ?? true,
+          isAttending: created.isAttending ?? true,
+          course: created.course ?? sessionData.course,
+          courseCode: created.courseCode ?? sessionData.courseCode,
+          maxParticipants: created.maxParticipants ?? sessionData.maxParticipants,
+          groupId: created.groupId ?? sessionData.groupId,
+        };
+        setSessions((prev) => [createdNorm, ...prev]);
+        broadcastSessionCreated(createdNorm);
         return;
       }
+    } catch (error) {
+      console.error('Error creating session:', error);
+    }
+
+    // Optimistic fallback
+    const newSession: StudySession = {
+      ...sessionData,
+      id: Date.now().toString(),
+      participants: 1,
+      status: 'upcoming',
+      isCreator: true,
+      isAttending: true,
+    };
+    setSessions((prev) => [newSession, ...prev]);
+    broadcastSessionCreated(newSession);
+  };
+
+  const handleEditSession = async (
+    sessionData: Omit<StudySession, 'id' | 'participants' | 'status' | 'isCreator' | 'isAttending'>
+  ) => {
+    if (!editingSession) return;
+
+    try {
+      const payload = {
+        title: sessionData.title,
+        date: sessionData.date,
+        startTime: sessionData.startTime,
+        endTime: sessionData.endTime,
+        location: sessionData.location,
+        type: sessionData.type,
+      };
+
+      const res = await fetch(`/api/v1/sessions/${editingSession.id}`, {
+        method: 'PUT',
+        headers: authHeadersJSON(),
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const updated = await res.json();
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id === editingSession.id ? { ...s, ...updated, id: String(updated.id) } : s
+          )
+        );
+        return;
+      }
+    } catch (error) {
+      console.error('Error updating session:', error);
+    }
+
+    // Optimistic update
+    setSessions((prev) =>
+      prev.map((s) => (s.id === editingSession.id ? { ...s, ...sessionData } : s))
+    );
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    // Treat as cancel so cancelled counts remain visible
+    try {
+      const res = await fetch(`/api/v1/sessions/${sessionId}`, {
+        method: 'DELETE',
+        headers: authHeadersJSON(),
+      });
+      if (res.ok) {
+        const updated = await res.json(); // backend returns the cancelled row
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id === sessionId ? { ...s, ...updated, id: String(updated.id), status: 'cancelled' } : s
+          )
+        );
+        return;
+      }
+    } catch (error) {
+      console.error('Error cancelling session:', error);
+    }
+    // Optimistic fallback – mark as cancelled locally
+    setSessions((prev) =>
+      prev.map((s) => (s.id === sessionId ? { ...s, status: 'cancelled' } : s))
+    );
+  };
+
+  const handleJoinSession = async (sessionId: string) => {
+    // Optimistic UI first (so it works even when you're using fallbacks / unauthenticated)
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === sessionId
+          ? {
+              ...s,
+              isAttending: true,
+              participants: (s.participants || 0) + (s.isAttending ? 0 : 1),
+            }
+          : s
+      )
+    );
+
+    try {
+      const res = await fetch(`/api/v1/sessions/${sessionId}/join`, {
+        method: 'POST',
+        headers: authHeadersJSON(),
+      });
+
+      if (!res.ok) {
+        // Roll back only for hard failures (capacity, forbidden, not found).
+        if ([409, 403, 404].includes(res.status)) {
+          setSessions((prev) =>
+            prev.map((s) =>
+              s.id === sessionId
+                ? {
+                    ...s,
+                    isAttending: false,
+                    participants: Math.max(0, (s.participants || 0) - 1),
+                  }
+                : s
+            )
+          );
+        } else {
+          console.warn('Join failed (keeping optimistic state for local testing):', res.status);
+        }
+      }
     } catch (err) {
-      console.error('Error creating group:', err);
-    }
-
-    // Optimistic fallback (works without backend)
-    const localId = Date.now();
-    const localGroup = toStudyGroup({
-      id: String(localId),
-      name: form.name,
-      description: form.description || '',
-      maxMembers: form.maxMembers ?? 8,
-      isPublic: form.isPublic ?? true,
-      course: form.course || '',
-      courseCode: form.courseCode || '',
-      createdBy: meId,
-      members: [{ userId: meId, role: 'admin', joinedAt: new Date().toISOString() }],
-      createdAt: new Date().toISOString(),
-      lastActivity: new Date().toISOString(),
-      group_type: 'study',
-    });
-
-    setJoinedByMe((prev) => ({ ...prev, [localGroup.group_id]: true }));
-    setGroups((prev) => [localGroup, ...prev]);
-    broadcastGroupCreated(localGroup);
-  };
-
-  const getGroupTypeColor = (type: string) => {
-    switch (type) {
-      case 'exam_prep':
-        return 'text-red-600 bg-red-100';
-      case 'project':
-        return 'text-blue-600 bg-blue-100';
-      case 'discussion':
-        return 'text-purple-600 bg-purple-100';
-      default:
-        return 'text-green-600 bg-green-100';
+      // Network error — keep optimistic state so you can test against fallbacks
+      console.warn('Join request error (keeping optimistic state):', err);
     }
   };
+
+  const handleLeaveSession = async (sessionId: string) => {
+    // Optimistic UI first
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === sessionId
+          ? {
+              ...s,
+              isAttending: false,
+              participants: Math.max(0, (s.participants || 0) - 1),
+            }
+          : s
+      )
+    );
+
+    try {
+      const res = await fetch(`/api/v1/sessions/${sessionId}/leave`, {
+        method: 'DELETE',
+        headers: authHeadersJSON(),
+      });
+
+      if (!res.ok) {
+        // Roll back on hard failures (organizer can't leave, forbidden, not found)
+        if ([400, 403, 404].includes(res.status)) {
+          setSessions((prev) =>
+            prev.map((s) =>
+              s.id === sessionId
+                ? {
+                    ...s,
+                    isAttending: true,
+                    participants: (s.participants || 0) + 1,
+                  }
+                : s
+            )
+          );
+        } else {
+          console.warn('Leave failed (keeping optimistic state for local testing):', res.status);
+        }
+      }
+    } catch (err) {
+      console.warn('Leave request error (keeping optimistic state):', err);
+    }
+  };
+
+  const handleOpenChat = (session: StudySession) => {
+    if (!session.groupId) return;
+    // simple client nav; replace with your router navigate if available
+    window.location.href = `/groups/${session.groupId}/chat?session=${session.id}`;
+  };
+
+  // Purely client-side filtering
+  const filteredSessions =
+    filter === 'all' ? sessions : sessions.filter((s) => s.status === filter);
+
+  const statusCounts = {
+    all: sessions.length,
+    upcoming: sessions.filter((s) => s.status === 'upcoming').length,
+    ongoing: sessions.filter((s) => s.status === 'ongoing').length,
+    completed: sessions.filter((s) => s.status === 'completed').length,
+    cancelled: sessions.filter((s) => s.status === 'cancelled').length,
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-semibold text-slate-900">Plan study sessions</h1>
+        <div className="text-center text-slate-600">Loading sessions...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Study Groups</h1>
-          <p className="text-gray-600">
-            Join or create study groups to collaborate with peers
-            {usingFallback && <span className="ml-2 text-xs text-gray-500">(demo data)</span>}
+          <h1 className="text-2xl font-semibold text-slate-900">Plan study sessions</h1>
+          <p className="text-slate-600 text-sm">
+            Schedule and manage your collaborative study sessions
           </p>
         </div>
+
         <button
-          onClick={() => setOpenCreate(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition"
+          onClick={() => setShowModal(true)}
+          className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-white shadow-sm hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
         >
-          <Plus className="w-5 h-5" />
-          Create Group
+          <Plus className="h-4 w-4" />
+          New session
         </button>
       </div>
 
-      {/* Error message */}
-      {error && (
-        <div className="rounded-lg bg-blue-50 text-blue-800 px-4 py-2">Showing demo groups</div>
-      )}
-
-      {loading ? (
-        <div className="text-center text-slate-600">Loading study groups...</div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {groups.filter(Boolean).map((group) => {
-            if (!group || !group.group_name || !group.group_type) return null;
-            const owner = isOwner(group);
-            const iJoined = !!joinedByMe[group.group_id];
-
-            return (
-              <div
-                key={group.group_id}
-                className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900">{group.group_name}</h3>
-                      {owner && (
-                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
-                          Owner
-                        </span>
-                      )}
-                    </div>
-                    <span
-                      className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getGroupTypeColor(
-                        group.group_type
-                      )} mb-3`}
-                    >
-                      {group.group_type.replace('_', ' ').toUpperCase()}
-                    </span>
-                  </div>
-                </div>
-
-                {group.description && (
-                  <p className="text-gray-600 text-sm mb-4">{group.description}</p>
-                )}
-
-                <div className="space-y-2 text-sm text-gray-600 mb-4">
-                  <div className="flex items-center gap-2">
-                    <Users className="w-4 h-4" />
-                    <span>
-                      {group.member_count || 0}/{group.max_members} members
-                    </span>
-                  </div>
-                  {group.module_name && (
-                    <div className="text-xs text-gray-500">{group.module_name}</div>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {owner ? (
-                    <>
-                      <button
-                        onClick={async () => {
-                          await loadConnections();
-                          const realId = idMap[group.group_id] || String(group.group_id);
-                          setOpenInvite({ open: true, groupId: realId });
-                        }}
-                        className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
-                        title="Invite members"
-                      >
-                        <Users className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => deleteGroup(group.group_id)}
-                        className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
-                        title="Delete group"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                      <button className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition">
-                        <MessageSquare className="w-4 h-4" />
-                      </button>
-                      <button className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition">
-                        <Calendar className="w-4 h-4" />
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      {iJoined ? (
-                        <button
-                          onClick={() => leaveGroup(group.group_id)}
-                          disabled={joiningId === group.group_id}
-                          className="flex-1 px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition disabled:opacity-60"
-                        >
-                          {joiningId === group.group_id && pendingAction === 'leave'
-                            ? 'Leaving…'
-                            : 'Leave Group'}
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => joinGroup(group.group_id)}
-                          disabled={joiningId === group.group_id}
-                          className="flex-1 px-3 py-2 bg-brand-500 text-white text-sm rounded-lg hover:bg-brand-600 transition disabled:opacity-60"
-                        >
-                          {joiningId === group.group_id && pendingAction === 'join'
-                            ? 'Joining…'
-                            : 'Join Group'}
-                        </button>
-                      )}
-                      <button className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition">
-                        <MessageSquare className="w-4 h-4" />
-                      </button>
-                      <button className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition">
-                        <Calendar className="w-4 h-4" />
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {groups.length === 0 && !loading && (
-        <div className="text-center py-12">
-          <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No study groups found</h3>
-          <p className="text-gray-600 mb-6">Create your first study group to start collaborating</p>
+      {/* Filter tabs */}
+      <div className="flex flex-wrap gap-2">
+        {Object.entries(statusCounts).map(([status, count]) => (
           <button
-            onClick={() => setOpenCreate(true)}
-            className="px-6 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition"
+            key={status}
+            onClick={() => setFilter(status as any)}
+            className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+              filter === status
+                ? 'bg-emerald-100 text-emerald-700'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
           >
-            Create Your First Group
+            {status.charAt(0).toUpperCase() + status.slice(1)} ({count})
           </button>
+        ))}
+      </div>
+
+      {/* Sessions list */}
+      {filteredSessions.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+          <p className="text-slate-800 font-medium">No sessions found</p>
+          <p className="mt-1 text-sm text-slate-600">
+            {filter === 'all'
+              ? 'Create your first study session to get started.'
+              : `No ${filter} sessions at the moment.`}
+          </p>
+          {filter === 'all' && (
+            <button
+              onClick={() => setShowModal(true)}
+              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-white shadow-sm hover:bg-emerald-700"
+            >
+              <Plus className="h-4 w-4" />
+              New session
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredSessions.map((session) => (
+            <SessionCard
+              key={session.id}
+              session={session}
+              onEdit={
+                session.isCreator
+                  ? () => {
+                      setEditingSession(session);
+                      setShowModal(true);
+                    }
+                  : undefined
+              }
+              onDelete={session.isCreator ? () => handleDeleteSession(session.id) : undefined}
+              onJoin={
+                !session.isAttending &&
+                session.participants < (session.maxParticipants || 10) &&
+                session.status !== 'completed' &&
+                session.status !== 'cancelled'
+                  ? () => handleJoinSession(session.id)
+                  : undefined
+              }
+              onLeave={
+                session.isAttending && !session.isCreator
+                  ? () => handleLeaveSession(session.id)
+                  : undefined
+              }
+              onChat={session.isAttending ? () => handleOpenChat(session) : undefined}
+            />
+          ))}
         </div>
       )}
 
-      {/* Sessions-style Group Modal */}
-      <GroupModal
-        open={openCreate}
-        onClose={() => setOpenCreate(false)}
-        onSubmit={handleCreateGroup}
+      {/* Session Modal */}
+      <SessionModal
+        open={showModal}
+        onClose={() => {
+          setShowModal(false);
+          setEditingSession(null);
+        }}
+        onSubmit={editingSession ? handleEditSession : handleCreateSession}
+        editingSession={editingSession}
       />
-
-      {/* Invite Members Modal */}
-      {openInvite.open && (
-        <InviteMembersModal
-          onClose={() => setOpenInvite({ open: false })}
-          groupId={openInvite.groupId!}
-          connections={connections}
-        />
-      )}
     </div>
   );
 }
 
-/* ---------------- Group Modal (portal; matches Sessions style) ---------------- */
-function GroupModal({
+function SessionCard({
+  session,
+  onEdit,
+  onDelete,
+  onJoin,
+  onLeave,
+  onChat,
+}: {
+  session: StudySession;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  onJoin?: () => void;
+  onLeave?: () => void;
+  onChat?: () => void;
+}) {
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  const formatTime = (time: string) => {
+    const [hours, minutes] = time.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}:${minutes} ${ampm}`;
+  };
+
+  const getStatusColor = (status?: StudySession['status']) => {
+    switch (status) {
+      case 'upcoming':
+        return 'bg-blue-50 text-blue-700';
+      case 'ongoing':
+        return 'bg-emerald-50 text-emerald-700';
+      case 'completed':
+        return 'bg-slate-50 text-slate-700';
+      case 'cancelled':
+        return 'bg-red-50 text-red-700';
+      default:
+        return 'bg-gray-50 text-gray-700';
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-6">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1">
+          <div className="flex items-start gap-3">
+            <div className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-50 text-emerald-700">
+              <Calendar className="h-5 w-5" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-slate-900">{session.title}</h3>
+              {session.course && (
+                <p className="text-sm text-slate-600">
+                  {session.courseCode && (
+                    <span className="text-slate-500 mr-1">{session.courseCode}</span>
+                  )}
+                  {session.course}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-4 mt-4 text-sm text-slate-600">
+            <div className="flex items-center gap-1">
+              <Calendar className="h-4 w-4" />
+              {formatDate(session.date)}
+            </div>
+            <div className="flex items-center gap-1">
+              <Clock className="h-4 w-4" />
+              {formatTime(session.startTime)} - {formatTime(session.endTime)}
+            </div>
+            <div className="flex items-center gap-1">
+              <MapPin className="h-4 w-4" />
+              {session.location}
+            </div>
+            <div className="flex items-center gap-1">
+              <Users className="h-4 w-4" />
+              {session.participants}
+              {session.maxParticipants && ` / ${session.maxParticipants}`}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 mt-4">
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${getStatusColor(
+                session.status
+              )}`}
+            >
+              {(session.status || 'upcoming').charAt(0).toUpperCase() +
+                (session.status || 'upcoming').slice(1)}
+            </span>
+            {session.isCreator ? (
+              <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-amber-50 text-amber-700">
+                Organizer
+              </span>
+            ) : session.isAttending ? (
+              <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-emerald-50 text-emerald-700">
+                Attending
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {onChat && (
+            <button
+              onClick={onChat}
+              className="rounded-lg border border-slate-200 p-2 text-emerald-700 hover:bg-emerald-50"
+              aria-label="Open chat"
+              title="Open group chat"
+            >
+              <MessageSquare className="h-4 w-4" />
+            </button>
+          )}
+          {onJoin && (
+            <button
+              onClick={onJoin}
+              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm text-white hover:bg-emerald-700"
+            >
+              Attend
+            </button>
+          )}
+          {onLeave && (
+            <button
+              onClick={onLeave}
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+            >
+              Leave
+            </button>
+          )}
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50"
+              aria-label="Edit session"
+            >
+              <Edit className="h-4 w-4" />
+            </button>
+          )}
+          {onDelete && (
+            <button
+              onClick={onDelete}
+              className="rounded-lg border border-slate-200 p-2 text-red-600 hover:bg-red-50"
+              aria-label="Delete session"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SessionModal({
   open,
   onClose,
   onSubmit,
-  defaults,
+  editingSession,
 }: {
   open: boolean;
   onClose: () => void;
-  onSubmit: (g: {
-    name: string;
-    description?: string;
-    course?: string;
-    courseCode?: string;
-    maxMembers?: number;
-    isPublic?: boolean;
-  }) => void;
-  defaults?: Partial<{
-    name: string;
-    description: string;
-    course: string;
-    courseCode: string;
-    maxMembers: number;
-    isPublic: boolean;
-  }>;
+  onSubmit: (
+    session: Omit<
+      StudySession,
+      'id' | 'isCreator' | 'isAttending' | 'participants' | 'currentParticipants' | 'status'
+    >
+  ) => void;
+  editingSession?: StudySession | null;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
 
-  const [name, setName] = useState(defaults?.name || '');
-  const [description, setDescription] = useState(defaults?.description || '');
-  const [course, setCourse] = useState(defaults?.course || '');
-  const [courseCode, setCourseCode] = useState(defaults?.courseCode || '');
-  const [maxMembers, setMaxMembers] = useState<number>(defaults?.maxMembers ?? 8);
-  const [isPublic, setIsPublic] = useState<boolean>(defaults?.isPublic ?? true);
+  const [title, setTitle] = useState('');
+  const [course, setCourse] = useState('');
+  const [courseCode, setCourseCode] = useState('');
+  const [date, setDate] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [location, setLocation] = useState('');
+  const [type, setType] = useState<StudySession['type']>('study'); // NEW
+  const [maxParticipants, setMaxParticipants] = useState<number | undefined>();
 
   const titleId = useId();
-  const nameId = useId();
-  const descId = useId();
   const courseId = useId();
   const codeId = useId();
-  const maxId = useId();
+  const dateId = useId();
+  const startTimeId = useId();
+  const endTimeId = useId();
+  const locationId = useId();
+  const typeId = useId(); // NEW
+  const maxParticipantsId = useId();
 
   useEffect(() => {
-    if (!open) return;
-    setName(defaults?.name || '');
-    setDescription(defaults?.description || '');
-    setCourse(defaults?.course || '');
-    setCourseCode(defaults?.courseCode || '');
-    setMaxMembers(defaults?.maxMembers ?? 8);
-    setIsPublic(defaults?.isPublic ?? true);
-  }, [open, defaults]);
+    if (editingSession) {
+      setTitle(editingSession.title);
+      setCourse(editingSession.course || '');
+      setCourseCode(editingSession.courseCode || '');
+      setDate(editingSession.date);
+      setStartTime(editingSession.startTime);
+      setEndTime(editingSession.endTime);
+      setLocation(editingSession.location);
+      setType(editingSession.type || 'study'); // NEW
+      setMaxParticipants(editingSession.maxParticipants);
+    } else {
+      setTitle('');
+      setCourse('');
+      setCourseCode('');
+      setDate('');
+      setStartTime('');
+      setEndTime('');
+      setLocation('');
+      setType('study'); // NEW
+      setMaxParticipants(undefined);
+    }
+  }, [editingSession, open]);
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -723,12 +614,12 @@ function GroupModal({
     };
     document.addEventListener('keydown', onKey);
 
-    const prevOverflow = document.body.style.overflow;
+    const { overflow } = document.body.style;
     document.body.style.overflow = 'hidden';
 
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prevOverflow;
+      document.body.style.overflow = overflow;
       prev?.focus();
     };
   }, [open, onClose]);
@@ -737,15 +628,20 @@ function GroupModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!title.trim() || !date || !startTime || !endTime || !location.trim()) return;
+
     onSubmit({
-      name: name.trim(),
-      description: description.trim() || undefined,
+      title: title.trim(),
       course: course.trim() || undefined,
       courseCode: courseCode.trim() || undefined,
-      maxMembers,
-      isPublic,
+      date,
+      startTime,
+      endTime,
+      location: location.trim(),
+      maxParticipants,
+      type, // NEW
     });
+
     onClose();
   };
 
@@ -755,7 +651,7 @@ function GroupModal({
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby={titleId}
+        aria-labelledby="session-modal-title"
         className="fixed inset-0 z-[9999] grid place-items-center p-4"
       >
         <div
@@ -764,10 +660,12 @@ function GroupModal({
         >
           <div className="flex items-start justify-between mb-6">
             <div>
-              <h2 id={titleId} className="text-lg font-semibold text-slate-900">
-                Create new group
+              <h2 id="session-modal-title" className="text-lg font-semibold text-slate-900">
+                {editingSession ? 'Edit session' : 'Create new session'}
               </h2>
-              <p className="text-sm text-slate-600">Organize a study group with your peers</p>
+              <p className="text-sm text-slate-600">
+                Schedule a collaborative study session with your peers
+              </p>
             </div>
             <button
               ref={closeBtnRef}
@@ -782,29 +680,15 @@ function GroupModal({
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
-                <label htmlFor={nameId} className="block mb-1 text-sm font-medium text-slate-800">
-                  Group name <span className="text-emerald-700">*</span>
+                <label htmlFor={titleId} className="block mb-1 text-sm font-medium text-slate-800">
+                  Session title <span className="text-emerald-700">*</span>
                 </label>
                 <input
-                  id={nameId}
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g., Algorithms Crew"
+                  id={titleId}
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="e.g., Algorithm Study Group"
                   required
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label htmlFor={descId} className="block mb-1 text-sm font-medium text-slate-800">
-                  Description
-                </label>
-                <textarea
-                  id={descId}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
-                  placeholder="Optional"
                   className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
                 />
               </div>
@@ -836,34 +720,109 @@ function GroupModal({
               </div>
 
               <div>
-                <label htmlFor={maxId} className="block mb-1 text-sm font-medium text-slate-800">
-                  Max members
+                <label htmlFor={dateId} className="block mb-1 text-sm font-medium text-slate-800">
+                  Date <span className="text-emerald-700">*</span>
                 </label>
                 <input
-                  id={maxId}
-                  type="number"
-                  min={2}
-                  max={50}
-                  value={maxMembers}
-                  onChange={(e) => setMaxMembers(parseInt(e.target.value || '8', 10))}
+                  id={dateId}
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  required
                   className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
                 />
               </div>
 
-              <div className="flex items-end gap-2">
-                <input
-                  id="gg_isPublic"
-                  type="checkbox"
-                  checked={isPublic}
-                  onChange={(e) => setIsPublic(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300"
-                />
-                <label htmlFor="gg_isPublic" className="text-sm text-slate-700 select-none">
-                  Public group
+              <div>
+                <label
+                  htmlFor={locationId}
+                  className="block mb-1 text-sm font-medium text-slate-800"
+                >
+                  Location <span className="text-emerald-700">*</span>
                 </label>
+                <input
+                  id={locationId}
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder="e.g., Library Room 204"
+                  required
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                />
               </div>
 
-              {/* Group type defaults to "study" in submit handler */}
+              <div>
+                <label
+                  htmlFor={startTimeId}
+                  className="block mb-1 text-sm font-medium text-slate-800"
+                >
+                  Start time <span className="text-emerald-700">*</span>
+                </label>
+                <input
+                  id={startTimeId}
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  required
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor={endTimeId}
+                  className="block mb-1 text-sm font-medium text-slate-800"
+                >
+                  End time <span className="text-emerald-700">*</span>
+                </label>
+                <input
+                  id={endTimeId}
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  required
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+
+              {/* NEW: Session Type select */}
+              <div>
+                <label htmlFor={typeId} className="block mb-1 text-sm font-medium text-slate-800">
+                  Session type
+                </label>
+                <select
+                  id={typeId}
+                  value={type}
+                  onChange={(e) => setType(e.target.value as StudySession['type'])}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                >
+                  <option value="study">Study Group</option>
+                  <option value="review">Review Session</option>
+                  <option value="project">Project Work</option>
+                  <option value="exam_prep">Exam Preparation</option>
+                  <option value="discussion">Discussion</option>
+                </select>
+              </div>
+
+              <div>
+                <label
+                  htmlFor={maxParticipantsId}
+                  className="block mb-1 text-sm font-medium text-slate-800"
+                >
+                  Max participants
+                </label>
+                <input
+                  id={maxParticipantsId}
+                  type="number"
+                  min="2"
+                  max="20"
+                  value={maxParticipants || ''}
+                  onChange={(e) =>
+                    setMaxParticipants(e.target.value ? parseInt(e.target.value) : undefined)
+                  }
+                  placeholder="Optional"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-4">
@@ -878,7 +837,7 @@ function GroupModal({
                 type="submit"
                 className="rounded-xl bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
               >
-                Create group
+                {editingSession ? 'Update session' : 'Create session'}
               </button>
             </div>
           </form>
@@ -889,122 +848,17 @@ function GroupModal({
   );
 }
 
-/* ---------------- Invite Members Modal (unchanged behavior) ---------------- */
-function InviteMembersModal({
-  onClose,
-  groupId,
-  connections,
-}: {
-  onClose: () => void;
-  groupId: string;
-  connections: StudyPartner[];
-}) {
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
+/* ----------------- helpers ----------------- */
 
-  const toggle = (id: string) => {
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  };
-
-  async function invite() {
-    if (selectedIds.length === 0 || sending || sent) return;
-    setSending(true);
-    try {
-      const res = await fetch(`/api/v1/groups/${encodeURIComponent(groupId)}/invite`, {
-        method: 'POST',
-        headers: authHeadersJSON(),
-        credentials: 'include',
-        body: JSON.stringify({ inviteUserIds: selectedIds }),
-      });
-      if (!res.ok) throw new Error('Failed to send invites');
-      setSent(true);
-    } catch (err) {
-      console.error('Error sending invites:', err);
-    } finally {
-      setSending(false);
-    }
+function authHeadersJSON(): Headers {
+  const h = new Headers();
+  h.set('Content-Type', 'application/json');
+  const raw = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  if (raw) {
+    let t = raw;
+    try { const p = JSON.parse(raw); if (typeof p === 'string') t = p; } catch {}
+    t = t.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
+    if (t) h.set('Authorization', `Bearer ${t}`);
   }
-
-  function authHeadersJSON(): Headers {
-    const h = new Headers();
-    h.set('Content-Type', 'application/json');
-    const raw = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    if (raw) {
-      let t = raw;
-      try {
-        const p = JSON.parse(raw);
-        if (typeof p === 'string') t = p;
-      } catch {}
-      t = t
-        .replace(/^["']|["']$/g, '')
-        .replace(/^Bearer\s+/i, '')
-        .trim();
-      if (t) h.set('Authorization', `Bearer ${t}`);
-    }
-    return h;
-  }
-
-  return (
-    <div className="fixed inset-0 z-[9999] grid place-items-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative w-full max-w-lg rounded-2xl bg-white border border-gray-200 p-6 shadow-xl">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Invite Members</h3>
-
-        <div className="max-h-80 overflow-auto rounded-xl border border-gray-200">
-          {connections.length === 0 ? (
-            <div className="p-3 text-sm text-gray-500">No connections to invite.</div>
-          ) : (
-            <ul className="divide-y divide-gray-100">
-              {connections.map((p) => {
-                const initials = (p.name || '')
-                  .trim()
-                  .split(/\s+/)
-                  .map((n) => n[0])
-                  .join('')
-                  .slice(0, 2)
-                  .toUpperCase();
-                return (
-                  <li key={p.id} className="flex items-center justify-between p-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 grid place-items-center text-xs font-semibold">
-                        {initials}
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">{p.name}</div>
-                        <div className="text-xs text-gray-500">{(p as any).major}</div>
-                      </div>
-                    </div>
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4"
-                      checked={selectedIds.includes(p.id)}
-                      onChange={() => toggle(p.id)}
-                      disabled={sent}
-                    />
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
-
-        <div className="mt-6 flex items-center justify-end gap-3">
-          <button
-            onClick={onClose}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50"
-          >
-            {sent ? 'Close' : 'Cancel'}
-          </button>
-          <button
-            onClick={invite}
-            disabled={selectedIds.length === 0 || sending || sent}
-            className="rounded-xl bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-          >
-            {sent ? 'Invites sent' : sending ? 'Sending…' : 'Send Invites'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+  return h;
 }

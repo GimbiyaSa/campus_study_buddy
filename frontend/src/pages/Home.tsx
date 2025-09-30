@@ -1,20 +1,13 @@
-import { useState, useId, useRef, useEffect } from 'react';
-import { Eye, EyeOff, LogIn } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { LogIn } from 'lucide-react';
 import { navigate } from '../router';
 import { useUser } from '../contexts/UserContext';
 import logo from '../assets/logo.jpg';
 import { buildApiUrl } from '../utils/url';
 
 export default function Login() {
-  const [username, setUsername] = useState('');
-  const [pwd, setPwd] = useState('');
-  const [showPwd, setShowPwd] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const userId = useId();
-  const pwdId = useId();
-  const errId = useId();
 
   const { login } = useUser();
   const googleBtnRef = useRef<HTMLDivElement | null>(null);
@@ -86,6 +79,22 @@ export default function Login() {
     setError(null);
     setSubmitting(true);
     try {
+      // Mock user matching the database test user created by seed script
+      const mockUser = {
+        user_id: 13, // This matches the user_id from the database
+        email: 'test.user@example.com',
+        first_name: 'Test',
+        last_name: 'User',
+        university: 'DevUniversity',
+        course: 'Computer Science',
+        year_of_study: 3,
+        profile_image_url: undefined,
+        is_active: true
+      };
+      
+      // Use the login function from UserContext
+      login(mockUser);
+      navigate('/dashboard');
     } catch (err: any) {
       setError(err?.message || 'Login failed');
     } finally {
@@ -111,69 +120,10 @@ export default function Login() {
             </div>
 
             <form onSubmit={handleLogin} className="grid gap-4" noValidate>
-              <label htmlFor={userId} className="block">
-                <span className="mb-1 block text-sm font-medium text-slate-800">
-                  Username <span className="text-emerald-700">*</span>
-                </span>
-                <input
-                  id={userId}
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
-                  placeholder="e.g., gimbiyas"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                  autoComplete="username"
-                  aria-invalid={!!error && !username ? true : undefined}
-                  aria-describedby={error && !username ? errId : undefined}
-                />
-              </label>
+              {/* Google Sign-In button container (rendered by Google's JS) */}
+              <div className="mt-3" ref={googleBtnRef}></div>
 
-              <label htmlFor={pwdId} className="block">
-                <span className="mb-1 block text-sm font-medium text-slate-800">
-                  Password <span className="text-emerald-700">*</span>
-                </span>
-                <div className="relative">
-                  <input
-                    id={pwdId}
-                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 pr-12 outline-none focus:ring-2 focus:ring-emerald-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
-                    placeholder="••••••••"
-                    value={pwd}
-                    onChange={(e) => setPwd(e.target.value)}
-                    type={showPwd ? 'text' : 'password'}
-                    required
-                    autoComplete="current-password"
-                    aria-invalid={!!error && !pwd ? true : undefined}
-                    aria-describedby={error && !pwd ? errId : undefined}
-                  />
-                  <button
-                    type="button"
-                    aria-label={showPwd ? 'Hide password' : 'Show password'}
-                    onClick={() => setShowPwd((v) => !v)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-slate-600 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
-                  >
-                    {showPwd ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </button>
-                </div>
-              </label>
-
-              <nav className="mt-1 space-y-1 text-sm">
-                <button
-                  type="button"
-                  onClick={() => navigate('/forgot-password')}
-                  className="text-emerald-700 hover:text-emerald-800 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600 rounded"
-                >
-                  Forgot your password?
-                </button>
-                <br />
-                <button
-                  type="button"
-                  onClick={() => navigate('/forgot-username')}
-                  className="text-emerald-700 hover:text-emerald-800 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600 rounded"
-                >
-                  Forgot your username?
-                </button>
-              </nav>
-
+              {/* Temporary bypass button for testing - remove when Google auth is working */}
               <button
                 type="submit"
                 disabled={submitting}
@@ -184,22 +134,8 @@ export default function Login() {
                 {submitting ? 'Logging in…' : 'Login'}
               </button>
 
-              <p className="mt-2 text-sm text-slate-700">
-                Don’t have an account?{' '}
-                <button
-                  type="button"
-                  onClick={() => navigate('/register')}
-                  className="font-medium text-emerald-700 hover:text-emerald-800 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600 rounded"
-                >
-                  Get started
-                </button>
-              </p>
-              {/* Google Sign-In button container (rendered by Google's JS) */}
-              <div className="mt-3" ref={googleBtnRef}></div>
-
               {error && (
                 <div
-                  id={errId}
                   role="status"
                   className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
                 >

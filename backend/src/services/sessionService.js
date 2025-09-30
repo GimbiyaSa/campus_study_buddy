@@ -60,7 +60,7 @@ router.get('/', authenticateToken, async (req, res) => {
     const request = pool.request();
     request.input('limit', sql.Int, parseInt(limit));
     request.input('offset', sql.Int, parseInt(offset));
-    request.input('userId', sql.Int, req.user.id);
+  request.input('userId', sql.NVarChar(36), req.user.id);
 
     let whereClause = 'WHERE 1=1';
     if (groupId) {
@@ -149,7 +149,7 @@ router.get('/:sessionId', authenticateToken, async (req, res) => {
 
     const request = pool.request();
     request.input('sessionId', sql.Int, req.params.sessionId);
-    request.input('userId', sql.Int, req.user.id);
+  request.input('userId', sql.NVarChar(36), req.user.id);
 
     const q = await request.query(`
       SELECT 
@@ -231,7 +231,7 @@ router.post('/', authenticateToken, async (req, res) => {
 
     const pool = getPool();
     const request = pool.request();
-    request.input('organizerId', sql.Int, req.user.id);
+  request.input('organizerId', sql.NVarChar(36), req.user.id);
     request.input('sessionTitle', sql.NVarChar(255), session_title);
     request.input('description', sql.NText, description || null);
     request.input('scheduledStart', sql.DateTime2, scheduled_start);
@@ -278,7 +278,7 @@ router.post('/', authenticateToken, async (req, res) => {
     // Auto-RSVP organizer
     const attendReq = pool.request();
     attendReq.input('sessionId', sql.Int, created.id);
-    attendReq.input('userId', sql.Int, req.user.id);
+  attendReq.input('userId', sql.NVarChar(36), req.user.id);
     await attendReq.query(`
       IF NOT EXISTS (SELECT 1 FROM session_attendees WHERE session_id=@sessionId AND user_id=@userId)
       INSERT INTO session_attendees (session_id, user_id, attendance_status, responded_at)
@@ -289,7 +289,7 @@ router.post('/', authenticateToken, async (req, res) => {
     const ownerRes = await pool
       .request()
       .input('groupId', sql.Int, created.groupId)
-      .input('userId', sql.Int, req.user.id)
+  .input('userId', sql.NVarChar(36), req.user.id)
       .query(
         `SELECT 1 FROM group_members WHERE group_id=@groupId AND user_id=@userId AND role IN ('owner','admin')`
       );
@@ -314,7 +314,7 @@ router.post('/:sessionId/join', authenticateToken, async (req, res) => {
   try {
     const request = getPool().request();
     request.input('sessionId', sql.Int, req.params.sessionId);
-    request.input('userId', sql.Int, req.user.id);
+  request.input('userId', sql.NVarChar(36), req.user.id);
 
     // Guard: session exists & not cancelled
     const s = await request.query(`SELECT status FROM study_sessions WHERE session_id=@sessionId`);
@@ -352,7 +352,7 @@ router.delete('/:sessionId/leave', authenticateToken, async (req, res) => {
   try {
     const request = getPool().request();
     request.input('sessionId', sql.Int, req.params.sessionId);
-    request.input('userId', sql.Int, req.user.id);
+  request.input('userId', sql.NVarChar(36), req.user.id);
 
     // Organizer cannot leave
     const org = await request.query(
@@ -379,7 +379,7 @@ router.put('/:sessionId', authenticateToken, async (req, res) => {
   try {
     const request = getPool().request();
     request.input('sessionId', sql.Int, req.params.sessionId);
-    request.input('userId', sql.Int, req.user.id);
+  request.input('userId', sql.NVarChar(36), req.user.id);
 
     const org = await request.query(`
       SELECT organizer_id, status FROM study_sessions WHERE session_id=@sessionId AND organizer_id=@userId
@@ -462,7 +462,7 @@ router.put('/:sessionId/start', authenticateToken, async (req, res) => {
   try {
     const request = getPool().request();
     request.input('sessionId', sql.Int, req.params.sessionId);
-    request.input('userId', sql.Int, req.user.id);
+  request.input('userId', sql.NVarChar(36), req.user.id);
 
     const org = await request.query(
       `SELECT organizer_id, status FROM study_sessions WHERE session_id=@sessionId AND organizer_id=@userId`
@@ -491,7 +491,7 @@ router.put('/:sessionId/end', authenticateToken, async (req, res) => {
   try {
     const request = getPool().request();
     request.input('sessionId', sql.Int, req.params.sessionId);
-    request.input('userId', sql.Int, req.user.id);
+  request.input('userId', sql.NVarChar(36), req.user.id);
 
     const org = await request.query(
       `SELECT organizer_id, status FROM study_sessions WHERE session_id=@sessionId AND organizer_id=@userId`
@@ -526,7 +526,7 @@ router.put('/:sessionId/cancel', authenticateToken, async (req, res) => {
   try {
     const request = getPool().request();
     request.input('sessionId', sql.Int, req.params.sessionId);
-    request.input('userId', sql.Int, req.user.id);
+  request.input('userId', sql.NVarChar(36), req.user.id);
 
     const org = await request.query(
       `SELECT organizer_id, status FROM study_sessions WHERE session_id=@sessionId AND organizer_id=@userId`
@@ -566,7 +566,7 @@ router.delete('/:sessionId', authenticateToken, async (req, res) => {
     // Same as cancel to ensure "Cancelled" counts are reflected
     const request = getPool().request();
     request.input('sessionId', sql.Int, req.params.sessionId);
-    request.input('userId', sql.Int, req.user.id);
+  request.input('userId', sql.NVarChar(36), req.user.id);
 
     const org = await request.query(
       `SELECT organizer_id, status FROM study_sessions WHERE session_id=@sessionId AND organizer_id=@userId`

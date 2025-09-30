@@ -1,6 +1,7 @@
 import { buildApiUrl } from '../utils/url';
-// Centralized data service to ensure consistency across the app
+import { ErrorHandler } from '../utils/errorHandler';
 
+// Enhanced Course type leveraging database richness
 export type Course = {
   id: string;
   type: 'institution' | 'casual';
@@ -8,7 +9,112 @@ export type Course = {
   title: string;
   term?: string;
   description?: string;
+  university?: string;
+  
+  // Progress & Analytics (from user_progress + study_hours tables)
   progress?: number;
+  totalHours?: number;
+  totalTopics?: number;
+  completedTopics?: number;
+  completedChapters?: number;
+  totalChapters?: number;
+  
+  // Enrollment details (from user_modules table)
+  enrollmentStatus?: 'active' | 'completed' | 'dropped';
+  enrolledAt?: string;
+  
+  // Study metrics (from study_hours aggregations)
+  weeklyHours?: number;
+  monthlyHours?: number;
+  averageSessionDuration?: number;
+  studyStreak?: number;
+  lastStudiedAt?: string;
+  
+  // Social context (from study_groups + session_attendees)
+  activeStudyGroups?: number;
+  upcomingSessions?: number;
+  studyPartners?: number;
+  
+  // Activity timeline 
+  recentActivity?: {
+    type: 'topic_completed' | 'chapter_finished' | 'session_attended' | 'hours_logged';
+    description: string;
+    timestamp: string;
+  }[];
+  
+  // Timestamps
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+// Enhanced Study Partner type with rich profile data
+export type StudyPartner = {
+  id: string;
+  name: string;
+  avatar?: string;
+  
+  // Academic profile (from users table)
+  university: string;
+  course: string;
+  yearOfStudy: number;
+  bio?: string;
+  
+  // Study preferences & compatibility 
+  studyPreferences?: {
+    preferredTimes: string[];
+    studyStyle: 'visual' | 'auditory' | 'kinesthetic' | 'mixed';
+    groupSize: 'small' | 'medium' | 'large';
+    environment: 'quiet' | 'collaborative' | 'flexible';
+  };
+  
+  // Shared academic context (from user_modules overlap)
+  sharedCourses: string[];
+  sharedTopics: string[];
+  compatibilityScore: number;
+  
+  // Activity & engagement metrics
+  studyHours: number;
+  weeklyHours: number;
+  studyStreak: number;
+  activeGroups: number;
+  sessionsAttended: number;
+  
+  // Social proof & reliability 
+  rating: number;
+  reviewCount: number;
+  responseRate: number;
+  lastActive: string;
+  
+  // Connection status
+  connectionStatus?: 'not_connected' | 'pending' | 'connected' | 'blocked';
+  mutualConnections?: number;
+  
+  // Study match details
+  recommendationReason?: string;
+  sharedGoals?: string[];
+}
+
+// Pagination type for API responses
+export type PaginatedResponse<T> = {
+  courses?: T[];
+  data?: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+};
+
+type CourseFetchOptions = {
+  page?: number;
+  limit?: number;
+  search?: string;
+  sortBy?: 'enrolled_at' | 'module_name' | 'progress';
+  sortOrder?: 'ASC' | 'DESC';
 };
 
 export type StudySession = {
@@ -44,62 +150,7 @@ export type StudyGroup = {
   createdAt: string;
 };
 
-export type StudyPartner = {
-  id: string;
-  name: string;
-  avatar?: string;
-  year: string;
-  major: string;
-  courses: string[];
-  bio?: string;
-  studyHours: number;
-  rating: number;
-  lastActive: string;
-};
-
-// -------- Demo fallback data --------
-export const FALLBACK_COURSES: Course[] = [
-  {
-    id: '1',
-    type: 'institution',
-    code: 'CS301',
-    title: 'Data Structures & Algorithms',
-    term: '2025 · Semester 2',
-    progress: 78,
-  },
-  {
-    id: '2',
-    type: 'institution',
-    code: 'CS305',
-    title: 'Database Systems',
-    term: '2025 · Semester 2',
-    progress: 65,
-  },
-  {
-    id: '3',
-    type: 'institution',
-    code: 'MATH204',
-    title: 'Linear Algebra',
-    term: '2025 · Semester 2',
-    progress: 82,
-  },
-  {
-    id: '4',
-    type: 'institution',
-    code: 'CS403',
-    title: 'Software Engineering',
-    term: '2025 · Semester 2',
-    progress: 45,
-  },
-  {
-    id: '5',
-    type: 'casual',
-    title: 'Machine Learning Basics',
-    description: 'Self-paced learning of ML fundamentals',
-    progress: 23,
-  },
-];
-
+// -------- Demo fallback data (keeping for sessions, groups, partners) --------
 export const FALLBACK_SESSIONS: StudySession[] = [
   {
     id: '1',
@@ -253,79 +304,139 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
   {
     id: '1',
     name: 'Emma Wilson',
-    year: '3rd Year',
-    major: 'Computer Science',
-    courses: ['CS301', 'CS305', 'MATH204'],
+    university: 'University of Cape Town',
+    course: 'Computer Science',
+    yearOfStudy: 3,
+    sharedCourses: ['CS301', 'CS305', 'MATH204'],
+    sharedTopics: ['Algorithms', 'Databases'],
+    compatibilityScore: 94,
     bio: 'Passionate about algorithms and machine learning. Looking for study partners for advanced CS topics.',
     studyHours: 45,
+    weeklyHours: 12,
+    studyStreak: 7,
+    activeGroups: 3,
+    sessionsAttended: 28,
     rating: 4.8,
+    reviewCount: 15,
+    responseRate: 96,
     lastActive: '2025-09-16',
+    recommendationReason: 'Strong overlap in CS courses and similar study goals',
+    sharedGoals: ['Master algorithms', 'Excel in databases']
   },
   {
-    id: '2',
+    id: '2', 
     name: 'Marcus Johnson',
-    year: '2nd Year',
-    major: 'Computer Science',
-    courses: ['CS201', 'MATH204', 'PHY101'],
+    university: 'University of Cape Town',
+    course: 'Computer Science',
+    yearOfStudy: 2,
+    sharedCourses: ['CS201', 'MATH204', 'PHY101'],
+    sharedTopics: ['Linear Algebra', 'Physics'],
+    compatibilityScore: 87,
     bio: 'Strong in mathematics, enjoy collaborative problem solving and explaining concepts.',
     studyHours: 38,
+    weeklyHours: 10,
+    studyStreak: 12,
+    activeGroups: 2,
+    sessionsAttended: 22,
     rating: 4.6,
+    reviewCount: 12,
+    responseRate: 91,
     lastActive: '2025-09-15',
+    recommendationReason: 'Excellent math foundation and collaborative approach',
+    sharedGoals: ['Master linear algebra', 'Physics excellence']
   },
   {
     id: '3',
     name: 'Sophia Chen',
-    year: '4th Year',
-    major: 'Software Engineering',
-    courses: ['CS403', 'CS305', 'CS450'],
+    university: 'University of Cape Town', 
+    course: 'Software Engineering',
+    yearOfStudy: 4,
+    sharedCourses: ['CS403', 'CS305', 'CS450'],
+    sharedTopics: ['Software Design', 'Databases', 'Architecture'],
+    compatibilityScore: 91,
     bio: 'Experienced with software design patterns and database optimization. Happy to mentor others.',
     studyHours: 52,
+    weeklyHours: 15,
+    studyStreak: 21,
+    activeGroups: 4,
+    sessionsAttended: 35,
     rating: 4.9,
+    reviewCount: 23,
+    responseRate: 98,
     lastActive: '2025-09-17',
+    recommendationReason: 'Senior student with mentoring experience in your areas',
+    sharedGoals: ['Software architecture mastery', 'Database optimization']
   },
   {
     id: '4',
     name: 'James Rodriguez',
-    year: '3rd Year',
-    major: 'Data Science',
-    courses: ['STAT301', 'CS301', 'MATH204'],
+    university: 'University of Cape Town',
+    course: 'Data Science', 
+    yearOfStudy: 3,
+    sharedCourses: ['STAT301', 'CS301', 'MATH204'],
+    sharedTopics: ['Statistics', 'Algorithms', 'Linear Algebra'],
+    compatibilityScore: 89,
     bio: 'Statistics and data analysis enthusiast. Great at breaking down complex problems.',
     studyHours: 41,
+    weeklyHours: 11,
+    studyStreak: 14,
+    activeGroups: 3,
+    sessionsAttended: 26,
     rating: 4.7,
+    reviewCount: 18,
+    responseRate: 93,
     lastActive: '2025-09-14',
+    recommendationReason: 'Data science perspective on shared mathematical concepts',
+    sharedGoals: ['Statistical mastery', 'Algorithm optimization']
   },
   {
     id: '5',
     name: 'Aisha Patel',
-    year: '2nd Year',
-    major: 'Computer Science',
-    courses: ['CS201', 'CS205', 'MATH204'],
+    university: 'University of Cape Town',
+    course: 'Computer Science',
+    yearOfStudy: 2,
+    sharedCourses: ['CS201', 'CS205', 'MATH204'],
+    sharedTopics: ['Web Development', 'UI/UX', 'Linear Algebra'],
+    compatibilityScore: 82,
     bio: 'Web development and UI/UX interested. Love working on projects and learning new technologies.',
     studyHours: 33,
+    weeklyHours: 9,
+    studyStreak: 8,
+    activeGroups: 2,
+    sessionsAttended: 19,
     rating: 4.5,
+    reviewCount: 11,
+    responseRate: 88,
     lastActive: '2025-09-16',
+    recommendationReason: 'Creative approach to technical subjects',
+    sharedGoals: ['Frontend excellence', 'Design thinking']
   },
   {
     id: '6',
     name: 'Ryan Thompson',
-    year: '4th Year',
-    major: 'Computer Engineering',
-    courses: ['CS403', 'EE301', 'CS450'],
+    university: 'University of Cape Town',
+    course: 'Computer Engineering',
+    yearOfStudy: 4,
+    sharedCourses: ['CS403', 'EE301', 'CS450'],
+    sharedTopics: ['System Design', 'Hardware', 'Architecture'],
+    compatibilityScore: 93,
     bio: 'Hardware-software integration expert. Excellent at system design and architecture discussions.',
     studyHours: 48,
+    weeklyHours: 13,
+    studyStreak: 18,
+    activeGroups: 3,
+    sessionsAttended: 31,
     rating: 4.8,
+    reviewCount: 20,
+    responseRate: 95,
     lastActive: '2025-09-17',
+    recommendationReason: 'Systems expertise complements your software studies',
+    sharedGoals: ['System architecture', 'Hardware-software integration']
   },
 ];
 
-// -------- Service --------
+// -------- Enhanced Service with Retry Logic --------
 export class DataService {
-  private static getBaseUrl(): string {
-    // In browser, use relative URLs. In tests/Node.js, use localhost
-    if (typeof window !== 'undefined') return '';
-    return 'http://localhost:3000';
-  }
-
   private static authHeaders(): Headers {
     const h = new Headers();
     const raw = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -344,74 +455,153 @@ export class DataService {
     return h;
   }
 
-  private static devForceFallback(): boolean {
-    if (typeof window === 'undefined') return false;
-    const q = new URLSearchParams(window.location.search);
-    return q.get('mockSessions') === '1' || localStorage.getItem('mockSessions') === '1';
-  }
-
-  static async fetchCourses(): Promise<Course[]> {
-    try {
-      const res = await fetch(buildApiUrl('/api/v1/courses'), {
-        headers: this.authHeaders(),
-        credentials: 'include',
-      });
-      if (res.ok) return await res.json();
-    } catch {}
-    return FALLBACK_COURSES;
-  }
-
-  /**
-   * Fetch sessions, with dev toggles:
-   * - forceFallback: return FALLBACK_SESSIONS regardless of API
-   * - fallbackOnEmpty: if API returns 200 but [], return FALLBACK_SESSIONS
-   * You can also set ?mockSessions=1 or localStorage.mockSessions='1'
-   */
-  static async fetchSessions(opts?: {
-    forceFallback?: boolean;
-    fallbackOnEmpty?: boolean;
-  }): Promise<StudySession[]> {
-    const force = opts?.forceFallback || this.devForceFallback();
-    if (force) return FALLBACK_SESSIONS;
-
-    try {
-      const res = await fetch(buildApiUrl('/api/v1/sessions'), {
-        headers: this.authHeaders(),
-        credentials: 'include',
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const list = (data as any[]).map((s) => ({
-          ...s,
-          isAttending: !!s.isAttending,
-          id: String(s.id),
-        }));
-        if (list.length === 0 && (opts?.fallbackOnEmpty ?? true)) return FALLBACK_SESSIONS;
-        return list;
+  // Enhanced fetch with retry logic
+  private static async fetchWithRetry(
+    url: string, 
+    options: RequestInit = {}, 
+    retries = 2,  // Reduced retries for faster response
+    timeout = 5000  // 5 second timeout
+  ): Promise<Response> {
+    for (let i = 0; i < retries; i++) {
+      try {
+        // Create abort controller for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        
+        const response = await fetch(url, {
+          ...options,
+          headers: {
+            'Content-Type': 'application/json',
+            ...this.authHeaders(),
+            ...options.headers,
+          },
+          credentials: 'include',
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+          return response;
+        }
+        
+        // Don't retry for client errors (4xx), only server errors (5xx)
+        if (response.status >= 400 && response.status < 500) {
+          throw new Error(`Client error: ${response.status} ${response.statusText}`);
+        }
+        
+        if (i === retries - 1) {
+          throw new Error(`Server error: ${response.status} ${response.statusText}`);
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          console.warn(`Request timeout after ${timeout}ms for ${url}`);
+        }
+        if (i === retries - 1) throw error;
+        // Reduced backoff for faster response
+        await new Promise(resolve => setTimeout(resolve, Math.min(500, Math.pow(2, i) * 200)));
       }
-    } catch {}
-    return FALLBACK_SESSIONS;
+    }
+    throw new Error('Should not reach here');
+  }
+
+  // Enhanced course fetching with expert error handling
+  static async fetchCourses(options?: CourseFetchOptions): Promise<Course[]> {
+    try {
+      const params = new URLSearchParams();
+      if (options?.page) params.append('page', options.page.toString());
+      if (options?.limit) params.append('limit', options.limit.toString());
+      if (options?.search) params.append('search', options.search);
+      if (options?.sortBy) params.append('sortBy', options.sortBy);
+      if (options?.sortOrder) params.append('sortOrder', options.sortOrder);
+      
+      const url = buildApiUrl(`/api/v1/courses${params.toString() ? `?${params.toString()}` : ''}`);
+      console.log('🎓 Fetching courses from:', url);
+      
+      const res = await this.fetchWithRetry(url);
+      const data = await res.json();
+
+      console.log('✅ Courses loaded successfully:', data);
+      
+      // Handle both paginated and non-paginated responses
+      if (data.courses) {
+        return data.courses; // Paginated response
+      } else if (Array.isArray(data)) {
+        return data; // Direct array response (backwards compatibility)
+      } else {
+        throw new Error('Invalid response format');
+      }
+    } catch (error) {
+      console.error('❌ fetchCourses error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'courses');
+      throw appError;
+    }
+  }
+
+  // Add a new course with optimistic updates support
+  static async addCourse(courseData: Omit<Course, 'id' | 'progress'>): Promise<Course> {
+    const url = buildApiUrl('/api/v1/courses');
+    console.log('➕ Adding course:', courseData);
+    
+    const res = await this.fetchWithRetry(url, {
+      method: 'POST',
+      body: JSON.stringify(courseData),
+    });
+    
+    const newCourse = await res.json();
+    console.log('✅ Course added:', newCourse);
+    return newCourse;
+  }
+
+  // Remove a course
+  static async removeCourse(courseId: string): Promise<void> {
+    const url = buildApiUrl(`/api/v1/courses/${courseId}`);
+    console.log('🗑️ Removing course:', courseId);
+    
+    await this.fetchWithRetry(url, {
+      method: 'DELETE',
+    });
+    
+    console.log('✅ Course removed:', courseId);
+  }
+
+  static async fetchSessions(): Promise<StudySession[]> {
+    try {
+      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/sessions'));
+      const data = await res.json();
+      return (data as any[]).map((s) => ({
+        ...s,
+        isAttending: !!s.isAttending,
+        id: String(s.id),
+      }));
+    } catch (error) {
+      console.error('❌ fetchSessions error:', error);
+      // Keep fallback for sessions (not in your focus list)
+      return FALLBACK_SESSIONS;
+    }
   }
 
   static async fetchGroups(): Promise<StudyGroup[]> {
     try {
-      const res = await fetch(buildApiUrl('/api/v1/groups'), {
-        headers: this.authHeaders(),
-        credentials: 'include',
-      });
-      if (res.ok) return await res.json();
-    } catch {}
-    return FALLBACK_GROUPS;
+      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/groups'));
+      return await res.json();
+    } catch (error) {
+      console.error('❌ fetchGroups error:', error);
+      // Keep fallback for groups (not in your focus list)
+      return FALLBACK_GROUPS;
+    }
   }
 
   static async fetchPartners(): Promise<StudyPartner[]> {
     try {
-      const res = await fetch(buildApiUrl('/api/v1/partners'), {
-        headers: this.authHeaders(),
-        credentials: 'include',
-      });
-      if (res.ok) return await res.json();
-    } catch {}
-    return FALLBACK_PARTNERS;
+      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/partners'));
+      const data = await res.json();
+      console.log('👥 Study partners loaded successfully:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ fetchPartners error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'partners');
+      throw appError;
+    }
   }
 }

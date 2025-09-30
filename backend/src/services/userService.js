@@ -4,32 +4,28 @@ const { authenticateToken } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
-// Database configuration
-const dbConfig = {
-  server: process.env.DB_SERVER,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  options: {
-    encrypt: true,
-    trustServerCertificate: Boolean(process.env.DB_TRUST_SERVER_CERT),
-    requestTimeout: 30000,
-    connectionTimeout: 30000,
-  },
-  pool: {
-    max: 10,
-    min: 0,
-    idleTimeoutMillis: 30000,
-  },
-};
-
-// Initialize connection pool
+// Initialize Azure SQL connection pool
 let pool;
 const initializeDatabase = async () => {
   try {
-    pool = await sql.connect(dbConfig);
-    console.log('Connected to Azure SQL Database for User Service');
+    // Try to use Azure configuration first
+    try {
+      const { azureConfig } = require('../config/azureConfig');
+      const dbConfig = await azureConfig.getDatabaseConfig();
+      pool = await sql.connect(dbConfig);
+      console.log('✅ Connected to Azure SQL Database for User Service (via Azure Config)');
+    } catch (azureError) {
+      console.warn('Azure config not available, using environment variables');
+      // Fallback to connection string
+      if (process.env.DATABASE_CONNECTION_STRING) {
+        pool = await sql.connect(process.env.DATABASE_CONNECTION_STRING);
+        console.log('✅ Connected to Azure SQL Database for User Service (via connection string)');
+      } else {
+        throw new Error('DATABASE_CONNECTION_STRING not found in environment variables');
+      }
+    }
   } catch (error) {
-    console.error('Database connection failed:', error);
+    console.error('❌ Database connection failed:', error);
     throw error;
   }
 };
@@ -512,6 +508,64 @@ router.put('/me/notifications/:notificationId/read', authenticateToken, async (r
   } catch (error) {
     console.error('Error marking notification as read:', error);
     res.status(500).json({ error: 'Failed to mark notification as read' });
+  }
+});
+
+// File upload endpoint for profile images and study materials
+router.post('/files/upload', authenticateToken, async (req, res) => {
+  try {
+    // This is a placeholder for file upload functionality
+    // In a real implementation, you'd use multer middleware and Azure Storage
+    const { azureStorage } = require('./azureStorageService');
+    
+    if (!req.files || !req.files.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const file = req.files.file;
+    const uploadType = req.body.uploadType || 'user-file';
+    const moduleId = req.body.moduleId;
+
+    let uploadResult;
+    
+    if (uploadType === 'profile-image') {
+      uploadResult = await azureStorage.uploadProfileImage(
+        req.user.id,
+        file.data,
+        file.mimetype
+      );
+    } else if (uploadType === 'study-material' && moduleId) {
+      uploadResult = await azureStorage.uploadStudyMaterial(
+        req.user.id,
+        parseInt(moduleId),
+        file.name,
+        file.data,
+        file.mimetype
+      );
+    } else {
+      uploadResult = await azureStorage.uploadUserFile(
+        req.user.id,
+        file.name,
+        file.data,
+        file.mimetype,
+        { uploadType }
+      );
+    }
+
+    res.json({
+      message: 'File uploaded successfully',
+      file: {
+        url: uploadResult.url,
+        filename: file.name,
+        size: file.size,
+        type: file.mimetype,
+        uploadedAt: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('Error uploading file:', error);
+    res.status(500).json({ error: 'Failed to upload file' });
   }
 });
 

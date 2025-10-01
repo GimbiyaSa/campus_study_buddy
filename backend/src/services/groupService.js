@@ -1,14 +1,36 @@
 // groupService.js
 const express = require('express');
-const { CosmosClient } = require('@azure/cosmos');
-const { ServiceBusClient } = require('@azure/service-bus');
+const sql = require('mssql');
 const { authenticateToken } = require('../middleware/authMiddleware');
 
 const router = express.Router();
-const cosmosClient = new CosmosClient(process.env.COSMOS_CONNECTION_STRING);
-const database = cosmosClient.database('StudyBuddyDB');
-const groupsContainer = database.container('Groups');
-const sessionsContainer = database.container('Sessions');
+
+// Initialize Azure SQL connection pool
+let pool;
+const initializeDatabase = async () => {
+  try {
+    // Try to use Azure configuration first
+    try {
+      const { azureConfig } = require('../config/azureConfig');
+      const dbConfig = await azureConfig.getDatabaseConfig();
+      pool = await sql.connect(dbConfig);
+    } catch (azureError) {
+      console.warn('Azure config not available, using environment variables');
+      // Fallback to connection string
+      if (process.env.DATABASE_CONNECTION_STRING) {
+        pool = await sql.connect(process.env.DATABASE_CONNECTION_STRING);
+      } else {
+        throw new Error('DATABASE_CONNECTION_STRING not found in environment variables');
+      }
+    }
+  } catch (error) {
+    console.error('❌ Database connection failed:', error);
+    throw error;
+  }
+};
+
+// Initialize database connection
+initializeDatabase();
 
 // Helpers
 function generateId() {

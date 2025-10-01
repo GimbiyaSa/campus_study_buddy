@@ -21,7 +21,7 @@ IF OBJECT_ID('dbo.users', 'U') IS NOT NULL DROP TABLE dbo.users;
 
 -- Create Users table
 CREATE TABLE dbo.users (
-    user_id NVARCHAR(36) PRIMARY KEY,
+    user_id NVARCHAR(255) PRIMARY KEY,
     email NVARCHAR(255) NOT NULL UNIQUE,
     password_hash NVARCHAR(255) NOT NULL,
     first_name NVARCHAR(100) NOT NULL,
@@ -51,7 +51,7 @@ CREATE TABLE dbo.modules (
 -- Create User_Modules junction table
 CREATE TABLE dbo.user_modules (
     user_module_id INT IDENTITY(1,1) PRIMARY KEY,
-    user_id NVARCHAR(36) NOT NULL,
+    user_id NVARCHAR(255) NOT NULL,
     module_id INT NOT NULL,
     enrollment_status NVARCHAR(50) DEFAULT 'active' CHECK (enrollment_status IN ('active', 'completed', 'dropped')),
     enrolled_at DATETIME2 DEFAULT GETUTCDATE(),
@@ -90,7 +90,7 @@ CREATE TABLE dbo.study_groups (
     group_id INT IDENTITY(1,1) PRIMARY KEY,
     group_name NVARCHAR(255) NOT NULL,
     description NTEXT,
-    creator_id NVARCHAR(36) NOT NULL,
+    creator_id NVARCHAR(255) NOT NULL,
     module_id INT NOT NULL,
     max_members INT DEFAULT 10 CHECK (max_members > 0),
     group_type NVARCHAR(50) DEFAULT 'study' CHECK (group_type IN ('study', 'project', 'exam_prep', 'discussion')),
@@ -106,7 +106,7 @@ CREATE TABLE dbo.study_groups (
 CREATE TABLE dbo.group_members (
     membership_id INT IDENTITY(1,1) PRIMARY KEY,
     group_id INT NOT NULL,
-    user_id NVARCHAR(36) NOT NULL,
+    user_id NVARCHAR(255) NOT NULL,
     role NVARCHAR(50) DEFAULT 'member' CHECK (role IN ('admin', 'moderator', 'member')),
     status NVARCHAR(50) DEFAULT 'active' CHECK (status IN ('pending', 'active', 'inactive', 'removed')),
     joined_at DATETIME2 DEFAULT GETUTCDATE(),
@@ -120,7 +120,7 @@ CREATE TABLE dbo.group_members (
 CREATE TABLE dbo.study_sessions (
     session_id INT IDENTITY(1,1) PRIMARY KEY,
     group_id INT NOT NULL,
-    organizer_id NVARCHAR(36) NOT NULL,
+    organizer_id NVARCHAR(255) NOT NULL,
     session_title NVARCHAR(255) NOT NULL,
     description NTEXT,
     scheduled_start DATETIME2 NOT NULL,
@@ -141,7 +141,7 @@ CREATE TABLE dbo.study_sessions (
 CREATE TABLE dbo.session_attendees (
     attendance_id INT IDENTITY(1,1) PRIMARY KEY,
     session_id INT NOT NULL,
-    user_id NVARCHAR(36) NOT NULL,
+    user_id NVARCHAR(255) NOT NULL,
     attendance_status NVARCHAR(50) DEFAULT 'pending' CHECK (attendance_status IN ('pending', 'attending', 'attended', 'absent', 'declined')),
     responded_at DATETIME2,
     notes NTEXT,
@@ -153,7 +153,7 @@ CREATE TABLE dbo.session_attendees (
 -- Create User Progress table
 CREATE TABLE dbo.user_progress (
     progress_id INT IDENTITY(1,1) PRIMARY KEY,
-    user_id NVARCHAR(36) NOT NULL,
+    user_id NVARCHAR(255) NOT NULL,
     topic_id INT,
     chapter_id INT,
     completion_status NVARCHAR(50) DEFAULT 'not_started' CHECK (completion_status IN ('not_started', 'in_progress', 'completed', 'reviewed')),
@@ -170,7 +170,7 @@ CREATE TABLE dbo.user_progress (
 -- Create Study Hours table
 CREATE TABLE dbo.study_hours (
     hour_id INT IDENTITY(1,1) PRIMARY KEY,
-    user_id NVARCHAR(36) NOT NULL,
+    user_id NVARCHAR(255) NOT NULL,
     module_id INT,
     topic_id INT,
     session_id INT,
@@ -187,7 +187,7 @@ CREATE TABLE dbo.study_hours (
 -- Create Notifications table
 CREATE TABLE dbo.notifications (
     notification_id INT IDENTITY(1,1) PRIMARY KEY,
-    user_id NVARCHAR(36) NOT NULL,
+    user_id NVARCHAR(255) NOT NULL,
     notification_type NVARCHAR(100) NOT NULL CHECK (notification_type IN ('session_reminder', 'group_invite', 'progress_update', 'partner_match', 'message', 'system')),
     title NVARCHAR(255) NOT NULL,
     message NTEXT NOT NULL,
@@ -214,7 +214,7 @@ CREATE TABLE dbo.chat_rooms (
 CREATE TABLE dbo.chat_messages (
     message_id INT IDENTITY(1,1) PRIMARY KEY,
     room_id INT NOT NULL,
-    sender_id NVARCHAR(36) NOT NULL,
+    sender_id NVARCHAR(255) NOT NULL,
     message_content NTEXT NOT NULL,
     message_type NVARCHAR(50) DEFAULT 'text' CHECK (message_type IN ('text', 'file', 'image', 'link', 'system')),
     attachments NVARCHAR(MAX) CHECK (ISJSON(attachments) = 1),
@@ -228,8 +228,8 @@ CREATE TABLE dbo.chat_messages (
 -- Create Partner Matches table
 CREATE TABLE dbo.partner_matches (
     match_id INT IDENTITY(1,1) PRIMARY KEY,
-    requester_id NVARCHAR(36) NOT NULL,
-    matched_user_id NVARCHAR(36) NOT NULL,
+    requester_id NVARCHAR(255) NOT NULL,
+    matched_user_id NVARCHAR(255) NOT NULL,
     module_id INT NOT NULL,
     match_status NVARCHAR(50) DEFAULT 'pending' CHECK (match_status IN ('pending', 'accepted', 'declined', 'expired')),
     compatibility_score DECIMAL(3,2) CHECK (compatibility_score BETWEEN 0 AND 1),
@@ -245,7 +245,7 @@ CREATE TABLE dbo.partner_matches (
 CREATE TABLE dbo.shared_notes (
     note_id INT IDENTITY(1,1) PRIMARY KEY,
     group_id INT NOT NULL,
-    author_id NVARCHAR(36) NOT NULL,
+    author_id NVARCHAR(255) NOT NULL,
     topic_id INT,
     note_title NVARCHAR(255) NOT NULL,
     note_content NTEXT NOT NULL,

@@ -1,6 +1,19 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { BookOpen, GraduationCap, Plus, X, Trash2, Calendar, Clock, Search, Filter, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import {
+  BookOpen,
+  GraduationCap,
+  Plus,
+  X,
+  Trash2,
+  Calendar,
+  Clock,
+  Search,
+  Filter,
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
+} from 'lucide-react';
 import { DataService, type Course } from '../services/dataService';
 import { ErrorHandler, type AppError } from '../utils/errorHandler';
 
@@ -25,7 +38,7 @@ export default function CoursesPage() {
           search: searchTerm,
           sortBy,
           sortOrder,
-          limit: 50
+          limit: 50,
         });
         // Ensure data is an array, even if API returns null/undefined
         setCourses(Array.isArray(data) ? data : []);
@@ -46,26 +59,33 @@ export default function CoursesPage() {
     setError(null);
     setSuccess(null);
     setIsSubmitting(true);
-    
+
     try {
       // Check for local duplicates first (faster UX)
-      const isDuplicate = courses.some(existing => 
-        existing.title.toLowerCase().trim() === c.title.toLowerCase().trim() ||
-        (c.code && existing.code && existing.code.replace(/_[a-zA-Z0-9]{3,}$/, '').toLowerCase() === c.code.toLowerCase())
+      const isDuplicate = courses.some(
+        (existing) =>
+          existing.title.toLowerCase().trim() === c.title.toLowerCase().trim() ||
+          (c.code &&
+            existing.code &&
+            existing.code.replace(/_[a-zA-Z0-9]{3,}$/, '').toLowerCase() === c.code.toLowerCase())
       );
-      
+
       if (isDuplicate) {
-        throw new Error(`You already have a ${c.type === 'institution' ? 'course' : 'topic'} named "${c.title}"${c.code ? ` (${c.code})` : ''}. Please choose a different name.`);
+        throw new Error(
+          `You already have a ${c.type === 'institution' ? 'course' : 'topic'} named "${c.title}"${
+            c.code ? ` (${c.code})` : ''
+          }. Please choose a different name.`
+        );
       }
 
       const newCourse = await DataService.addCourse(c);
       setCourses((prev) => [newCourse, ...prev]);
       setSuccess(`Successfully added ${c.type === 'institution' ? 'course' : 'topic'}: ${c.title}`);
-      
+
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       console.error('Add course error:', err);
-      
+
       // Handle duplicate errors specifically
       if (err instanceof Error && err.message.includes('already')) {
         setError({
@@ -73,7 +93,7 @@ export default function CoursesPage() {
           title: 'Duplicate Course',
           message: err.message,
           type: 'validation',
-          retryable: false
+          retryable: false,
         });
       } else {
         const appError = ErrorHandler.handleApiError(err, 'courses');
@@ -88,12 +108,12 @@ export default function CoursesPage() {
     setError(null);
     setSuccess(null);
     setDeletingId(id);
-    
+
     try {
       await DataService.removeCourse(id);
       setCourses((prev) => prev.filter((c) => c.id !== id));
       setSuccess(`Successfully removed: ${title}`);
-      
+
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       const appError = ErrorHandler.handleApiError(err, 'courses');
@@ -106,7 +126,7 @@ export default function CoursesPage() {
   const handleRetry = () => {
     setError(null);
     // Trigger re-fetch by updating a dependency
-    setSortOrder(prev => prev);
+    setSortOrder((prev) => prev);
   };
 
   const clearError = () => setError(null);
@@ -169,7 +189,7 @@ export default function CoursesPage() {
             </div>
           )}
         </div>
-        
+
         {/* Enhanced Search and Sort Controls */}
         {courses.length > 0 && (
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -183,7 +203,7 @@ export default function CoursesPage() {
                 className="w-full rounded-xl border border-slate-300 bg-white pl-11 pr-4 py-3 text-sm placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 shadow-sm transition-all duration-200"
               />
             </div>
-            
+
             <div className="flex items-center gap-3">
               <Filter className="h-4 w-4 text-slate-500" />
               <select
@@ -221,9 +241,9 @@ export default function CoursesPage() {
       ) : (
         <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
           {courses.map((course) => (
-            <EnhancedCourseCard 
-              key={course.id} 
-              course={course} 
+            <EnhancedCourseCard
+              key={course.id}
+              course={course}
               onRemove={() => removeCourse(course.id, course.title)}
               isDeleting={deletingId === course.id}
             />
@@ -247,8 +267,12 @@ export default function CoursesPage() {
 
 /* ----------------------------- Enhanced Course Card ------------------------------ */
 
-function EnhancedCourseCard({ course, onRemove, isDeleting }: { 
-  course: Course; 
+function EnhancedCourseCard({
+  course,
+  onRemove,
+  isDeleting,
+}: {
+  course: Course;
   onRemove: () => void;
   isDeleting?: boolean;
 }) {
@@ -261,11 +285,13 @@ function EnhancedCourseCard({ course, onRemove, isDeleting }: {
       {/* Course Header */}
       <div className="flex items-start justify-between gap-4 mb-4">
         <div className="flex items-center gap-4 min-w-0 flex-1">
-          <div className={`grid h-14 w-14 place-items-center rounded-2xl flex-shrink-0 transition-colors ${
-            isInstitution 
-              ? 'bg-emerald-50 text-emerald-700 group-hover:bg-emerald-100' 
-              : 'bg-blue-50 text-blue-700 group-hover:bg-blue-100'
-          }`}>
+          <div
+            className={`grid h-14 w-14 place-items-center rounded-2xl flex-shrink-0 transition-colors ${
+              isInstitution
+                ? 'bg-emerald-50 text-emerald-700 group-hover:bg-emerald-100'
+                : 'bg-blue-50 text-blue-700 group-hover:bg-blue-100'
+            }`}
+          >
             {isInstitution ? (
               <GraduationCap className="h-7 w-7" />
             ) : (
@@ -308,12 +334,12 @@ function EnhancedCourseCard({ course, onRemove, isDeleting }: {
           {isDeleting ? 'Removing...' : 'Remove'}
         </button>
       </div>
-      
+
       {/* Course Description (for personal topics) */}
       {course.type === 'casual' && course.description && (
         <p className="text-sm text-slate-700 mb-4 line-clamp-2">{course.description}</p>
       )}
-      
+
       {/* Course Metadata */}
       <div className="flex items-center gap-4 text-xs text-slate-500 mb-4">
         {course.createdAt && (
@@ -329,7 +355,7 @@ function EnhancedCourseCard({ course, onRemove, isDeleting }: {
           </span>
         )}
       </div>
-      
+
       {/* Enhanced Progress Section */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -338,20 +364,22 @@ function EnhancedCourseCard({ course, onRemove, isDeleting }: {
             <span className={`font-bold ${hasProgress ? 'text-emerald-600' : 'text-slate-400'}`}>
               {progressPercentage}%
             </span>
-            {course.totalTopics && course.totalTopics > 0 && course.completedTopics !== undefined && (
-              <span className="text-xs text-slate-500 bg-slate-100 rounded-full px-2 py-1">
-                {course.completedTopics}/{course.totalTopics} topics
-              </span>
-            )}
+            {course.totalTopics &&
+              course.totalTopics > 0 &&
+              course.completedTopics !== undefined && (
+                <span className="text-xs text-slate-500 bg-slate-100 rounded-full px-2 py-1">
+                  {course.completedTopics}/{course.totalTopics} topics
+                </span>
+              )}
           </div>
         </div>
-        
+
         <div className="relative h-3 w-full overflow-hidden rounded-full bg-slate-100">
           <div
             className={`h-3 rounded-full transition-all duration-500 ease-out ${
-              progressPercentage >= 100 
-                ? 'bg-gradient-to-r from-emerald-500 to-emerald-600' 
-                : progressPercentage > 0 
+              progressPercentage >= 100
+                ? 'bg-gradient-to-r from-emerald-500 to-emerald-600'
+                : progressPercentage > 0
                 ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
                 : 'bg-slate-300'
             }`}
@@ -361,7 +389,7 @@ function EnhancedCourseCard({ course, onRemove, isDeleting }: {
             <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-emerald-600/20 rounded-full animate-pulse" />
           )}
         </div>
-        
+
         <p className="text-xs text-slate-600">
           {progressPercentage >= 100 ? (
             <span className="text-emerald-600 font-medium">🎉 Completed!</span>
@@ -384,8 +412,8 @@ function Badge({
   variant?: 'emerald' | 'slate';
 }) {
   const cls =
-    variant === 'emerald' 
-      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+    variant === 'emerald'
+      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
       : 'bg-slate-100 text-slate-700 border border-slate-200';
   return <span className={`rounded-full px-3 py-1 text-xs font-medium ${cls}`}>{children}</span>;
 }
@@ -400,7 +428,8 @@ function EnhancedEmptyState({ onAdd }: { onAdd: () => void }) {
       </div>
       <h3 className="text-2xl font-bold text-slate-900 mb-3">Start your learning journey</h3>
       <p className="text-slate-600 mb-8 max-w-md mx-auto leading-relaxed">
-        Add your institution modules or create personal study topics to track your progress and connect with study partners.
+        Add your institution modules or create personal study topics to track your progress and
+        connect with study partners.
       </p>
       <button
         onClick={onAdd}
@@ -511,7 +540,11 @@ function EnhancedAddCourseModal({
 
   return createPortal(
     <>
-      <div className="fixed inset-0 z-[9998] bg-black/50 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      <div
+        className="fixed inset-0 z-[9998] bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden="true"
+      />
       <div
         role="dialog"
         aria-modal="true"
@@ -567,8 +600,8 @@ function EnhancedAddCourseModal({
               onClick={() => setTab('casual')}
               className={[
                 'ml-2 flex items-center gap-3 rounded-xl px-6 py-3 text-sm font-medium transition-all duration-200',
-                tab === 'casual' 
-                  ? 'bg-emerald-600 text-white shadow-lg' 
+                tab === 'casual'
+                  ? 'bg-emerald-600 text-white shadow-lg'
                   : 'text-slate-700 hover:bg-white hover:shadow-sm',
               ].join(' ')}
             >
@@ -705,9 +738,7 @@ function EnhancedField({
         <span className="block text-sm font-bold text-slate-800 mb-1">
           {label} {required && <span className="text-emerald-600">*</span>}
         </span>
-        {description && (
-          <span className="block text-xs text-slate-500 mb-2">{description}</span>
-        )}
+        {description && <span className="block text-xs text-slate-500 mb-2">{description}</span>}
         <input
           id={id}
           value={value}
@@ -746,9 +777,7 @@ function EnhancedTextArea({
         <span className="block text-sm font-bold text-slate-800 mb-1">
           {label} {required && <span className="text-emerald-600">*</span>}
         </span>
-        {description && (
-          <span className="block text-xs text-slate-500 mb-2">{description}</span>
-        )}
+        {description && <span className="block text-xs text-slate-500 mb-2">{description}</span>}
         <textarea
           id={id}
           value={value}

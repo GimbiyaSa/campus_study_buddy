@@ -53,7 +53,7 @@ class AzureIntegrationService {
 
   public async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    
+
     const config: RequestInit = {
       ...options,
       credentials: 'include',
@@ -65,13 +65,13 @@ class AzureIntegrationService {
 
     try {
       const response = await fetch(url, config);
-      
+
       if (!response.ok) {
         if (response.status === 401) {
           this.clearAuth();
           throw new Error('Authentication required');
         }
-        
+
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
       }
@@ -89,10 +89,12 @@ class AzureIntegrationService {
 
     try {
       // Get connection token from backend
-      const tokenResponse = await this.request<{ token: string; url: string }>('/api/v1/chat/connection-token');
-      
+      const tokenResponse = await this.request<{ token: string; url: string }>(
+        '/api/v1/chat/connection-token'
+      );
+
       this.webPubSubClient = new WebPubSubClient(tokenResponse.url);
-      
+
       this.webPubSubClient.on('connected', () => {
         console.log('✅ Connected to Azure Web PubSub');
         this.handleConnectionEvent('connected', {});
@@ -108,10 +110,9 @@ class AzureIntegrationService {
       });
 
       await this.webPubSubClient.start();
-      
+
       // Join user-specific channel for notifications
       await this.webPubSubClient.joinGroup(`user-${this.currentUser.id}`);
-      
     } catch (error) {
       console.error('Failed to initialize real-time connection:', error);
     }
@@ -127,12 +128,12 @@ class AzureIntegrationService {
 
   private handleConnectionEvent(event: string, data: any) {
     const handlers = this.connectionHandlers.get(event) || [];
-    handlers.forEach(handler => handler(data));
+    handlers.forEach((handler) => handler(data));
   }
 
   private handleIncomingMessage(data: any) {
     const { type, payload } = data;
-    
+
     switch (type) {
       case 'chat_message':
         this.handleConnectionEvent('message', payload);
@@ -140,13 +141,13 @@ class AzureIntegrationService {
       case 'partner_request':
         this.handleConnectionEvent('notification', {
           type: 'partner_request',
-          data: payload
+          data: payload,
         });
         break;
       case 'session_reminder':
         this.handleConnectionEvent('notification', {
-          type: 'session_reminder', 
-          data: payload
+          type: 'session_reminder',
+          data: payload,
         });
         break;
       case 'group_update':
@@ -163,7 +164,7 @@ class AzureIntegrationService {
       this.connectionHandlers.set(event, []);
     }
     this.connectionHandlers.get(event)!.push(handler);
-    
+
     return () => {
       const handlers = this.connectionHandlers.get(event) || [];
       const index = handlers.indexOf(handler);
@@ -178,13 +179,17 @@ class AzureIntegrationService {
     return this.request<any[]>(`/api/v1/partners/recommendations?limit=${limit}`);
   }
 
-  public async sendPartnerRequest(partnerId: number, moduleId?: number, message?: string): Promise<void> {
+  public async sendPartnerRequest(
+    partnerId: number,
+    moduleId?: number,
+    message?: string
+  ): Promise<void> {
     return this.request('/api/v1/partners/match', {
       method: 'POST',
       body: JSON.stringify({
         matched_user_id: partnerId,
         module_id: moduleId,
-        message: message
+        message: message,
       }),
     });
   }
@@ -202,7 +207,7 @@ class AzureIntegrationService {
 
   public async getProgressData(filters?: any): Promise<any[]> {
     const queryParams = new URLSearchParams();
-    
+
     if (filters) {
       Object.entries(filters).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
@@ -214,29 +219,37 @@ class AzureIntegrationService {
     return this.request<any[]>(`/api/v1/progress?${queryParams}`);
   }
 
-  public async sendChatMessage(chatRoomId: string, content: string, messageType: string = 'text'): Promise<void> {
+  public async sendChatMessage(
+    chatRoomId: string,
+    content: string,
+    messageType: string = 'text'
+  ): Promise<void> {
     if (!this.webPubSubClient) {
       throw new Error('Real-time connection not established');
     }
 
-    await this.webPubSubClient.sendToGroup(chatRoomId, {
-      type: 'chat_message',
-      payload: {
-        chatRoomId,
-        content,
-        messageType,
-        senderId: this.currentUser?.id,
-        senderName: this.currentUser?.name,
-        timestamp: new Date().toISOString(),
-      }
-    }, 'json');
+    await this.webPubSubClient.sendToGroup(
+      chatRoomId,
+      {
+        type: 'chat_message',
+        payload: {
+          chatRoomId,
+          content,
+          messageType,
+          senderId: this.currentUser?.id,
+          senderName: this.currentUser?.name,
+          timestamp: new Date().toISOString(),
+        },
+      },
+      'json'
+    );
   }
 
   // File Upload API
   public async uploadFile(file: File, metadata?: any): Promise<any> {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     if (metadata) {
       Object.entries(metadata).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {

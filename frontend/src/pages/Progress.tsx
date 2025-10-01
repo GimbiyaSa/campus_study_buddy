@@ -34,21 +34,21 @@ export default function Progress() {
   const [data, setData] = useState<ProgressData | null>(null);
 
   const fetchProgressData = async () => {
-    setLoadingState(prev => ({ ...prev, isLoading: true, error: null }));
-    
+    setLoadingState((prev) => ({ ...prev, isLoading: true, error: null }));
+
     try {
       const token = localStorage.getItem('google_id_token');
       if (!token) {
         throw new Error('No authentication token found');
       }
       const headers = {
-        'Authorization': `Bearer ${token}`,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       };
 
       const [analyticsRes, goalsRes] = await Promise.all([
         fetch(buildApiUrl('/api/v1/progress/analytics'), { headers, credentials: 'include' }),
-        fetch(buildApiUrl('/api/v1/progress/goals'), { headers, credentials: 'include' })
+        fetch(buildApiUrl('/api/v1/progress/goals'), { headers, credentials: 'include' }),
       ]);
 
       if (!analyticsRes.ok || !goalsRes.ok) {
@@ -59,20 +59,20 @@ export default function Progress() {
       const goals = await goalsRes.json();
 
       setData({ analytics, goals });
-      setLoadingState(prev => ({ 
-        ...prev, 
-        isLoading: false, 
+      setLoadingState((prev) => ({
+        ...prev,
+        isLoading: false,
         lastUpdated: new Date(),
-        retryCount: 0 
+        retryCount: 0,
       }));
     } catch (err) {
       console.error('Progress fetch error:', err);
       const appError = ErrorHandler.handleApiError(err, 'progress');
-      setLoadingState(prev => ({ 
-        ...prev, 
-        isLoading: false, 
+      setLoadingState((prev) => ({
+        ...prev,
+        isLoading: false,
         error: appError,
-        retryCount: prev.retryCount + 1
+        retryCount: prev.retryCount + 1,
       }));
     }
   };
@@ -106,10 +106,10 @@ export default function Progress() {
           <h1 className="text-2xl font-semibold text-slate-900">Track my progress</h1>
           <p className="text-slate-600 text-sm">Monitor your study habits and achievements</p>
         </div>
-        <EnhancedErrorDisplay 
-          error={loadingState.error} 
+        <EnhancedErrorDisplay
+          error={loadingState.error}
           onRetry={fetchProgressData}
-          onDismiss={() => setLoadingState(prev => ({ ...prev, error: null }))}
+          onDismiss={() => setLoadingState((prev) => ({ ...prev, error: null }))}
         />
       </div>
     );
@@ -139,7 +139,13 @@ export default function Progress() {
           title="This Week"
           value={`${goals?.weekly?.currentHours || 0}h`}
           subtitle={`${Math.round(goals?.weekly?.hoursProgress || 0)}% of goal`}
-          trend={(goals?.weekly?.hoursProgress || 0) >= 100 ? '🎉 Goal achieved!' : `${((goals?.weekly?.hoursGoal || 10) - (goals?.weekly?.currentHours || 0)).toFixed(1)}h to go`}
+          trend={
+            (goals?.weekly?.hoursProgress || 0) >= 100
+              ? '🎉 Goal achieved!'
+              : `${((goals?.weekly?.hoursGoal || 10) - (goals?.weekly?.currentHours || 0)).toFixed(
+                  1
+                )}h to go`
+          }
           color="blue"
         />
         <EnhancedStatCard
@@ -147,7 +153,11 @@ export default function Progress() {
           title="Topics Mastered"
           value={`${goals?.overall?.completedTopics || 0}`}
           subtitle="Completed"
-          trend={(goals?.overall?.completedTopics || 0) > 0 ? 'Great progress!' : 'Complete your first topic'}
+          trend={
+            (goals?.overall?.completedTopics || 0) > 0
+              ? 'Great progress!'
+              : 'Complete your first topic'
+          }
           color="purple"
         />
         <EnhancedStatCard
@@ -155,7 +165,9 @@ export default function Progress() {
           title="Study Sessions"
           value={`${goals?.overall?.totalSessions || 0}`}
           subtitle="Total logged"
-          trend={(goals?.overall?.totalSessions || 0) > 0 ? 'Keep it up!' : 'Log your first session'}
+          trend={
+            (goals?.overall?.totalSessions || 0) > 0 ? 'Keep it up!' : 'Log your first session'
+          }
           color="amber"
         />
       </div>
@@ -165,26 +177,28 @@ export default function Progress() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-slate-900">Weekly Study Goal</h2>
         </div>
-        
+
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm text-slate-600">Study Hours</span>
           <span className="text-sm font-medium text-slate-900">
             {goals?.weekly?.currentHours || 0}h / {goals?.weekly?.hoursGoal || 10}h
           </span>
         </div>
-        
+
         <div className="w-full bg-slate-100 rounded-full h-3 mb-3">
           <div
             className="bg-gradient-to-r from-emerald-500 to-emerald-600 h-3 rounded-full transition-all duration-500 ease-out"
             style={{ width: `${Math.min(100, goals?.weekly?.hoursProgress || 0)}%` }}
           />
         </div>
-        
+
         <div className="flex items-center justify-between text-sm">
           <span className="text-slate-600">
             {(goals?.weekly?.hoursProgress || 0) >= 100
-              ? "🎉 Weekly goal achieved!"
-              : `${((goals?.weekly?.hoursGoal || 10) - (goals?.weekly?.currentHours || 0)).toFixed(1)}h remaining`}
+              ? '🎉 Weekly goal achieved!'
+              : `${((goals?.weekly?.hoursGoal || 10) - (goals?.weekly?.currentHours || 0)).toFixed(
+                  1
+                )}h remaining`}
           </span>
           <span className="font-medium text-emerald-600">
             {Math.round(goals?.weekly?.hoursProgress || 0)}%
@@ -198,7 +212,10 @@ export default function Progress() {
           <h2 className="text-lg font-semibold text-slate-900 mb-4">Recent Study Sessions</h2>
           <div className="space-y-3">
             {(analytics?.recentSessions || []).slice(0, 5).map((session: any, index: number) => (
-              <div key={index} className="border border-slate-100 rounded-lg p-4 hover:bg-slate-50 transition-colors">
+              <div
+                key={index}
+                className="border border-slate-100 rounded-lg p-4 hover:bg-slate-50 transition-colors"
+              >
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
@@ -213,10 +230,10 @@ export default function Progress() {
                     </div>
                     <p className="text-sm text-slate-600 mb-2">{session.description}</p>
                     <p className="text-xs text-slate-500">
-                      {new Date(session.date).toLocaleDateString('en-US', { 
-                        weekday: 'short', 
-                        month: 'short', 
-                        day: 'numeric' 
+                      {new Date(session.date).toLocaleDateString('en-US', {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric',
                       })}
                     </p>
                   </div>
@@ -235,11 +252,11 @@ export default function Progress() {
           title="No study sessions yet"
           message="Start logging your study sessions to track your progress and see detailed analytics about your learning journey."
           action={{
-            label: "Log your first session",
+            label: 'Log your first session',
             onClick: () => {
               // TODO: Navigate to session logging
               console.log('Navigate to session logging');
-            }
+            },
           }}
           icon={<Clock className="h-6 w-6" />}
           context="progress"
@@ -250,13 +267,13 @@ export default function Progress() {
 }
 
 // Enhanced Stat Card Component with better design
-function EnhancedStatCard({ 
-  icon, 
-  title, 
-  value, 
-  subtitle, 
-  trend, 
-  color = 'emerald' 
+function EnhancedStatCard({
+  icon,
+  title,
+  value,
+  subtitle,
+  trend,
+  color = 'emerald',
 }: {
   icon: React.ReactNode;
   title: string;
@@ -269,7 +286,7 @@ function EnhancedStatCard({
     emerald: 'bg-emerald-50 text-emerald-700',
     blue: 'bg-blue-50 text-blue-700',
     purple: 'bg-purple-50 text-purple-700',
-    amber: 'bg-amber-50 text-amber-700'
+    amber: 'bg-amber-50 text-amber-700',
   };
 
   return (
@@ -292,10 +309,10 @@ function EnhancedStatCard({
 }
 
 // Enhanced Error Display Component to match Dashboard styling
-function EnhancedErrorDisplay({ 
-  error, 
+function EnhancedErrorDisplay({
+  error,
   onRetry,
-  onDismiss
+  onDismiss,
 }: {
   error: AppError;
   onRetry?: () => void;
@@ -308,7 +325,7 @@ function EnhancedErrorDisplay({
         <div className="flex-1 min-w-0">
           <h4 className="font-semibold text-red-900 mb-1">{error.title}</h4>
           <p className="text-sm text-red-700 mb-3">{error.message}</p>
-          
+
           <div className="flex items-center gap-3">
             {error.retryable && onRetry && (
               <button

@@ -45,7 +45,7 @@ export default function BuddySearch() {
     if (selected?.id) {
       try {
         // Simplified invite logic - can be enhanced with actual API
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 500));
         // Dispatch custom event for consistent behavior across app
         window.dispatchEvent(new CustomEvent('buddy:connected', { detail: selected }));
       } catch (err) {
@@ -122,14 +122,10 @@ export default function BuddySearch() {
         <div className="flex-1">
           <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {suggestions.map((s) => (
-              <EnhancedSuggestionCard 
-                key={s.id} 
-                suggestion={s} 
-                onConnect={() => openModal(s)} 
-              />
+              <EnhancedSuggestionCard key={s.id} suggestion={s} onConnect={() => openModal(s)} />
             ))}
           </ul>
-          
+
           {/* Enhanced Bottom Action */}
           <div className="mt-6 pt-6 border-t border-slate-200">
             <div className="flex items-center justify-between">
@@ -162,7 +158,13 @@ export default function BuddySearch() {
 
 /* ---------- Enhanced Components ---------- */
 
-function EnhancedSuggestionCard({ suggestion, onConnect }: { suggestion: StudyPartner; onConnect: () => void }) {
+function EnhancedSuggestionCard({
+  suggestion,
+  onConnect,
+}: {
+  suggestion: StudyPartner;
+  onConnect: () => void;
+}) {
   const initials = suggestion.name
     .split(' ')
     .map((n) => n[0])
@@ -180,7 +182,9 @@ function EnhancedSuggestionCard({ suggestion, onConnect }: { suggestion: StudyPa
           <h3 className="font-bold text-slate-900 group-hover:text-emerald-700 transition-colors mb-1">
             {suggestion.name}
           </h3>
-          <p className="text-sm text-slate-600 mb-2">{suggestion.course || suggestion.university}</p>
+          <p className="text-sm text-slate-600 mb-2">
+            {suggestion.course || suggestion.university}
+          </p>
           <div className="flex flex-wrap gap-1.5">
             <span className="text-xs px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 font-medium">
               {suggestion.compatibilityScore.toFixed(0)}% match
@@ -191,7 +195,7 @@ function EnhancedSuggestionCard({ suggestion, onConnect }: { suggestion: StudyPa
           </div>
         </div>
       </div>
-      
+
       {/* Study metrics */}
       <div className="flex items-center justify-between mb-4 text-xs text-slate-500">
         <span className="flex items-center gap-1">
@@ -203,7 +207,7 @@ function EnhancedSuggestionCard({ suggestion, onConnect }: { suggestion: StudyPa
           {suggestion.rating} rating
         </span>
       </div>
-      
+
       <button
         onClick={onConnect}
         className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white shadow-md hover:bg-emerald-700 hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600 transition-all duration-200"
@@ -223,7 +227,8 @@ function EnhancedEmptyState() {
       </div>
       <h3 className="text-xl font-bold text-slate-900 mb-3">No study partners yet</h3>
       <p className="text-slate-600 mb-6 max-w-md mx-auto">
-        We're still finding the perfect study matches for you. Check back soon or explore all available partners.
+        We're still finding the perfect study matches for you. Check back soon or explore all
+        available partners.
       </p>
       <button
         onClick={() => navigate('/partners')}
@@ -302,7 +307,11 @@ function EnhancedProfileModal({
 
   return createPortal(
     <>
-      <div className="fixed inset-0 z-[9998] bg-black/50 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      <div
+        className="fixed inset-0 z-[9998] bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden="true"
+      />
       <div
         role="dialog"
         aria-modal="true"
@@ -347,15 +356,16 @@ function EnhancedProfileModal({
                 Year {person.yearOfStudy}
               </span>
             </div>
-            
+
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
               <h4 className="font-semibold text-slate-900 mb-2">About this study partner</h4>
               <p className="text-sm text-slate-700 leading-relaxed">
-                {person.bio || person.recommendationReason || 
+                {person.bio ||
+                  person.recommendationReason ||
                   'Active study partner with strong academic performance. Looking for consistent study sessions and collaborative learning.'}
               </p>
             </div>
-            
+
             <div className="grid grid-cols-3 gap-4">
               <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200 text-center">
                 <div className="text-xl font-bold text-emerald-700 mb-1">{person.studyHours}</div>

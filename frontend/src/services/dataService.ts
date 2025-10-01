@@ -10,7 +10,7 @@ export type Course = {
   term?: string;
   description?: string;
   university?: string;
-  
+
   // Progress & Analytics (from user_progress + study_hours tables)
   progress?: number;
   totalHours?: number;
@@ -18,30 +18,30 @@ export type Course = {
   completedTopics?: number;
   completedChapters?: number;
   totalChapters?: number;
-  
+
   // Enrollment details (from user_modules table)
   enrollmentStatus?: 'active' | 'completed' | 'dropped';
   enrolledAt?: string;
-  
+
   // Study metrics (from study_hours aggregations)
   weeklyHours?: number;
   monthlyHours?: number;
   averageSessionDuration?: number;
   studyStreak?: number;
   lastStudiedAt?: string;
-  
+
   // Social context (from study_groups + session_attendees)
   activeStudyGroups?: number;
   upcomingSessions?: number;
   studyPartners?: number;
-  
-  // Activity timeline 
+
+  // Activity timeline
   recentActivity?: {
     type: 'topic_completed' | 'chapter_finished' | 'session_attended' | 'hours_logged';
     description: string;
     timestamp: string;
   }[];
-  
+
   // Timestamps
   status?: string;
   createdAt?: string;
@@ -53,47 +53,47 @@ export type StudyPartner = {
   id: string;
   name: string;
   avatar?: string;
-  
+
   // Academic profile (from users table)
   university: string;
   course: string;
   yearOfStudy: number;
   bio?: string;
-  
-  // Study preferences & compatibility 
+
+  // Study preferences & compatibility
   studyPreferences?: {
     preferredTimes: string[];
     studyStyle: 'visual' | 'auditory' | 'kinesthetic' | 'mixed';
     groupSize: 'small' | 'medium' | 'large';
     environment: 'quiet' | 'collaborative' | 'flexible';
   };
-  
+
   // Shared academic context (from user_modules overlap)
   sharedCourses: string[];
   sharedTopics: string[];
   compatibilityScore: number;
-  
+
   // Activity & engagement metrics
   studyHours: number;
   weeklyHours: number;
   studyStreak: number;
   activeGroups: number;
   sessionsAttended: number;
-  
-  // Social proof & reliability 
+
+  // Social proof & reliability
   rating: number;
   reviewCount: number;
   responseRate: number;
   lastActive: string;
-  
+
   // Connection status
   connectionStatus?: 'not_connected' | 'pending' | 'connected' | 'blocked';
   mutualConnections?: number;
-  
+
   // Study match details
   recommendationReason?: string;
   sharedGoals?: string[];
-}
+};
 
 // Pagination type for API responses
 export type PaginatedResponse<T> = {
@@ -321,10 +321,10 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
     responseRate: 96,
     lastActive: '2025-09-16',
     recommendationReason: 'Strong overlap in CS courses and similar study goals',
-    sharedGoals: ['Master algorithms', 'Excel in databases']
+    sharedGoals: ['Master algorithms', 'Excel in databases'],
   },
   {
-    id: '2', 
+    id: '2',
     name: 'Marcus Johnson',
     university: 'University of Cape Town',
     course: 'Computer Science',
@@ -343,12 +343,12 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
     responseRate: 91,
     lastActive: '2025-09-15',
     recommendationReason: 'Excellent math foundation and collaborative approach',
-    sharedGoals: ['Master linear algebra', 'Physics excellence']
+    sharedGoals: ['Master linear algebra', 'Physics excellence'],
   },
   {
     id: '3',
     name: 'Sophia Chen',
-    university: 'University of Cape Town', 
+    university: 'University of Cape Town',
     course: 'Software Engineering',
     yearOfStudy: 4,
     sharedCourses: ['CS403', 'CS305', 'CS450'],
@@ -365,13 +365,13 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
     responseRate: 98,
     lastActive: '2025-09-17',
     recommendationReason: 'Senior student with mentoring experience in your areas',
-    sharedGoals: ['Software architecture mastery', 'Database optimization']
+    sharedGoals: ['Software architecture mastery', 'Database optimization'],
   },
   {
     id: '4',
     name: 'James Rodriguez',
     university: 'University of Cape Town',
-    course: 'Data Science', 
+    course: 'Data Science',
     yearOfStudy: 3,
     sharedCourses: ['STAT301', 'CS301', 'MATH204'],
     sharedTopics: ['Statistics', 'Algorithms', 'Linear Algebra'],
@@ -387,7 +387,7 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
     responseRate: 93,
     lastActive: '2025-09-14',
     recommendationReason: 'Data science perspective on shared mathematical concepts',
-    sharedGoals: ['Statistical mastery', 'Algorithm optimization']
+    sharedGoals: ['Statistical mastery', 'Algorithm optimization'],
   },
   {
     id: '5',
@@ -409,7 +409,7 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
     responseRate: 88,
     lastActive: '2025-09-16',
     recommendationReason: 'Creative approach to technical subjects',
-    sharedGoals: ['Frontend excellence', 'Design thinking']
+    sharedGoals: ['Frontend excellence', 'Design thinking'],
   },
   {
     id: '6',
@@ -431,7 +431,7 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
     responseRate: 95,
     lastActive: '2025-09-17',
     recommendationReason: 'Systems expertise complements your software studies',
-    sharedGoals: ['System architecture', 'Hardware-software integration']
+    sharedGoals: ['System architecture', 'Hardware-software integration'],
   },
 ];
 
@@ -440,16 +440,17 @@ export class DataService {
   private static authHeaders(): Headers {
     const h = new Headers();
     // Check for both 'google_id_token' (Google Auth) and 'token' (fallback)
-    const googleToken = typeof window !== 'undefined' ? localStorage.getItem('google_id_token') : null;
+    const googleToken =
+      typeof window !== 'undefined' ? localStorage.getItem('google_id_token') : null;
     const generalToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     const raw = googleToken || generalToken;
-    
+
     console.log('🔍 Auth token check:', {
       googleToken: googleToken ? `${googleToken.substring(0, 20)}...` : null,
       generalToken: generalToken ? `${generalToken.substring(0, 20)}...` : null,
-      selectedToken: raw ? `${raw.substring(0, 20)}...` : null
+      selectedToken: raw ? `${raw.substring(0, 20)}...` : null,
     });
-    
+
     if (raw) {
       let t = raw;
       try {
@@ -469,50 +470,50 @@ export class DataService {
     } else {
       console.warn('⚠️ No authentication token found in localStorage');
     }
-    
+
     return h;
   }
 
   // Enhanced fetch with retry logic
   private static async fetchWithRetry(
-    url: string, 
-    options: RequestInit = {}, 
-    retries = 2,  // Reduced retries for faster response
-    timeout = 5000  // 5 second timeout
+    url: string,
+    options: RequestInit = {},
+    retries = 2, // Reduced retries for faster response
+    timeout = 5000 // 5 second timeout
   ): Promise<Response> {
     for (let i = 0; i < retries; i++) {
       try {
         // Create abort controller for timeout
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
-        
+
         const authHeaders = Object.fromEntries(this.authHeaders().entries());
         const finalHeaders = {
           'Content-Type': 'application/json',
           ...authHeaders,
           ...options.headers,
         };
-        
+
         console.log('📡 Final request headers:', finalHeaders);
-        
+
         const response = await fetch(url, {
           ...options,
           headers: finalHeaders,
           credentials: 'include',
           signal: controller.signal,
         });
-        
+
         clearTimeout(timeoutId);
-        
+
         if (response.ok) {
           return response;
         }
-        
+
         // Don't retry for client errors (4xx), only server errors (5xx)
         if (response.status >= 400 && response.status < 500) {
           throw new Error(`Client error: ${response.status} ${response.statusText}`);
         }
-        
+
         if (i === retries - 1) {
           throw new Error(`Server error: ${response.status} ${response.statusText}`);
         }
@@ -522,7 +523,7 @@ export class DataService {
         }
         if (i === retries - 1) throw error;
         // Reduced backoff for faster response
-        await new Promise(resolve => setTimeout(resolve, Math.min(500, Math.pow(2, i) * 200)));
+        await new Promise((resolve) => setTimeout(resolve, Math.min(500, Math.pow(2, i) * 200)));
       }
     }
     throw new Error('Should not reach here');
@@ -537,14 +538,14 @@ export class DataService {
       if (options?.search) params.append('search', options.search);
       if (options?.sortBy) params.append('sortBy', options.sortBy);
       if (options?.sortOrder) params.append('sortOrder', options.sortOrder);
-      
+
       const url = buildApiUrl(`/api/v1/courses${params.toString() ? `?${params.toString()}` : ''}`);
       console.log('🎓 Fetching courses from:', url);
       console.log('🔑 Auth headers:', this.authHeaders());
-      
+
       const res = await this.fetchWithRetry(url);
       console.log('📡 Response status:', res.status, res.statusText);
-      
+
       const data = await res.json();
       console.log('📦 Response data:', data);
 
@@ -565,9 +566,9 @@ export class DataService {
       console.error('❌ fetchCourses error details:', {
         error,
         message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined
+        stack: error instanceof Error ? error.stack : undefined,
       });
-      
+
       // Re-throw the error so the component can handle it
       throw error;
     }
@@ -577,12 +578,12 @@ export class DataService {
   static async addCourse(courseData: Omit<Course, 'id' | 'progress'>): Promise<Course> {
     const url = buildApiUrl('/api/v1/courses');
     console.log('➕ Adding course:', courseData);
-    
+
     const res = await this.fetchWithRetry(url, {
       method: 'POST',
       body: JSON.stringify(courseData),
     });
-    
+
     const newCourse = await res.json();
     console.log('✅ Course added:', newCourse);
     return newCourse;
@@ -592,11 +593,11 @@ export class DataService {
   static async removeCourse(courseId: string): Promise<void> {
     const url = buildApiUrl(`/api/v1/courses/${courseId}`);
     console.log('🗑️ Removing course:', courseId);
-    
+
     await this.fetchWithRetry(url, {
       method: 'DELETE',
     });
-    
+
     console.log('✅ Course removed:', courseId);
   }
 
@@ -650,7 +651,7 @@ export class DataService {
   }): Promise<StudyPartner[]> {
     try {
       const queryParams = new URLSearchParams();
-      
+
       if (params?.subjects?.length) {
         queryParams.append('subjects', params.subjects.join(','));
       }
@@ -686,7 +687,7 @@ export class DataService {
     try {
       const res = await this.fetchWithRetry(buildApiUrl('/api/v1/partners/request'), {
         method: 'POST',
-        body: JSON.stringify({ recipientId, message })
+        body: JSON.stringify({ recipientId, message }),
       });
       const data = await res.json();
       console.log('🤝 Buddy request sent:', data);

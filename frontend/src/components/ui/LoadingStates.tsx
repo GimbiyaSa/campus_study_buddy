@@ -17,7 +17,7 @@ export const createInitialLoadingState = (): LoadingState => ({
   isLoading: false,
   error: null,
   lastUpdated: null,
-  retryCount: 0
+  retryCount: 0,
 });
 
 // Unified Loading Component
@@ -30,30 +30,28 @@ interface LoadingIndicatorProps {
 export function LoadingIndicator({ size = 'md', message, context }: LoadingIndicatorProps) {
   const sizeClasses = {
     sm: 'h-4 w-4',
-    md: 'h-6 w-6', 
-    lg: 'h-8 w-8'
+    md: 'h-6 w-6',
+    lg: 'h-8 w-8',
   };
 
   const contextMessages = {
     courses: 'Loading your courses...',
     progress: 'Analysing your progress...',
     partners: 'Finding study partners...',
-    dashboard: 'Preparing your dashboard...'
+    dashboard: 'Preparing your dashboard...',
   };
 
   return (
     <div className="flex items-center justify-center py-8">
       <div className="flex flex-col items-center gap-3">
         <Loader2 className={`${sizeClasses[size]} animate-spin text-emerald-600`} />
-        <p className="text-sm text-slate-600 font-medium">
-          {message || contextMessages[context]}
-        </p>
+        <p className="text-sm text-slate-600 font-medium">{message || contextMessages[context]}</p>
       </div>
     </div>
   );
 }
 
-// Unified Error Component  
+// Unified Error Component
 interface ErrorDisplayProps {
   error: AppError;
   onRetry?: () => void;
@@ -89,7 +87,7 @@ export function ErrorDisplay({ error, onRetry, onDismiss, context }: ErrorDispla
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-sm mb-1">{error.title}</h3>
           <p className="text-sm opacity-90 mb-3">{error.message}</p>
-          
+
           <div className="flex items-center gap-2">
             {error.retryable && onRetry && (
               <button
@@ -100,7 +98,7 @@ export function ErrorDisplay({ error, onRetry, onDismiss, context }: ErrorDispla
                 {error.action}
               </button>
             )}
-            
+
             {onDismiss && (
               <button
                 onClick={onDismiss}
@@ -136,7 +134,7 @@ export function EmptyState({ title, message, action, icon, context }: EmptyState
       </div>
       <h3 className="text-lg font-semibold text-slate-900 mb-2">{title}</h3>
       <p className="text-slate-600 mb-4 max-w-sm mx-auto">{message}</p>
-      
+
       {action && (
         <button
           onClick={action.onClick}
@@ -152,9 +150,9 @@ export function EmptyState({ title, message, action, icon, context }: EmptyState
 // Connection Status Indicator
 export function ConnectionStatus() {
   const isOnline = navigator.onLine;
-  
+
   if (isOnline) return null;
-  
+
   return (
     <div className="fixed top-4 right-4 z-50 flex items-center gap-2 px-3 py-2 bg-amber-100 text-amber-800 rounded-lg border border-amber-200 shadow-lg">
       <WifiOff className="h-4 w-4" />

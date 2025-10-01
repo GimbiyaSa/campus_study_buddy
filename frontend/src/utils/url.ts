@@ -3,7 +3,7 @@ export const getBaseUrl = (): string => {
   // Try both possible environment variable names
   const envApiUrl = import.meta.env.VITE_API_URL as string | undefined;
   const envApiBase = import.meta.env.VITE_API_BASE_URL as string | undefined;
-  
+
   const baseUrl = envApiUrl || envApiBase;
   if (baseUrl) {
     return baseUrl.replace(/\/$/, ''); // Remove trailing slash if present

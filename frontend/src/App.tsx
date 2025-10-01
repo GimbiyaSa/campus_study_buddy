@@ -98,7 +98,9 @@ export default function App() {
         <Sidebar />
         <div className="flex-1 flex flex-col">
           <Header />
-          <main className="p-6 md:p-8"><Dashboard /></main>
+          <main className="p-6 md:p-8">
+            <Dashboard />
+          </main>
         </div>
       </div>
     );

@@ -11,7 +11,7 @@
     "test:coverage": "jest --coverage",
     "test:ci": "jest --ci --coverage",
     "build": "tsc",
-  "config:health": "node dist/config/healthCheckTest.js",
+    "config:health": "node dist/config/healthCheckTest.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{js,ts,json,md}\"",

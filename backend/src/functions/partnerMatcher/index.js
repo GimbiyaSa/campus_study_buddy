@@ -3,7 +3,7 @@ const { ServiceBusClient } = require('@azure/service-bus');
 
 module.exports = async function (context, myTimer) {
   let pool;
-  
+
   try {
     // Connect to Azure SQL Database
     const dbConfig = {
@@ -18,21 +18,21 @@ module.exports = async function (context, myTimer) {
         connectionTimeout: 30000,
       },
     };
-    
+
     pool = await sql.connect(dbConfig);
-    
+
     const serviceBusClient = new ServiceBusClient(process.env.SERVICE_BUS_CONNECTION_STRING);
     const sender = serviceBusClient.createSender('notifications');
-    
+
     // Find sessions starting in the next hour
     const nextHour = new Date();
     nextHour.setHours(nextHour.getHours() + 1);
     const now = new Date();
-    
+
     const request = pool.request();
     request.input('now', sql.DateTime, now);
     request.input('nextHour', sql.DateTime, nextHour);
-    
+
     const sessionsResult = await request.query(`
       SELECT 
         ss.session_id,
@@ -55,7 +55,7 @@ module.exports = async function (context, myTimer) {
       // Get group members with user details
       const membersRequest = pool.request();
       membersRequest.input('groupId', sql.Int, session.group_id);
-      
+
       const membersResult = await membersRequest.query(`
         SELECT 
           u.user_id,
@@ -98,7 +98,6 @@ module.exports = async function (context, myTimer) {
     }
 
     context.log(`Processed ${upcomingSessions.length} session reminders`);
-    
   } catch (error) {
     context.log.error('Error processing session reminders:', error);
   } finally {

@@ -1,27 +1,27 @@
 /**
  * Progress Service - Study Progress Tracking
- * 
+ *
  * This service handles study session logging and progress tracking with the following logic:
- * 
- * 1. STUDY SESSIONS: 
+ *
+ * 1. STUDY SESSIONS:
  *    - Log study time in `study_hours` table
  *    - Link to modules and topics for better tracking
  *    - Support both individual and group study sessions
- * 
+ *
  * 2. PROGRESS TRACKING:
  *    - Topic-level progress: user_progress.chapter_id IS NULL (tracks overall topic progress)
  *    - Chapter-level progress: user_progress.chapter_id IS NOT NULL (tracks specific chapter progress)
  *    - This service primarily focuses on TOPIC-LEVEL progress for consistency with course service
- * 
+ *
  * 3. INTEGRATION WITH COURSE SERVICE:
  *    - Progress calculations must match between progress and course services
  *    - Both services use topic-level completion for module progress percentage
  *    - Study hours from both study_hours table and user_progress.hours_spent are tracked
- * 
+ *
  * 4. AUTHENTICATION:
  *    - All endpoints require valid JWT token via authenticateToken middleware
  *    - User context is extracted from req.user (set by auth middleware)
- * 
+ *
  * 5. KEY ENDPOINTS:
  *    - POST /sessions: Log study session and update topic progress
  *    - GET /analytics: Comprehensive study analytics with time-based filtering
@@ -74,7 +74,6 @@ async function getPool() {
 
 // POST /progress/sessions - Log study session
 router.post('/sessions', authenticateToken, async (req, res) => {
-
   try {
     const { moduleId, topicIds, duration, notes, groupId, sessionId, description } = req.body;
 
@@ -213,7 +212,6 @@ router.post('/sessions', authenticateToken, async (req, res) => {
 
 // GET /progress/analytics - Get progress analytics
 router.get('/analytics', authenticateToken, async (req, res) => {
-
   try {
     const { timeframe = '30d', moduleId } = req.query;
     const daysBack = timeframe === '7d' ? 7 : timeframe === '30d' ? 30 : 90;
@@ -325,7 +323,6 @@ router.get('/analytics', authenticateToken, async (req, res) => {
 
 // GET /progress/modules/:moduleId - Get detailed progress for a specific module
 router.get('/modules/:moduleId', authenticateToken, async (req, res) => {
-
   try {
     const moduleId = parseInt(req.params.moduleId);
 
@@ -440,8 +437,10 @@ router.get('/modules/:moduleId', authenticateToken, async (req, res) => {
         totalHours: totalHours,
         averageHoursPerTopic: totalTopics > 0 ? totalHours / totalTopics : 0,
         totalSessions: recentSessions.length,
-        averageSessionLength: recentSessions.length > 0 ? 
-          recentSessions.reduce((sum, s) => sum + s.hours_logged, 0) / recentSessions.length : 0,
+        averageSessionLength:
+          recentSessions.length > 0
+            ? recentSessions.reduce((sum, s) => sum + s.hours_logged, 0) / recentSessions.length
+            : 0,
       },
 
       // Detailed topic progress
@@ -466,7 +465,6 @@ router.get('/modules/:moduleId', authenticateToken, async (req, res) => {
 
 // PUT /progress/topics/:topicId/complete - Mark topic as completed
 router.put('/topics/:topicId/complete', authenticateToken, async (req, res) => {
-
   try {
     const topicId = parseInt(req.params.topicId);
     const { notes } = req.body;
@@ -603,7 +601,6 @@ router.get('/leaderboard', authenticateToken, async (req, res) => {
 
 // GET /progress/goals - Get user study goals (new feature)
 router.get('/goals', authenticateToken, async (req, res) => {
-
   try {
     const pool = await getPool();
     const request = pool.request();
@@ -744,7 +741,10 @@ function generateProgressTrend(progressData) {
 // Error handling middleware for database connection issues
 router.use((err, req, res, next) => {
   if (err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT') {
-    console.warn('Database connection issue detected, will reconnect on next request:', err.message);
+    console.warn(
+      'Database connection issue detected, will reconnect on next request:',
+      err.message
+    );
     // Reset the pool to force reconnection on next request
     pool = null;
     res.status(503).json({ error: 'Service temporarily unavailable, please try again' });

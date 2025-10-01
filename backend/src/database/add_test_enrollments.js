@@ -27,35 +27,35 @@ async function checkModulesAndAddEnrollments() {
 
     if (modulesResult.recordset.length === 0) {
       console.log('No modules found. Need to create some first.');
-      
+
       // Create some common modules that align with your courses
       console.log('\n🔧 Creating modules for Algorithms and general study topics...');
-      
+
       const modulesToCreate = [
         {
           code: 'CS736',
-          name: 'Algorithms123', 
+          name: 'Algorithms123',
           university: 'MIT',
-          description: 'Advanced algorithms and data structures'
+          description: 'Advanced algorithms and data structures',
         },
         {
           code: 'CS101',
           name: 'Introduction to Computer Science',
-          university: 'MIT', 
-          description: 'Basic programming and computer science concepts'
+          university: 'MIT',
+          description: 'Basic programming and computer science concepts',
         },
         {
           code: 'MATH201',
           name: 'Calculus and Linear Algebra',
           university: 'MIT',
-          description: 'Mathematical foundations for computer science'
+          description: 'Mathematical foundations for computer science',
         },
         {
           code: 'CS301',
           name: 'Data Structures',
           university: 'MIT',
-          description: 'Data structures and algorithms implementation'
-        }
+          description: 'Data structures and algorithms implementation',
+        },
       ];
 
       for (const module of modulesToCreate) {
@@ -71,7 +71,7 @@ async function checkModulesAndAddEnrollments() {
         `);
         console.log(`✅ Created module: ${module.name} (${module.code})`);
       }
-      
+
       // Re-fetch modules
       const newModulesResult = await new sql.Request().query(`
         SELECT module_id, module_code, module_name, university, description
@@ -80,19 +80,19 @@ async function checkModulesAndAddEnrollments() {
         ORDER BY module_name
       `);
       console.log(`\n📚 Available modules (${newModulesResult.recordset.length} total):`);
-      newModulesResult.recordset.forEach(module => {
+      newModulesResult.recordset.forEach((module) => {
         console.log(`- ${module.module_name} (${module.module_code}) - ID: ${module.module_id}`);
       });
     } else {
       console.log(`Found ${modulesResult.recordset.length} modules:`);
-      modulesResult.recordset.forEach(module => {
+      modulesResult.recordset.forEach((module) => {
         console.log(`- ${module.module_name} (${module.module_code}) - ID: ${module.module_id}`);
       });
     }
 
     // Now enroll test users in some of these modules
     console.log('\n🎓 Enrolling test users in modules...');
-    
+
     // Get the modules we want to use
     const moduleQuery = await new sql.Request().query(`
       SELECT module_id, module_code, module_name 
@@ -100,7 +100,7 @@ async function checkModulesAndAddEnrollments() {
       WHERE module_code IN ('CS736', 'CS101', 'MATH201', 'CS301') 
       AND is_active = 1
     `);
-    
+
     const modules = moduleQuery.recordset;
     console.log(`Found ${modules.length} modules to use for enrollment`);
 
@@ -108,20 +108,20 @@ async function checkModulesAndAddEnrollments() {
     const enrollments = [
       { userId: 'test_user_1', moduleCodes: ['CS736', 'CS301'] }, // Alice - Algorithms overlap
       { userId: 'test_user_2', moduleCodes: ['CS101', 'MATH201'] }, // Bob - Data Science
-      { userId: 'test_user_3', moduleCodes: ['CS736', 'CS101'] }, // Carol - CS overlap  
+      { userId: 'test_user_3', moduleCodes: ['CS736', 'CS101'] }, // Carol - CS overlap
       { userId: 'test_user_4', moduleCodes: ['MATH201'] }, // David - Math
-      { userId: 'test_user_5', moduleCodes: ['CS101', 'CS301'] }  // Emma - CS basics
+      { userId: 'test_user_5', moduleCodes: ['CS101', 'CS301'] }, // Emma - CS basics
     ];
 
     for (const enrollment of enrollments) {
       for (const moduleCode of enrollment.moduleCodes) {
-        const module = modules.find(m => m.module_code === moduleCode);
+        const module = modules.find((m) => m.module_code === moduleCode);
         if (module) {
           // Check if enrollment already exists
           const checkRequest = new sql.Request();
           checkRequest.input('userId', sql.NVarChar(255), enrollment.userId);
           checkRequest.input('moduleId', sql.Int, module.module_id);
-          
+
           const existingEnrollment = await checkRequest.query(`
             SELECT * FROM dbo.user_modules 
             WHERE user_id = @userId AND module_id = @moduleId
@@ -145,7 +145,6 @@ async function checkModulesAndAddEnrollments() {
     }
 
     console.log('\n🎉 Test users enrollment complete!');
-
   } catch (error) {
     console.error('❌ Error:', error);
   } finally {

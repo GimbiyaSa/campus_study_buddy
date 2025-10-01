@@ -24,9 +24,9 @@ async function testSharedCoursesQuery() {
       WHERE um.user_id = '113742007518690789243'
       ORDER BY m.module_name
     `);
-    
+
     console.log('Your enrolled modules:');
-    yourModules.recordset.forEach(module => {
+    yourModules.recordset.forEach((module) => {
       console.log(`- ${module.module_name} (${module.module_code}) - ID: ${module.module_id}`);
     });
 
@@ -47,25 +47,27 @@ async function testSharedCoursesQuery() {
     `);
 
     const userModuleMap = {};
-    testUserModules.recordset.forEach(row => {
+    testUserModules.recordset.forEach((row) => {
       if (!userModuleMap[row.name]) {
         userModuleMap[row.name] = [];
       }
       userModuleMap[row.name].push(`${row.module_name} (${row.module_code})`);
     });
 
-    Object.keys(userModuleMap).forEach(userName => {
+    Object.keys(userModuleMap).forEach((userName) => {
       console.log(`- ${userName}:`);
-      userModuleMap[userName].forEach(module => {
+      userModuleMap[userName].forEach((module) => {
         console.log(`  * ${module}`);
       });
     });
 
     // Now test the shared courses logic
     console.log('\n🔍 Testing shared courses query...');
-    const sharedCoursesTest = await new sql.Request()
-      .input('currentUserId', sql.NVarChar(255), '113742007518690789243')
-      .query(`
+    const sharedCoursesTest = await new sql.Request().input(
+      'currentUserId',
+      sql.NVarChar(255),
+      '113742007518690789243'
+    ).query(`
         SELECT 
           u.user_id,
           u.first_name + ' ' + u.last_name as name,
@@ -88,10 +90,9 @@ async function testSharedCoursesQuery() {
       `);
 
     console.log('Shared courses results:');
-    sharedCoursesTest.recordset.forEach(user => {
+    sharedCoursesTest.recordset.forEach((user) => {
       console.log(`- ${user.name}: ${user.sharedCourses || 'No shared courses'}`);
     });
-
   } catch (error) {
     console.error('❌ Error:', error);
   } finally {

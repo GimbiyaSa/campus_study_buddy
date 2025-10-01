@@ -1,78 +1,59 @@
 require('dotenv').config();
-const DatabaseSetup = require('./database_setup');
+const DatabaseConnection = require('./database_setup');
 
-async function setupCampusStudyBuddyDatabase() {
-  // Azure SQL Database configuration
-  const dbConfig = {
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    server: process.env.DB_SERVER,
-    database: process.env.DB_NAME || 'CampusStudyBuddy', // Add database name
-  };
-
-  console.log('Starting Campus Study Buddy Database Setup...\n');
-  console.log(`Connecting to: ${dbConfig.server}/${dbConfig.database}`);
-
-  const dbSetup = new DatabaseSetup(dbConfig);
+async function checkDatabaseHealth() {
+  // Use Azure configuration for database connection
+  let dbConfig;
 
   try {
-    // Step 1: Connect to Azure SQL Database
-    console.log('\nConnecting to SQL Server...');
-    await dbSetup.connect();
-
-    // Step 2: Create all tables and relationships
-    console.log('\nCreating database schema...');
-    await dbSetup.setupDatabase();
-
-    // Step 3: Verify the setup
-    console.log('\nVerifying database setup...');
-    const tables = await dbSetup.verifySetup();
-
-    // Step 4: Insert sample data (optional)
-    //const insertSampleData = process.argv.includes('--sample-data');
-    //if (insertSampleData) {
-    console.log('\nInserting sample data...');
-    await dbSetup.insertSampleData();
-    //}
-
-    // Step 5: Final success message
-    console.log('\nCampus Study Buddy database setup completed successfully!');
-    console.log('\nSummary:');
-    console.log(`   - Database: ${dbConfig.database}`);
-    console.log(`   - Tables created: ${tables.length}`);
-    //console.log(`   - Sample data: ${insertSampleData ? 'Inserted' : 'Skipped'}`);
-
-    /*if (!insertSampleData) {
-            console.log('\n💡 Tip: Run with --sample-data flag to insert sample data');
-            console.log('   Example: node setup-example.js --sample-data');
-        }*/
-
-    console.log('\nCampus Study Buddy platform is ready to use!');
+    const { azureConfig } = require('../config/azureConfig');
+    dbConfig = await azureConfig.getLegacyDatabaseConfig();
+    console.log('✅ Using Azure configuration for database health check');
   } catch (error) {
-    console.error('\nDatabase setup failed:', error.message);
-    //process.exit(1);
+    console.log('⚠️ Azure config not available, using environment variables');
+    dbConfig = {
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      server: process.env.DB_SERVER || 'csb-prod-sql-san-7ndjbzgu.database.windows.net',
+      database: process.env.DB_DATABASE || 'csb-prod-sqldb-7ndjbzgu',
+    };
+  }
+
+  console.log('Starting Database Health Check...\n');
+  console.log(
+    `Connecting to: ${dbConfig.server}/${dbConfig.database || 'csb-prod-sqldb-7ndjbzgu'}`
+  );
+
+  const dbConnection = new DatabaseConnection(dbConfig);
+
+  try {
+    await dbConnection.connect();
+    // Run a simple query to check DB health
+    if (typeof dbConnection.query === 'function') {
+      const result = await dbConnection.query('SELECT 1 AS ok');
+      const isHealthy =
+        result && result.recordset && result.recordset[0] && result.recordset[0].ok === 1;
+      if (isHealthy) {
+        console.log('\n✅ Database is healthy and ready!');
+      } else {
+        console.log('\n❌ Database health check failed');
+      }
+      return isHealthy;
+    } else {
+      console.log('\n✅ Connected to Azure SQL Database (no query method to check health)');
+      return true;
+    }
+  } catch (error) {
+    console.error('\n❌ Database connection failed:', error.message);
+    return false;
   } finally {
-    // Do NOT disconnect here if running as part of server startup
-    // await dbSetup.disconnect();
+    await dbConnection.disconnect();
   }
 }
 
-// Handle uncaught exceptions
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  //process.exit(1);
-});
-
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-  //process.exit(1);
-});
-
-// Run the setup
+// Run the health check only if called directly
 if (require.main === module) {
-  setupCampusStudyBuddyDatabase();
+  checkDatabaseHealth();
 }
 
-module.exports = {
-  setupCampusStudyBuddyDatabase,
-};
+module.exports = { checkDatabaseHealth };

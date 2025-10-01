@@ -13,6 +13,7 @@ class DatabaseSetup {
         user: config.user,
         password: config.password,
         server: config.server,
+        database: config.database, // Add database property
         options: {
           encrypt: true,
           enableArithAbort: true,
@@ -31,12 +32,48 @@ class DatabaseSetup {
 
   async connect() {
     try {
+      // First try to connect to the target database
       this.pool = await sql.connect(this.config);
-      console.log('Connected to Azure SQL Database successfully!');
+      console.log(`Connected to ${this.config.database || 'default'} database successfully!`);
       return this.pool;
     } catch (error) {
-      console.error('Database connection failed:', error);
+      console.error('Database connection failed:', error.message);
+      
+      // If the error indicates the database doesn't exist, try to create it
+      if (error.message.includes('Cannot open database') || error.message.includes('does not exist')) {
+        console.log('Database does not exist. Attempting to create it...');
+        await this.createDatabaseIfNotExists();
+        
+        // Try connecting again after database creation
+        this.pool = await sql.connect(this.config);
+        console.log(`Connected to ${this.config.database} database successfully!`);
+        return this.pool;
+      }
+      
       throw error;
+    }
+  }
+
+  async createDatabaseIfNotExists() {
+    try {
+      // Connect to master database to create the target database
+      const masterConfig = { ...this.config, database: 'master' };
+      const masterPool = await sql.connect(masterConfig);
+      
+      const createDbQuery = `
+        IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = '${this.config.database}')
+        BEGIN
+          CREATE DATABASE [${this.config.database}]
+        END
+      `;
+      
+      await masterPool.request().query(createDbQuery);
+      console.log(`Database '${this.config.database}' created successfully!`);
+      
+      await masterPool.close();
+    } catch (error) {
+      console.error('Error creating database:', error.message);
+      // Don't throw here - we'll try with the original config anyway
     }
   }
 

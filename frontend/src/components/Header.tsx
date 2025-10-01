@@ -179,7 +179,7 @@ export default function Header() {
     window.location.href = '/login';
   };
 
-  const handleUpdateProfile = async (updatedData: Partial<User>) => {
+  /*const handleUpdateProfile = async (updatedData: Partial<User>) => {
     if (!currentUser) return;
 
     try {
@@ -197,7 +197,7 @@ export default function Header() {
     } catch (err) {
       console.error('Error updating profile:', err);
     }
-  };
+  };*/
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
@@ -385,150 +385,6 @@ export default function Header() {
         onConfirm={handleLogoutConfirm}
       />
     </>
-  );
-}
-
-function ProfileModal({
-  open,
-  onClose,
-  user: userParam,
-  onUpdate,
-}: {
-  open: boolean;
-  onClose: () => void;
-  user: User | null;
-  onUpdate: (data: Partial<User>) => void;
-}) {
-  const [formData, setFormData] = useState({
-    first_name: '',
-    last_name: '',
-    email: '',
-    course: '',
-    year_of_study: 1,
-    university: '',
-  });
-
-  useLayoutEffect(() => {
-    if (userParam && open) {
-      setFormData({
-        first_name: userParam.first_name,
-        last_name: userParam.last_name,
-        email: userParam.email,
-        course: userParam.course,
-        year_of_study: userParam.year_of_study,
-        university: userParam.university,
-      });
-    }
-  }, [userParam, open]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onUpdate(formData);
-  };
-
-  if (!open || !userParam) return null;
-
-  return createPortal(
-    <>
-      <div className="fixed inset-0 z-[9998] bg-black/40" onClick={onClose} />
-      <div className="fixed inset-0 z-[9999] grid place-items-center p-4">
-        <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl border border-gray-100 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">Edit Profile</h2>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
-                <input
-                  type="text"
-                  value={formData.first_name}
-                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
-                <input
-                  type="text"
-                  value={formData.last_name}
-                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Course</label>
-              <input
-                type="text"
-                value={formData.course}
-                onChange={(e) => setFormData({ ...formData, course: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Year of Study</label>
-              <select
-                value={formData.year_of_study}
-                onChange={(e) =>
-                  setFormData({ ...formData, year_of_study: parseInt(e.target.value) })
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500"
-              >
-                {[1, 2, 3, 4, 5].map((year) => (
-                  <option key={year} value={year}>
-                    Year {year}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">University</label>
-              <input
-                type="text"
-                value={formData.university}
-                onChange={(e) => setFormData({ ...formData, university: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500"
-                required
-              />
-            </div>
-
-            <div className="flex gap-3 pt-4">
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="flex-1 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600"
-              >
-                Save Changes
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </>,
-    document.body
   );
 }
 

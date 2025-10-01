@@ -130,7 +130,9 @@ const schedule24hRemindersForSession = async (sessionId) => {
           row.user_id,
           'session_reminder',
           'Study Session Reminder',
-          `Reminder: "${row.session_title}" in ${row.group_name || 'your schedule'} starts ${start.toLocaleString()}.`,
+          `Reminder: "${row.session_title}" in ${
+            row.group_name || 'your schedule'
+          } starts ${start.toLocaleString()}.`,
           {
             session_id: row.session_id,
             group_id: row.group_id ?? null,

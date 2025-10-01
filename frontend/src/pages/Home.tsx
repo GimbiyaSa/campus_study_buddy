@@ -1,11 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { LogIn } from 'lucide-react';
 import { navigate } from '../router';
 import { useUser } from '../contexts/UserContext';
 import logo from '../assets/logo.jpg';
 import { buildApiUrl } from '../utils/url';
 
-export default function Login() {
+export default function Home() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,6 +43,8 @@ export default function Login() {
 
           setSubmitting(true);
           try {
+            // Save token to localStorage for persistence
+            localStorage.setItem('google_id_token', idToken);
             const res = await fetch(buildApiUrl('/api/v1/users/me'), {
               method: 'GET',
               headers: { Authorization: 'Bearer ' + idToken },
@@ -59,6 +60,7 @@ export default function Login() {
             navigate('/dashboard');
           } catch (err: any) {
             setError(err?.message || 'Google sign-in failed');
+            localStorage.removeItem('google_id_token');
           } finally {
             setSubmitting(false);
           }
@@ -74,33 +76,6 @@ export default function Login() {
     }
   }, []);
 
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setSubmitting(true);
-    try {
-      // Mock user matching the database test user created by seed script
-      const mockUser = {
-        user_id: 13, // This matches the user_id from the database
-        email: 'test.user@example.com',
-        first_name: 'Test',
-        last_name: 'User',
-        university: 'DevUniversity',
-        course: 'Computer Science',
-        year_of_study: 3,
-        profile_image_url: undefined,
-        is_active: true
-      };
-      
-      // Use the login function from UserContext
-      login(mockUser);
-      navigate('/dashboard');
-    } catch (err: any) {
-      setError(err?.message || 'Login failed');
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   return (
     <main className="min-h-[calc(100vh-64px)]">
@@ -119,30 +94,17 @@ export default function Login() {
               </p>
             </div>
 
-            <form onSubmit={handleLogin} className="grid gap-4" noValidate>
-              {/* Google Sign-In button container (rendered by Google's JS) */}
-              <div className="mt-3" ref={googleBtnRef}></div>
+            {/* Google Sign-In button container (rendered by Google's JS) */}
+            <div className="mt-3" ref={googleBtnRef}></div>
 
-              {/* Temporary bypass button for testing - remove when Google auth is working */}
-              <button
-                type="submit"
-                disabled={submitting}
-                aria-busy={submitting || undefined}
-                className="mt-2 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 font-medium text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
+            {error && (
+              <div
+                role="status"
+                className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
               >
-                <LogIn className="h-4 w-4" />
-                {submitting ? 'Logging in…' : 'Login'}
-              </button>
-
-              {error && (
-                <div
-                  role="status"
-                  className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
-                >
-                  {error}
-                </div>
-              )}
-            </form>
+                {error}
+              </div>
+            )}
           </section>
 
           <aside className="overflow-hidden">

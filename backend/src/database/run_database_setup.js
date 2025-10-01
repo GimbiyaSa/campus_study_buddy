@@ -26,16 +26,20 @@ async function checkDatabaseHealth() {
 
   try {
     await dbConnection.connect();
-    const isHealthy = await dbConnection.checkHealth();
-    
-    if (isHealthy) {
-      console.log('\n✅ Database is healthy and ready!');
+    // Run a simple query to check DB health
+    if (typeof dbConnection.query === 'function') {
+      const result = await dbConnection.query('SELECT 1 AS ok');
+      const isHealthy = result && result.recordset && result.recordset[0] && result.recordset[0].ok === 1;
+      if (isHealthy) {
+        console.log('\n✅ Database is healthy and ready!');
+      } else {
+        console.log('\n❌ Database health check failed');
+      }
+      return isHealthy;
     } else {
-      console.log('\n❌ Database health check failed');
+      console.log('\n✅ Connected to Azure SQL Database (no query method to check health)');
+      return true;
     }
-    
-    return isHealthy;
-    
   } catch (error) {
     console.error('\n❌ Database connection failed:', error.message);
     return false;

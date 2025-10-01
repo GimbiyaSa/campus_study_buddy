@@ -13,7 +13,6 @@ const initializeWebPubSub = async () => {
     try {
       const { azureConfig } = require('../config/azureConfig');
       serviceClient = await azureConfig.getWebPubSubClient();
-      console.log('✅ Connected to Azure Web PubSub (via Azure Config)');
     } catch (azureError) {
       console.warn('Azure config not available, using environment variables');
       serviceClient = new WebPubSubServiceClient(
@@ -37,13 +36,11 @@ const initializeDatabase = async () => {
       const { azureConfig } = require('../config/azureConfig');
       const dbConfig = await azureConfig.getDatabaseConfig();
       pool = await sql.connect(dbConfig);
-      console.log('✅ Connected to Azure SQL Database for Chat Service (via Azure Config)');
     } catch (azureError) {
       console.warn('Azure config not available, using environment variables');
       // Fallback to connection string
       if (process.env.DATABASE_CONNECTION_STRING) {
         pool = await sql.connect(process.env.DATABASE_CONNECTION_STRING);
-        console.log('✅ Connected to Azure SQL Database for Chat Service (via connection string)');
       } else {
         throw new Error('DATABASE_CONNECTION_STRING not found in environment variables');
       }

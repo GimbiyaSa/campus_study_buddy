@@ -439,7 +439,17 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
 export class DataService {
   private static authHeaders(): Headers {
     const h = new Headers();
-    const raw = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    // Check for both 'google_id_token' (Google Auth) and 'token' (fallback)
+    const googleToken = typeof window !== 'undefined' ? localStorage.getItem('google_id_token') : null;
+    const generalToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const raw = googleToken || generalToken;
+    
+    console.log('🔍 Auth token check:', {
+      googleToken: googleToken ? `${googleToken.substring(0, 20)}...` : null,
+      generalToken: generalToken ? `${generalToken.substring(0, 20)}...` : null,
+      selectedToken: raw ? `${raw.substring(0, 20)}...` : null
+    });
+    
     if (raw) {
       let t = raw;
       try {
@@ -450,8 +460,16 @@ export class DataService {
         .replace(/^["']|["']$/g, '')
         .replace(/^Bearer\s+/i, '')
         .trim();
-      if (t) h.set('Authorization', `Bearer ${t}`);
+      if (t) {
+        h.set('Authorization', `Bearer ${t}`);
+        console.log('✅ Authorization header set');
+      } else {
+        console.warn('⚠️ Token was empty after processing');
+      }
+    } else {
+      console.warn('⚠️ No authentication token found in localStorage');
     }
+    
     return h;
   }
 
@@ -468,13 +486,18 @@ export class DataService {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
         
+        const authHeaders = Object.fromEntries(this.authHeaders().entries());
+        const finalHeaders = {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+          ...options.headers,
+        };
+        
+        console.log('📡 Final request headers:', finalHeaders);
+        
         const response = await fetch(url, {
           ...options,
-          headers: {
-            'Content-Type': 'application/json',
-            ...this.authHeaders(),
-            ...options.headers,
-          },
+          headers: finalHeaders,
           credentials: 'include',
           signal: controller.signal,
         });
@@ -517,24 +540,36 @@ export class DataService {
       
       const url = buildApiUrl(`/api/v1/courses${params.toString() ? `?${params.toString()}` : ''}`);
       console.log('🎓 Fetching courses from:', url);
+      console.log('🔑 Auth headers:', this.authHeaders());
       
       const res = await this.fetchWithRetry(url);
-      const data = await res.json();
-
-      console.log('✅ Courses loaded successfully:', data);
+      console.log('📡 Response status:', res.status, res.statusText);
       
+      const data = await res.json();
+      console.log('📦 Response data:', data);
+
       // Handle both paginated and non-paginated responses
+      let courses: Course[] = [];
       if (data.courses) {
-        return data.courses; // Paginated response
+        courses = data.courses; // Paginated response
       } else if (Array.isArray(data)) {
-        return data; // Direct array response (backwards compatibility)
+        courses = data; // Direct array response (backwards compatibility)
       } else {
-        throw new Error('Invalid response format');
+        console.warn('⚠️ Unexpected response format:', data);
+        courses = []; // Default to empty array for unexpected formats
       }
+
+      console.log('✅ Courses processed successfully:', courses.length, 'courses');
+      return courses;
     } catch (error) {
-      console.error('❌ fetchCourses error:', error);
-      const appError = ErrorHandler.handleApiError(error, 'courses');
-      throw appError;
+      console.error('❌ fetchCourses error details:', {
+        error,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      
+      // Re-throw the error so the component can handle it
+      throw error;
     }
   }
 
@@ -600,6 +635,64 @@ export class DataService {
       return data;
     } catch (error) {
       console.error('❌ fetchPartners error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'partners');
+      throw appError;
+    }
+  }
+
+  static async searchPartners(params?: {
+    subjects?: string[];
+    studyStyle?: string;
+    groupSize?: string;
+    availability?: string[];
+    university?: string;
+    search?: string;
+  }): Promise<StudyPartner[]> {
+    try {
+      const queryParams = new URLSearchParams();
+      
+      if (params?.subjects?.length) {
+        queryParams.append('subjects', params.subjects.join(','));
+      }
+      if (params?.studyStyle) {
+        queryParams.append('studyStyle', params.studyStyle);
+      }
+      if (params?.groupSize) {
+        queryParams.append('groupSize', params.groupSize);
+      }
+      if (params?.availability?.length) {
+        queryParams.append('availability', params.availability.join(','));
+      }
+      if (params?.university) {
+        queryParams.append('university', params.university);
+      }
+      if (params?.search) {
+        queryParams.append('search', params.search);
+      }
+
+      const url = buildApiUrl(`/api/v1/partners/search?${queryParams.toString()}`);
+      const res = await this.fetchWithRetry(url);
+      const data = await res.json();
+      console.log('🔍 Partner search results:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ searchPartners error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'partners');
+      throw appError;
+    }
+  }
+
+  static async sendBuddyRequest(recipientId: string, message?: string): Promise<void> {
+    try {
+      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/partners/request'), {
+        method: 'POST',
+        body: JSON.stringify({ recipientId, message })
+      });
+      const data = await res.json();
+      console.log('🤝 Buddy request sent:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ sendBuddyRequest error:', error);
       const appError = ErrorHandler.handleApiError(error, 'partners');
       throw appError;
     }

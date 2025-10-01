@@ -23,13 +23,11 @@ const initializeDatabase = async () => {
       const { azureConfig } = require('../config/azureConfig');
       const dbConfig = await azureConfig.getDatabaseConfig();
       pool = await sql.connect(dbConfig);
-      console.log('✅ Connected to Azure SQL Database for Course Service (via Azure Config)');
     } catch (azureError) {
       console.warn('Azure config not available, using environment variables');
       // Fallback to connection string
       if (process.env.DATABASE_CONNECTION_STRING) {
         pool = await sql.connect(process.env.DATABASE_CONNECTION_STRING);
-        console.log('✅ Connected to Azure SQL Database for Course Service (via connection string)');
       } else {
         throw new Error('DATABASE_CONNECTION_STRING not found in environment variables');
       }
@@ -57,20 +55,25 @@ const setParameter = (request, name, type, value) => {
 // Helper function to check for duplicate courses
 const checkDuplicateCourse = async (transaction, userId, moduleName, moduleCode = null) => {
   const request = new sql.Request(transaction);
-  request.input('userId', sql.Int, userId);
+  request.input('userId', sql.NVarChar(255), userId);
   request.input('moduleName', sql.NVarChar(255), moduleName.trim());
   
   let query = `
     SELECT m.module_name, m.module_code, m.university
     FROM dbo.modules m
     INNER JOIN dbo.user_modules um ON m.module_id = um.module_id
-    WHERE m.module_name = @moduleName AND um.user_id = @userId
+    WHERE um.user_id = @userId AND (
+      LOWER(TRIM(m.module_name)) = LOWER(TRIM(@moduleName))
   `;
   
-  if (moduleCode) {
-    request.input('moduleCode', sql.NVarChar(50), moduleCode);
-    query += ` OR (m.module_code = @moduleCode AND um.user_id = @userId)`;
+  if (moduleCode && moduleCode.trim()) {
+    // Clean the provided module code (remove any existing suffix)
+    const cleanCode = moduleCode.trim().replace(/_[a-zA-Z0-9]{3,}$/, '');
+    request.input('moduleCode', sql.NVarChar(50), cleanCode);
+    query += ` OR LOWER(REPLACE(m.module_code, '_' + RIGHT(m.module_code, CHARINDEX('_', REVERSE(m.module_code)) - 1), '')) = LOWER(@moduleCode)`;
   }
+  
+  query += `)`;
   
   const result = await request.query(query);
   return result.recordset;
@@ -96,11 +99,11 @@ router.get(
       // Debug logging
       console.log('🔍 Course search params:', { search, sortBy, sortOrder, page, limit });
       
-      const pool = await getPool();
-      const request = pool.request();
-      request.input('userId', sql.Int, req.user.id);
-      request.input('offset', sql.Int, offset);
-      request.input('limit', sql.Int, parseInt(limit));
+  const pool = await getPool();
+  const request = pool.request();
+  request.input('userId', sql.NVarChar(255), req.user.id);
+  request.input('offset', sql.Int, offset);
+  request.input('limit', sql.Int, parseInt(limit));
 
       // Build search conditions
       let searchCondition = '';
@@ -178,8 +181,20 @@ router.get(
       }
 
       // Add ordering and pagination
+      const getOrderByClause = (sortField) => {
+        switch (sortField) {
+          case 'progress':
+            return 'progress';
+          case 'module_name':
+            return 'm.module_name';
+          case 'enrolled_at':
+          default:
+            return 'um.enrolled_at';
+        }
+      };
+      
       baseQuery += `
-            ORDER BY ${safeSortBy === 'progress' ? 'progress' : `um.${safeSortBy}`} ${safeSortOrder}
+            ORDER BY ${getOrderByClause(safeSortBy)} ${safeSortOrder}
             OFFSET @offset ROWS
             FETCH NEXT @limit ROWS ONLY
       `;
@@ -198,7 +213,7 @@ router.get(
 
       // Get total count for pagination
       const countRequest = pool.request();
-      countRequest.input('userId', sql.Int, req.user.id);
+      countRequest.input('userId', sql.NVarChar(255), req.user.id);
       if (search && search.trim() !== '') {
         countRequest.input('search', sql.NVarChar(255), `%${search.trim()}%`);
       }
@@ -285,8 +300,8 @@ router.post(
         return res.status(400).json({ error: 'Description is required for casual topic' });
       }
 
-      const pool = await getPool();
-      const transaction = new sql.Transaction(pool);
+  const pool = await getPool();
+  const transaction = new sql.Transaction(pool);
 
       try {
         await transaction.begin();
@@ -322,8 +337,12 @@ router.post(
           if (duplicates.length > 0) {
             await transaction.rollback();
             const existing = duplicates[0];
+            const courseType = type === 'institution' ? 'course' : 'topic';
+            const codeInfo = existing.module_code && !existing.module_code.startsWith('CUSTOM_') && !existing.module_code.startsWith('CASUAL_') 
+              ? ` (${existing.module_code.replace(/_[a-zA-Z0-9]{3,}$/, '')})` 
+              : '';
             return res.status(409).json({ 
-              error: `You already have a course named "${existing.module_name}"${existing.module_code ? ` (${existing.module_code})` : ''} at ${existing.university}. Please choose a different name.` 
+              error: `You already have a ${courseType} named "${existing.module_name}"${codeInfo}. Please choose a different name or code.` 
             });
           }
 
@@ -334,8 +353,10 @@ router.post(
             SELECT COUNT(*) as count FROM dbo.modules WHERE module_code = @checkCode
           `);
           let finalCode = uniqueCode;
+          // Only add suffix if the EXACT same code already exists
           if (codeCheck.recordset[0].count > 0) {
-            finalCode = `${uniqueCode}_${Math.random().toString(36).substr(2, 5)}`;
+            // Use a simpler, cleaner suffix format
+            finalCode = `${uniqueCode}_${Date.now().toString().slice(-3)}`;
           }
 
           // Use helper function for better parameter management
@@ -362,7 +383,7 @@ router.post(
           if (duplicates.length > 0) {
             await transaction.rollback();
             return res.status(409).json({ 
-              error: `You already have a casual topic named "${title.trim()}". Please choose a different name.` 
+              error: `You already have a topic named "${title.trim()}". Please choose a different name.` 
             });
           }
 
@@ -384,9 +405,9 @@ router.post(
         }
 
         // Check if user is already enrolled
-        const enrollmentCheckRequest = new sql.Request(transaction);
-        enrollmentCheckRequest.input('userId', sql.Int, req.user.id);
-        enrollmentCheckRequest.input('moduleId', sql.Int, finalModuleId);
+  const enrollmentCheckRequest = new sql.Request(transaction);
+  enrollmentCheckRequest.input('userId', sql.NVarChar(255), req.user.id);
+  enrollmentCheckRequest.input('moduleId', sql.Int, finalModuleId);
 
         const enrollmentCheck = await enrollmentCheckRequest.query(`
                 SELECT um.user_module_id, m.module_name, m.module_code 
@@ -404,9 +425,9 @@ router.post(
         }
 
         // Enroll user in the module
-        const enrollRequest = new sql.Request(transaction);
-        enrollRequest.input('userId', sql.Int, req.user.id);
-        enrollRequest.input('moduleId', sql.Int, finalModuleId);
+  const enrollRequest = new sql.Request(transaction);
+  enrollRequest.input('userId', sql.NVarChar(255), req.user.id);
+  enrollRequest.input('moduleId', sql.Int, finalModuleId);
 
 
         await enrollRequest.query(`
@@ -465,7 +486,7 @@ router.put(
 
       const pool = await getPool();
       const request = pool.request();
-      request.input('userId', sql.Int, req.user.id);
+      request.input('userId', sql.NVarChar(255), req.user.id);
       request.input('moduleId', sql.Int, moduleId);
 
       // Check if enrollment exists
@@ -494,7 +515,7 @@ router.put(
 
       // Get updated module data with progress
       const updatedRequest = pool.request();
-      updatedRequest.input('userId', sql.Int, req.user.id);
+      updatedRequest.input('userId', sql.NVarChar(255), req.user.id);
       updatedRequest.input('moduleId', sql.Int, moduleId);
 
       const updatedResult = await updatedRequest.query(`
@@ -565,7 +586,7 @@ router.delete(
 
       const pool = await getPool();
       const request = pool.request();
-      request.input('userId', sql.Int, req.user.id);
+      request.input('userId', sql.NVarChar(255), req.user.id);
       request.input('moduleId', sql.Int, moduleId);
 
       // Check if enrollment exists and get course details
@@ -606,7 +627,7 @@ router.get('/test-search', async (req, res) => {
   try {
     const pool = await getPool();
     const request = pool.request();
-    request.input('userId', sql.Int, 13);
+    request.input('userId', sql.NVarChar(255), '13'); // This should be dynamic in real usage
     
     let query = `
       SELECT m.module_name, m.module_code, m.description 
@@ -639,7 +660,7 @@ router.get('/debug', authenticateToken, async (req, res) => {
   try {
     const pool = await getPool();
     const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
+    request.input('userId', sql.NVarChar(255), req.user.id);
 
     const query = `
       SELECT 
@@ -679,7 +700,7 @@ router.get('/available', authenticateToken, async (req, res) => {
 
     const pool = await getPool();
     const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
+    request.input('userId', sql.NVarChar(255), req.user.id);
 
     let whereClause = 'WHERE m.is_active = 1';
 
@@ -740,7 +761,7 @@ router.get('/:id/topics', authenticateToken, async (req, res) => {
 
     const pool = await getPool();
     const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
+    request.input('userId', sql.NVarChar(255), req.user.id);
     request.input('moduleId', sql.Int, moduleId);
 
     // Verify user is enrolled in this module

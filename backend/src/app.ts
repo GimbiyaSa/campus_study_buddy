@@ -78,13 +78,22 @@ process.on('unhandledRejection', (reason, promise) => {
   try {
     // Initialize Azure services first
     console.log('🔄 Initializing Azure services...');
-    const azureHealth = await azureConfig.healthCheck();
-    console.log('Azure Services Status:', azureHealth);
-    
-    // Skip database setup during normal startup
-    console.log('⚠️ Database setup skipped (tables already exist)');
-    console.log('💡 To setup database manually, run: node src/database/run_database_setup.js');
-    
+    // Check all connections first, then print logs in order
+    let dbOk = false, storageOk = false, pubsubOk = false;
+    try { await azureConfig.getDatabaseConfig(); dbOk = true; } catch {}
+    try { await azureConfig.getBlobServiceClient(); storageOk = true; } catch {}
+    try { await azureConfig.getWebPubSubClient(); pubsubOk = true; } catch {}
+
+    // Print logs in order, only once each
+    if (dbOk) console.log('✅ Connected to Azure SQL (via Azure Config)');
+    else console.warn('⚠️ Could not connect to Azure SQL');
+    if (storageOk) console.log('✅ Connected to Azure Storage (via Azure Config)');
+    else console.warn('⚠️ Could not connect to Azure Storage');
+    if (pubsubOk) console.log('✅ Connected to Azure Web PubSub (via Azure Config)');
+    else console.warn('⚠️ Could not connect to Azure Web PubSub');
+
+    // Now run healthCheck, but do not log again
+    await azureConfig.healthCheck();
   } catch (error) {
     console.error('Error during initialization:', error);
   }
@@ -118,12 +127,5 @@ app.use((error: any, req: Request, res: Response, next: NextFunction) => {
     message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong',
   });
 });
-
-/*const PORT = process.env.PORT || 3000;
-if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => {
-    console.log(`Study Buddy API server running on port ${PORT}`);
-  });
-}*/
 
 export default app;

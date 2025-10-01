@@ -46,13 +46,11 @@ const initializeDatabase = async () => {
       const { azureConfig } = require('../config/azureConfig');
       const dbConfig = await azureConfig.getDatabaseConfig();
       pool = await sql.connect(dbConfig);
-      console.log('✅ Connected to Azure SQL Database for Progress Service (via Azure Config)');
     } catch (azureError) {
       console.warn('Azure config not available, using environment variables');
       // Fallback to connection string
       if (process.env.DATABASE_CONNECTION_STRING) {
         pool = await sql.connect(process.env.DATABASE_CONNECTION_STRING);
-        console.log('✅ Connected to Azure SQL Database for Progress Service (via connection string)');
       } else {
         throw new Error('DATABASE_CONNECTION_STRING not found in environment variables');
       }
@@ -93,7 +91,7 @@ router.post('/sessions', authenticateToken, async (req, res) => {
       // If moduleId is provided, verify user is enrolled
       if (moduleId) {
         const enrollmentCheck = new sql.Request(transaction);
-        enrollmentCheck.input('userId', sql.Int, req.user.id);
+        enrollmentCheck.input('userId', sql.NVarChar(255), req.user.id);
         enrollmentCheck.input('moduleId', sql.Int, moduleId);
 
         const enrollment = await enrollmentCheck.query(`
@@ -109,7 +107,7 @@ router.post('/sessions', authenticateToken, async (req, res) => {
 
       // Log study hours
       const studyHoursRequest = new sql.Request(transaction);
-      studyHoursRequest.input('userId', sql.Int, req.user.id);
+      studyHoursRequest.input('userId', sql.NVarChar(255), req.user.id);
       studyHoursRequest.input('moduleId', sql.Int, moduleId || null);
       studyHoursRequest.input(
         'topicId',
@@ -134,7 +132,7 @@ router.post('/sessions', authenticateToken, async (req, res) => {
       if (topicIds && topicIds.length > 0) {
         for (const topicId of topicIds) {
           const progressRequest = new sql.Request(transaction);
-          progressRequest.input('userId', sql.Int, req.user.id);
+          progressRequest.input('userId', sql.NVarChar(255), req.user.id);
           progressRequest.input('topicId', sql.Int, topicId);
 
           // Check if topic-level progress record exists (chapter_id IS NULL means topic-level)
@@ -222,7 +220,7 @@ router.get('/analytics', authenticateToken, async (req, res) => {
 
     const pool = await getPool();
     const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
+    request.input('userId', sql.NVarChar(255), req.user.id);
     request.input('daysBack', sql.Int, daysBack);
 
     let moduleFilter = '';
@@ -333,7 +331,7 @@ router.get('/modules/:moduleId', authenticateToken, async (req, res) => {
 
     const pool = await getPool();
     const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
+    request.input('userId', sql.NVarChar(255), req.user.id);
     request.input('moduleId', sql.Int, moduleId);
 
     // Verify enrollment
@@ -481,7 +479,7 @@ router.put('/topics/:topicId/complete', authenticateToken, async (req, res) => {
 
       // Verify user has access to this topic (through module enrollment)
       const accessCheck = new sql.Request(transaction);
-      accessCheck.input('userId', sql.Int, req.user.id);
+      accessCheck.input('userId', sql.NVarChar(255), req.user.id);
       accessCheck.input('topicId', sql.Int, topicId);
 
       const access = await accessCheck.query(`
@@ -501,7 +499,7 @@ router.put('/topics/:topicId/complete', authenticateToken, async (req, res) => {
 
       // Update or create progress record
       const progressRequest = new sql.Request(transaction);
-      progressRequest.input('userId', sql.Int, req.user.id);
+      progressRequest.input('userId', sql.NVarChar(255), req.user.id);
       progressRequest.input('topicId', sql.Int, topicId);
       progressRequest.input('notes', sql.NText, notes || '');
 
@@ -609,7 +607,7 @@ router.get('/goals', authenticateToken, async (req, res) => {
   try {
     const pool = await getPool();
     const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
+    request.input('userId', sql.NVarChar(255), req.user.id);
 
     // Get current week and month progress
     const progressQuery = `

@@ -96,7 +96,8 @@ export default function Partners() {
       setLoading(true);
       setError(null);
       try {
-        const data = await DataService.fetchPartners();
+        // Use search endpoint to find potential new partners
+        const data = await DataService.searchPartners();
         if (mounted) {
           // Top suggestions based on compatibility score
           const topSuggestions = data
@@ -119,11 +120,11 @@ export default function Partners() {
       setPartnersLoading(true);
       setPartnersError(null);
       try {
+        // Fetch existing buddies (accepted connections)
         const data = await DataService.fetchPartners();
         if (mounted) {
-          // Filter connected partners
-          const connectedBuddies = data.filter(p => p.connectionStatus === 'connected');
-          setBuddies(connectedBuddies);
+          // These are already connected buddies from the backend
+          setBuddies(data);
         }
       } catch (err) {
         if (mounted) {

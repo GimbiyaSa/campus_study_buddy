@@ -11,9 +11,12 @@ export class AzureConfigService {
   private webPubSubClient: WebPubSubServiceClient | null = null;
   private sqlConfig: sql.config | null = null;
   private secretCache: Map<string, { value: string; expiry: number }> = new Map();
+  private loggedSecrets: Set<string> = new Set();
+  private initialized = false;
+  private initPromise: Promise<void> | null = null;
 
   private constructor() {
-    this.initializeClients();
+    // Intentionally minimal constructor. Async init happens lazily.
   }
 
   public static getInstance(): AzureConfigService {
@@ -23,46 +26,70 @@ export class AzureConfigService {
     return AzureConfigService.instance;
   }
 
-  private async initializeClients() {
+  private async initializeClients(): Promise<void> {
+    // make initialization idempotent
+    if (this.initialized) return;
+
     try {
-      // Use Key Vault for production, environment variables for development
-      const keyVaultName = process.env.KEY_VAULT_NAME || 'csb-prod-kv-san-7ndjbzgu';
-      
-      if (this.isRunningInAzure() && keyVaultName) {
-        const keyVaultUrl = `https://${keyVaultName}.vault.azure.net/`;
-        const credential = new DefaultAzureCredential();
-        this.secretClient = new SecretClient(keyVaultUrl, credential);
-        console.log('✅ Azure Key Vault client initialized');
+      const keyVaultName = process.env.KEY_VAULT_NAME; // do NOT default to a production name
+
+      if (keyVaultName) {
+        // Initialize Key Vault client and let DefaultAzureCredential try the
+        // available auth mechanisms (Managed Identity in Azure, Azure CLI locally,
+        // environment variables for service principals, etc.). This is more
+        // flexible for local dev where `az login` can provide a credential.
+        try {
+          const keyVaultUrl = `https://${keyVaultName}.vault.azure.net/`;
+          const credential = new DefaultAzureCredential();
+          this.secretClient = new SecretClient(keyVaultUrl, credential);
+          console.info('[AzureConfig] Azure Key Vault client initialized');
+        } catch (innerErr) {
+          console.warn('[AzureConfig] Failed to initialize Key Vault client:', innerErr);
+          // fall through to env var fallback
+          this.secretClient = null;
+        }
       } else {
-        console.log('🔧 Using environment variables for secrets (development mode)');
+        console.info('[AzureConfig] No KEY_VAULT_NAME configured; using env vars');
       }
     } catch (error) {
-      console.warn('⚠️ Azure Key Vault not available, using environment variables:', error);
+      console.warn('[AzureConfig] Key Vault initialization encountered an error, falling back to env vars');
+    } finally {
+      this.initialized = true;
     }
+  }
+
+  private ensureInitialized(): Promise<void> {
+    if (this.initialized) return Promise.resolve();
+    if (!this.initPromise) {
+      this.initPromise = this.initializeClients();
+    }
+    return this.initPromise;
   }
 
   private async getSecret(secretName: string): Promise<string> {
     // Check cache first
     const cached = this.secretCache.get(secretName);
     if (cached && cached.expiry > Date.now()) {
+      // Do not log on cache hit
       return cached.value;
     }
 
-    try {
-      if (this.secretClient) {
+    await this.ensureInitialized();
+
+    // Try Key Vault first (if available)
+    if (this.secretClient) {
+      try {
         const secret = await this.secretClient.getSecret(secretName);
         const value = secret.value || '';
-        
-        // Cache for 5 minutes
-        this.secretCache.set(secretName, {
-          value,
-          expiry: Date.now() + 5 * 60 * 1000
-        });
-        
+        this.secretCache.set(secretName, { value, expiry: Date.now() + 5 * 60 * 1000 });
+        if (!this.loggedSecrets.has(secretName)) {
+          console.info(`[AzureConfig] Secret ${secretName} loaded from Key Vault`);
+          this.loggedSecrets.add(secretName);
+        }
         return value;
+      } catch (error) {
+        console.warn('[AzureConfig] Failed to get secret from Key Vault:', secretName);
       }
-    } catch (error) {
-      console.warn(`Failed to get secret ${secretName} from Key Vault:`, error);
     }
 
     // Fallback to environment variables
@@ -70,28 +97,33 @@ export class AzureConfigService {
       'database-connection-string': 'DATABASE_CONNECTION_STRING',
       'storage-connection-string': 'AZURE_STORAGE_CONNECTION_STRING',
       'web-pubsub-connection-string': 'WEB_PUBSUB_CONNECTION_STRING',
-      'jwt-secret': 'JWT_SECRET'
     };
 
     const envVar = envMap[secretName];
-    let value = process.env[envVar] || '';
+    let value = envVar ? (process.env[envVar] || '') : '';
 
-    // For development, construct connection string from individual parts if not provided
+    // For development, optionally construct DB connection string from parts if provided
     if (!value && secretName === 'database-connection-string') {
-      const server = process.env.DB_SERVER || 'csb-prod-sql-san-7ndjbzgu.database.windows.net';
-      const database = process.env.DB_DATABASE || 'csb-prod-sqldb-7ndjbzgu';
+      const server = process.env.DB_SERVER;
+      const database = process.env.DB_DATABASE;
       const user = process.env.DB_USER;
       const password = process.env.DB_PASSWORD;
-      
+
       if (server && database && user && password) {
-        value = `Server=${server};Database=${database};User Id=${user};Password=${password};Encrypt=true;TrustServerCertificate=false`;
+        value = `Server=${server};Database=${database};User Id=${user};Password=${password};Encrypt=true;TrustServerCertificate=${process.env.NODE_ENV === 'development'}`;
       }
     }
-    
+
     if (!value) {
       throw new Error(`Secret ${secretName} not found in Key Vault or environment variables`);
     }
 
+    // cache and return
+    this.secretCache.set(secretName, { value, expiry: Date.now() + 5 * 60 * 1000 });
+    if (!this.loggedSecrets.has(secretName)) {
+      console.info(`[AzureConfig] Secret ${secretName} loaded from environment variable ${envVar || 'constructed value'}`);
+      this.loggedSecrets.add(secretName);
+    }
     return value;
   }
 
@@ -100,14 +132,10 @@ export class AzureConfigService {
       return this.sqlConfig;
     }
 
-    try {
-      const connectionString = await this.getSecret('database-connection-string');
-      this.sqlConfig = this.parseConnectionString(connectionString);
-      return this.sqlConfig;
-    } catch (error) {
-      console.error('Failed to get database config:', error);
-      throw error;
-    }
+    const connectionString = await this.getSecret('database-connection-string');
+    // Secret source is already logged by getSecret(); no need to print the value here.
+    this.sqlConfig = this.parseConnectionString(connectionString);
+    return this.sqlConfig;
   }
 
   // Legacy method to support existing database setup
@@ -115,24 +143,24 @@ export class AzureConfigService {
     try {
       const config = await this.getDatabaseConfig();
       return {
-        user: config.user || '',
-        password: config.password || '',
-        server: config.server || '',
-        database: config.database
+        user: (config as any).user || '',
+        password: (config as any).password || '',
+        server: (config as any).server || '',
+        database: (config as any).database
       };
     } catch (error) {
       // Fallback to environment variables for legacy support
       return {
         user: process.env.DB_USER || '',
         password: process.env.DB_PASSWORD || '',
-        server: process.env.DB_SERVER || 'csb-prod-sql-san-7ndjbzgu.database.windows.net',
-        database: process.env.DB_DATABASE || 'csb-prod-sqldb-7ndjbzgu'
+        server: process.env.DB_SERVER || '',
+        database: process.env.DB_DATABASE || ''
       };
     }
   }
 
   private parseConnectionString(connectionString: string): sql.config {
-    const parts = connectionString.split(';');
+    const parts = connectionString.split(';').map(p => p.trim()).filter(Boolean);
     const config: any = {
       options: {
         encrypt: true,
@@ -147,24 +175,40 @@ export class AzureConfigService {
     };
 
     parts.forEach(part => {
-      const [key, value] = part.split('=');
-      if (key && value) {
-        switch (key.toLowerCase()) {
-          case 'server':
-            config.server = value;
-            break;
-          case 'database':
-            config.database = value;
-            break;
-          case 'uid':
-          case 'user id':
-            config.user = value;
-            break;
-          case 'pwd':
-          case 'password':
-            config.password = value;
-            break;
-        }
+      const idx = part.indexOf('=');
+      if (idx <= 0) return;
+      const key = part.slice(0, idx).trim().toLowerCase();
+      const value = part.slice(idx + 1).trim();
+
+      switch (key) {
+        case 'server':
+          // Handle tcp:host,port and host,port
+          let serverVal = value.replace(/^tcp:/i, '');
+          if (serverVal.includes(',') || serverVal.includes(':')) {
+            const sep = serverVal.includes(',') ? ',' : ':';
+            const [hostname, port] = serverVal.split(sep);
+            config.server = hostname;
+            const parsed = parseInt((port || '').replace(/[^0-9]/g, ''), 10);
+            if (!Number.isNaN(parsed)) config.port = parsed;
+          } else {
+            config.server = serverVal;
+          }
+          break;
+        case 'database':
+          config.database = value;
+          break;
+        case 'uid':
+        case 'user id':
+          config.user = value;
+          break;
+        case 'pwd':
+        case 'password':
+          config.password = value;
+          break;
+        case 'connection timeout':
+          const t = parseInt(value, 10);
+          if (!Number.isNaN(t)) config.connectionTimeout = t * 1000;
+          break;
       }
     });
 
@@ -172,43 +216,32 @@ export class AzureConfigService {
   }
 
   public async getBlobServiceClient(): Promise<BlobServiceClient> {
-    if (this.blobServiceClient) {
-      return this.blobServiceClient;
-    }
+    if (this.blobServiceClient) return this.blobServiceClient;
 
     try {
       const connectionString = await this.getSecret('storage-connection-string');
       this.blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
       return this.blobServiceClient;
     } catch (error) {
-      // Fallback to constructing from storage account name
-      const accountName = process.env.AZURE_STORAGE_ACCOUNT_NAME || 'csbprodstsan7ndjbzgu';
+      // Fallback to constructing from storage account name + key if provided in env
+      const accountName = process.env.AZURE_STORAGE_ACCOUNT_NAME;
       const accountKey = process.env.AZURE_STORAGE_ACCOUNT_KEY;
-      
-      if (accountKey) {
+      if (accountName && accountKey) {
         const connectionString = `DefaultEndpointsProtocol=https;AccountName=${accountName};AccountKey=${accountKey};EndpointSuffix=core.windows.net`;
         this.blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
         return this.blobServiceClient;
       }
-      
-      console.error('Failed to initialize Blob Service Client:', error);
+      console.error('[AzureConfig] Failed to initialize Blob Service Client');
       throw error;
     }
   }
 
   public async getWebPubSubClient(): Promise<WebPubSubServiceClient> {
-    if (this.webPubSubClient) {
-      return this.webPubSubClient;
-    }
+    if (this.webPubSubClient) return this.webPubSubClient;
 
-    try {
-      const connectionString = await this.getSecret('web-pubsub-connection-string');
-      this.webPubSubClient = new WebPubSubServiceClient(connectionString, 'chat-hub');
-      return this.webPubSubClient;
-    } catch (error) {
-      console.error('Failed to initialize Web PubSub Client:', error);
-      throw error;
-    }
+    const connectionString = await this.getSecret('web-pubsub-connection-string');
+    this.webPubSubClient = new WebPubSubServiceClient(connectionString, process.env.WEB_PUBSUB_HUB || 'chat-hub');
+    return this.webPubSubClient;
   }
 
   public async getJwtSecret(): Promise<string> {
@@ -223,7 +256,7 @@ export class AzureConfigService {
   // Helper method to check if running in Azure
   public isRunningInAzure(): boolean {
     return Boolean(
-      process.env.AZURE_CLIENT_ID || 
+      process.env.AZURE_CLIENT_ID ||
       process.env.CONTAINER_APP_NAME ||
       process.env.WEBSITE_SITE_NAME ||
       process.env.AZURE_FUNCTIONS_ENVIRONMENT
@@ -232,19 +265,11 @@ export class AzureConfigService {
 
   // Helper to get CORS origins
   public getCorsOrigins(): string[] {
-    const origins = [];
-    
-    // Add configured frontend URL
-    if (process.env.FRONTEND_URL) {
-      origins.push(process.env.FRONTEND_URL);
-    }
-    
-    // Add additional allowed origins
+    const origins: string[] = [];
+    if (process.env.FRONTEND_URL) origins.push(process.env.FRONTEND_URL);
     if (process.env.ALLOWED_ORIGINS) {
-      origins.push(...process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()));
+      origins.push(...process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean));
     }
-
-    // Add local development origins if not in production
     if (!this.isRunningInAzure()) {
       origins.push(
         'http://localhost:5173',
@@ -255,45 +280,36 @@ export class AzureConfigService {
         'http://127.0.0.1:8000'
       );
     }
-
-    return [...new Set(origins.filter(Boolean))]; // Remove duplicates and empty values
+    return Array.from(new Set(origins));
   }
 
   // Health check method
-  public async healthCheck(): Promise<{ 
-    database: string; 
-    storage: string; 
-    webpubsub: string; 
-    timestamp: string 
-  }> {
+  public async healthCheck(): Promise<{ database: string; storage: string; webpubsub: string; timestamp: string }> {
     const result = {
       database: 'unknown',
-      storage: 'unknown', 
+      storage: 'unknown',
       webpubsub: 'unknown',
       timestamp: new Date().toISOString()
     };
 
-    // Check database
     try {
       await this.getDatabaseConfig();
       result.database = 'healthy';
-    } catch (error) {
+    } catch {
       result.database = 'unhealthy';
     }
 
-    // Check storage
     try {
       await this.getBlobServiceClient();
       result.storage = 'healthy';
-    } catch (error) {
+    } catch {
       result.storage = 'unhealthy';
     }
 
-    // Check Web PubSub
     try {
       await this.getWebPubSubClient();
       result.webpubsub = 'healthy';
-    } catch (error) {
+    } catch {
       result.webpubsub = 'unhealthy';
     }
 

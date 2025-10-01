@@ -27,8 +27,12 @@ export default function CoursesPage() {
           sortOrder,
           limit: 50
         });
-        setCourses(data);
+        // Ensure data is an array, even if API returns null/undefined
+        setCourses(Array.isArray(data) ? data : []);
+        console.log('✅ Courses fetched successfully:', data);
       } catch (err) {
+        console.error('❌ Courses fetch error:', err);
+        // Only set error for real API failures, not empty results
         const appError = ErrorHandler.handleApiError(err, 'courses');
         setError(appError);
       } finally {
@@ -44,14 +48,37 @@ export default function CoursesPage() {
     setIsSubmitting(true);
     
     try {
+      // Check for local duplicates first (faster UX)
+      const isDuplicate = courses.some(existing => 
+        existing.title.toLowerCase().trim() === c.title.toLowerCase().trim() ||
+        (c.code && existing.code && existing.code.replace(/_[a-zA-Z0-9]{3,}$/, '').toLowerCase() === c.code.toLowerCase())
+      );
+      
+      if (isDuplicate) {
+        throw new Error(`You already have a ${c.type === 'institution' ? 'course' : 'topic'} named "${c.title}"${c.code ? ` (${c.code})` : ''}. Please choose a different name.`);
+      }
+
       const newCourse = await DataService.addCourse(c);
       setCourses((prev) => [newCourse, ...prev]);
       setSuccess(`Successfully added ${c.type === 'institution' ? 'course' : 'topic'}: ${c.title}`);
       
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
-      const appError = ErrorHandler.handleApiError(err, 'courses');
-      setError(appError);
+      console.error('Add course error:', err);
+      
+      // Handle duplicate errors specifically
+      if (err instanceof Error && err.message.includes('already')) {
+        setError({
+          code: 'DUPLICATE_COURSE',
+          title: 'Duplicate Course',
+          message: err.message,
+          type: 'validation',
+          retryable: false
+        });
+      } else {
+        const appError = ErrorHandler.handleApiError(err, 'courses');
+        setError(appError);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -94,7 +121,7 @@ export default function CoursesPage() {
         </div>
       )}
 
-      {/* Enhanced Error Display */}
+      {/* Enhanced Error Display: show validation errors even with existing courses */}
       {error && (
         <div className="rounded-xl bg-red-50 border border-red-200 text-red-800 px-4 py-4 shadow-sm">
           <div className="flex items-start gap-3">
@@ -248,7 +275,10 @@ function EnhancedCourseCard({ course, onRemove, isDeleting }: {
           <div className="min-w-0 flex-1">
             <h3 className="font-bold text-slate-900 group-hover:text-emerald-700 transition-colors text-lg">
               {isInstitution && course.code && (
-                <span className="block text-sm font-medium text-slate-500 mb-1">{course.code}</span>
+                <span className="block text-sm font-medium text-slate-500 mb-1">
+                  {/* Clean up course code by removing ugly suffixes */}
+                  {course.code.replace(/_[a-zA-Z0-9]{3,}$/, '')}
+                </span>
               )}
               {course.title}
             </h3>
@@ -308,7 +338,7 @@ function EnhancedCourseCard({ course, onRemove, isDeleting }: {
             <span className={`font-bold ${hasProgress ? 'text-emerald-600' : 'text-slate-400'}`}>
               {progressPercentage}%
             </span>
-            {course.totalTopics && course.completedTopics !== undefined && (
+            {course.totalTopics && course.totalTopics > 0 && course.completedTopics !== undefined && (
               <span className="text-xs text-slate-500 bg-slate-100 rounded-full px-2 py-1">
                 {course.completedTopics}/{course.totalTopics} topics
               </span>

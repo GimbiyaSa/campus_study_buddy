@@ -135,11 +135,11 @@ export default function Settings() {
     try {
       const token = localStorage.getItem('google_id_token');
       if (!token) {
-      throw new Error('No authentication token found');
+        throw new Error('No authentication token found');
       }
       const headers = {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
       };
       const res = await fetch(buildApiUrl(`/api/v1/user/${section}`), {
         method: 'PUT',

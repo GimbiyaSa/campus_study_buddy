@@ -26,11 +26,11 @@ class AzureIntegrationService {
     try {
       const token = localStorage.getItem('google_id_token');
       if (!token) {
-      throw new Error('No authentication token found');
+        throw new Error('No authentication token found');
       }
       const headers = {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
       };
       const response = await fetch(buildApiUrl('/api/v1/users/me'), {
         credentials: 'include',

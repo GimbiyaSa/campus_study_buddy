@@ -71,8 +71,17 @@ export default function Header() {
 
     const fetchNotifications = async () => {
       try {
+        const token = localStorage.getItem('google_id_token');
+        if (!token) {
+        throw new Error('No authentication token found');
+        }
+        const headers = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        };
         const notifRes = await fetch(buildApiUrl(`/api/v1/notifications`), {
           signal: controller.signal,
+          headers,
         });
         if (!isMounted) return;
         if (notifRes.ok) {
@@ -119,9 +128,17 @@ export default function Header() {
 
   const markNotificationAsRead = async (notificationId: number) => {
     try {
+      const token = localStorage.getItem('google_id_token');
+      if (!token) {
+      throw new Error('No authentication token found');
+      }
+      const headers = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      };
       await fetch(buildApiUrl(`/api/v1/notifications/${notificationId}/read`), {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
       });
 
       setNotifications((prev) =>

@@ -3,6 +3,7 @@ import { useState, useEffect, useId, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Users, Plus, MessageSquare, Calendar, Trash2, X } from 'lucide-react';
 import { DataService, type StudyPartner, FALLBACK_PARTNERS } from '../services/dataService';
+import { buildApiUrl } from '../utils/url';
 
 type StudyGroup = {
   group_id: number;
@@ -109,7 +110,7 @@ export default function Groups() {
   function authHeadersJSON(): Headers {
     const h = new Headers();
     h.set('Content-Type', 'application/json');
-    const raw = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const raw = typeof window !== 'undefined' ? localStorage.getItem('google_id_token') : null;
     if (raw) {
       let t = raw;
       try {
@@ -210,7 +211,7 @@ export default function Groups() {
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch('/api/v1/users/me', {
+        const res = await fetch(buildApiUrl('/api/v1/users/me'), {
           headers: authHeadersJSON(),
           credentials: 'include',
         });
@@ -274,12 +275,12 @@ export default function Groups() {
 
   async function refreshGroups(): Promise<boolean> {
     try {
-      let res = await fetch('/api/v1/groups/my-groups', {
+      let res = await fetch(buildApiUrl('/api/v1/groups/my-groups'), {
         headers: authHeadersJSON(),
         credentials: 'include',
       });
       if (!res.ok) {
-        res = await fetch('/api/v1/groups', { headers: authHeadersJSON(), credentials: 'include' });
+        res = await fetch(buildApiUrl('/api/v1/groups'), { headers: authHeadersJSON(), credentials: 'include' });
       }
       if (!res.ok) throw new Error('Failed');
       const data = await res.json();
@@ -324,7 +325,7 @@ export default function Groups() {
     }
 
     try {
-      const res = await fetch(`/api/v1/groups/${encodeURIComponent(realId)}/join`, {
+      const res = await fetch(buildApiUrl(`/api/v1/groups/${encodeURIComponent(realId)}/join`), {
         method: 'POST',
         headers: authHeadersJSON(),
         credentials: 'include',
@@ -370,7 +371,7 @@ export default function Groups() {
     }
 
     try {
-      const res = await fetch(`/api/v1/groups/${encodeURIComponent(realId)}/leave`, {
+      const res = await fetch(buildApiUrl(`/api/v1/groups/${encodeURIComponent(realId)}/leave`), {
         method: 'POST',
         headers: authHeadersJSON(),
         credentials: 'include',
@@ -399,7 +400,7 @@ export default function Groups() {
     const snapshot = groups;
     setGroups((prev) => prev.filter((g) => g.group_id !== groupId));
     try {
-      const res = await fetch(`/api/v1/groups/${encodeURIComponent(realId)}`, {
+      const res = await fetch(buildApiUrl(`/api/v1/groups/${encodeURIComponent(realId)}`), {
         method: 'DELETE',
         headers: authHeadersJSON(),
         credentials: 'include',
@@ -422,7 +423,7 @@ export default function Groups() {
     isPublic?: boolean;
   }) => {
     try {
-      const res = await fetch('/api/v1/groups', {
+      const res = await fetch(buildApiUrl('/api/v1/groups'), {
         method: 'POST',
         headers: authHeadersJSON(),
         credentials: 'include',
@@ -911,7 +912,7 @@ function InviteMembersModal({
     if (selectedIds.length === 0 || sending || sent) return;
     setSending(true);
     try {
-      const res = await fetch(`/api/v1/groups/${encodeURIComponent(groupId)}/invite`, {
+      const res = await fetch(buildApiUrl(`/api/v1/groups/${encodeURIComponent(groupId)}/invite`), {
         method: 'POST',
         headers: authHeadersJSON(),
         credentials: 'include',

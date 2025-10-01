@@ -133,7 +133,7 @@ export default function Settings() {
   const saveSettings = async (section: string, data: any) => {
     setSaving(true);
     try {
-      const res = await fetch(`/api/v1/user/${section}`, {
+      const res = await fetch(buildApiUrl(`/api/v1/user/${section}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),

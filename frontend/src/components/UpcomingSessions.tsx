@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { navigate } from '../router';
 import { DataService, type StudySession } from '../services/dataService';
+import { buildApiUrl } from '../utils/url';
 
 type SessionWithOwner = StudySession & { isGroupOwner?: boolean };
 
@@ -110,7 +111,7 @@ export default function UpcomingSessions() {
     );
 
     try {
-      const res = await fetch(`/api/v1/sessions/${sessionId}/join`, {
+      const res = await fetch(buildApiUrl(`/api/v1/sessions/${sessionId}/join`), {
         method: 'POST',
         headers: authHeadersJSON(),
       });
@@ -150,7 +151,7 @@ export default function UpcomingSessions() {
     );
 
     try {
-      const res = await fetch(`/api/v1/sessions/${sessionId}/leave`, {
+      const res = await fetch(buildApiUrl(`/api/v1/sessions/${sessionId}/leave`), {
         method: 'DELETE',
         headers: authHeadersJSON(),
       });
@@ -183,7 +184,7 @@ export default function UpcomingSessions() {
     setSessions((prev) => prev.filter((s) => s.id !== sessionId));
 
     try {
-      const res = await fetch(`/api/v1/sessions/${sessionId}`, {
+      const res = await fetch(buildApiUrl(`/api/v1/sessions/${sessionId}`), {
         method: 'DELETE', // backend treats as soft cancel -> status='cancelled'
         headers: authHeadersJSON(),
       });

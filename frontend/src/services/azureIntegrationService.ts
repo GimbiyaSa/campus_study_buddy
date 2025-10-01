@@ -1,3 +1,4 @@
+import { buildApiUrl } from '@/utils/url';
 import { WebPubSubClient } from '@azure/web-pubsub-client';
 
 class AzureIntegrationService {
@@ -23,7 +24,7 @@ class AzureIntegrationService {
   private async initializeAuth() {
     // Check for existing session
     try {
-      const response = await fetch(`${this.baseUrl}/api/v1/users/me`, {
+      const response = await fetch(buildApiUrl(`/api/v1/users/me`), {
         credentials: 'include',
       });
       if (response.ok) {

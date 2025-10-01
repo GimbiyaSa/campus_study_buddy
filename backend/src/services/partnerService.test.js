@@ -13,48 +13,42 @@ jest.mock('../middleware/authMiddleware', () => ({
   },
 }));
 
-// Mock CosmosClient to return a list of partner users
-jest.mock('@azure/cosmos', () => {
+// Mock Azure SQL database for partner service
+jest.mock('mssql', () => {
   const partners = [
     {
       id: 'p1',
       university: 'UniXYZ',
-      profile: {
-        subjects: ['Math', 'CS'],
-        studyPreferences: { studyStyle: 'visual', groupSize: 'small' },
-      },
-      statistics: { sessionsAttended: 5 },
+      subjects: 'Math,CS',
+      study_style: 'visual',
+      group_size: 'small',
+      sessions_attended: 5,
     },
     {
       id: 'p2',
       university: 'UniXYZ',
-      profile: {
-        subjects: ['History'],
-        studyPreferences: { studyStyle: 'auditory', groupSize: 'medium' },
-      },
-      statistics: { sessionsAttended: 12 },
+      subjects: 'History',
+      study_style: 'auditory',
+      group_size: 'medium',
+      sessions_attended: 12,
     },
   ];
 
-  const fakeItems = {
-    query: jest
-      .fn()
-      .mockReturnValue({ fetchAll: jest.fn().mockResolvedValue({ resources: partners }) }),
+  const mockRequest = {
+    query: jest.fn().mockResolvedValue({ recordset: partners }),
   };
 
-  const fakeContainer = () => ({ items: fakeItems });
+  const mockConnectionPool = {
+    request: jest.fn().mockReturnValue(mockRequest),
+    connected: true,
+    connect: jest.fn().mockResolvedValue({}),
+    close: jest.fn().mockResolvedValue({}),
+  };
 
-  const fakeDatabase = () => ({
-    containers: { createIfNotExists: jest.fn().mockResolvedValue({ container: fakeContainer() }) },
-    container: jest.fn().mockReturnValue(fakeContainer()),
-  });
-
-  const CosmosClient = jest.fn().mockImplementation(() => ({
-    databases: { createIfNotExists: jest.fn().mockResolvedValue({ database: fakeDatabase() }) },
-    database: jest.fn().mockReturnValue(fakeDatabase()),
-  }));
-
-  return { CosmosClient };
+  return {
+    ConnectionPool: jest.fn().mockImplementation(() => mockConnectionPool),
+    connect: jest.fn().mockResolvedValue(mockConnectionPool),
+  };
 });
 
 const appModule = require('../app');

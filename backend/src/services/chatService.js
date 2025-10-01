@@ -1,16 +1,58 @@
 const express = require('express');
 const { WebPubSubServiceClient } = require('@azure/web-pubsub');
-const { CosmosClient } = require('@azure/cosmos');
+const sql = require('mssql');
 const { authenticateToken } = require('../middleware/authMiddleware');
 
 const router = express.Router();
-const serviceClient = new WebPubSubServiceClient(
-  process.env.WEB_PUBSUB_CONNECTION_STRING,
-  'chat-hub'
-);
 
-const cosmosClient = new CosmosClient(process.env.COSMOS_CONNECTION_STRING);
-const messagesContainer = cosmosClient.database('StudyBuddyDB').container('Messages');
+// Initialize Web PubSub client using Azure config
+let serviceClient;
+const initializeWebPubSub = async () => {
+  try {
+    // Try to use Azure configuration first
+    try {
+      const { azureConfig } = require('../config/azureConfig');
+      serviceClient = await azureConfig.getWebPubSubClient();
+    } catch (azureError) {
+      console.warn('Azure config not available, using environment variables');
+      serviceClient = new WebPubSubServiceClient(
+        process.env.WEB_PUBSUB_CONNECTION_STRING,
+        'chat-hub'
+      );
+      console.log('✅ Connected to Azure Web PubSub (via env vars)');
+    }
+  } catch (error) {
+    console.error('❌ Web PubSub connection failed:', error);
+    throw error;
+  }
+};
+
+// Initialize Azure SQL connection pool
+let pool;
+const initializeDatabase = async () => {
+  try {
+    // Try to use Azure configuration first
+    try {
+      const { azureConfig } = require('../config/azureConfig');
+      const dbConfig = await azureConfig.getDatabaseConfig();
+      pool = await sql.connect(dbConfig);
+    } catch (azureError) {
+      console.warn('Azure config not available, using environment variables');
+      // Fallback to connection string
+      if (process.env.DATABASE_CONNECTION_STRING) {
+        pool = await sql.connect(process.env.DATABASE_CONNECTION_STRING);
+      } else {
+        throw new Error('DATABASE_CONNECTION_STRING not found in environment variables');
+      }
+    }
+  } catch (error) {
+    console.error('❌ Database connection failed:', error);
+    throw error;
+  }
+};
+
+// Initialize both services
+Promise.all([initializeWebPubSub(), initializeDatabase()]).catch(console.error);
 
 // Get chat connection
 router.post('/negotiate', authenticateToken, async (req, res) => {
@@ -104,24 +146,22 @@ router.get('/groups/:groupId/messages', authenticateToken, async (req, res) => {
 });
 
 async function verifyGroupAccess(userId, groupId) {
-  // Implementation to verify user is member of the group
-  const groupsContainer = cosmosClient.database('StudyBuddyDB').container('Groups');
-
+  // Implementation to verify user is member of the group using Azure SQL
   try {
-    const querySpec = {
-      query: `
-        SELECT VALUE COUNT(1) FROM groups g 
-        WHERE g.id = @groupId 
-        AND EXISTS(SELECT VALUE m FROM m IN g.members WHERE m.userId = @userId)
-      `,
-      parameters: [
-        { name: '@groupId', value: groupId },
-        { name: '@userId', value: userId },
-      ],
-    };
+    const request = pool.request();
+    request.input('userId', sql.NVarChar, userId);
+    request.input('groupId', sql.Int, groupId);
 
-    const { resources } = await groupsContainer.items.query(querySpec).fetchAll();
-    return resources[0] > 0;
+    const result = await request.query(`
+      SELECT gm.group_id, gm.user_id, gm.role, gm.status
+      FROM group_members gm
+      INNER JOIN study_groups sg ON gm.group_id = sg.group_id
+      WHERE gm.user_id = @userId 
+      AND gm.group_id = @groupId
+      AND gm.status = 'active'
+    `);
+
+    return result.recordset.length > 0;
   } catch (error) {
     console.error('Error verifying group access:', error);
     return false;

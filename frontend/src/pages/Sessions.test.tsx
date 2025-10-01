@@ -100,9 +100,7 @@ describe('Sessions page', () => {
 
     // Click "Completed"
     await userEvent.click(screen.getByRole('button', { name: /Completed \(0\)/i }));
-    expect(
-      screen.getByText(/No completed sessions at the moment\./i)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/No completed sessions at the moment\./i)).toBeInTheDocument();
   });
 
   test('create session (optimistic fallback) shows new card', async () => {
@@ -115,18 +113,13 @@ describe('Sessions page', () => {
     await userEvent.click(screen.getByRole('button', { name: /New session/i }));
 
     // Fill the modal
-    await userEvent.type(
-      screen.getByLabelText(/Session title/i),
-      ' New Optimistic Session'
-    );
+    await userEvent.type(screen.getByLabelText(/Session title/i), ' New Optimistic Session');
     await userEvent.type(screen.getByLabelText(/^Date/i), '2025-06-01');
     await userEvent.type(screen.getByLabelText(/^Start time/i), '09:00');
     await userEvent.type(screen.getByLabelText(/^End time/i), '10:00');
     await userEvent.type(screen.getByLabelText(/^Location/i), 'Room 42');
 
-    await userEvent.click(
-      screen.getByRole('button', { name: /Create session/i })
-    );
+    await userEvent.click(screen.getByRole('button', { name: /Create session/i }));
 
     // Should appear immediately (optimistic)
     expect(await screen.findByText('New Optimistic Session')).toBeInTheDocument();

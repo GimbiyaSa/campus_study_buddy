@@ -95,14 +95,12 @@ export default function Sessions() {
           id: String(created.id ?? Date.now()),
           title: created.title ?? sessionData.title,
           date: created.date ?? sessionData.date,
-          startTime:
-            created.startTime
-              ? new Date(created.startTime).toISOString().slice(11, 16)
-              : sessionData.startTime,
-          endTime:
-            created.endTime
-              ? new Date(created.endTime).toISOString().slice(11, 16)
-              : sessionData.endTime,
+          startTime: created.startTime
+            ? new Date(created.startTime).toISOString().slice(11, 16)
+            : sessionData.startTime,
+          endTime: created.endTime
+            ? new Date(created.endTime).toISOString().slice(11, 16)
+            : sessionData.endTime,
           location: created.location ?? sessionData.location,
           type: created.type ?? (sessionData.type || 'study'),
           participants: created.participants ?? 1,
@@ -187,10 +185,7 @@ export default function Sessions() {
   };
 
   const handleEditSession = async (
-    sessionData: Omit<
-      StudySession,
-      'id' | 'participants' | 'status' | 'isCreator' | 'isAttending'
-    >
+    sessionData: Omit<StudySession, 'id' | 'participants' | 'status' | 'isCreator' | 'isAttending'>
   ) => {
     if (!editingSession) return;
 
@@ -369,7 +364,7 @@ export default function Sessions() {
         <div className="text-center text-slate-600">Loading sessions...</div>
       </div>
     );
-    }
+  }
 
   return (
     <div className="space-y-6">
@@ -432,11 +427,7 @@ export default function Sessions() {
             <SessionCard
               key={session.id}
               session={session}
-              onEdit={
-                session.isCreator
-                  ? () => openModal(session)
-                  : undefined
-              }
+              onEdit={session.isCreator ? () => openModal(session) : undefined}
               onDelete={session.isCreator ? () => handleDeleteSession(session.id) : undefined}
               onJoin={
                 !session.isAttending &&
@@ -795,7 +786,10 @@ function SessionModal({
             <div className="grid gap-4 sm:grid-cols-2">
               {/* NEW: Group select (only shown when creating; optional on edit) */}
               <div className="sm:col-span-2">
-                <label htmlFor={groupIdDom} className="block mb-1 text-sm font-medium text-slate-800">
+                <label
+                  htmlFor={groupIdDom}
+                  className="block mb-1 text-sm font-medium text-slate-800"
+                >
                   Group (optional)
                 </label>
                 <select
@@ -809,12 +803,14 @@ function SessionModal({
                   {groups.map((g) => (
                     <option key={g.id} value={g.id}>
                       {g.name}
-                      {g.courseCode ? ` · ${g.courseCode}` : ''}{g.course ? ` — ${g.course}` : ''}
+                      {g.courseCode ? ` · ${g.courseCode}` : ''}
+                      {g.course ? ` — ${g.course}` : ''}
                     </option>
                   ))}
                 </select>
                 <p className="mt-1 text-xs text-slate-500">
-                  If you pick a group, this session will be created inside that group and visible to its members.
+                  If you pick a group, this session will be created inside that group and visible to
+                  its members.
                 </p>
               </div>
 
@@ -994,7 +990,7 @@ function authHeadersJSON(): Headers {
   h.set('Content-Type', 'application/json');
   const raw =
     typeof window !== 'undefined'
-      ? (localStorage.getItem('google_id_token') || localStorage.getItem('token'))
+      ? localStorage.getItem('google_id_token') || localStorage.getItem('token')
       : null;
   if (raw) {
     let t = raw;
@@ -1002,7 +998,10 @@ function authHeadersJSON(): Headers {
       const p = JSON.parse(raw);
       if (typeof p === 'string') t = p;
     } catch {}
-    t = t.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
+    t = t
+      .replace(/^["']|["']$/g, '')
+      .replace(/^Bearer\s+/i, '')
+      .trim();
     if (t) h.set('Authorization', `Bearer ${t}`);
   }
   return h;

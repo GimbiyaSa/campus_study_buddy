@@ -46,17 +46,17 @@ class DatabaseConnection {
       // Connect to master database to create the target database
       const masterConfig = { ...this.config, database: 'master' };
       const masterPool = await sql.connect(masterConfig);
-      
+
       const createDbQuery = `
         IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = '${this.config.database}')
         BEGIN
           CREATE DATABASE [${this.config.database}]
         END
       `;
-      
+
       await masterPool.request().query(createDbQuery);
       console.log(`Database '${this.config.database}' created successfully!`);
-      
+
       await masterPool.close();
     } catch (error) {
       console.error('Error creating database:', error.message);

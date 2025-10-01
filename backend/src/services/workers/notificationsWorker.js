@@ -7,7 +7,10 @@ require('dotenv').config();
 
 // Make sure userService initializes the pool (adjust path if needed)
 const userService = require('../services/userService');
-const { scheduleDaily24hReminders, sendSessionReminders } = require('../services/notificationService');
+const {
+  scheduleDaily24hReminders,
+  sendSessionReminders,
+} = require('../services/notificationService');
 
 const getPool = () => sql.globalPool || userService.pool;
 

@@ -52,7 +52,9 @@ export class AzureConfigService {
         console.info('[AzureConfig] No KEY_VAULT_NAME configured; using env vars');
       }
     } catch (error) {
-      console.warn('[AzureConfig] Key Vault initialization encountered an error, falling back to env vars');
+      console.warn(
+        '[AzureConfig] Key Vault initialization encountered an error, falling back to env vars'
+      );
     } finally {
       this.initialized = true;
     }
@@ -100,7 +102,7 @@ export class AzureConfigService {
     };
 
     const envVar = envMap[secretName];
-    let value = envVar ? (process.env[envVar] || '') : '';
+    let value = envVar ? process.env[envVar] || '' : '';
 
     // For development, optionally construct DB connection string from parts if provided
     if (!value && secretName === 'database-connection-string') {
@@ -110,7 +112,9 @@ export class AzureConfigService {
       const password = process.env.DB_PASSWORD;
 
       if (server && database && user && password) {
-        value = `Server=${server};Database=${database};User Id=${user};Password=${password};Encrypt=true;TrustServerCertificate=${process.env.NODE_ENV === 'development'}`;
+        value = `Server=${server};Database=${database};User Id=${user};Password=${password};Encrypt=true;TrustServerCertificate=${
+          process.env.NODE_ENV === 'development'
+        }`;
       }
     }
 
@@ -121,7 +125,11 @@ export class AzureConfigService {
     // cache and return
     this.secretCache.set(secretName, { value, expiry: Date.now() + 5 * 60 * 1000 });
     if (!this.loggedSecrets.has(secretName)) {
-      console.info(`[AzureConfig] Secret ${secretName} loaded from environment variable ${envVar || 'constructed value'}`);
+      console.info(
+        `[AzureConfig] Secret ${secretName} loaded from environment variable ${
+          envVar || 'constructed value'
+        }`
+      );
       this.loggedSecrets.add(secretName);
     }
     return value;
@@ -139,14 +147,19 @@ export class AzureConfigService {
   }
 
   // Legacy method to support existing database setup
-  public async getLegacyDatabaseConfig(): Promise<{ user: string; password: string; server: string; database?: string }> {
+  public async getLegacyDatabaseConfig(): Promise<{
+    user: string;
+    password: string;
+    server: string;
+    database?: string;
+  }> {
     try {
       const config = await this.getDatabaseConfig();
       return {
         user: (config as any).user || '',
         password: (config as any).password || '',
         server: (config as any).server || '',
-        database: (config as any).database
+        database: (config as any).database,
       };
     } catch (error) {
       // Fallback to environment variables for legacy support
@@ -154,13 +167,16 @@ export class AzureConfigService {
         user: process.env.DB_USER || '',
         password: process.env.DB_PASSWORD || '',
         server: process.env.DB_SERVER || '',
-        database: process.env.DB_DATABASE || ''
+        database: process.env.DB_DATABASE || '',
       };
     }
   }
 
   private parseConnectionString(connectionString: string): sql.config {
-    const parts = connectionString.split(';').map(p => p.trim()).filter(Boolean);
+    const parts = connectionString
+      .split(';')
+      .map((p) => p.trim())
+      .filter(Boolean);
     const config: any = {
       options: {
         encrypt: true,
@@ -174,7 +190,7 @@ export class AzureConfigService {
       },
     };
 
-    parts.forEach(part => {
+    parts.forEach((part) => {
       const idx = part.indexOf('=');
       if (idx <= 0) return;
       const key = part.slice(0, idx).trim().toLowerCase();
@@ -240,7 +256,10 @@ export class AzureConfigService {
     if (this.webPubSubClient) return this.webPubSubClient;
 
     const connectionString = await this.getSecret('web-pubsub-connection-string');
-    this.webPubSubClient = new WebPubSubServiceClient(connectionString, process.env.WEB_PUBSUB_HUB || 'chat-hub');
+    this.webPubSubClient = new WebPubSubServiceClient(
+      connectionString,
+      process.env.WEB_PUBSUB_HUB || 'chat-hub'
+    );
     return this.webPubSubClient;
   }
 
@@ -257,9 +276,9 @@ export class AzureConfigService {
   public isRunningInAzure(): boolean {
     return Boolean(
       process.env.AZURE_CLIENT_ID ||
-      process.env.CONTAINER_APP_NAME ||
-      process.env.WEBSITE_SITE_NAME ||
-      process.env.AZURE_FUNCTIONS_ENVIRONMENT
+        process.env.CONTAINER_APP_NAME ||
+        process.env.WEBSITE_SITE_NAME ||
+        process.env.AZURE_FUNCTIONS_ENVIRONMENT
     );
   }
 
@@ -268,7 +287,11 @@ export class AzureConfigService {
     const origins: string[] = [];
     if (process.env.FRONTEND_URL) origins.push(process.env.FRONTEND_URL);
     if (process.env.ALLOWED_ORIGINS) {
-      origins.push(...process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean));
+      origins.push(
+        ...process.env.ALLOWED_ORIGINS.split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      );
     }
     if (!this.isRunningInAzure()) {
       origins.push(
@@ -284,12 +307,17 @@ export class AzureConfigService {
   }
 
   // Health check method
-  public async healthCheck(): Promise<{ database: string; storage: string; webpubsub: string; timestamp: string }> {
+  public async healthCheck(): Promise<{
+    database: string;
+    storage: string;
+    webpubsub: string;
+    timestamp: string;
+  }> {
     const result = {
       database: 'unknown',
       storage: 'unknown',
       webpubsub: 'unknown',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
     try {

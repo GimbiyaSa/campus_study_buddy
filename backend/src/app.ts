@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import { azureConfig } from './config/azureConfig';
 
 dotenv.config();
 
@@ -15,7 +16,6 @@ import courseService from './services/courseService';
 import moduleService from './services/moduleService';
 import sessionService from './services/sessionService';
 import notificationService from './services/notificationService';
-const { setupCampusStudyBuddyDatabase } = require('./database/run_database_setup');
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; // For local dev with self-signed certs
 
@@ -25,18 +25,14 @@ const app = express();
 app.use(helmet());
 app.use(
   cors({
-    // Allow FRONTEND_URL from env, otherwise allow localhost:5173 for local dev.
+    // Use Azure config for CORS origins
     origin: (origin, callback) => {
-      const allowed = [
-        process.env.FRONTEND_URL || '',
-        'http://localhost:5173',
-        'http://127.0.0.1:5173',
-        'http://127.0.0.1:8000',
-        'http://localhost:8000',
-      ].filter(Boolean);
+      const allowed = azureConfig.getCorsOrigins();
+      
       // If no origin (same-origin or curl), allow it
       if (!origin) return callback(null, true);
       if (allowed.includes(origin)) return callback(null, true);
+      
       // In production, you may want to reject unknown origins.
       console.warn('Blocked CORS request from origin:', origin);
       callback(new Error('Not allowed by CORS'));
@@ -55,9 +51,23 @@ app.use('/api/', limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Health check
-app.get('/health', (req: Request, res: Response) => {
-  res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+// Health check with Azure services
+app.get('/health', async (req: Request, res: Response) => {
+  try {
+    const azureHealth = await azureConfig.healthCheck();
+    
+    res.json({ 
+      status: 'healthy', 
+      timestamp: new Date().toISOString(),
+      azure: azureHealth
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      error: 'Health check failed'
+    });
+  }
 });
 
 process.on('unhandledRejection', (reason, promise) => {
@@ -66,16 +76,34 @@ process.on('unhandledRejection', (reason, promise) => {
 
 (async () => {
   try {
-    await setupCampusStudyBuddyDatabase();
+    // Initialize Azure services first
+    console.log('🔄 Initializing Azure services...');
+    // Check all connections first, then print logs in order
+    let dbOk = false, storageOk = false, pubsubOk = false;
+    try { await azureConfig.getDatabaseConfig(); dbOk = true; } catch {}
+    try { await azureConfig.getBlobServiceClient(); storageOk = true; } catch {}
+    try { await azureConfig.getWebPubSubClient(); pubsubOk = true; } catch {}
+
+    // Print logs in order, only once each
+    if (dbOk) console.log('✅ Connected to Azure SQL (via Azure Config)');
+    else console.warn('⚠️ Could not connect to Azure SQL');
+    if (storageOk) console.log('✅ Connected to Azure Storage (via Azure Config)');
+    else console.warn('⚠️ Could not connect to Azure Storage');
+    if (pubsubOk) console.log('✅ Connected to Azure Web PubSub (via Azure Config)');
+    else console.warn('⚠️ Could not connect to Azure Web PubSub');
+
+    // Now run healthCheck, but do not log again
+    await azureConfig.healthCheck();
   } catch (error) {
-    console.error('Error running setup:', error);
+    console.error('Error during initialization:', error);
   }
 
   // Start the server regardless of setup outcome
-  const PORT = process.env.PORT || 3000;
+  const PORT = process.env.PORT || 5000;
   if (process.env.NODE_ENV !== 'test') {
     app.listen(PORT, () => {
-      console.log(`Study Buddy API server running on port ${PORT}`);
+      console.log(`🚀 Study Buddy API server running on port ${PORT}`);
+      console.log(`🌍 CORS enabled for: ${azureConfig.getCorsOrigins().join(', ')}`);
     });
   }
 })();
@@ -99,12 +127,5 @@ app.use((error: any, req: Request, res: Response, next: NextFunction) => {
     message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong',
   });
 });
-
-/*const PORT = process.env.PORT || 3000;
-if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => {
-    console.log(`Study Buddy API server running on port ${PORT}`);
-  });
-}*/
 
 export default app;

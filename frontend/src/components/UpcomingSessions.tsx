@@ -1,5 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Clock, MapPin, Users, Calendar, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import {
+  Clock,
+  MapPin,
+  Users,
+  Calendar,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Trash2,
+} from 'lucide-react';
 import { navigate } from '../router';
 import { DataService, type StudySession } from '../services/dataService';
 
@@ -55,7 +64,6 @@ export default function UpcomingSessions() {
       const detail = (e as CustomEvent<SessionWithOwner>).detail;
       if (!detail) return;
 
-      // Only include if it matches our 7-day "upcoming" window
       const maybe = filterUpcomingNext7Days([detail]);
       if (maybe.length === 0) return;
 
@@ -107,7 +115,6 @@ export default function UpcomingSessions() {
         headers: authHeadersJSON(),
       });
       if (!res.ok) {
-        // Roll back only for hard failures
         if ([409, 403, 404].includes(res.status)) {
           setSessions((prev) =>
             prev.map((s) =>
@@ -149,7 +156,6 @@ export default function UpcomingSessions() {
       });
 
       if (!res.ok) {
-        // Organizer can't leave; roll back on hard failures.
         if ([400, 403, 404].includes(res.status)) {
           setSessions((prev) =>
             prev.map((s) =>
@@ -168,6 +174,27 @@ export default function UpcomingSessions() {
       }
     } catch (err) {
       console.warn('Leave request error (keeping optimistic state):', err);
+    }
+  };
+
+  // --- Cancel (organizer only) ---
+  const handleCancel = async (sessionId: string) => {
+    // Optimistic removal from upcoming list
+    setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+
+    try {
+      const res = await fetch(`/api/v1/sessions/${sessionId}`, {
+        method: 'DELETE', // backend treats as soft cancel -> status='cancelled'
+        headers: authHeadersJSON(),
+      });
+      if (!res.ok) {
+        console.warn('Cancel failed:', res.status);
+      }
+    } catch (err) {
+      console.warn('Cancel request error:', err);
+    } finally {
+      // Re-sync other widgets (Calendar, etc.)
+      window.dispatchEvent(new Event('sessions:invalidate'));
     }
   };
 
@@ -255,11 +282,13 @@ export default function UpcomingSessions() {
         <div className="flex-1 space-y-4">
           {sessions.map((session) => {
             const canAttend =
+              !session.isCreator &&
               !session.isAttending &&
               (session.status ?? 'upcoming') === 'upcoming' &&
               (session.participants || 0) < (session.maxParticipants || 10);
 
             const canLeave =
+              !session.isCreator &&
               !!session.isAttending &&
               (session.status ?? 'upcoming') === 'upcoming' &&
               !session.isCreator; // organizer cannot leave (backend will 400)
@@ -337,21 +366,34 @@ export default function UpcomingSessions() {
                   <div className="flex gap-2">
                     {(session.status ?? 'upcoming') === 'upcoming' && (
                       <>
-                        {canAttend && (
+                        {session.isCreator ? (
                           <button
-                            onClick={() => handleAttend(session.id)}
-                            className="px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600 transition"
+                            onClick={() => handleCancel(session.id)}
+                            className="p-2 rounded border border-red-200 text-red-600 hover:bg-red-50 transition"
+                            title="Cancel session"
+                            aria-label="Cancel session"
                           >
-                            Attend
+                            <Trash2 className="w-4 h-4" />
                           </button>
-                        )}
-                        {canLeave && (
-                          <button
-                            onClick={() => handleLeave(session.id)}
-                            className="px-3 py-1 bg-gray-500 text-white text-sm rounded hover:bg-gray-600 transition"
-                          >
-                            Leave
-                          </button>
+                        ) : (
+                          <>
+                            {canAttend && (
+                              <button
+                                onClick={() => handleAttend(session.id)}
+                                className="px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600 transition"
+                              >
+                                Attend
+                              </button>
+                            )}
+                            {canLeave && (
+                              <button
+                                onClick={() => handleLeave(session.id)}
+                                className="px-3 py-1 bg-gray-500 text-white text-sm rounded hover:bg-gray-600 transition"
+                              >
+                                Leave
+                              </button>
+                            )}
+                          </>
                         )}
                       </>
                     )}

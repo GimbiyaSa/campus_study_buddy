@@ -1,3 +1,36 @@
+/**
+ * Progress Service - Study Progress Tracking
+ * 
+ * This service handles study session logging and progress tracking with the following logic:
+ * 
+ * 1. STUDY SESSIONS: 
+ *    - Log study time in `study_hours` table
+ *    - Link to modules and topics for better tracking
+ *    - Support both individual and group study sessions
+ * 
+ * 2. PROGRESS TRACKING:
+ *    - Topic-level progress: user_progress.chapter_id IS NULL (tracks overall topic progress)
+ *    - Chapter-level progress: user_progress.chapter_id IS NOT NULL (tracks specific chapter progress)
+ *    - This service primarily focuses on TOPIC-LEVEL progress for consistency with course service
+ * 
+ * 3. INTEGRATION WITH COURSE SERVICE:
+ *    - Progress calculations must match between progress and course services
+ *    - Both services use topic-level completion for module progress percentage
+ *    - Study hours from both study_hours table and user_progress.hours_spent are tracked
+ * 
+ * 4. AUTHENTICATION:
+ *    - All endpoints require valid JWT token via authenticateToken middleware
+ *    - User context is extracted from req.user (set by auth middleware)
+ * 
+ * 5. KEY ENDPOINTS:
+ *    - POST /sessions: Log study session and update topic progress
+ *    - GET /analytics: Comprehensive study analytics with time-based filtering
+ *    - GET /modules/:id: Detailed progress for specific module
+ *    - PUT /topics/:id/complete: Mark topic as completed
+ *    - GET /goals: Study goals and achievements tracking
+ *    - GET /leaderboard: Social feature for study competition
+ */
+
 const express = require('express');
 const sql = require('mssql');
 const { authenticateToken } = require('../middleware/authMiddleware');
@@ -5,52 +38,42 @@ const { authenticateToken } = require('../middleware/authMiddleware');
 const router = express.Router();
 
 // Azure SQL Database configuration
-const dbConfig = {
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  server: process.env.DB_SERVER,
-  database: process.env.DB_DATABASE,
-  options: {
-    encrypt: true, // Required for Azure SQL
-    enableArithAbort: true,
-    trustServerCertificate: false,
-    requestTimeout: 30000,
-    connectionTimeout: 30000,
-  },
-  pool: {
-    max: 10,
-    min: 0,
-    idleTimeoutMillis: 30000,
-  },
+let pool;
+const initializeDatabase = async () => {
+  try {
+    // Try to use Azure configuration first
+    try {
+      const { azureConfig } = require('../config/azureConfig');
+      const dbConfig = await azureConfig.getDatabaseConfig();
+      pool = await sql.connect(dbConfig);
+    } catch (azureError) {
+      console.warn('Azure config not available, using environment variables');
+      // Fallback to connection string
+      if (process.env.DATABASE_CONNECTION_STRING) {
+        pool = await sql.connect(process.env.DATABASE_CONNECTION_STRING);
+      } else {
+        throw new Error('DATABASE_CONNECTION_STRING not found in environment variables');
+      }
+    }
+  } catch (error) {
+    console.error('❌ Database connection failed:', error);
+    throw error;
+  }
 };
 
-// Initialize connection pool
-let poolPromise = sql
-  .connect(dbConfig)
-  .then((pool) => {
-    console.log('Connected to Azure SQL Database for Progress Service');
-    return pool;
-  })
-  .catch((err) => {
-    console.error('Database connection failed:', err);
-    throw err;
-  });
+// Initialize database connection
+initializeDatabase();
 
 // Helper function to get database pool
 async function getPool() {
-  return await poolPromise;
+  if (!pool) {
+    await initializeDatabase();
+  }
+  return pool;
 }
 
 // POST /progress/sessions - Log study session
 router.post('/sessions', authenticateToken, async (req, res) => {
-  // For testing - remove this in production
-  req.user = {
-    id: 1, // Using integer ID for SQL database
-    university: 'UniXYZ',
-    email: 'test@example.com',
-    name: 'Test User',
-    course: 'Computer Science',
-  };
 
   try {
     const { moduleId, topicIds, duration, notes, groupId, sessionId, description } = req.body;
@@ -68,7 +91,7 @@ router.post('/sessions', authenticateToken, async (req, res) => {
       // If moduleId is provided, verify user is enrolled
       if (moduleId) {
         const enrollmentCheck = new sql.Request(transaction);
-        enrollmentCheck.input('userId', sql.Int, req.user.id);
+        enrollmentCheck.input('userId', sql.NVarChar(255), req.user.id);
         enrollmentCheck.input('moduleId', sql.Int, moduleId);
 
         const enrollment = await enrollmentCheck.query(`
@@ -84,7 +107,7 @@ router.post('/sessions', authenticateToken, async (req, res) => {
 
       // Log study hours
       const studyHoursRequest = new sql.Request(transaction);
-      studyHoursRequest.input('userId', sql.Int, req.user.id);
+      studyHoursRequest.input('userId', sql.NVarChar(255), req.user.id);
       studyHoursRequest.input('moduleId', sql.Int, moduleId || null);
       studyHoursRequest.input(
         'topicId',
@@ -109,10 +132,10 @@ router.post('/sessions', authenticateToken, async (req, res) => {
       if (topicIds && topicIds.length > 0) {
         for (const topicId of topicIds) {
           const progressRequest = new sql.Request(transaction);
-          progressRequest.input('userId', sql.Int, req.user.id);
+          progressRequest.input('userId', sql.NVarChar(255), req.user.id);
           progressRequest.input('topicId', sql.Int, topicId);
 
-          // Check if progress record exists
+          // Check if topic-level progress record exists (chapter_id IS NULL means topic-level)
           const existingProgress = await progressRequest.query(`
                         SELECT progress_id, completion_status, hours_spent 
                         FROM dbo.user_progress 
@@ -120,7 +143,7 @@ router.post('/sessions', authenticateToken, async (req, res) => {
                     `);
 
           if (existingProgress.recordset.length > 0) {
-            // Update existing progress
+            // Update existing topic-level progress
             const current = existingProgress.recordset[0];
             const newHours = (current.hours_spent || 0) + duration / 60;
             const newStatus =
@@ -143,13 +166,13 @@ router.post('/sessions', authenticateToken, async (req, res) => {
 
             progressUpdates.push({ topicId, status: newStatus, hours: newHours });
           } else {
-            // Create new progress record
+            // Create new topic-level progress record
             progressRequest.input('hoursSpent', sql.Decimal(5, 2), duration / 60);
 
             const newProgressResult = await progressRequest.query(`
-                            INSERT INTO dbo.user_progress (user_id, topic_id, completion_status, hours_spent, started_at, updated_at)
+                            INSERT INTO dbo.user_progress (user_id, topic_id, chapter_id, completion_status, hours_spent, started_at, updated_at)
                             OUTPUT inserted.progress_id
-                            VALUES (@userId, @topicId, 'in_progress', @hoursSpent, GETUTCDATE(), GETUTCDATE())
+                            VALUES (@userId, @topicId, NULL, 'in_progress', @hoursSpent, GETUTCDATE(), GETUTCDATE())
                         `);
 
             progressUpdates.push({
@@ -190,14 +213,6 @@ router.post('/sessions', authenticateToken, async (req, res) => {
 
 // GET /progress/analytics - Get progress analytics
 router.get('/analytics', authenticateToken, async (req, res) => {
-  // For testing - remove this in production
-  req.user = {
-    id: 1,
-    university: 'UniXYZ',
-    email: 'test@example.com',
-    name: 'Test User',
-    course: 'Computer Science',
-  };
 
   try {
     const { timeframe = '30d', moduleId } = req.query;
@@ -205,7 +220,7 @@ router.get('/analytics', authenticateToken, async (req, res) => {
 
     const pool = await getPool();
     const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
+    request.input('userId', sql.NVarChar(255), req.user.id);
     request.input('daysBack', sql.Int, daysBack);
 
     let moduleFilter = '';
@@ -236,7 +251,7 @@ router.get('/analytics', authenticateToken, async (req, res) => {
     const studyHoursResult = await request.query(studyHoursQuery);
     const studyHours = studyHoursResult.recordset;
 
-    // Get progress data
+    // Get progress data (only topic-level progress, not chapter-level)
     const progressQuery = `
             SELECT 
                 up.completion_status,
@@ -245,13 +260,12 @@ router.get('/analytics', authenticateToken, async (req, res) => {
                 up.completed_at,
                 t.topic_name,
                 m.module_name,
-                m.module_code,
-                c.chapter_name
+                m.module_code
             FROM dbo.user_progress up
             INNER JOIN dbo.topics t ON up.topic_id = t.topic_id
             INNER JOIN dbo.modules m ON t.module_id = m.module_id
-            LEFT JOIN dbo.chapters c ON up.chapter_id = c.chapter_id
             WHERE up.user_id = @userId
+            AND up.chapter_id IS NULL
             AND up.updated_at >= DATEADD(day, -@daysBack, GETUTCDATE())
             ${moduleFilter.replace('sh.module_id', 'm.module_id')}
             ORDER BY up.updated_at DESC
@@ -311,21 +325,13 @@ router.get('/analytics', authenticateToken, async (req, res) => {
 
 // GET /progress/modules/:moduleId - Get detailed progress for a specific module
 router.get('/modules/:moduleId', authenticateToken, async (req, res) => {
-  // For testing - remove this in production
-  req.user = {
-    id: 1,
-    university: 'UniXYZ',
-    email: 'test@example.com',
-    name: 'Test User',
-    course: 'Computer Science',
-  };
 
   try {
     const moduleId = parseInt(req.params.moduleId);
 
     const pool = await getPool();
     const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
+    request.input('userId', sql.NVarChar(255), req.user.id);
     request.input('moduleId', sql.Int, moduleId);
 
     // Verify enrollment
@@ -434,6 +440,8 @@ router.get('/modules/:moduleId', authenticateToken, async (req, res) => {
         totalHours: totalHours,
         averageHoursPerTopic: totalTopics > 0 ? totalHours / totalTopics : 0,
         totalSessions: recentSessions.length,
+        averageSessionLength: recentSessions.length > 0 ? 
+          recentSessions.reduce((sum, s) => sum + s.hours_logged, 0) / recentSessions.length : 0,
       },
 
       // Detailed topic progress
@@ -458,14 +466,6 @@ router.get('/modules/:moduleId', authenticateToken, async (req, res) => {
 
 // PUT /progress/topics/:topicId/complete - Mark topic as completed
 router.put('/topics/:topicId/complete', authenticateToken, async (req, res) => {
-  // For testing - remove this in production
-  req.user = {
-    id: 1,
-    university: 'UniXYZ',
-    email: 'test@example.com',
-    name: 'Test User',
-    course: 'Computer Science',
-  };
 
   try {
     const topicId = parseInt(req.params.topicId);
@@ -479,7 +479,7 @@ router.put('/topics/:topicId/complete', authenticateToken, async (req, res) => {
 
       // Verify user has access to this topic (through module enrollment)
       const accessCheck = new sql.Request(transaction);
-      accessCheck.input('userId', sql.Int, req.user.id);
+      accessCheck.input('userId', sql.NVarChar(255), req.user.id);
       accessCheck.input('topicId', sql.Int, topicId);
 
       const access = await accessCheck.query(`
@@ -499,7 +499,7 @@ router.put('/topics/:topicId/complete', authenticateToken, async (req, res) => {
 
       // Update or create progress record
       const progressRequest = new sql.Request(transaction);
-      progressRequest.input('userId', sql.Int, req.user.id);
+      progressRequest.input('userId', sql.NVarChar(255), req.user.id);
       progressRequest.input('topicId', sql.Int, topicId);
       progressRequest.input('notes', sql.NText, notes || '');
 
@@ -603,19 +603,11 @@ router.get('/leaderboard', authenticateToken, async (req, res) => {
 
 // GET /progress/goals - Get user study goals (new feature)
 router.get('/goals', authenticateToken, async (req, res) => {
-  // For testing - remove this in production
-  req.user = {
-    id: 1,
-    university: 'UniXYZ',
-    email: 'test@example.com',
-    name: 'Test User',
-    course: 'Computer Science',
-  };
 
   try {
     const pool = await getPool();
     const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
+    request.input('userId', sql.NVarChar(255), req.user.id);
 
     // Get current week and month progress
     const progressQuery = `
@@ -642,7 +634,7 @@ router.get('/goals', authenticateToken, async (req, res) => {
     const progressResult = await request.query(progressQuery);
     const progress = progressResult.recordset[0];
 
-    // Get topic completion stats
+    // Get topic completion stats (only topic-level progress)
     const topicStatsQuery = `
             SELECT 
                 COUNT(CASE WHEN up.completion_status = 'completed' THEN 1 END) as completed_topics,
@@ -752,17 +744,11 @@ function generateProgressTrend(progressData) {
 // Error handling middleware for database connection issues
 router.use((err, req, res, next) => {
   if (err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT') {
-    // Recreate connection pool
-    poolPromise = sql
-      .connect(dbConfig)
-      .then((pool) => {
-        console.log('Database connection restored');
-        return pool;
-      })
-      .catch((err) => {
-        console.error('Failed to restore database connection:', err);
-        throw err;
-      });
+    console.warn('Database connection issue detected, will reconnect on next request:', err.message);
+    // Reset the pool to force reconnection on next request
+    pool = null;
+    res.status(503).json({ error: 'Service temporarily unavailable, please try again' });
+    return;
   }
   next(err);
 });

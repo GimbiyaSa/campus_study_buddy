@@ -159,14 +159,14 @@ export default function Header() {
         win.google.accounts.id.disableAutoSelect();
       }
       // revoke the last used credential if stored in localStorage (best-effort)
-      const lastToken = localStorage.getItem('last_google_id_token');
+      const lastToken = localStorage.getItem('google_id_token');
       if (lastToken && win.google?.accounts?.id?.revoke) {
         win.google.accounts.id.revoke(lastToken, () => {
           /* no-op */
         });
       }
       // Clear stored token
-      localStorage.removeItem('last_google_id_token');
+      localStorage.removeItem('google_id_token');
     } catch (e) {
       // ignore
     }

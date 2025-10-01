@@ -515,7 +515,7 @@ router.post('/files/upload', authenticateToken, async (req, res) => {
     // This is a placeholder for file upload functionality
     // In a real implementation, you'd use multer middleware and Azure Storage
     const { azureStorage } = require('./azureStorageService');
-    
+
     if (!req.files || !req.files.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
@@ -525,13 +525,9 @@ router.post('/files/upload', authenticateToken, async (req, res) => {
     const moduleId = req.body.moduleId;
 
     let uploadResult;
-    
+
     if (uploadType === 'profile-image') {
-      uploadResult = await azureStorage.uploadProfileImage(
-        req.user.id,
-        file.data,
-        file.mimetype
-      );
+      uploadResult = await azureStorage.uploadProfileImage(req.user.id, file.data, file.mimetype);
     } else if (uploadType === 'study-material' && moduleId) {
       uploadResult = await azureStorage.uploadStudyMaterial(
         req.user.id,
@@ -557,10 +553,9 @@ router.post('/files/upload', authenticateToken, async (req, res) => {
         filename: file.name,
         size: file.size,
         type: file.mimetype,
-        uploadedAt: new Date().toISOString()
-      }
+        uploadedAt: new Date().toISOString(),
+      },
     });
-
   } catch (error) {
     console.error('Error uploading file:', error);
     res.status(500).json({ error: 'Failed to upload file' });

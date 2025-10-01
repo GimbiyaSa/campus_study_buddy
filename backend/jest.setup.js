@@ -3,14 +3,14 @@
 
 // Mock Azure Identity services
 jest.mock('@azure/identity', () => ({
-  DefaultAzureCredential: jest.fn().mockImplementation(() => ({}))
+  DefaultAzureCredential: jest.fn().mockImplementation(() => ({})),
 }));
 
 // Mock Azure Key Vault
 jest.mock('@azure/keyvault-secrets', () => ({
   SecretClient: jest.fn().mockImplementation(() => ({
-    getSecret: jest.fn().mockResolvedValue({ value: 'mock-secret-value' })
-  }))
+    getSecret: jest.fn().mockResolvedValue({ value: 'mock-secret-value' }),
+  })),
 }));
 
 // Mock Azure Storage Blob
@@ -22,27 +22,31 @@ jest.mock('@azure/storage-blob', () => ({
         getBlockBlobClient: jest.fn().mockReturnValue({
           upload: jest.fn().mockResolvedValue({
             etag: 'mock-etag',
-            lastModified: new Date()
+            lastModified: new Date(),
           }),
           url: 'https://mock-storage.blob.core.windows.net/container/file',
-          generateSasUrl: jest.fn().mockResolvedValue('https://mock-storage.blob.core.windows.net/container/file?sas=token')
-        })
-      })
-    })
+          generateSasUrl: jest
+            .fn()
+            .mockResolvedValue(
+              'https://mock-storage.blob.core.windows.net/container/file?sas=token'
+            ),
+        }),
+      }),
+    }),
   },
   BlobSASPermissions: jest.fn().mockImplementation(() => ({
-    read: true
-  }))
+    read: true,
+  })),
 }));
 
 // Mock @azure/web-pubsub to avoid parsing connection strings during import
 jest.mock('@azure/web-pubsub', () => ({
   WebPubSubServiceClient: jest.fn().mockImplementation(() => ({
     sendToAll: jest.fn().mockResolvedValue({}),
-    getClientAccessToken: jest.fn().mockResolvedValue({ 
+    getClientAccessToken: jest.fn().mockResolvedValue({
       url: 'wss://mock-webpubsub.service.signalr.net/client/hubs/chat-hub',
-      token: 'mock-access-token'
-    })
+      token: 'mock-access-token',
+    }),
   })),
 }));
 

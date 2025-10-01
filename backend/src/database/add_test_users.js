@@ -24,7 +24,7 @@ async function addTestUsers() {
 
     // Add test users
     console.log('👥 Adding test users...');
-    
+
     const testUsers = [
       {
         id: 'test_user_1',
@@ -35,7 +35,8 @@ async function addTestUsers() {
         course: 'Computer Science',
         year: 3,
         bio: 'Passionate about algorithms and machine learning. Love solving complex problems and working in study groups.',
-        preferences: '{"studyStyle": "visual", "groupSize": "small", "environment": "quiet", "availability": ["morning", "afternoon"]}'
+        preferences:
+          '{"studyStyle": "visual", "groupSize": "small", "environment": "quiet", "availability": ["morning", "afternoon"]}',
       },
       {
         id: 'test_user_2',
@@ -46,7 +47,8 @@ async function addTestUsers() {
         course: 'Data Science',
         year: 2,
         bio: 'Data enthusiast looking for study partners for statistics and machine learning projects.',
-        preferences: '{"studyStyle": "collaborative", "groupSize": "medium", "environment": "collaborative", "availability": ["afternoon", "evening"]}'
+        preferences:
+          '{"studyStyle": "collaborative", "groupSize": "medium", "environment": "collaborative", "availability": ["afternoon", "evening"]}',
       },
       {
         id: 'test_user_3',
@@ -57,7 +59,8 @@ async function addTestUsers() {
         course: 'Software Engineering',
         year: 4,
         bio: 'Senior student with experience in full-stack development. Happy to help junior students and collaborate on projects.',
-        preferences: '{"studyStyle": "mixed", "groupSize": "large", "environment": "flexible", "availability": ["evening"]}'
+        preferences:
+          '{"studyStyle": "mixed", "groupSize": "large", "environment": "flexible", "availability": ["evening"]}',
       },
       {
         id: 'test_user_4',
@@ -68,7 +71,8 @@ async function addTestUsers() {
         course: 'Applied Mathematics',
         year: 1,
         bio: 'First-year student eager to learn and find study partners for calculus and linear algebra.',
-        preferences: '{"studyStyle": "auditory", "groupSize": "small", "environment": "quiet", "availability": ["morning"]}'
+        preferences:
+          '{"studyStyle": "auditory", "groupSize": "small", "environment": "quiet", "availability": ["morning"]}',
       },
       {
         id: 'test_user_5',
@@ -79,8 +83,9 @@ async function addTestUsers() {
         course: 'Computer Science',
         year: 2,
         bio: 'Second-year CS student interested in web development and databases. Prefer hands-on learning.',
-        preferences: '{"studyStyle": "kinesthetic", "groupSize": "medium", "environment": "collaborative", "availability": ["afternoon", "evening"]}'
-      }
+        preferences:
+          '{"studyStyle": "kinesthetic", "groupSize": "medium", "environment": "collaborative", "availability": ["afternoon", "evening"]}',
+      },
     ];
 
     for (const user of testUsers) {
@@ -102,7 +107,7 @@ async function addTestUsers() {
           @userId, @email, 'test_password_hash', @firstName, @lastName, @university, @course, @year, @bio, @preferences, 1
         )
       `);
-      
+
       console.log(`✅ Added user: ${user.firstName} ${user.lastName}`);
     }
 
@@ -122,12 +127,11 @@ async function addTestUsers() {
       ORDER BY user_id
     `);
 
-    result.recordset.forEach(user => {
+    result.recordset.forEach((user) => {
       console.log(`- ${user.name} (${user.email}) - ${user.course} at ${user.university}`);
     });
 
     console.log(`\n🎉 Successfully added ${testUsers.length} test users!`);
-
   } catch (error) {
     console.error('❌ Error:', error);
   } finally {

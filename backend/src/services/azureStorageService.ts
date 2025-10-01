@@ -38,10 +38,10 @@ class AzureStorageService {
 
     const blobServiceClient = await azureConfig.getBlobServiceClient();
     const containerClient = blobServiceClient.getContainerClient(containerName);
-    
+
     // Ensure container exists
     await containerClient.createIfNotExists({
-      access: 'container'
+      access: 'container',
     });
 
     this.containerClients.set(containerName, containerClient);
@@ -56,8 +56,8 @@ class AzureStorageService {
     const blockBlobClient = containerClient.getBlockBlobClient(options.fileName);
 
     const uploadResponse = await blockBlobClient.upload(
-      fileData, 
-      Buffer.isBuffer(fileData) ? fileData.length : 0, 
+      fileData,
+      Buffer.isBuffer(fileData) ? fileData.length : 0,
       {
         blobHTTPHeaders: {
           blobContentType: options.contentType,
@@ -81,7 +81,9 @@ class AzureStorageService {
     imageData: Buffer,
     contentType: string
   ): Promise<UploadResult> {
-    const fileName = `profiles/${userId}/avatar-${Date.now()}.${this.getFileExtension(contentType)}`;
+    const fileName = `profiles/${userId}/avatar-${Date.now()}.${this.getFileExtension(
+      contentType
+    )}`;
 
     return this.uploadFile(imageData, {
       containerName: 'user-files',
@@ -132,7 +134,7 @@ class AzureStorageService {
     try {
       const containerClient = await this.getContainerClient(containerName);
       const blockBlobClient = containerClient.getBlockBlobClient(fileName);
-      
+
       await blockBlobClient.delete();
       return true;
     } catch (error) {
@@ -148,13 +150,13 @@ class AzureStorageService {
   ): Promise<string> {
     const containerClient = await this.getContainerClient(containerName);
     const blockBlobClient = containerClient.getBlockBlobClient(fileName);
-    
+
     // For development, return direct URL (make sure containers are public)
     // For production, generate SAS URL
     try {
       const permissions = new BlobSASPermissions();
       permissions.read = true;
-      
+
       const sasUrl = await blockBlobClient.generateSasUrl({
         permissions,
         expiresOn: new Date(Date.now() + expiryMinutes * 60 * 1000),
@@ -189,7 +191,7 @@ class AzureStorageService {
     try {
       const blobServiceClient = await azureConfig.getBlobServiceClient();
       await blobServiceClient.getProperties();
-      
+
       return {
         status: 'healthy',
         timestamp: new Date().toISOString(),

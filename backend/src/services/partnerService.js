@@ -71,8 +71,8 @@ router.get('/', authenticateToken, async (req, res) => {
 
     // Fetch users for those IDs
     const usersRequest = pool.request();
-    const buddyIdsString = buddyIds.map(id => `'${id}'`).join(',');
-    
+    const buddyIdsString = buddyIds.map((id) => `'${id}'`).join(',');
+
     const usersResult = await usersRequest.query(`
       SELECT 
         u.user_id as id,
@@ -92,7 +92,7 @@ router.get('/', authenticateToken, async (req, res) => {
 
     const buddies = usersResult.recordset;
     console.log(`👥 Found ${buddies.length} buddies for user ${userId}`);
-    
+
     const payload = buddies.map((u) => ({
       id: u.id,
       name: u.name || [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email || 'Unknown',
@@ -116,7 +116,14 @@ router.get('/search', authenticateToken, async (req, res) => {
     const { subjects, studyStyle, groupSize, availability, university, search } = req.query;
     const currentUserId = req.user.id;
 
-    console.log('🔍 Partner search params:', { subjects, studyStyle, groupSize, availability, university, search });
+    console.log('🔍 Partner search params:', {
+      subjects,
+      studyStyle,
+      groupSize,
+      availability,
+      university,
+      search,
+    });
 
     const request = pool.request();
     request.input('currentUserId', sql.NVarChar(255), currentUserId);
@@ -175,13 +182,14 @@ router.get('/search', authenticateToken, async (req, res) => {
     console.log(`📊 Found ${partners.length} potential partners`);
 
     // Format the response
-    const formattedPartners = partners.map(partner => {
+    const formattedPartners = partners.map((partner) => {
       let studyPreferences = {};
       try {
         if (partner.study_preferences) {
-          studyPreferences = typeof partner.study_preferences === 'string' 
-            ? JSON.parse(partner.study_preferences) 
-            : partner.study_preferences;
+          studyPreferences =
+            typeof partner.study_preferences === 'string'
+              ? JSON.parse(partner.study_preferences)
+              : partner.study_preferences;
         }
       } catch (e) {
         console.warn('Failed to parse study preferences for user:', partner.id);
@@ -189,34 +197,43 @@ router.get('/search', authenticateToken, async (req, res) => {
 
       return {
         id: partner.id,
-        name: [partner.first_name, partner.last_name].filter(Boolean).join(' ') || partner.email || 'Unknown',
+        name:
+          [partner.first_name, partner.last_name].filter(Boolean).join(' ') ||
+          partner.email ||
+          'Unknown',
         email: partner.email,
         university: partner.university,
         course: partner.course,
         yearOfStudy: partner.year_of_study,
         bio: partner.bio,
         studyPreferences,
-        
+
         // Enhanced shared courses and topics
-        sharedCourses: partner.sharedCourses ? partner.sharedCourses.split(', ').filter(Boolean) : [],
+        sharedCourses: partner.sharedCourses
+          ? partner.sharedCourses.split(', ').filter(Boolean)
+          : [],
         sharedTopics: [], // Could be enhanced with topic-level data
-        
+
         profile: {
           subjects: partner.sharedCourses ? partner.sharedCourses.split(', ').filter(Boolean) : [],
           studyStyle: studyPreferences.studyStyle || null,
           groupSize: studyPreferences.groupSize || null,
-          availability: studyPreferences.availability || null
+          availability: studyPreferences.availability || null,
         },
         statistics: {
           sessionsAttended: 0, // Could be enhanced with actual study session data
-          completedStudies: 0
+          completedStudies: 0,
         },
-        compatibilityScore: calculateEnhancedCompatibilityScore(studyPreferences, {
-          subjects: subjects?.split(',') || [],
-          studyStyle,
-          groupSize,
-          availability
-        }, partner.sharedCourses ? partner.sharedCourses.split(', ').filter(Boolean).length : 0)
+        compatibilityScore: calculateEnhancedCompatibilityScore(
+          studyPreferences,
+          {
+            subjects: subjects?.split(',') || [],
+            studyStyle,
+            groupSize,
+            availability,
+          },
+          partner.sharedCourses ? partner.sharedCourses.split(', ').filter(Boolean).length : 0
+        ),
       };
     });
 
@@ -253,14 +270,14 @@ function calculateEnhancedCompatibilityScore(partnerPreferences, criteria, share
   // Availability overlap (10% weight)
   if (partnerPreferences.availability && criteria.availability) {
     try {
-      const partnerAvail = Array.isArray(partnerPreferences.availability) 
-        ? partnerPreferences.availability 
+      const partnerAvail = Array.isArray(partnerPreferences.availability)
+        ? partnerPreferences.availability
         : [partnerPreferences.availability];
-      const criteriaAvail = Array.isArray(criteria.availability) 
-        ? criteria.availability 
+      const criteriaAvail = Array.isArray(criteria.availability)
+        ? criteria.availability
         : criteria.availability.split(',');
-      
-      const overlap = partnerAvail.filter(time => criteriaAvail.includes(time)).length;
+
+      const overlap = partnerAvail.filter((time) => criteriaAvail.includes(time)).length;
       if (overlap > 0) {
         score += (overlap / Math.max(partnerAvail.length, criteriaAvail.length)) * 10;
       }
@@ -291,14 +308,14 @@ function calculateBasicCompatibilityScore(partnerPreferences, criteria) {
   // Availability overlap (20% weight)
   if (partnerPreferences.availability && criteria.availability) {
     try {
-      const partnerAvail = Array.isArray(partnerPreferences.availability) 
-        ? partnerPreferences.availability 
+      const partnerAvail = Array.isArray(partnerPreferences.availability)
+        ? partnerPreferences.availability
         : [partnerPreferences.availability];
-      const criteriaAvail = Array.isArray(criteria.availability) 
-        ? criteria.availability 
+      const criteriaAvail = Array.isArray(criteria.availability)
+        ? criteria.availability
         : criteria.availability.split(',');
-      
-      const overlap = partnerAvail.filter(time => criteriaAvail.includes(time)).length;
+
+      const overlap = partnerAvail.filter((time) => criteriaAvail.includes(time)).length;
       if (overlap > 0) {
         score += (overlap / Math.max(partnerAvail.length, criteriaAvail.length)) * 20;
       }
@@ -373,17 +390,20 @@ router.post('/request', authenticateToken, async (req, res) => {
 
     if (existingConnection.recordset.length > 0) {
       const status = existingConnection.recordset[0].match_status;
-      return res.status(400).json({ 
-        error: `A ${status} connection already exists between these users` 
+      return res.status(400).json({
+        error: `A ${status} connection already exists between these users`,
       });
     }
 
     // Insert new buddy request - need a module_id, let's get the first shared module or use 1 as default
     const moduleRequest = pool.request();
-    
+
     // Get first available module ID as default (in real app, this should be based on shared interests)
-    const moduleResult = await moduleRequest.query(`SELECT TOP 1 module_id FROM dbo.modules WHERE is_active = 1`);
-    const defaultModuleId = moduleResult.recordset.length > 0 ? moduleResult.recordset[0].module_id : 1;
+    const moduleResult = await moduleRequest.query(
+      `SELECT TOP 1 module_id FROM dbo.modules WHERE is_active = 1`
+    );
+    const defaultModuleId =
+      moduleResult.recordset.length > 0 ? moduleResult.recordset[0].module_id : 1;
 
     const finalInsertRequest = pool.request();
     finalInsertRequest.input('requesterId', sql.NVarChar(255), requesterId);
@@ -403,9 +423,8 @@ router.post('/request', authenticateToken, async (req, res) => {
       id: newRequest.match_id,
       status: 'pending',
       message: 'Buddy request sent successfully',
-      createdAt: newRequest.created_at
+      createdAt: newRequest.created_at,
     });
-
   } catch (error) {
     console.error('❌ Error sending buddy request:', error);
     res.status(500).json({ error: 'Failed to send buddy request' });
@@ -432,7 +451,8 @@ router.post('/test-users', async (req, res) => {
         course: 'Computer Science',
         year: 3,
         bio: 'Passionate about algorithms and machine learning. Love solving complex problems and working in study groups.',
-        preferences: '{"studyStyle": "visual", "groupSize": "small", "environment": "quiet", "availability": ["morning", "afternoon"]}'
+        preferences:
+          '{"studyStyle": "visual", "groupSize": "small", "environment": "quiet", "availability": ["morning", "afternoon"]}',
       },
       {
         id: 'test_user_2',
@@ -443,7 +463,8 @@ router.post('/test-users', async (req, res) => {
         course: 'Data Science',
         year: 2,
         bio: 'Data enthusiast looking for study partners for statistics and machine learning projects.',
-        preferences: '{"studyStyle": "collaborative", "groupSize": "medium", "environment": "collaborative", "availability": ["afternoon", "evening"]}'
+        preferences:
+          '{"studyStyle": "collaborative", "groupSize": "medium", "environment": "collaborative", "availability": ["afternoon", "evening"]}',
       },
       {
         id: 'test_user_3',
@@ -454,7 +475,8 @@ router.post('/test-users', async (req, res) => {
         course: 'Software Engineering',
         year: 4,
         bio: 'Senior student with experience in full-stack development. Happy to help junior students and collaborate on projects.',
-        preferences: '{"studyStyle": "mixed", "groupSize": "large", "environment": "flexible", "availability": ["evening"]}'
+        preferences:
+          '{"studyStyle": "mixed", "groupSize": "large", "environment": "flexible", "availability": ["evening"]}',
       },
       {
         id: 'test_user_4',
@@ -465,7 +487,8 @@ router.post('/test-users', async (req, res) => {
         course: 'Applied Mathematics',
         year: 1,
         bio: 'First-year student eager to learn and find study partners for calculus and linear algebra.',
-        preferences: '{"studyStyle": "auditory", "groupSize": "small", "environment": "quiet", "availability": ["morning"]}'
+        preferences:
+          '{"studyStyle": "auditory", "groupSize": "small", "environment": "quiet", "availability": ["morning"]}',
       },
       {
         id: 'test_user_5',
@@ -476,8 +499,9 @@ router.post('/test-users', async (req, res) => {
         course: 'Computer Science',
         year: 2,
         bio: 'Second-year CS student interested in web development and databases. Prefer hands-on learning.',
-        preferences: '{"studyStyle": "kinesthetic", "groupSize": "medium", "environment": "collaborative", "availability": ["afternoon", "evening"]}'
-      }
+        preferences:
+          '{"studyStyle": "kinesthetic", "groupSize": "medium", "environment": "collaborative", "availability": ["afternoon", "evening"]}',
+      },
     ];
 
     for (const user of testUsers) {
@@ -502,8 +526,10 @@ router.post('/test-users', async (req, res) => {
     }
 
     console.log(`✅ Added ${testUsers.length} test users successfully`);
-    res.json({ message: `Successfully added ${testUsers.length} test users`, users: testUsers.length });
-
+    res.json({
+      message: `Successfully added ${testUsers.length} test users`,
+      users: testUsers.length,
+    });
   } catch (error) {
     console.error('❌ Error adding test users:', error);
     res.status(500).json({ error: 'Failed to add test users' });

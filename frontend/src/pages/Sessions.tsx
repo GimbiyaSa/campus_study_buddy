@@ -2,11 +2,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar, Clock, MapPin, Plus, Users, X, Edit, Trash2, MessageSquare } from 'lucide-react';
-import {
-  DataService,
-  type StudySession,
-  type StudyGroup,
-} from '../services/dataService';
+import { DataService, type StudySession, type StudyGroup } from '../services/dataService';
 
 export default function Sessions() {
   const [sessions, setSessions] = useState<StudySession[]>([]);
@@ -98,7 +94,14 @@ export default function Sessions() {
         const updated = res.data ?? {};
         setSessions((prev) =>
           prev.map((s) =>
-            s.id === sessionId ? { ...s, ...updated, id: String(updated.id ?? sessionId), status: updated.status ?? 'cancelled' } : s
+            s.id === sessionId
+              ? {
+                  ...s,
+                  ...updated,
+                  id: String(updated.id ?? sessionId),
+                  status: updated.status ?? 'cancelled',
+                }
+              : s
           )
         );
         return;
@@ -500,7 +503,9 @@ function SessionModal({
   const [maxParticipants, setMaxParticipants] = useState<number | undefined>();
 
   // NEW: groups dropdown (your groups)
-  const [groups, setGroups] = useState<Array<Pick<StudyGroup, 'id' | 'name' | 'course' | 'courseCode'>>>([]);
+  const [groups, setGroups] = useState<
+    Array<Pick<StudyGroup, 'id' | 'name' | 'course' | 'courseCode'>>
+  >([]);
   const [groupId, setGroupId] = useState<string | undefined>(undefined);
   const groupIdFieldId = useId();
 
@@ -655,7 +660,10 @@ function SessionModal({
             <div className="grid gap-4 sm:grid-cols-2">
               {/* Study group selector */}
               <div className="sm:col-span-2">
-                <label htmlFor={groupIdFieldId} className="block mb-1 text-sm font-medium text-slate-800">
+                <label
+                  htmlFor={groupIdFieldId}
+                  className="block mb-1 text-sm font-medium text-slate-800"
+                >
                   Study group
                 </label>
                 <select

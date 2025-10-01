@@ -259,7 +259,6 @@ export default function Progress() {
             },
           }}
           icon={<Clock className="h-6 w-6" />}
-          context="progress"
         />
       )}
     </div>

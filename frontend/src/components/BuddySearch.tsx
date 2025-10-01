@@ -21,7 +21,7 @@ export default function BuddySearch() {
       setLoading(true);
       setError(null);
       try {
-        const partners = await DataService.fetchPartners();
+        const partners = await DataService.searchPartners();
         setSuggestions(partners.slice(0, 4)); // Show top 4 suggestions
       } catch (err) {
         const appError = ErrorHandler.handleApiError(err, 'partners');

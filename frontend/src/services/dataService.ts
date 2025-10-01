@@ -1,4 +1,3 @@
-// frontend/src/services/dataService.ts
 import { buildApiUrl } from '../utils/url';
 
 // -------------------- Types --------------------
@@ -31,7 +30,7 @@ export type StudySession = {
 };
 
 export type StudyGroup = {
-  id: string; // backend/cosmos id
+  id: string;
   name: string;
   description?: string;
   course?: string;
@@ -43,7 +42,7 @@ export type StudyGroup = {
   createdAt?: string;
   lastActivity?: string;
   group_type?: 'study' | 'project' | 'exam_prep' | 'discussion';
-  member_count?: number; // optional count
+  member_count?: number;
 };
 
 export type StudyPartner = {
@@ -59,10 +58,10 @@ export type StudyPartner = {
   lastActive: string;
 };
 
-// ---- NEW: Notifications ----
+// ---- Notifications ----
 export type NotificationRow = {
-  notification_id?: number; // server field
-  id?: number; // some UIs prefer 'id'
+  notification_id?: number;
+  id?: number;
   user_id: number;
   notification_type: string;
   title: string;
@@ -84,45 +83,11 @@ export type NotificationCounts = {
 
 // -------------------- Demo fallbacks --------------------
 export const FALLBACK_COURSES: Course[] = [
-  {
-    id: '1',
-    type: 'institution',
-    code: 'CS301',
-    title: 'Data Structures & Algorithms',
-    term: '2025 · Semester 2',
-    progress: 78,
-  },
-  {
-    id: '2',
-    type: 'institution',
-    code: 'CS305',
-    title: 'Database Systems',
-    term: '2025 · Semester 2',
-    progress: 65,
-  },
-  {
-    id: '3',
-    type: 'institution',
-    code: 'MATH204',
-    title: 'Linear Algebra',
-    term: '2025 · Semester 2',
-    progress: 82,
-  },
-  {
-    id: '4',
-    type: 'institution',
-    code: 'CS403',
-    title: 'Software Engineering',
-    term: '2025 · Semester 2',
-    progress: 45,
-  },
-  {
-    id: '5',
-    type: 'casual',
-    title: 'Machine Learning Basics',
-    description: 'Self-paced learning of ML fundamentals',
-    progress: 23,
-  },
+  { id: '1', type: 'institution', code: 'CS301', title: 'Data Structures & Algorithms', term: '2025 · Semester 2', progress: 78 },
+  { id: '2', type: 'institution', code: 'CS305', title: 'Database Systems', term: '2025 · Semester 2', progress: 65 },
+  { id: '3', type: 'institution', code: 'MATH204', title: 'Linear Algebra', term: '2025 · Semester 2', progress: 82 },
+  { id: '4', type: 'institution', code: 'CS403', title: 'Software Engineering', term: '2025 · Semester 2', progress: 45 },
+  { id: '5', type: 'casual', title: 'Machine Learning Basics', description: 'Self-paced learning of ML fundamentals', progress: 23 },
 ];
 
 export const FALLBACK_SESSIONS: StudySession[] = [
@@ -195,117 +160,19 @@ export const FALLBACK_SESSIONS: StudySession[] = [
 ];
 
 export const FALLBACK_GROUPS: StudyGroup[] = [
-  {
-    id: '1',
-    name: 'CS Advanced Study Circle',
-    description: 'Advanced CS topics',
-    course: 'Data Structures & Algorithms',
-    courseCode: 'CS301',
-    isPublic: true,
-    maxMembers: 15,
-    member_count: 12,
-    createdBy: 'Alex Johnson',
-    createdAt: '2025-08-15',
-  },
-  {
-    id: '2',
-    name: 'Database Design Masters',
-    description: 'Database design, SQL, optimization',
-    course: 'Database Systems',
-    courseCode: 'CS305',
-    isPublic: true,
-    maxMembers: 12,
-    member_count: 8,
-    createdBy: 'Sarah Chen',
-    createdAt: '2025-08-20',
-  },
-  {
-    id: '3',
-    name: 'Math Study Warriors',
-    description: 'Linear algebra, calculus, proofs',
-    course: 'Linear Algebra',
-    courseCode: 'MATH204',
-    isPublic: true,
-    maxMembers: 10,
-    member_count: 6,
-    createdBy: 'Maria Rodriguez',
-    createdAt: '2025-08-25',
-  },
-  {
-    id: '4',
-    name: 'Software Engineering Pros',
-    description: 'Patterns, agile, testing',
-    course: 'Software Engineering',
-    courseCode: 'CS403',
-    isPublic: true,
-    maxMembers: 20,
-    member_count: 15,
-    createdBy: 'David Kim',
-    createdAt: '2025-09-01',
-  },
+  { id: '1', name: 'CS Advanced Study Circle', description: 'Advanced CS topics', course: 'Data Structures & Algorithms', courseCode: 'CS301', isPublic: true, maxMembers: 15, member_count: 12, createdBy: 'Alex Johnson', createdAt: '2025-08-15' },
+  { id: '2', name: 'Database Design Masters', description: 'Database design, SQL, optimization', course: 'Database Systems', courseCode: 'CS305', isPublic: true, maxMembers: 12, member_count: 8, createdBy: 'Sarah Chen', createdAt: '2025-08-20' },
+  { id: '3', name: 'Math Study Warriors', description: 'Linear algebra, calculus, proofs', course: 'Linear Algebra', courseCode: 'MATH204', isPublic: true, maxMembers: 10, member_count: 6, createdBy: 'Maria Rodriguez', createdAt: '2025-08-25' },
+  { id: '4', name: 'Software Engineering Pros', description: 'Patterns, agile, testing', course: 'Software Engineering', courseCode: 'CS403', isPublic: true, maxMembers: 20, member_count: 15, createdBy: 'David Kim', createdAt: '2025-09-01' },
 ];
 
 export const FALLBACK_PARTNERS: StudyPartner[] = [
-  {
-    id: '1',
-    name: 'Emma Wilson',
-    year: '3rd Year',
-    major: 'Computer Science',
-    courses: ['CS301', 'CS305', 'MATH204'],
-    studyHours: 45,
-    rating: 4.8,
-    lastActive: '2025-09-16',
-  },
-  {
-    id: '2',
-    name: 'Marcus Johnson',
-    year: '2nd Year',
-    major: 'Computer Science',
-    courses: ['CS201', 'MATH204', 'PHY101'],
-    studyHours: 38,
-    rating: 4.6,
-    lastActive: '2025-09-15',
-  },
-  {
-    id: '3',
-    name: 'Sophia Chen',
-    year: '4th Year',
-    major: 'Software Engineering',
-    courses: ['CS403', 'CS305', 'CS450'],
-    studyHours: 52,
-    rating: 4.9,
-    lastActive: '2025-09-17',
-  },
-  {
-    id: '4',
-    name: 'James Rodriguez',
-    year: '3rd Year',
-    major: 'Data Science',
-    courses: ['STAT301', 'CS301', 'MATH204'],
-    studyHours: 41,
-    rating: 4.7,
-    lastActive: '2025-09-14',
-  },
-  {
-    id: '5',
-    name: 'Aisha Patel',
-    year: '2nd Year',
-    major: 'Computer Science',
-    courses: ['CS201', 'CS205', 'MATH204'],
-    studyHours: 33,
-    rating: 4.5,
-    lastActive: '2025-09-16',
-  },
-  {
-    id: '6',
-    name: 'Ryan Thompson',
-    year: '4th Year',
-    major: 'Computer Engineering',
-    courses: ['CS403', 'EE301', 'CS450'],
-    studyHours: 48,
-    rating: 4.8,
-    lastActive: '2025-09-17',
-  },
+  { id: '1', name: 'Emma Wilson', year: '3rd Year', major: 'Computer Science', courses: ['CS301', 'CS305', 'MATH204'], bio: 'Algorithms + ML', studyHours: 45, rating: 4.8, lastActive: '2025-09-16' },
+  { id: '2', name: 'Marcus Johnson', year: '2nd Year', major: 'Computer Science', courses: ['CS201', 'MATH204', 'PHY101'], bio: 'Math collab', studyHours: 38, rating: 4.6, lastActive: '2025-09-15' },
+  { id: '3', name: 'Sophia Chen', year: '4th Year', major: 'Software Engineering', courses: ['CS403', 'CS305', 'CS450'], bio: 'Design + DB', studyHours: 52, rating: 4.9, lastActive: '2025-09-17' },
+  { id: '4', name: 'James Rodriguez', year: '3rd Year', major: 'Data Science', courses: ['STAT301', 'CS301', 'MATH204'], bio: 'Stats/analysis', studyHours: 41, rating: 4.7, lastActive: '2025-09-14' },
+  { id: '5', name: 'Aisha Patel', year: '2nd Year', major: 'Computer Science', courses: ['CS201', 'CS205', 'MATH204'], bio: 'Web + UI/UX', studyHours: 33, rating: 4.5, lastActive: '2025-09-16' },
+  { id: '6', name: 'Ryan Thompson', year: '4th Year', major: 'Computer Engineering', courses: ['CS403', 'EE301', 'CS450'], bio: 'Systems/arch', studyHours: 48, rating: 4.8, lastActive: '2025-09-17' },
 ];
 
 // -------------------- Service --------------------
@@ -313,42 +180,52 @@ export class DataService {
   // --- headers/helpers ---
   private static authHeaders(): Headers {
     const h = new Headers();
-    const raw = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+
+    // Prefer app token; fall back to Google tokens if present
+    const raw =
+      (typeof window !== 'undefined' &&
+        (localStorage.getItem('token') ||
+          localStorage.getItem('google_id_token') ||
+          localStorage.getItem('last_google_id_token'))) ||
+      null;
+
     if (raw) {
-      let t = raw;
+      let t = raw as string;
       try {
-        const p = JSON.parse(raw);
+        const p = JSON.parse(raw as any);
         if (typeof p === 'string') t = p;
       } catch {}
-      t = t
-        .replace(/^["']|["']$/g, '')
-        .replace(/^Bearer\s+/i, '')
-        .trim();
+      t = t.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
       if (t) h.set('Authorization', `Bearer ${t}`);
     }
     return h;
   }
+
   private static jsonHeaders(): Headers {
     const h = this.authHeaders();
     h.set('Content-Type', 'application/json');
     return h;
   }
+
   private static devForceFallback(): boolean {
     if (typeof window === 'undefined') return false;
     const q = new URLSearchParams(window.location.search);
     return q.get('mockSessions') === '1' || localStorage.getItem('mockSessions') === '1';
   }
+
   private static async request(path: string, init?: RequestInit) {
     const url = buildApiUrl(path);
     return fetch(url, { credentials: 'include', ...init });
   }
+
   private static toISO(date: string, time: string): string {
-    // local → ISO
     return new Date(`${date}T${time}:00`).toISOString();
   }
+
   private static pad2(n: number) {
     return n < 10 ? `0${n}` : String(n);
   }
+
   private static fromISO(iso: string): { date: string; time: string } {
     const d = new Date(iso);
     const yyyy = d.getFullYear();
@@ -358,6 +235,7 @@ export class DataService {
     const MM = this.pad2(d.getMinutes());
     return { date: `${yyyy}-${mm}-${dd}`, time: `${HH}:${MM}` };
   }
+
   private static normalizeSession(s: any): StudySession {
     const id = String(s?.id ?? s?.session_id ?? cryptoRandomId());
     const title = s?.title ?? s?.session_title ?? 'Study session';
@@ -485,7 +363,6 @@ export class DataService {
       courseCode: sessionData.courseCode,
       maxParticipants: sessionData.maxParticipants,
       groupId: sessionData.groupId,
-      // legacy mirrors
       session_title: sessionData.title,
       scheduled_start: startISO,
       scheduled_end: endISO,
@@ -523,7 +400,6 @@ export class DataService {
       courseCode: sessionData.courseCode,
       maxParticipants: sessionData.maxParticipants,
       groupId: sessionData.groupId,
-      // legacy mirrors
       session_title: sessionData.title,
       scheduled_start: startISO,
       scheduled_end: endISO,
@@ -735,7 +611,7 @@ export class DataService {
     }
   }
 
-  // -------------------- NEW: Notifications API --------------------
+  // -------------------- Notifications API --------------------
   static async fetchNotifications(opts?: {
     unreadOnly?: boolean;
     type?: string;
@@ -810,7 +686,7 @@ export class DataService {
 
   static async createNotification(payload: {
     user_id: number | string;
-    notification_type: string; // e.g. 'session_created' | 'session_reminder'
+    notification_type: string;
     title: string;
     message: string;
     metadata?: any;

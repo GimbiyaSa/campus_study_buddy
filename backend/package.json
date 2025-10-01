@@ -15,7 +15,8 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{js,ts,json,md}\"",
-    "seed:test-user": "node src/database/seed_test_user.js"
+    "seed:test-user": "node src/database/seed_test_user.js",
+    "worker:notifications": "node workers/notificationsWorker.js"
   },
   "dependencies": {
     "@azure/communication-email": "^1.0.0",

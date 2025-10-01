@@ -154,18 +154,6 @@ export type StudyGroup = {
 };
 
 // -------- Demo fallback data (keeping for sessions, groups, partners) --------
-export type StudyPartner = {
-  id: string;
-  name: string;
-  avatar?: string;
-  year: string;
-  major: string;
-  courses: string[];
-  bio?: string;
-  studyHours: number;
-  rating: number;
-  lastActive: string;
-};
 
 // -------------------- Demo fallbacks --------------------
 export const FALLBACK_COURSES: Course[] = [
@@ -341,9 +329,6 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
     sharedTopics: ['Algorithms', 'Databases'],
     compatibilityScore: 94,
     bio: 'Passionate about algorithms and machine learning. Looking for study partners for advanced CS topics.',
-    year: '3rd Year',
-    major: 'Computer Science',
-    courses: ['CS301', 'CS305', 'MATH204'],
     studyHours: 45,
     weeklyHours: 12,
     studyStreak: 7,
@@ -366,9 +351,6 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
     sharedTopics: ['Linear Algebra', 'Physics'],
     compatibilityScore: 87,
     bio: 'Strong in mathematics, enjoy collaborative problem solving and explaining concepts.',
-    year: '2nd Year',
-    major: 'Computer Science',
-    courses: ['CS201', 'MATH204', 'PHY101'],
     studyHours: 38,
     weeklyHours: 10,
     studyStreak: 12,
@@ -391,9 +373,6 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
     sharedTopics: ['Software Design', 'Databases', 'Architecture'],
     compatibilityScore: 91,
     bio: 'Experienced with software design patterns and database optimization. Happy to mentor others.',
-    year: '4th Year',
-    major: 'Software Engineering',
-    courses: ['CS403', 'CS305', 'CS450'],
     studyHours: 52,
     weeklyHours: 15,
     studyStreak: 21,
@@ -416,9 +395,6 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
     sharedTopics: ['Statistics', 'Algorithms', 'Linear Algebra'],
     compatibilityScore: 89,
     bio: 'Statistics and data analysis enthusiast. Great at breaking down complex problems.',
-    year: '3rd Year',
-    major: 'Data Science',
-    courses: ['STAT301', 'CS301', 'MATH204'],
     studyHours: 41,
     weeklyHours: 11,
     studyStreak: 14,
@@ -441,9 +417,6 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
     sharedTopics: ['Web Development', 'UI/UX', 'Linear Algebra'],
     compatibilityScore: 82,
     bio: 'Web development and UI/UX interested. Love working on projects and learning new technologies.',
-    year: '2nd Year',
-    major: 'Computer Science',
-    courses: ['CS201', 'CS205', 'MATH204'],
     studyHours: 33,
     weeklyHours: 9,
     studyStreak: 8,
@@ -466,9 +439,6 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
     sharedTopics: ['System Design', 'Hardware', 'Architecture'],
     compatibilityScore: 93,
     bio: 'Hardware-software integration expert. Excellent at system design and architecture discussions.',
-    year: '4th Year',
-    major: 'Computer Engineering',
-    courses: ['CS403', 'EE301', 'CS450'],
     studyHours: 48,
     weeklyHours: 13,
     studyStreak: 18,
@@ -583,11 +553,7 @@ export class DataService {
     h.set('Content-Type', 'application/json');
     return h;
   }
-  private static devForceFallback(): boolean {
-    if (typeof window === 'undefined') return false;
-    const q = new URLSearchParams(window.location.search);
-    return q.get('mockSessions') === '1' || localStorage.getItem('mockSessions') === '1';
-  }
+  
   private static async request(path: string, init?: RequestInit) {
     const url = buildApiUrl(path);
     return fetch(url, { credentials: 'include', ...init });
@@ -787,36 +753,19 @@ export class DataService {
       // If group endpoint failed, fall back to global create
     }
 
-    // Generic sessions endpoint; include a liberal payload to match common backends
-    const startISO = this.toISO(sessionData.date, sessionData.startTime);
-    const endISO = this.toISO(sessionData.date, sessionData.endTime);
-    const payload = {
-      // "new" style
-      title: sessionData.title,
-      startTime: startISO,
-      endTime: endISO,
-      location: sessionData.location,
-      type: sessionData.type,
-      course: sessionData.course,
-      courseCode: sessionData.courseCode,
-      maxParticipants: sessionData.maxParticipants,
-      groupId: sessionData.groupId,
-      // "legacy" style fields some backends use
-      session_title: sessionData.title,
-      scheduled_start: startISO,
-      scheduled_end: endISO,
-      session_type: sessionData.type,
-      max_participants: sessionData.maxParticipants,
-    };
-
+    // Generic sessions endpoint fallback
     try {
-      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/groups'));
-      return await res.json();
+      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/sessions'));
+      if (res.ok) {
+        const created = await res.json();
+        return this.normalizeSession(created);
+      }
     } catch (error) {
-      console.error('❌ fetchGroups error:', error);
-      // Keep fallback for groups (not in your focus list)
-      return FALLBACK_GROUPS;
+      console.error('❌ createSession error:', error);
     }
+    
+    // Return null if all attempts failed
+    return null;
   }
 
   static async updateSession(
@@ -890,16 +839,20 @@ export class DataService {
   }
 
   static async leaveSession(sessionId: string): Promise<boolean> {
-    // Try DELETE first (matches your existing code), then POST fallback
     try {
-      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/partners'));
-      const data = await res.json();
-      console.log('👥 Study partners loaded successfully:', data);
-      return data;
+      const res = await this.fetchWithRetry(
+        buildApiUrl(`/api/v1/sessions/${encodeURIComponent(sessionId)}/leave`),
+        { method: 'DELETE' }
+      );
+      if (res.ok) {
+        console.log('✅ Successfully left session:', sessionId);
+        return true;
+      }
+      console.warn('⚠️ Failed to leave session:', sessionId);
+      return false;
     } catch (error) {
-      console.error('❌ fetchPartners error:', error);
-      const appError = ErrorHandler.handleApiError(error, 'partners');
-      throw appError;
+      console.error('❌ leaveSession error:', error);
+      return false;
     }
   }
 

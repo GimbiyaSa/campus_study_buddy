@@ -17,9 +17,9 @@ export type StudySession = {
   title: string;
   course?: string;
   courseCode?: string;
-  date: string;       // 'YYYY-MM-DD'
-  startTime: string;  // 'HH:mm'
-  endTime: string;    // 'HH:mm'
+  date: string; // 'YYYY-MM-DD'
+  startTime: string; // 'HH:mm'
+  endTime: string; // 'HH:mm'
   location: string;
   type: 'study' | 'review' | 'project' | 'exam_prep' | 'discussion';
   participants: number;
@@ -61,34 +61,234 @@ export type StudyPartner = {
 
 // -------------------- Demo fallbacks --------------------
 export const FALLBACK_COURSES: Course[] = [
-  { id: '1', type: 'institution', code: 'CS301', title: 'Data Structures & Algorithms', term: '2025 · Semester 2', progress: 78 },
-  { id: '2', type: 'institution', code: 'CS305', title: 'Database Systems', term: '2025 · Semester 2', progress: 65 },
-  { id: '3', type: 'institution', code: 'MATH204', title: 'Linear Algebra', term: '2025 · Semester 2', progress: 82 },
-  { id: '4', type: 'institution', code: 'CS403', title: 'Software Engineering', term: '2025 · Semester 2', progress: 45 },
-  { id: '5', type: 'casual', title: 'Machine Learning Basics', description: 'Self-paced learning of ML fundamentals', progress: 23 },
+  {
+    id: '1',
+    type: 'institution',
+    code: 'CS301',
+    title: 'Data Structures & Algorithms',
+    term: '2025 · Semester 2',
+    progress: 78,
+  },
+  {
+    id: '2',
+    type: 'institution',
+    code: 'CS305',
+    title: 'Database Systems',
+    term: '2025 · Semester 2',
+    progress: 65,
+  },
+  {
+    id: '3',
+    type: 'institution',
+    code: 'MATH204',
+    title: 'Linear Algebra',
+    term: '2025 · Semester 2',
+    progress: 82,
+  },
+  {
+    id: '4',
+    type: 'institution',
+    code: 'CS403',
+    title: 'Software Engineering',
+    term: '2025 · Semester 2',
+    progress: 45,
+  },
+  {
+    id: '5',
+    type: 'casual',
+    title: 'Machine Learning Basics',
+    description: 'Self-paced learning of ML fundamentals',
+    progress: 23,
+  },
 ];
 
 export const FALLBACK_SESSIONS: StudySession[] = [
-  { id: '1', title: 'Algorithms Study Group', course: 'Data Structures & Algorithms', courseCode: 'CS301', date: '2025-09-18', startTime: '14:00', endTime: '16:00', location: 'Library Room 204', type: 'study', participants: 4, maxParticipants: 6, status: 'upcoming', isCreator: true, groupId: 1, isAttending: true },
-  { id: '2', title: 'Database Design Workshop', course: 'Database Systems', courseCode: 'CS305', date: '2025-09-19', startTime: '10:00', endTime: '12:00', location: 'Computer Lab B', type: 'project', participants: 6, maxParticipants: 8, status: 'upcoming', isCreator: false, groupId: 2, isAttending: false },
-  { id: '3', title: 'Linear Algebra Review', course: 'Linear Algebra', courseCode: 'MATH204', date: '2025-09-20', startTime: '15:00', endTime: '17:00', location: 'Study Hall A', type: 'review', participants: 3, maxParticipants: 5, status: 'upcoming', isCreator: true, groupId: 3, isAttending: true },
-  { id: '4', title: 'ML Fundamentals Discussion', course: 'Machine Learning Basics', date: '2025-09-15', startTime: '16:00', endTime: '18:00', location: 'Study Hall A', type: 'discussion', participants: 3, status: 'completed', isCreator: true, groupId: 5, isAttending: true },
+  {
+    id: '1',
+    title: 'Algorithms Study Group',
+    course: 'Data Structures & Algorithms',
+    courseCode: 'CS301',
+    date: '2025-09-18',
+    startTime: '14:00',
+    endTime: '16:00',
+    location: 'Library Room 204',
+    type: 'study',
+    participants: 4,
+    maxParticipants: 6,
+    status: 'upcoming',
+    isCreator: true,
+    groupId: 1,
+    isAttending: true,
+  },
+  {
+    id: '2',
+    title: 'Database Design Workshop',
+    course: 'Database Systems',
+    courseCode: 'CS305',
+    date: '2025-09-19',
+    startTime: '10:00',
+    endTime: '12:00',
+    location: 'Computer Lab B',
+    type: 'project',
+    participants: 6,
+    maxParticipants: 8,
+    status: 'upcoming',
+    isCreator: false,
+    groupId: 2,
+    isAttending: false,
+  },
+  {
+    id: '3',
+    title: 'Linear Algebra Review',
+    course: 'Linear Algebra',
+    courseCode: 'MATH204',
+    date: '2025-09-20',
+    startTime: '15:00',
+    endTime: '17:00',
+    location: 'Study Hall A',
+    type: 'review',
+    participants: 3,
+    maxParticipants: 5,
+    status: 'upcoming',
+    isCreator: true,
+    groupId: 3,
+    isAttending: true,
+  },
+  {
+    id: '4',
+    title: 'ML Fundamentals Discussion',
+    course: 'Machine Learning Basics',
+    date: '2025-09-15',
+    startTime: '16:00',
+    endTime: '18:00',
+    location: 'Study Hall A',
+    type: 'discussion',
+    participants: 3,
+    status: 'completed',
+    isCreator: true,
+    groupId: 5,
+    isAttending: true,
+  },
 ];
 
 export const FALLBACK_GROUPS: StudyGroup[] = [
-  { id: '1', name: 'CS Advanced Study Circle', description: 'Advanced CS topics', course: 'Data Structures & Algorithms', courseCode: 'CS301', isPublic: true, maxMembers: 15, member_count: 12, createdBy: 'Alex Johnson', createdAt: '2025-08-15' },
-  { id: '2', name: 'Database Design Masters', description: 'Database design, SQL, optimization', course: 'Database Systems', courseCode: 'CS305', isPublic: true, maxMembers: 12, member_count: 8, createdBy: 'Sarah Chen', createdAt: '2025-08-20' },
-  { id: '3', name: 'Math Study Warriors', description: 'Linear algebra, calculus, proofs', course: 'Linear Algebra', courseCode: 'MATH204', isPublic: true, maxMembers: 10, member_count: 6, createdBy: 'Maria Rodriguez', createdAt: '2025-08-25' },
-  { id: '4', name: 'Software Engineering Pros', description: 'Patterns, agile, testing', course: 'Software Engineering', courseCode: 'CS403', isPublic: true, maxMembers: 20, member_count: 15, createdBy: 'David Kim', createdAt: '2025-09-01' },
+  {
+    id: '1',
+    name: 'CS Advanced Study Circle',
+    description: 'Advanced CS topics',
+    course: 'Data Structures & Algorithms',
+    courseCode: 'CS301',
+    isPublic: true,
+    maxMembers: 15,
+    member_count: 12,
+    createdBy: 'Alex Johnson',
+    createdAt: '2025-08-15',
+  },
+  {
+    id: '2',
+    name: 'Database Design Masters',
+    description: 'Database design, SQL, optimization',
+    course: 'Database Systems',
+    courseCode: 'CS305',
+    isPublic: true,
+    maxMembers: 12,
+    member_count: 8,
+    createdBy: 'Sarah Chen',
+    createdAt: '2025-08-20',
+  },
+  {
+    id: '3',
+    name: 'Math Study Warriors',
+    description: 'Linear algebra, calculus, proofs',
+    course: 'Linear Algebra',
+    courseCode: 'MATH204',
+    isPublic: true,
+    maxMembers: 10,
+    member_count: 6,
+    createdBy: 'Maria Rodriguez',
+    createdAt: '2025-08-25',
+  },
+  {
+    id: '4',
+    name: 'Software Engineering Pros',
+    description: 'Patterns, agile, testing',
+    course: 'Software Engineering',
+    courseCode: 'CS403',
+    isPublic: true,
+    maxMembers: 20,
+    member_count: 15,
+    createdBy: 'David Kim',
+    createdAt: '2025-09-01',
+  },
 ];
 
 export const FALLBACK_PARTNERS: StudyPartner[] = [
-  { id: '1', name: 'Emma Wilson', year: '3rd Year', major: 'Computer Science', courses: ['CS301','CS305','MATH204'], bio: 'Algorithms + ML', studyHours: 45, rating: 4.8, lastActive: '2025-09-16' },
-  { id: '2', name: 'Marcus Johnson', year: '2nd Year', major: 'Computer Science', courses: ['CS201','MATH204','PHY101'], bio: 'Math collab', studyHours: 38, rating: 4.6, lastActive: '2025-09-15' },
-  { id: '3', name: 'Sophia Chen', year: '4th Year', major: 'Software Engineering', courses: ['CS403','CS305','CS450'], bio: 'Design + DB', studyHours: 52, rating: 4.9, lastActive: '2025-09-17' },
-  { id: '4', name: 'James Rodriguez', year: '3rd Year', major: 'Data Science', courses: ['STAT301','CS301','MATH204'], bio: 'Stats/analysis', studyHours: 41, rating: 4.7, lastActive: '2025-09-14' },
-  { id: '5', name: 'Aisha Patel', year: '2nd Year', major: 'Computer Science', courses: ['CS201','CS205','MATH204'], bio: 'Web + UI/UX', studyHours: 33, rating: 4.5, lastActive: '2025-09-16' },
-  { id: '6', name: 'Ryan Thompson', year: '4th Year', major: 'Computer Engineering', courses: ['CS403','EE301','CS450'], bio: 'Systems/arch', studyHours: 48, rating: 4.8, lastActive: '2025-09-17' },
+  {
+    id: '1',
+    name: 'Emma Wilson',
+    year: '3rd Year',
+    major: 'Computer Science',
+    courses: ['CS301', 'CS305', 'MATH204'],
+    bio: 'Algorithms + ML',
+    studyHours: 45,
+    rating: 4.8,
+    lastActive: '2025-09-16',
+  },
+  {
+    id: '2',
+    name: 'Marcus Johnson',
+    year: '2nd Year',
+    major: 'Computer Science',
+    courses: ['CS201', 'MATH204', 'PHY101'],
+    bio: 'Math collab',
+    studyHours: 38,
+    rating: 4.6,
+    lastActive: '2025-09-15',
+  },
+  {
+    id: '3',
+    name: 'Sophia Chen',
+    year: '4th Year',
+    major: 'Software Engineering',
+    courses: ['CS403', 'CS305', 'CS450'],
+    bio: 'Design + DB',
+    studyHours: 52,
+    rating: 4.9,
+    lastActive: '2025-09-17',
+  },
+  {
+    id: '4',
+    name: 'James Rodriguez',
+    year: '3rd Year',
+    major: 'Data Science',
+    courses: ['STAT301', 'CS301', 'MATH204'],
+    bio: 'Stats/analysis',
+    studyHours: 41,
+    rating: 4.7,
+    lastActive: '2025-09-14',
+  },
+  {
+    id: '5',
+    name: 'Aisha Patel',
+    year: '2nd Year',
+    major: 'Computer Science',
+    courses: ['CS201', 'CS205', 'MATH204'],
+    bio: 'Web + UI/UX',
+    studyHours: 33,
+    rating: 4.5,
+    lastActive: '2025-09-16',
+  },
+  {
+    id: '6',
+    name: 'Ryan Thompson',
+    year: '4th Year',
+    major: 'Computer Engineering',
+    courses: ['CS403', 'EE301', 'CS450'],
+    bio: 'Systems/arch',
+    studyHours: 48,
+    rating: 4.8,
+    lastActive: '2025-09-17',
+  },
 ];
 
 // -------------------- Service --------------------
@@ -103,7 +303,10 @@ export class DataService {
         const p = JSON.parse(raw);
         if (typeof p === 'string') t = p;
       } catch {}
-      t = t.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
+      t = t
+        .replace(/^["']|["']$/g, '')
+        .replace(/^Bearer\s+/i, '')
+        .trim();
       if (t) h.set('Authorization', `Bearer ${t}`);
     }
     return h;
@@ -229,10 +432,7 @@ export class DataService {
 
   /** Create a standalone session (or group-linked if groupId provided). */
   static async createSession(
-    sessionData: Omit<
-      StudySession,
-      'id' | 'participants' | 'status' | 'isCreator' | 'isAttending'
-    >
+    sessionData: Omit<StudySession, 'id' | 'participants' | 'status' | 'isCreator' | 'isAttending'>
   ): Promise<StudySession | null> {
     // Prefer group-scoped endpoint when groupId is present
     if (sessionData.groupId) {
@@ -299,10 +499,7 @@ export class DataService {
 
   static async updateSession(
     sessionId: string,
-    sessionData: Omit<
-      StudySession,
-      'id' | 'participants' | 'status' | 'isCreator' | 'isAttending'
-    >
+    sessionData: Omit<StudySession, 'id' | 'participants' | 'status' | 'isCreator' | 'isAttending'>
   ): Promise<StudySession | null> {
     const startISO = this.toISO(sessionData.date, sessionData.startTime);
     const endISO = this.toISO(sessionData.date, sessionData.endTime);
@@ -338,9 +535,7 @@ export class DataService {
     return null;
   }
 
-  static async deleteSession(
-    sessionId: string
-  ): Promise<{ ok: boolean; data?: any } | null> {
+  static async deleteSession(sessionId: string): Promise<{ ok: boolean; data?: any } | null> {
     try {
       const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}`, {
         method: 'DELETE',
@@ -511,7 +706,7 @@ export class DataService {
       title: string;
       description?: string;
       startTime: string; // ISO
-      endTime: string;   // ISO
+      endTime: string; // ISO
       location: string;
       topics?: string[];
       type?: StudySession['type'];
@@ -539,7 +734,10 @@ function cryptoRandomId() {
   try {
     // @ts-ignore
     const buf = crypto?.getRandomValues?.(new Uint8Array(8));
-    if (buf) return Array.from(buf).map((b) => b.toString(16).padStart(2, '0')).join('');
+    if (buf)
+      return Array.from(buf)
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
   } catch {}
   return String(Date.now());
 }

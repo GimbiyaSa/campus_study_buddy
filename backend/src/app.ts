@@ -125,6 +125,7 @@ app.use('/api/v1/partners', partnerService);
 app.use('/api/v1/groups', groupService);
 app.use('/api/v1/progress', progressService);
 app.use('/api/v1/notifications', notificationService);
+
 app.use('/api/v1/chat', chatService);
 app.use('/api/v1/courses', courseService);
 app.use('/api/v1/modules', moduleService);

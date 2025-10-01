@@ -2,7 +2,6 @@
 import { buildApiUrl } from '../utils/url';
 import { ErrorHandler } from '../utils/errorHandler';
 
-// Enhanced Course type leveraging database richness
 // -------------------- Types --------------------
 export type Course = {
   id: string;
@@ -13,7 +12,7 @@ export type Course = {
   description?: string;
   university?: string;
 
-  // Progress & Analytics (from user_progress + study_hours tables)
+  // Progress & Analytics
   progress?: number;
   totalHours?: number;
   totalTopics?: number;
@@ -21,18 +20,18 @@ export type Course = {
   completedChapters?: number;
   totalChapters?: number;
 
-  // Enrollment details (from user_modules table)
+  // Enrollment
   enrollmentStatus?: 'active' | 'completed' | 'dropped';
   enrolledAt?: string;
 
-  // Study metrics (from study_hours aggregations)
+  // Study metrics
   weeklyHours?: number;
   monthlyHours?: number;
   averageSessionDuration?: number;
   studyStreak?: number;
   lastStudiedAt?: string;
 
-  // Social context (from study_groups + session_attendees)
+  // Social context
   activeStudyGroups?: number;
   upcomingSessions?: number;
   studyPartners?: number;
@@ -50,19 +49,18 @@ export type Course = {
   updatedAt?: string;
 };
 
-// Enhanced Study Partner type with rich profile data
 export type StudyPartner = {
   id: string;
   name: string;
   avatar?: string;
 
-  // Academic profile (from users table)
+  // Academic profile
   university: string;
   course: string;
   yearOfStudy: number;
   bio?: string;
 
-  // Study preferences & compatibility
+  // Preferences
   studyPreferences?: {
     preferredTimes: string[];
     studyStyle: 'visual' | 'auditory' | 'kinesthetic' | 'mixed';
@@ -70,34 +68,33 @@ export type StudyPartner = {
     environment: 'quiet' | 'collaborative' | 'flexible';
   };
 
-  // Shared academic context (from user_modules overlap)
+  // Shared context
   sharedCourses: string[];
   sharedTopics: string[];
   compatibilityScore: number;
 
-  // Activity & engagement metrics
+  // Activity
   studyHours: number;
   weeklyHours: number;
   studyStreak: number;
   activeGroups: number;
   sessionsAttended: number;
 
-  // Social proof & reliability
+  // Social proof
   rating: number;
   reviewCount: number;
   responseRate: number;
   lastActive: string;
 
-  // Connection status
+  // Connection
   connectionStatus?: 'not_connected' | 'pending' | 'connected' | 'blocked';
   mutualConnections?: number;
 
-  // Study match details
+  // Match details
   recommendationReason?: string;
   sharedGoals?: string[];
 };
 
-// Pagination type for API responses
 export type PaginatedResponse<T> = {
   courses?: T[];
   data?: T[];
@@ -138,7 +135,7 @@ export type StudySession = {
 };
 
 export type StudyGroup = {
-  id: string; // backend/cosmos id
+  id: string;
   name: string;
   description?: string;
   course?: string;
@@ -150,52 +147,39 @@ export type StudyGroup = {
   createdAt?: string;
   lastActivity?: string;
   group_type?: 'study' | 'project' | 'exam_prep' | 'discussion';
-  member_count?: number; // optional count
+  member_count?: number;
 };
 
-// -------- Demo fallback data (keeping for sessions, groups, partners) --------
+// ---- Notifications types (for Header, etc.) ----
+export type NotificationRow = {
+  notification_id?: number;
+  id?: number;
+  user_id: number | string;
+  notification_type: string;
+  title: string;
+  message: string;
+  metadata?: any;
+  is_read: boolean;
+  created_at: string;
+  scheduled_for?: string | null;
+  sent_at?: string | null;
+};
+
+export type NotificationCounts = {
+  total_notifications: number;
+  unread_notifications: number;
+  unread_reminders: number;
+  unread_invites: number;
+  unread_matches: number;
+};
 
 // -------------------- Demo fallbacks --------------------
 export const FALLBACK_COURSES: Course[] = [
-  {
-    id: '1',
-    type: 'institution',
-    code: 'CS301',
-    title: 'Data Structures & Algorithms',
-    term: '2025 · Semester 2',
-    progress: 78,
-  },
-  {
-    id: '2',
-    type: 'institution',
-    code: 'CS305',
-    title: 'Database Systems',
-    term: '2025 · Semester 2',
-    progress: 65,
-  },
-  {
-    id: '3',
-    type: 'institution',
-    code: 'MATH204',
-    title: 'Linear Algebra',
-    term: '2025 · Semester 2',
-    progress: 82,
-  },
-  {
-    id: '4',
-    type: 'institution',
-    code: 'CS403',
-    title: 'Software Engineering',
-    term: '2025 · Semester 2',
-    progress: 45,
-  },
-  {
-    id: '5',
-    type: 'casual',
-    title: 'Machine Learning Basics',
-    description: 'Self-paced learning of ML fundamentals',
-    progress: 23,
-  },
+  { id: '1', type: 'institution', code: 'CS301', title: 'Data Structures & Algorithms', term: '2025 · Semester 2', progress: 78 },
+  { id: '2', type: 'institution', code: 'CS305', title: 'Database Systems', term: '2025 · Semester 2', progress: 65 },
+  { id: '3', type: 'institution', code: 'MATH204', title: 'Linear Algebra', term: '2025 · Semester 2', progress: 82 },
+  { id: '4', type: 'institution', code: 'CS403', title: 'Software Engineering', term: '2025 · Semester 2', progress: 45 },
+  { id: '5', type: 'casual', title: 'Machine Learning Basics', description: 'Self-paced learning of ML fundamentals', progress: 23 },
 ];
 
 export const FALLBACK_SESSIONS: StudySession[] = [
@@ -268,54 +252,10 @@ export const FALLBACK_SESSIONS: StudySession[] = [
 ];
 
 export const FALLBACK_GROUPS: StudyGroup[] = [
-  {
-    id: '1',
-    name: 'CS Advanced Study Circle',
-    description: 'Advanced CS topics',
-    course: 'Data Structures & Algorithms',
-    courseCode: 'CS301',
-    isPublic: true,
-    maxMembers: 15,
-    member_count: 12,
-    createdBy: 'Alex Johnson',
-    createdAt: '2025-08-15',
-  },
-  {
-    id: '2',
-    name: 'Database Design Masters',
-    description: 'Database design, SQL, optimization',
-    course: 'Database Systems',
-    courseCode: 'CS305',
-    isPublic: true,
-    maxMembers: 12,
-    member_count: 8,
-    createdBy: 'Sarah Chen',
-    createdAt: '2025-08-20',
-  },
-  {
-    id: '3',
-    name: 'Math Study Warriors',
-    description: 'Linear algebra, calculus, proofs',
-    course: 'Linear Algebra',
-    courseCode: 'MATH204',
-    isPublic: true,
-    maxMembers: 10,
-    member_count: 6,
-    createdBy: 'Maria Rodriguez',
-    createdAt: '2025-08-25',
-  },
-  {
-    id: '4',
-    name: 'Software Engineering Pros',
-    description: 'Patterns, agile, testing',
-    course: 'Software Engineering',
-    courseCode: 'CS403',
-    isPublic: true,
-    maxMembers: 20,
-    member_count: 15,
-    createdBy: 'David Kim',
-    createdAt: '2025-09-01',
-  },
+  { id: '1', name: 'CS Advanced Study Circle', description: 'Advanced CS topics', course: 'Data Structures & Algorithms', courseCode: 'CS301', isPublic: true, maxMembers: 15, member_count: 12, createdBy: 'Alex Johnson', createdAt: '2025-08-15' },
+  { id: '2', name: 'Database Design Masters', description: 'Database design, SQL, optimization', course: 'Database Systems', courseCode: 'CS305', isPublic: true, maxMembers: 12, member_count: 8, createdBy: 'Sarah Chen', createdAt: '2025-08-20' },
+  { id: '3', name: 'Math Study Warriors', description: 'Linear algebra, calculus, proofs', course: 'Linear Algebra', courseCode: 'MATH204', isPublic: true, maxMembers: 10, member_count: 6, createdBy: 'Maria Rodriguez', createdAt: '2025-08-25' },
+  { id: '4', name: 'Software Engineering Pros', description: 'Patterns, agile, testing', course: 'Software Engineering', courseCode: 'CS403', isPublic: true, maxMembers: 20, member_count: 15, createdBy: 'David Kim', createdAt: '2025-09-01' },
 ];
 
 export const FALLBACK_PARTNERS: StudyPartner[] = [
@@ -453,15 +393,13 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
   },
 ];
 
-// -------- Enhanced Service with Retry Logic --------
 // -------------------- Service --------------------
 export class DataService {
   // --- headers/helpers ---
   private static authHeaders(): Headers {
     const h = new Headers();
-    // Check for both 'google_id_token' (Google Auth) and 'token' (fallback)
-    const googleToken =
-      typeof window !== 'undefined' ? localStorage.getItem('google_id_token') : null;
+    // Prefer Google token; fall back to generic app token
+    const googleToken = typeof window !== 'undefined' ? localStorage.getItem('google_id_token') : null;
     const generalToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     const raw = googleToken || generalToken;
 
@@ -477,10 +415,7 @@ export class DataService {
         const p = JSON.parse(raw);
         if (typeof p === 'string') t = p;
       } catch {}
-      t = t
-        .replace(/^["']|["']$/g, '')
-        .replace(/^Bearer\s+/i, '')
-        .trim();
+      t = t.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
       if (t) {
         h.set('Authorization', `Bearer ${t}`);
         console.log('✅ Authorization header set');
@@ -490,7 +425,6 @@ export class DataService {
     } else {
       console.warn('⚠️ No authentication token found in localStorage');
     }
-
     return h;
   }
 
@@ -498,12 +432,11 @@ export class DataService {
   private static async fetchWithRetry(
     url: string,
     options: RequestInit = {},
-    retries = 2, // Reduced retries for faster response
-    timeout = 5000 // 5 second timeout
+    retries = 2,
+    timeout = 5000
   ): Promise<Response> {
     for (let i = 0; i < retries; i++) {
       try {
-        // Create abort controller for timeout
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
 
@@ -525,29 +458,26 @@ export class DataService {
 
         clearTimeout(timeoutId);
 
-        if (response.ok) {
-          return response;
-        }
+        if (response.ok) return response;
 
-        // Don't retry for client errors (4xx), only server errors (5xx)
+        // Don't retry 4xx
         if (response.status >= 400 && response.status < 500) {
           throw new Error(`Client error: ${response.status} ${response.statusText}`);
         }
-
         if (i === retries - 1) {
           throw new Error(`Server error: ${response.status} ${response.statusText}`);
         }
-      } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') {
+      } catch (error: any) {
+        if (error?.name === 'AbortError') {
           console.warn(`Request timeout after ${timeout}ms for ${url}`);
         }
         if (i === retries - 1) throw error;
-        // Reduced backoff for faster response
-        await new Promise((resolve) => setTimeout(resolve, Math.min(500, Math.pow(2, i) * 200)));
+        await new Promise((r) => setTimeout(r, Math.min(500, Math.pow(2, i) * 200)));
       }
     }
     throw new Error('Should not reach here');
   }
+
   private static jsonHeaders(): Headers {
     const h = this.authHeaders();
     h.set('Content-Type', 'application/json');
@@ -558,8 +488,8 @@ export class DataService {
     const url = buildApiUrl(path);
     return fetch(url, { credentials: 'include', ...init });
   }
+
   private static toISO(date: string, time: string): string {
-    // local → ISO
     return new Date(`${date}T${time}:00`).toISOString();
   }
   private static pad2(n: number) {
@@ -574,12 +504,11 @@ export class DataService {
     const MM = this.pad2(d.getMinutes());
     return { date: `${yyyy}-${mm}-${dd}`, time: `${HH}:${MM}` };
   }
+
   private static normalizeSession(s: any): StudySession {
-    // Try a variety of shapes coming from the backend
     const id = String(s?.id ?? s?.session_id ?? cryptoRandomId());
     const title = s?.title ?? s?.session_title ?? 'Study session';
 
-    // date/time sources
     let date = s?.date;
     let startTime = s?.startTime;
     let endTime = s?.endTime;
@@ -597,7 +526,6 @@ export class DataService {
       endTime = dt.time;
     }
 
-    // fallback if still missing
     date = date || new Date().toISOString().slice(0, 10);
     startTime = startTime || '09:00';
     endTime = endTime || '10:00';
@@ -634,7 +562,7 @@ export class DataService {
     }
   }
 
-  // Enhanced course fetching with expert error handling
+  // -------------------- Courses --------------------
   static async fetchCourses(options?: CourseFetchOptions): Promise<Course[]> {
     try {
       const params = new URLSearchParams();
@@ -644,7 +572,7 @@ export class DataService {
       if (options?.sortBy) params.append('sortBy', options.sortBy);
       if (options?.sortOrder) params.append('sortOrder', options.sortOrder);
 
-      const url = buildApiUrl(`/api/v1/courses${params.toString() ? `?${params.toString()}` : ''}`);
+      const url = buildApiUrl(`/api/v1/courses${params.toString() ? `?${params}` : ''}`);
       console.log('🎓 Fetching courses from:', url);
       console.log('🔑 Auth headers:', this.authHeaders());
 
@@ -654,18 +582,17 @@ export class DataService {
       const data = await res.json();
       console.log('📦 Response data:', data);
 
-      // Handle both paginated and non-paginated responses
       let courses: Course[] = [];
       if (data.courses) {
-        courses = data.courses; // Paginated response
+        courses = data.courses;
       } else if (Array.isArray(data)) {
-        courses = data; // Direct array response (backwards compatibility)
+        courses = data;
       } else {
         console.warn('⚠️ Unexpected response format:', data);
-        courses = []; // Default to empty array for unexpected formats
+        courses = [];
       }
 
-      console.log('✅ Courses processed successfully:', courses.length, 'courses');
+      console.log('✅ Courses processed:', courses.length);
       return courses;
     } catch (error) {
       console.error('❌ fetchCourses error details:', {
@@ -673,13 +600,10 @@ export class DataService {
         message: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined,
       });
-
-      // Re-throw the error so the component can handle it
       throw error;
     }
   }
 
-  // Add a new course with optimistic updates support
   static async addCourse(courseData: Omit<Course, 'id' | 'progress'>): Promise<Course> {
     const url = buildApiUrl('/api/v1/courses');
     console.log('➕ Adding course:', courseData);
@@ -694,30 +618,22 @@ export class DataService {
     return newCourse;
   }
 
-  // Remove a course
   static async removeCourse(courseId: string): Promise<void> {
     const url = buildApiUrl(`/api/v1/courses/${courseId}`);
     console.log('🗑️ Removing course:', courseId);
 
-    await this.fetchWithRetry(url, {
-      method: 'DELETE',
-    });
-
+    await this.fetchWithRetry(url, { method: 'DELETE' });
     console.log('✅ Course removed:', courseId);
   }
 
+  // -------------------- Sessions --------------------
   static async fetchSessions(): Promise<StudySession[]> {
     try {
       const res = await this.fetchWithRetry(buildApiUrl('/api/v1/sessions'));
       const data = await res.json();
-      return (data as any[]).map((s) => ({
-        ...s,
-        isAttending: !!s.isAttending,
-        id: String(s.id),
-      }));
+      return (data as any[]).map((row) => this.normalizeSession(row));
     } catch (error) {
       console.error('❌ fetchSessions error:', error);
-      // Keep fallback for sessions (not in your focus list)
       return FALLBACK_SESSIONS;
     }
   }
@@ -750,12 +666,36 @@ export class DataService {
           return this.normalizeSession(created);
         }
       } catch {}
-      // If group endpoint failed, fall back to global create
+      // fall through to global create
     }
 
-    // Generic sessions endpoint fallback
+    // Generic sessions endpoint
+    const startISO = this.toISO(sessionData.date, sessionData.startTime);
+    const endISO = this.toISO(sessionData.date, sessionData.endTime);
+    const payload = {
+      title: sessionData.title,
+      startTime: startISO,
+      endTime: endISO,
+      location: sessionData.location,
+      type: sessionData.type,
+      course: sessionData.course,
+      courseCode: sessionData.courseCode,
+      maxParticipants: sessionData.maxParticipants,
+      groupId: sessionData.groupId,
+      // legacy mirrors
+      session_title: sessionData.title,
+      scheduled_start: startISO,
+      scheduled_end: endISO,
+      session_type: sessionData.type,
+      max_participants: sessionData.maxParticipants,
+    };
+
     try {
-      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/sessions'));
+      const res = await this.request('/api/v1/sessions', {
+        method: 'POST',
+        headers: this.jsonHeaders(),
+        body: JSON.stringify(payload),
+      });
       if (res.ok) {
         const created = await res.json();
         return this.normalizeSession(created);
@@ -763,8 +703,6 @@ export class DataService {
     } catch (error) {
       console.error('❌ createSession error:', error);
     }
-
-    // Return null if all attempts failed
     return null;
   }
 
@@ -813,7 +751,6 @@ export class DataService {
         headers: this.authHeaders(),
       });
       if (res.ok) {
-        // some backends return the cancelled row
         let data: any = null;
         try {
           data = await res.json();
@@ -856,6 +793,7 @@ export class DataService {
     }
   }
 
+  // -------------------- Partners --------------------
   static async searchPartners(params?: {
     subjects?: string[];
     studyStyle?: string;
@@ -866,25 +804,12 @@ export class DataService {
   }): Promise<StudyPartner[]> {
     try {
       const queryParams = new URLSearchParams();
-
-      if (params?.subjects?.length) {
-        queryParams.append('subjects', params.subjects.join(','));
-      }
-      if (params?.studyStyle) {
-        queryParams.append('studyStyle', params.studyStyle);
-      }
-      if (params?.groupSize) {
-        queryParams.append('groupSize', params.groupSize);
-      }
-      if (params?.availability?.length) {
-        queryParams.append('availability', params.availability.join(','));
-      }
-      if (params?.university) {
-        queryParams.append('university', params.university);
-      }
-      if (params?.search) {
-        queryParams.append('search', params.search);
-      }
+      if (params?.subjects?.length) queryParams.append('subjects', params.subjects.join(','));
+      if (params?.studyStyle) queryParams.append('studyStyle', params.studyStyle);
+      if (params?.groupSize) queryParams.append('groupSize', params.groupSize);
+      if (params?.availability?.length) queryParams.append('availability', params.availability.join(','));
+      if (params?.university) queryParams.append('university', params.university);
+      if (params?.search) queryParams.append('search', params.search);
 
       const url = buildApiUrl(`/api/v1/partners/search?${queryParams.toString()}`);
       const res = await this.fetchWithRetry(url);
@@ -930,7 +855,6 @@ export class DataService {
       const res = await this.request('/api/v1/groups', { headers: this.authHeaders() });
       if (res.ok) return await res.json();
     } catch {}
-    // fallback to demo-like objects
     return FALLBACK_GROUPS.map((g) => ({
       id: g.id,
       name: g.name,
@@ -1025,7 +949,7 @@ export class DataService {
       title: string;
       description?: string;
       startTime: string; // ISO
-      endTime: string; // ISO
+      endTime: string;   // ISO
       location: string;
       topics?: string[];
       type?: StudySession['type'];
@@ -1044,6 +968,163 @@ export class DataService {
       return await res.json();
     } catch {
       return null;
+    }
+  }
+
+  // -------------------- Notifications API --------------------
+  // DataService.fetchNotifications
+// DataService.fetchNotifications
+// DataService.fetchNotifications
+  static async fetchNotifications(opts?: {
+    unreadOnly?: boolean;
+    type?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<NotificationRow[]> {
+    const params = new URLSearchParams();
+    if (opts?.unreadOnly) params.set('unreadOnly', 'true');
+    if (opts?.type) params.set('type', String(opts.type));
+    if (opts?.limit) params.set('limit', String(opts.limit));
+    if (opts?.offset) params.set('offset', String(opts.offset));
+
+    // ⬇️ use the user-scoped route
+    const res = await this.request(`/api/v1/users/me/notifications?${params.toString()}`, {
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) return [];
+    const rows = await res.json();
+    return Array.isArray(rows) ? rows : [];
+  }
+
+  static async fetchNotificationCounts(): Promise<NotificationCounts | null> {
+    try {
+      const res = await this.request('/api/v1/notifications/counts', {
+        headers: this.authHeaders(),
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  }
+
+    // DataService.markNotificationRead
+  static async markNotificationRead(notificationId: number): Promise<boolean> {
+    // ⬇️ use the user-scoped route
+    const res = await this.request(`/api/v1/users/me/notifications/${notificationId}/read`, {
+      method: 'PUT',
+      headers: this.jsonHeaders(),
+    });
+    return res.ok;
+  }
+
+  static async markAllNotificationsRead(): Promise<boolean> {
+    try {
+      const res = await this.request('/api/v1/notifications/read-all', {
+        method: 'PUT',
+        headers: this.jsonHeaders(),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  static async deleteNotification(notificationId: number): Promise<boolean> {
+    try {
+      const res = await this.request(`/api/v1/notifications/${notificationId}`, {
+        method: 'DELETE',
+        headers: this.authHeaders(),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  static async createNotification(payload: {
+    user_id: number | string;
+    notification_type: string;
+    title: string;
+    message: string;
+    metadata?: any;
+    scheduled_for?: string | Date | null;
+  }): Promise<NotificationRow | null> {
+    const body = {
+      ...payload,
+      scheduled_for:
+        payload.scheduled_for instanceof Date
+          ? payload.scheduled_for.toISOString()
+          : payload.scheduled_for ?? null,
+    };
+    try {
+      const res = await this.request('/api/v1/notifications', {
+        method: 'POST',
+        headers: this.jsonHeaders(),
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  }
+
+  static async notifyGroup(
+    groupId: string | number,
+    payload: {
+      notification_type: string;
+      title: string;
+      message: string;
+      metadata?: any;
+    }
+  ): Promise<boolean> {
+    try {
+      const res = await this.request(
+        `/api/v1/notifications/group/${encodeURIComponent(String(groupId))}/notify`,
+        { method: 'POST', headers: this.jsonHeaders(), body: JSON.stringify(payload) }
+      );
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  static async fetchPendingNotifications(): Promise<NotificationRow[]> {
+    try {
+      const res = await this.request('/api/v1/notifications/pending', {
+        headers: this.authHeaders(),
+      });
+      if (!res.ok) return [];
+      return await res.json();
+    } catch {
+      return [];
+    }
+  }
+
+  static async markNotificationsSent(notificationIds: Array<number | string>): Promise<boolean> {
+    try {
+      const res = await this.request('/api/v1/notifications/mark-sent', {
+        method: 'PUT',
+        headers: this.jsonHeaders(),
+        body: JSON.stringify({ notification_ids: notificationIds }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  // Trigger 24h reminder scheduling for a single session
+  static async scheduleSession24hReminders(sessionId: string | number): Promise<boolean> {
+    try {
+      const res = await this.request(
+        `/api/v1/notifications/sessions/${encodeURIComponent(String(sessionId))}/schedule-24h`,
+        { method: 'POST', headers: this.authHeaders() }
+      );
+      return res.ok;
+    } catch {
+      return false;
     }
   }
 }

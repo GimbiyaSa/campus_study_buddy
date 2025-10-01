@@ -3,6 +3,7 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 're
 import { createPortal } from 'react-dom';
 import { Calendar, Clock, MapPin, Plus, Users, X, Edit, Trash2, MessageSquare } from 'lucide-react';
 import { DataService, type StudySession } from '../services/dataService';
+import { buildApiUrl } from '../utils/url';
 
 type GroupOption = {
   id: string;
@@ -137,7 +138,7 @@ export default function Sessions() {
         maxParticipants: sessionData.maxParticipants,
       };
 
-      const res = await fetch('/api/v1/sessions', {
+      const res = await fetch(buildApiUrl('/api/v1/sessions'), {
         method: 'POST',
         headers: authHeadersJSON(),
         body: JSON.stringify(payload),
@@ -202,7 +203,7 @@ export default function Sessions() {
         courseCode: sessionData.courseCode,
       };
 
-      const res = await fetch(`/api/v1/sessions/${editingSession.id}`, {
+      const res = await fetch(buildApiUrl(`/api/v1/sessions/${editingSession.id}`), {
         method: 'PUT',
         headers: authHeadersJSON(),
         body: JSON.stringify(payload),
@@ -229,7 +230,7 @@ export default function Sessions() {
 
   const handleDeleteSession = async (sessionId: string) => {
     try {
-      const res = await fetch(`/api/v1/sessions/${sessionId}`, {
+      const res = await fetch(buildApiUrl(`/api/v1/sessions/${sessionId}`), {
         method: 'DELETE',
         headers: authHeadersJSON(),
       });
@@ -268,7 +269,7 @@ export default function Sessions() {
     );
 
     try {
-      const res = await fetch(`/api/v1/sessions/${sessionId}/join`, {
+      const res = await fetch(buildApiUrl(`/api/v1/sessions/${sessionId}/join`), {
         method: 'POST',
         headers: authHeadersJSON(),
       });
@@ -311,7 +312,7 @@ export default function Sessions() {
     );
 
     try {
-      const res = await fetch(`/api/v1/sessions/${sessionId}/leave`, {
+      const res = await fetch(buildApiUrl(`/api/v1/sessions/${sessionId}/leave`), {
         method: 'DELETE',
         headers: authHeadersJSON(),
       });
@@ -990,7 +991,7 @@ function authHeadersJSON(): Headers {
   h.set('Content-Type', 'application/json');
   const raw =
     typeof window !== 'undefined'
-      ? localStorage.getItem('google_id_token') || localStorage.getItem('token')
+      ? localStorage.getItem('google_id_token') || localStorage.getItem('google_id_token')
       : null;
   if (raw) {
     let t = raw;

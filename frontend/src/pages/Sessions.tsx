@@ -2,7 +2,11 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar, Clock, MapPin, Plus, Users, X, Edit, Trash2, MessageSquare } from 'lucide-react';
-import { DataService, type StudySession } from '../services/dataService';
+import {
+  DataService,
+  type StudySession,
+  type StudyGroup,
+} from '../services/dataService';
 
 export default function Sessions() {
   const [sessions, setSessions] = useState<StudySession[]>([]);
@@ -12,25 +16,27 @@ export default function Sessions() {
   const [editingSession, setEditingSession] = useState<StudySession | null>(null);
 
   useEffect(() => {
-    async function fetchSessions() {
+    let mounted = true;
+    (async () => {
       setLoading(true);
       try {
-        const data = await DataService.fetchSessions(); // client-side filtering only
-        setSessions(data);
+        const data = await DataService.fetchSessions();
+        if (mounted) setSessions(data);
       } catch (error) {
         console.error('Error fetching sessions:', error);
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
-    }
-    fetchSessions();
+    })();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  // --- broadcast helpers so other components (Calendar) can react in real-time ---
+  // notify other views (e.g., Calendar)
   function broadcastSessionCreated(session: StudySession) {
     try {
       window.dispatchEvent(new CustomEvent('session:created', { detail: session }));
-      // Optional: tell listeners to refetch if they prefer to pull fresh data
       window.dispatchEvent(new Event('sessions:invalidate'));
     } catch {}
   }
@@ -39,47 +45,10 @@ export default function Sessions() {
     sessionData: Omit<StudySession, 'id' | 'participants' | 'status' | 'isCreator' | 'isAttending'>
   ) => {
     try {
-      const scheduled_start = new Date(`${sessionData.date}T${sessionData.startTime}:00`);
-      const scheduled_end = new Date(`${sessionData.date}T${sessionData.endTime}:00`);
-
-      const payload = {
-        session_title: sessionData.title,
-        description: undefined,
-        scheduled_start,
-        scheduled_end,
-        location: sessionData.location,
-        session_type: sessionData.type || 'study',
-      };
-
-      const res = await fetch('/api/v1/sessions', {
-        method: 'POST',
-        headers: authHeadersJSON(),
-        body: JSON.stringify(payload),
-      });
-
-      if (res.ok) {
-        const created = await res.json();
-        const createdNorm: StudySession = {
-          ...created,
-          id: String(created.id),
-          // defensive defaults if API doesn't echo these
-          title: created.title ?? sessionData.title,
-          date: created.date ?? sessionData.date,
-          startTime: created.startTime ?? sessionData.startTime,
-          endTime: created.endTime ?? sessionData.endTime,
-          location: created.location ?? sessionData.location,
-          type: created.type ?? (sessionData.type || 'study'),
-          participants: created.participants ?? 1,
-          status: created.status ?? 'upcoming',
-          isCreator: created.isCreator ?? true,
-          isAttending: created.isAttending ?? true,
-          course: created.course ?? sessionData.course,
-          courseCode: created.courseCode ?? sessionData.courseCode,
-          maxParticipants: created.maxParticipants ?? sessionData.maxParticipants,
-          groupId: created.groupId ?? sessionData.groupId,
-        };
-        setSessions((prev) => [createdNorm, ...prev]);
-        broadcastSessionCreated(createdNorm);
+      const created = await DataService.createSession(sessionData);
+      if (created) {
+        setSessions((prev) => [created, ...prev]);
+        broadcastSessionCreated(created);
         return;
       }
     } catch (error) {
@@ -105,27 +74,10 @@ export default function Sessions() {
     if (!editingSession) return;
 
     try {
-      const payload = {
-        title: sessionData.title,
-        date: sessionData.date,
-        startTime: sessionData.startTime,
-        endTime: sessionData.endTime,
-        location: sessionData.location,
-        type: sessionData.type,
-      };
-
-      const res = await fetch(`/api/v1/sessions/${editingSession.id}`, {
-        method: 'PUT',
-        headers: authHeadersJSON(),
-        body: JSON.stringify(payload),
-      });
-
-      if (res.ok) {
-        const updated = await res.json();
+      const updated = await DataService.updateSession(editingSession.id, sessionData);
+      if (updated) {
         setSessions((prev) =>
-          prev.map((s) =>
-            s.id === editingSession.id ? { ...s, ...updated, id: String(updated.id) } : s
-          )
+          prev.map((s) => (s.id === editingSession.id ? { ...s, ...updated } : s))
         );
         return;
       }
@@ -140,19 +92,13 @@ export default function Sessions() {
   };
 
   const handleDeleteSession = async (sessionId: string) => {
-    // Treat as cancel so cancelled counts remain visible
     try {
-      const res = await fetch(`/api/v1/sessions/${sessionId}`, {
-        method: 'DELETE',
-        headers: authHeadersJSON(),
-      });
-      if (res.ok) {
-        const updated = await res.json(); // backend returns the cancelled row
+      const res = await DataService.deleteSession(sessionId);
+      if (res?.ok) {
+        const updated = res.data ?? {};
         setSessions((prev) =>
           prev.map((s) =>
-            s.id === sessionId
-              ? { ...s, ...updated, id: String(updated.id), status: 'cancelled' }
-              : s
+            s.id === sessionId ? { ...s, ...updated, id: String(updated.id ?? sessionId), status: updated.status ?? 'cancelled' } : s
           )
         );
         return;
@@ -167,7 +113,7 @@ export default function Sessions() {
   };
 
   const handleJoinSession = async (sessionId: string) => {
-    // Optimistic UI first (so it works even when you're using fallbacks / unauthenticated)
+    // Optimistic UI first
     setSessions((prev) =>
       prev.map((s) =>
         s.id === sessionId
@@ -181,31 +127,22 @@ export default function Sessions() {
     );
 
     try {
-      const res = await fetch(`/api/v1/sessions/${sessionId}/join`, {
-        method: 'POST',
-        headers: authHeadersJSON(),
-      });
-
-      if (!res.ok) {
-        // Roll back only for hard failures (capacity, forbidden, not found).
-        if ([409, 403, 404].includes(res.status)) {
-          setSessions((prev) =>
-            prev.map((s) =>
-              s.id === sessionId
-                ? {
-                    ...s,
-                    isAttending: false,
-                    participants: Math.max(0, (s.participants || 0) - 1),
-                  }
-                : s
-            )
-          );
-        } else {
-          console.warn('Join failed (keeping optimistic state for local testing):', res.status);
-        }
+      const ok = await DataService.joinSession(sessionId);
+      if (!ok) {
+        // Roll back only for hard failures
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id === sessionId
+              ? {
+                  ...s,
+                  isAttending: false,
+                  participants: Math.max(0, (s.participants || 0) - 1),
+                }
+              : s
+          )
+        );
       }
     } catch (err) {
-      // Network error — keep optimistic state so you can test against fallbacks
       console.warn('Join request error (keeping optimistic state):', err);
     }
   };
@@ -225,28 +162,20 @@ export default function Sessions() {
     );
 
     try {
-      const res = await fetch(`/api/v1/sessions/${sessionId}/leave`, {
-        method: 'DELETE',
-        headers: authHeadersJSON(),
-      });
-
-      if (!res.ok) {
-        // Roll back on hard failures (organizer can't leave, forbidden, not found)
-        if ([400, 403, 404].includes(res.status)) {
-          setSessions((prev) =>
-            prev.map((s) =>
-              s.id === sessionId
-                ? {
-                    ...s,
-                    isAttending: true,
-                    participants: (s.participants || 0) + 1,
-                  }
-                : s
-            )
-          );
-        } else {
-          console.warn('Leave failed (keeping optimistic state for local testing):', res.status);
-        }
+      const ok = await DataService.leaveSession(sessionId);
+      if (!ok) {
+        // Roll back on hard failures
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id === sessionId
+              ? {
+                  ...s,
+                  isAttending: true,
+                  participants: (s.participants || 0) + 1,
+                }
+              : s
+          )
+        );
       }
     } catch (err) {
       console.warn('Leave request error (keeping optimistic state):', err);
@@ -255,11 +184,9 @@ export default function Sessions() {
 
   const handleOpenChat = (session: StudySession) => {
     if (!session.groupId) return;
-    // simple client nav; replace with your router navigate if available
     window.location.href = `/groups/${session.groupId}/chat?session=${session.id}`;
   };
 
-  // Purely client-side filtering
   const filteredSessions =
     filter === 'all' ? sessions : sessions.filter((s) => s.status === filter);
 
@@ -569,8 +496,13 @@ function SessionModal({
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [location, setLocation] = useState('');
-  const [type, setType] = useState<StudySession['type']>('study'); // NEW
+  const [type, setType] = useState<StudySession['type']>('study');
   const [maxParticipants, setMaxParticipants] = useState<number | undefined>();
+
+  // NEW: groups dropdown (your groups)
+  const [groups, setGroups] = useState<Array<Pick<StudyGroup, 'id' | 'name' | 'course' | 'courseCode'>>>([]);
+  const [groupId, setGroupId] = useState<string | undefined>(undefined);
+  const groupIdFieldId = useId();
 
   const titleId = useId();
   const courseId = useId();
@@ -579,9 +511,34 @@ function SessionModal({
   const startTimeId = useId();
   const endTimeId = useId();
   const locationId = useId();
-  const typeId = useId(); // NEW
+  const typeId = useId();
   const maxParticipantsId = useId();
 
+  // Load groups on open
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (!open) return;
+      try {
+        const raw = await DataService.fetchMyGroups();
+        const pruned = (raw || []).map((g: any) => ({
+          id: String(g.id),
+          name: String(g.name ?? g.group_name ?? 'Untitled group'),
+          course: g.course,
+          courseCode: g.courseCode,
+        }));
+        if (mounted) setGroups(pruned);
+      } catch (e) {
+        console.warn('Failed to load groups for session modal:', e);
+        if (mounted) setGroups([]);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [open]);
+
+  // seed form state
   useEffect(() => {
     if (editingSession) {
       setTitle(editingSession.title);
@@ -591,8 +548,9 @@ function SessionModal({
       setStartTime(editingSession.startTime);
       setEndTime(editingSession.endTime);
       setLocation(editingSession.location);
-      setType(editingSession.type || 'study'); // NEW
+      setType(editingSession.type || 'study');
       setMaxParticipants(editingSession.maxParticipants);
+      setGroupId(editingSession.groupId != null ? String(editingSession.groupId) : undefined);
     } else {
       setTitle('');
       setCourse('');
@@ -601,8 +559,9 @@ function SessionModal({
       setStartTime('');
       setEndTime('');
       setLocation('');
-      setType('study'); // NEW
+      setType('study');
       setMaxParticipants(undefined);
+      setGroupId(undefined);
     }
   }, [editingSession, open]);
 
@@ -628,6 +587,18 @@ function SessionModal({
 
   if (!open) return null;
 
+  const onChangeGroup = (val: string) => {
+    const next = val || undefined;
+    setGroupId(next);
+    if (next) {
+      const g = groups.find((x) => x.id === next);
+      if (g) {
+        if (!course) setCourse(g.course || '');
+        if (!courseCode) setCourseCode(g.courseCode || '');
+      }
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !date || !startTime || !endTime || !location.trim()) return;
@@ -641,7 +612,8 @@ function SessionModal({
       endTime,
       location: location.trim(),
       maxParticipants,
-      type, // NEW
+      type,
+      groupId,
     });
 
     onClose();
@@ -681,6 +653,29 @@ function SessionModal({
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
+              {/* Study group selector */}
+              <div className="sm:col-span-2">
+                <label htmlFor={groupIdFieldId} className="block mb-1 text-sm font-medium text-slate-800">
+                  Study group
+                </label>
+                <select
+                  id={groupIdFieldId}
+                  value={groupId || ''}
+                  onChange={(e) => onChangeGroup(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                >
+                  <option value="">None</option>
+                  {groups.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-slate-500">
+                  Link this session to one of your study groups (optional).
+                </p>
+              </div>
+
               <div className="sm:col-span-2">
                 <label htmlFor={titleId} className="block mb-1 text-sm font-medium text-slate-800">
                   Session title <span className="text-emerald-700">*</span>
@@ -786,7 +781,6 @@ function SessionModal({
                 />
               </div>
 
-              {/* NEW: Session Type select */}
               <div>
                 <label htmlFor={typeId} className="block mb-1 text-sm font-medium text-slate-800">
                   Session type
@@ -848,25 +842,4 @@ function SessionModal({
     </>,
     document.body
   );
-}
-
-/* ----------------- helpers ----------------- */
-
-function authHeadersJSON(): Headers {
-  const h = new Headers();
-  h.set('Content-Type', 'application/json');
-  const raw = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  if (raw) {
-    let t = raw;
-    try {
-      const p = JSON.parse(raw);
-      if (typeof p === 'string') t = p;
-    } catch {}
-    t = t
-      .replace(/^["']|["']$/g, '')
-      .replace(/^Bearer\s+/i, '')
-      .trim();
-    if (t) h.set('Authorization', `Bearer ${t}`);
-  }
-  return h;
 }

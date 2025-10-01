@@ -22,44 +22,37 @@ let groupCount = 1;
 // Provide a deterministic id generator used by services
 global.generateId = () => 'fixed-id';
 
-// Mock Cosmos DB containers used by chatService
-jest.mock('@azure/cosmos', () => {
+// Mock Azure SQL database for chat service
+jest.mock('mssql', () => {
   // messages in DESCENDING order by timestamp so the service reverse() returns chronological order
   const messages = [
-    { id: 'm2', groupId: 'g1', content: 'world', timestamp: '2020-01-01T00:01:00Z' },
-    { id: 'm1', groupId: 'g1', content: 'hello', timestamp: '2020-01-01T00:00:00Z' },
+    { id: 'm2', group_id: 'g1', content: 'world', timestamp: '2020-01-01T00:01:00Z' },
+    { id: 'm1', group_id: 'g1', content: 'hello', timestamp: '2020-01-01T00:00:00Z' },
   ];
 
-  const fakeItems = {
-    query: jest
-      .fn()
-      .mockReturnValue({ fetchAll: jest.fn().mockResolvedValue({ resources: messages }) }),
-    create: jest.fn().mockImplementation(async (m) => ({ resource: m })),
+  const mockRequest = {
+    query: jest.fn().mockImplementation((query) => {
+      if (query.includes('SELECT COUNT')) {
+        return Promise.resolve({ recordset: [{ count: groupCount }] });
+      }
+      if (query.includes('INSERT INTO messages')) {
+        return Promise.resolve({ recordset: [{ id: 'fixed-id' }] });
+      }
+      return Promise.resolve({ recordset: messages });
+    }),
   };
 
-  const fakeGroupsItems = {
-    query: jest.fn().mockImplementation(() => ({
-      fetchAll: jest.fn().mockResolvedValue({ resources: [groupCount] }),
-    })),
+  const mockConnectionPool = {
+    request: jest.fn().mockReturnValue(mockRequest),
+    connected: true,
+    connect: jest.fn().mockResolvedValue({}),
+    close: jest.fn().mockResolvedValue({}),
   };
 
-  const fakeContainer = (name) => ({
-    items: name === 'Messages' ? fakeItems : fakeGroupsItems,
-  });
-
-  const fakeDatabase = () => ({
-    container: jest.fn().mockImplementation((name) => fakeContainer(name)),
-    containers: {
-      createIfNotExists: jest.fn().mockResolvedValue({ container: fakeContainer('Messages') }),
-    },
-  });
-
-  const CosmosClient = jest.fn().mockImplementation(() => ({
-    database: jest.fn().mockReturnValue(fakeDatabase()),
-    databases: { createIfNotExists: jest.fn().mockResolvedValue({ database: fakeDatabase() }) },
-  }));
-
-  return { CosmosClient };
+  return {
+    ConnectionPool: jest.fn().mockImplementation(() => mockConnectionPool),
+    connect: jest.fn().mockResolvedValue(mockConnectionPool),
+  };
 });
 
 const appModule = require('../app');

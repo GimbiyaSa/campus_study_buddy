@@ -11,8 +11,9 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/api': { target: 'http://localhost:5000', changeOrigin: true },
-      '/users': { target: 'http://localhost:5000', changeOrigin: true },
+      // Point to backend on port 3000 (was incorrectly 5000 causing  proxy failures)
+      '/api': { target: 'http://localhost:3000', changeOrigin: true },
+      '/users': { target: 'http://localhost:3000', changeOrigin: true },
     },
   },
 });

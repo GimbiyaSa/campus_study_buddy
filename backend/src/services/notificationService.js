@@ -20,7 +20,7 @@ const createNotification = async (
 ) => {
   try {
     const request = getPool().request();
-    request.input('userId', sql.Int, userId);
+  request.input('userId', sql.NVarChar(36), userId);
     request.input('notificationType', sql.NVarChar(100), notificationType);
     request.input('title', sql.NVarChar(255), title);
     request.input('message', sql.NText, message);
@@ -101,7 +101,7 @@ router.get('/', authenticateToken, async (req, res) => {
     const { unreadOnly = false, limit = 50, offset = 0, type } = req.query;
 
     const request = getPool().request();
-    request.input('userId', sql.Int, req.user.id);
+  request.input('userId', sql.NVarChar(36), req.user.id);
     request.input('limit', sql.Int, parseInt(limit));
     request.input('offset', sql.Int, parseInt(offset));
 
@@ -141,7 +141,7 @@ router.get('/', authenticateToken, async (req, res) => {
 router.get('/counts', authenticateToken, async (req, res) => {
   try {
     const request = getPool().request();
-    request.input('userId', sql.Int, req.user.id);
+  request.input('userId', sql.NVarChar(36), req.user.id);
 
     const result = await request.query(`
       SELECT 
@@ -165,7 +165,7 @@ router.get('/counts', authenticateToken, async (req, res) => {
 router.put('/:notificationId/read', authenticateToken, async (req, res) => {
   try {
     const request = getPool().request();
-    request.input('userId', sql.Int, req.user.id);
+  request.input('userId', sql.NVarChar(36), req.user.id);
     request.input('notificationId', sql.Int, req.params.notificationId);
 
     const result = await request.query(`
@@ -193,7 +193,7 @@ router.put('/:notificationId/read', authenticateToken, async (req, res) => {
 router.put('/read-all', authenticateToken, async (req, res) => {
   try {
     const request = getPool().request();
-    request.input('userId', sql.Int, req.user.id);
+  request.input('userId', sql.NVarChar(36), req.user.id);
 
     const result = await request.query(`
       UPDATE notifications 
@@ -212,7 +212,7 @@ router.put('/read-all', authenticateToken, async (req, res) => {
 router.delete('/:notificationId', authenticateToken, async (req, res) => {
   try {
     const request = getPool().request();
-    request.input('userId', sql.Int, req.user.id);
+  request.input('userId', sql.NVarChar(36), req.user.id);
     request.input('notificationId', sql.Int, req.params.notificationId);
 
     const result = await request.query(`
@@ -287,7 +287,7 @@ router.post('/group/:groupId/notify', authenticateToken, async (req, res) => {
 
     const request = getPool().request();
     request.input('groupId', sql.Int, req.params.groupId);
-    request.input('userId', sql.Int, req.user.id);
+  request.input('userId', sql.NVarChar(36), req.user.id);
 
     // Check if user is admin or creator of the group
     const permissionCheck = await request.query(`

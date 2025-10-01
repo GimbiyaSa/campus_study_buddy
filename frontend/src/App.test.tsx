@@ -23,7 +23,7 @@ test('App hides chrome on auth routes like home and register', async () => {
 });
 
 test('App shows chrome on dashboard route when token present', async () => {
-  const getItem = vi.fn(() => 'token');
+  const getItem = vi.fn(() => 'google_id_token');
   vi.stubGlobal('localStorage', { getItem } as any);
 
   Object.defineProperty(window, 'location', {

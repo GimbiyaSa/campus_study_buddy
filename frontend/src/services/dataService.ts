@@ -1,8 +1,7 @@
 // frontend/src/services/dataService.ts
 import { buildApiUrl } from '../utils/url';
-import { ErrorHandler } from '../utils/errorHandler';
 
-// Enhanced Course type leveraging database richness
+// -------------------- Types --------------------
 export type Course = {
   id: string;
   type: 'institution' | 'casual';
@@ -10,112 +9,7 @@ export type Course = {
   title: string;
   term?: string;
   description?: string;
-  university?: string;
-
-  // Progress & Analytics (from user_progress + study_hours tables)
   progress?: number;
-  totalHours?: number;
-  totalTopics?: number;
-  completedTopics?: number;
-  completedChapters?: number;
-  totalChapters?: number;
-
-  // Enrollment details (from user_modules table)
-  enrollmentStatus?: 'active' | 'completed' | 'dropped';
-  enrolledAt?: string;
-
-  // Study metrics (from study_hours aggregations)
-  weeklyHours?: number;
-  monthlyHours?: number;
-  averageSessionDuration?: number;
-  studyStreak?: number;
-  lastStudiedAt?: string;
-
-  // Social context (from study_groups + session_attendees)
-  activeStudyGroups?: number;
-  upcomingSessions?: number;
-  studyPartners?: number;
-
-  // Activity timeline
-  recentActivity?: {
-    type: 'topic_completed' | 'chapter_finished' | 'session_attended' | 'hours_logged';
-    description: string;
-    timestamp: string;
-  }[];
-
-  // Timestamps
-  status?: string;
-  createdAt?: string;
-  updatedAt?: string;
-};
-
-// Enhanced Study Partner type with rich profile data
-export type StudyPartner = {
-  id: string;
-  name: string;
-  avatar?: string;
-
-  // Academic profile (from users table)
-  university: string;
-  course: string;
-  yearOfStudy: number;
-  bio?: string;
-
-  // Study preferences & compatibility
-  studyPreferences?: {
-    preferredTimes: string[];
-    studyStyle: 'visual' | 'auditory' | 'kinesthetic' | 'mixed';
-    groupSize: 'small' | 'medium' | 'large';
-    environment: 'quiet' | 'collaborative' | 'flexible';
-  };
-
-  // Shared academic context (from user_modules overlap)
-  sharedCourses: string[];
-  sharedTopics: string[];
-  compatibilityScore: number;
-
-  // Activity & engagement metrics
-  studyHours: number;
-  weeklyHours: number;
-  studyStreak: number;
-  activeGroups: number;
-  sessionsAttended: number;
-
-  // Social proof & reliability
-  rating: number;
-  reviewCount: number;
-  responseRate: number;
-  lastActive: string;
-
-  // Connection status
-  connectionStatus?: 'not_connected' | 'pending' | 'connected' | 'blocked';
-  mutualConnections?: number;
-
-  // Study match details
-  recommendationReason?: string;
-  sharedGoals?: string[];
-};
-
-// Pagination type for API responses
-export type PaginatedResponse<T> = {
-  courses?: T[];
-  data?: T[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    pages: number;
-    hasNext: boolean;
-    hasPrev: boolean;
-  };
-};
-
-type CourseFetchOptions = {
-  page?: number;
-  limit?: number;
-  search?: string;
-  sortBy?: 'enrolled_at' | 'module_name' | 'progress';
-  sortOrder?: 'ASC' | 'DESC';
 };
 
 export type StudySession = {
@@ -165,47 +59,13 @@ export type StudyPartner = {
   lastActive: string;
 };
 
-// -------- Demo fallback data --------
+// -------------------- Demo fallbacks --------------------
 export const FALLBACK_COURSES: Course[] = [
-  {
-    id: '1',
-    type: 'institution',
-    code: 'CS301',
-    title: 'Data Structures & Algorithms',
-    term: '2025 · Semester 2',
-    progress: 78,
-  },
-  {
-    id: '2',
-    type: 'institution',
-    code: 'CS305',
-    title: 'Database Systems',
-    term: '2025 · Semester 2',
-    progress: 65,
-  },
-  {
-    id: '3',
-    type: 'institution',
-    code: 'MATH204',
-    title: 'Linear Algebra',
-    term: '2025 · Semester 2',
-    progress: 82,
-  },
-  {
-    id: '4',
-    type: 'institution',
-    code: 'CS403',
-    title: 'Software Engineering',
-    term: '2025 · Semester 2',
-    progress: 45,
-  },
-  {
-    id: '5',
-    type: 'casual',
-    title: 'Machine Learning Basics',
-    description: 'Self-paced learning of ML fundamentals',
-    progress: 23,
-  },
+  { id: '1', type: 'institution', code: 'CS301', title: 'Data Structures & Algorithms', term: '2025 · Semester 2', progress: 78 },
+  { id: '2', type: 'institution', code: 'CS305', title: 'Database Systems', term: '2025 · Semester 2', progress: 65 },
+  { id: '3', type: 'institution', code: 'MATH204', title: 'Linear Algebra', term: '2025 · Semester 2', progress: 82 },
+  { id: '4', type: 'institution', code: 'CS403', title: 'Software Engineering', term: '2025 · Semester 2', progress: 45 },
+  { id: '5', type: 'casual', title: 'Machine Learning Basics', description: 'Self-paced learning of ML fundamentals', progress: 23 },
 ];
 
 export const FALLBACK_SESSIONS: StudySession[] = [
@@ -223,135 +83,131 @@ export const FALLBACK_GROUPS: StudyGroup[] = [
 ];
 
 export const FALLBACK_PARTNERS: StudyPartner[] = [
-  {
-    id: '1',
-    name: 'Emma Wilson',
-    year: '3rd Year',
-    major: 'Computer Science',
-    courses: ['CS301', 'CS305', 'MATH204'],
-    bio: 'Passionate about algorithms and machine learning. Looking for study partners for advanced CS topics.',
-    studyHours: 45,
-    rating: 4.8,
-    lastActive: '2025-09-16',
-  },
-  {
-    id: '2',
-    name: 'Marcus Johnson',
-    year: '2nd Year',
-    major: 'Computer Science',
-    courses: ['CS201', 'MATH204', 'PHY101'],
-    bio: 'Strong in mathematics, enjoy collaborative problem solving and explaining concepts.',
-    studyHours: 38,
-    rating: 4.6,
-    lastActive: '2025-09-15',
-  },
-  {
-    id: '3',
-    name: 'Sophia Chen',
-    year: '4th Year',
-    major: 'Software Engineering',
-    courses: ['CS403', 'CS305', 'CS450'],
-    bio: 'Experienced with software design patterns and database optimization. Happy to mentor others.',
-    studyHours: 52,
-    rating: 4.9,
-    lastActive: '2025-09-17',
-  },
-  {
-    id: '4',
-    name: 'James Rodriguez',
-    year: '3rd Year',
-    major: 'Data Science',
-    courses: ['STAT301', 'CS301', 'MATH204'],
-    bio: 'Statistics and data analysis enthusiast. Great at breaking down complex problems.',
-    studyHours: 41,
-    rating: 4.7,
-    lastActive: '2025-09-14',
-  },
-  {
-    id: '5',
-    name: 'Aisha Patel',
-    year: '2nd Year',
-    major: 'Computer Science',
-    courses: ['CS201', 'CS205', 'MATH204'],
-    bio: 'Web development and UI/UX interested. Love working on projects and learning new technologies.',
-    studyHours: 33,
-    rating: 4.5,
-    lastActive: '2025-09-16',
-  },
-  {
-    id: '6',
-    name: 'Ryan Thompson',
-    year: '4th Year',
-    major: 'Computer Engineering',
-    courses: ['CS403', 'EE301', 'CS450'],
-    bio: 'Hardware-software integration expert. Excellent at system design and architecture discussions.',
-    studyHours: 48,
-    rating: 4.8,
-    lastActive: '2025-09-17',
-  },
+  { id: '1', name: 'Emma Wilson', year: '3rd Year', major: 'Computer Science', courses: ['CS301','CS305','MATH204'], bio: 'Algorithms + ML', studyHours: 45, rating: 4.8, lastActive: '2025-09-16' },
+  { id: '2', name: 'Marcus Johnson', year: '2nd Year', major: 'Computer Science', courses: ['CS201','MATH204','PHY101'], bio: 'Math collab', studyHours: 38, rating: 4.6, lastActive: '2025-09-15' },
+  { id: '3', name: 'Sophia Chen', year: '4th Year', major: 'Software Engineering', courses: ['CS403','CS305','CS450'], bio: 'Design + DB', studyHours: 52, rating: 4.9, lastActive: '2025-09-17' },
+  { id: '4', name: 'James Rodriguez', year: '3rd Year', major: 'Data Science', courses: ['STAT301','CS301','MATH204'], bio: 'Stats/analysis', studyHours: 41, rating: 4.7, lastActive: '2025-09-14' },
+  { id: '5', name: 'Aisha Patel', year: '2nd Year', major: 'Computer Science', courses: ['CS201','CS205','MATH204'], bio: 'Web + UI/UX', studyHours: 33, rating: 4.5, lastActive: '2025-09-16' },
+  { id: '6', name: 'Ryan Thompson', year: '4th Year', major: 'Computer Engineering', courses: ['CS403','EE301','CS450'], bio: 'Systems/arch', studyHours: 48, rating: 4.8, lastActive: '2025-09-17' },
 ];
 
-// -------- Service --------
+// -------------------- Service --------------------
 export class DataService {
-  private static getBaseUrl(): string {
-    // In browser, use relative URLs. In tests/Node.js, use localhost
-    if (typeof window !== 'undefined') return '';
-    return 'http://localhost:3000';
-  }
-
+  // --- headers/helpers ---
   private static authHeaders(): Headers {
     const h = new Headers();
-    // Check for both 'google_id_token' (Google Auth) and 'token' (fallback)
-    const googleToken =
-      typeof window !== 'undefined' ? localStorage.getItem('google_id_token') : null;
-    const generalToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    const raw = googleToken || generalToken;
-
-    console.log('🔍 Auth token check:', {
-      googleToken: googleToken ? `${googleToken.substring(0, 20)}...` : null,
-      generalToken: generalToken ? `${generalToken.substring(0, 20)}...` : null,
-      selectedToken: raw ? `${raw.substring(0, 20)}...` : null,
-    });
-
+    const raw = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     if (raw) {
       let t = raw;
       try {
         const p = JSON.parse(raw);
         if (typeof p === 'string') t = p;
       } catch {}
-      t = t
-        .replace(/^["']|["']$/g, '')
-        .replace(/^Bearer\s+/i, '')
-        .trim();
+      t = t.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
       if (t) h.set('Authorization', `Bearer ${t}`);
     }
-
     return h;
   }
-
+  private static jsonHeaders(): Headers {
+    const h = this.authHeaders();
+    h.set('Content-Type', 'application/json');
+    return h;
+  }
   private static devForceFallback(): boolean {
     if (typeof window === 'undefined') return false;
     const q = new URLSearchParams(window.location.search);
     return q.get('mockSessions') === '1' || localStorage.getItem('mockSessions') === '1';
   }
+  private static async request(path: string, init?: RequestInit) {
+    const url = buildApiUrl(path);
+    return fetch(url, { credentials: 'include', ...init });
+  }
+  private static toISO(date: string, time: string): string {
+    // local → ISO
+    return new Date(`${date}T${time}:00`).toISOString();
+  }
+  private static pad2(n: number) {
+    return n < 10 ? `0${n}` : String(n);
+  }
+  private static fromISO(iso: string): { date: string; time: string } {
+    const d = new Date(iso);
+    const yyyy = d.getFullYear();
+    const mm = this.pad2(d.getMonth() + 1);
+    const dd = this.pad2(d.getDate());
+    const HH = this.pad2(d.getHours());
+    const MM = this.pad2(d.getMinutes());
+    return { date: `${yyyy}-${mm}-${dd}`, time: `${HH}:${MM}` };
+  }
+  private static normalizeSession(s: any): StudySession {
+    // Try a variety of shapes coming from the backend
+    const id = String(s?.id ?? s?.session_id ?? cryptoRandomId());
+    const title = s?.title ?? s?.session_title ?? 'Study session';
 
+    // date/time sources
+    let date = s?.date;
+    let startTime = s?.startTime;
+    let endTime = s?.endTime;
+
+    const isoStart = s?.scheduled_start ?? s?.start_time ?? s?.startISO ?? s?.start;
+    const isoEnd = s?.scheduled_end ?? s?.end_time ?? s?.endISO ?? s?.end;
+
+    if ((!date || !startTime) && isoStart) {
+      const dt = this.fromISO(isoStart);
+      date = date || dt.date;
+      startTime = startTime || dt.time;
+    }
+    if (!endTime && isoEnd) {
+      const dt = this.fromISO(isoEnd);
+      endTime = dt.time;
+    }
+
+    // fallback if still missing
+    date = date || new Date().toISOString().slice(0, 10);
+    startTime = startTime || '09:00';
+    endTime = endTime || '10:00';
+
+    return {
+      id,
+      title,
+      course: s?.course ?? s?.module_name,
+      courseCode: s?.courseCode ?? s?.module_code,
+      date,
+      startTime,
+      endTime,
+      location: s?.location ?? 'TBD',
+      type: (s?.type ?? s?.session_type ?? 'study') as StudySession['type'],
+      participants: Number(s?.participants ?? s?.currentParticipants ?? s?.attendee_count ?? 1),
+      maxParticipants: s?.maxParticipants ?? s?.max_participants,
+      status: s?.status ?? 'upcoming',
+      isCreator: !!(s?.isCreator ?? s?.organizer ?? s?.is_owner),
+      isAttending: !!(s?.isAttending ?? s?.attending),
+      groupId: s?.groupId ?? s?.group_id,
+    };
+  }
+
+  // -------------------- Auth/User --------------------
+  static async getMe(): Promise<{ id: string } | null> {
+    try {
+      const res = await this.request('/api/v1/users/me', { headers: this.jsonHeaders() });
+      if (!res.ok) return null;
+      const data = await res.json();
+      const id = data?.user_id ?? data?.id;
+      return id ? { id: String(id) } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // -------------------- Courses --------------------
   static async fetchCourses(): Promise<Course[]> {
     try {
-      const res = await fetch(buildApiUrl('/api/v1/courses'), {
-        headers: this.authHeaders(),
-        credentials: 'include',
-      });
+      const res = await this.request('/api/v1/courses', { headers: this.authHeaders() });
       if (res.ok) return await res.json();
     } catch {}
     return FALLBACK_COURSES;
   }
 
-  /**
-   * Fetch sessions, with dev toggles:
-   * - forceFallback: return FALLBACK_SESSIONS regardless of API
-   * - fallbackOnEmpty: if API returns 200 but [], return FALLBACK_SESSIONS
-   * You can also set ?mockSessions=1 or localStorage.mockSessions='1'
-   */
+  // -------------------- Sessions --------------------
   static async fetchSessions(opts?: {
     forceFallback?: boolean;
     fallbackOnEmpty?: boolean;
@@ -360,17 +216,10 @@ export class DataService {
     if (force) return FALLBACK_SESSIONS;
 
     try {
-      const res = await fetch(buildApiUrl('/api/v1/sessions'), {
-        headers: this.authHeaders(),
-        credentials: 'include',
-      });
+      const res = await this.request('/api/v1/sessions', { headers: this.authHeaders() });
       if (res.ok) {
         const data = await res.json();
-        const list = (data as any[]).map((s) => ({
-          ...s,
-          isAttending: !!s.isAttending,
-          id: String(s.id),
-        }));
+        const list = (data as any[]).map((row) => this.normalizeSession(row));
         if (list.length === 0 && (opts?.fallbackOnEmpty ?? true)) return FALLBACK_SESSIONS;
         return list;
       }
@@ -378,23 +227,174 @@ export class DataService {
     return FALLBACK_SESSIONS;
   }
 
-  static async fetchGroups(): Promise<StudyGroup[]> {
+  /** Create a standalone session (or group-linked if groupId provided). */
+  static async createSession(
+    sessionData: Omit<
+      StudySession,
+      'id' | 'participants' | 'status' | 'isCreator' | 'isAttending'
+    >
+  ): Promise<StudySession | null> {
+    // Prefer group-scoped endpoint when groupId is present
+    if (sessionData.groupId) {
+      const payload = {
+        title: sessionData.title,
+        description: undefined,
+        startTime: this.toISO(sessionData.date, sessionData.startTime),
+        endTime: this.toISO(sessionData.date, sessionData.endTime),
+        location: sessionData.location,
+        topics: [],
+        type: sessionData.type,
+        course: sessionData.course,
+        courseCode: sessionData.courseCode,
+        maxParticipants: sessionData.maxParticipants,
+      };
+      try {
+        const res = await this.request(
+          `/api/v1/groups/${encodeURIComponent(String(sessionData.groupId))}/sessions`,
+          { method: 'POST', headers: this.jsonHeaders(), body: JSON.stringify(payload) }
+        );
+        if (res.ok) {
+          const created = await res.json();
+          return this.normalizeSession(created);
+        }
+      } catch {}
+      // If group endpoint failed, fall back to global create
+    }
+
+    // Generic sessions endpoint; include a liberal payload to match common backends
+    const startISO = this.toISO(sessionData.date, sessionData.startTime);
+    const endISO = this.toISO(sessionData.date, sessionData.endTime);
+    const payload = {
+      // "new" style
+      title: sessionData.title,
+      startTime: startISO,
+      endTime: endISO,
+      location: sessionData.location,
+      type: sessionData.type,
+      course: sessionData.course,
+      courseCode: sessionData.courseCode,
+      maxParticipants: sessionData.maxParticipants,
+      groupId: sessionData.groupId,
+      // "legacy" style fields some backends use
+      session_title: sessionData.title,
+      scheduled_start: startISO,
+      scheduled_end: endISO,
+      session_type: sessionData.type,
+      max_participants: sessionData.maxParticipants,
+    };
+
     try {
-      const res = await fetch(buildApiUrl('/api/v1/groups'), {
-        headers: this.authHeaders(),
-        credentials: 'include',
+      const res = await this.request('/api/v1/sessions', {
+        method: 'POST',
+        headers: this.jsonHeaders(),
+        body: JSON.stringify(payload),
       });
-      if (res.ok) return await res.json();
+      if (res.ok) {
+        const created = await res.json();
+        return this.normalizeSession(created);
+      }
     } catch {}
-    return FALLBACK_GROUPS;
+    return null;
+  }
+
+  static async updateSession(
+    sessionId: string,
+    sessionData: Omit<
+      StudySession,
+      'id' | 'participants' | 'status' | 'isCreator' | 'isAttending'
+    >
+  ): Promise<StudySession | null> {
+    const startISO = this.toISO(sessionData.date, sessionData.startTime);
+    const endISO = this.toISO(sessionData.date, sessionData.endTime);
+    const payload = {
+      title: sessionData.title,
+      startTime: startISO,
+      endTime: endISO,
+      location: sessionData.location,
+      type: sessionData.type,
+      course: sessionData.course,
+      courseCode: sessionData.courseCode,
+      maxParticipants: sessionData.maxParticipants,
+      groupId: sessionData.groupId,
+      // legacy mirrors
+      session_title: sessionData.title,
+      scheduled_start: startISO,
+      scheduled_end: endISO,
+      session_type: sessionData.type,
+      max_participants: sessionData.maxParticipants,
+    };
+
+    try {
+      const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}`, {
+        method: 'PUT',
+        headers: this.jsonHeaders(),
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        return this.normalizeSession(updated);
+      }
+    } catch {}
+    return null;
+  }
+
+  static async deleteSession(
+    sessionId: string
+  ): Promise<{ ok: boolean; data?: any } | null> {
+    try {
+      const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}`, {
+        method: 'DELETE',
+        headers: this.authHeaders(),
+      });
+      if (res.ok) {
+        // some backends return the cancelled row
+        let data: any = null;
+        try {
+          data = await res.json();
+        } catch {}
+        return { ok: true, data };
+      }
+      return { ok: false };
+    } catch {
+      return null;
+    }
   }
 
   static async joinSession(sessionId: string): Promise<boolean> {
     try {
-      const res = await fetch(buildApiUrl('/api/v1/partners'), {
+      const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/join`, {
+        method: 'POST',
         headers: this.authHeaders(),
-        credentials: 'include',
       });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  static async leaveSession(sessionId: string): Promise<boolean> {
+    // Try DELETE first (matches your existing code), then POST fallback
+    try {
+      let res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/leave`, {
+        method: 'DELETE',
+        headers: this.authHeaders(),
+      });
+      if (res.ok) return true;
+
+      res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/leave`, {
+        method: 'POST',
+        headers: this.authHeaders(),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  // -------------------- Partners --------------------
+  static async fetchPartners(): Promise<StudyPartner[]> {
+    try {
+      const res = await this.request('/api/v1/partners', { headers: this.authHeaders() });
       if (res.ok) return await res.json();
     } catch {}
     return FALLBACK_PARTNERS;

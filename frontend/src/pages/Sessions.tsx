@@ -179,7 +179,6 @@ export default function Sessions() {
       }
     } catch (err) {
       console.warn('Leave request error (keeping optimistic state):', err);
-      console.warn('Leave request error (keeping optimistic state):', err);
     }
   };
 
@@ -211,26 +210,17 @@ export default function Sessions() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Plan study sessions</h1>
-          <p className="text-slate-600 text-sm">
-            Schedule and manage your collaborative study sessions
           <h1 className="text-2xl font-semibold text-slate-900">Plan study sessions</h1>
           <p className="text-slate-600 text-sm">
             Schedule and manage your collaborative study sessions
           </p>
         </div>
 
-
         <button
           onClick={() => setShowModal(true)}
           className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-white shadow-sm hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
-          onClick={() => setShowModal(true)}
-          className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-white shadow-sm hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
         >
-          <Plus className="h-4 w-4" />
-          New session
           <Plus className="h-4 w-4" />
           New session
         </button>
@@ -366,136 +356,6 @@ function SessionCard({
         return 'bg-gray-50 text-gray-700';
     }
   };
-      {/* Filter tabs */}
-      <div className="flex flex-wrap gap-2">
-        {Object.entries(statusCounts).map(([status, count]) => (
-          <button
-            key={status}
-            onClick={() => setFilter(status as any)}
-            className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-              filter === status
-                ? 'bg-emerald-100 text-emerald-700'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            {status.charAt(0).toUpperCase() + status.slice(1)} ({count})
-          </button>
-        ))}
-      </div>
-
-      {/* Sessions list */}
-      {filteredSessions.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
-          <p className="text-slate-800 font-medium">No sessions found</p>
-          <p className="mt-1 text-sm text-slate-600">
-            {filter === 'all'
-              ? 'Create your first study session to get started.'
-              : `No ${filter} sessions at the moment.`}
-          </p>
-          {filter === 'all' && (
-            <button
-              onClick={() => setShowModal(true)}
-              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-white shadow-sm hover:bg-emerald-700"
-            >
-              <Plus className="h-4 w-4" />
-              New session
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {filteredSessions.map((session) => (
-            <SessionCard
-              key={session.id}
-              session={session}
-              onEdit={
-                session.isCreator
-                  ? () => {
-                      setEditingSession(session);
-                      setShowModal(true);
-                    }
-                  : undefined
-              }
-              onDelete={session.isCreator ? () => handleDeleteSession(session.id) : undefined}
-              onJoin={
-                !session.isAttending &&
-                session.participants < (session.maxParticipants || 10) &&
-                session.status !== 'completed' &&
-                session.status !== 'cancelled'
-                  ? () => handleJoinSession(session.id)
-                  : undefined
-              }
-              onLeave={
-                session.isAttending && !session.isCreator
-                  ? () => handleLeaveSession(session.id)
-                  : undefined
-              }
-              onChat={session.isAttending ? () => handleOpenChat(session) : undefined}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Session Modal */}
-      <SessionModal
-        open={showModal}
-        onClose={() => {
-          setShowModal(false);
-          setEditingSession(null);
-        }}
-        onSubmit={editingSession ? handleEditSession : handleCreateSession}
-        editingSession={editingSession}
-      />
-    </div>
-  );
-}
-
-function SessionCard({
-  session,
-  onEdit,
-  onDelete,
-  onJoin,
-  onLeave,
-  onChat,
-}: {
-  session: StudySession;
-  onEdit?: () => void;
-  onDelete?: () => void;
-  onJoin?: () => void;
-  onLeave?: () => void;
-  onChat?: () => void;
-}) {
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
-  const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':');
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes} ${ampm}`;
-  };
-
-  const getStatusColor = (status?: StudySession['status']) => {
-    switch (status) {
-      case 'upcoming':
-        return 'bg-blue-50 text-blue-700';
-      case 'ongoing':
-        return 'bg-emerald-50 text-emerald-700';
-      case 'completed':
-        return 'bg-slate-50 text-slate-700';
-      case 'cancelled':
-        return 'bg-red-50 text-red-700';
-      default:
-        return 'bg-gray-50 text-gray-700';
-    }
-  };
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-6">
@@ -537,67 +397,7 @@ function SessionCard({
               {session.maxParticipants && ` / ${session.maxParticipants}`}
             </div>
           </div>
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1">
-          <div className="flex items-start gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-50 text-emerald-700">
-              <Calendar className="h-5 w-5" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-slate-900">{session.title}</h3>
-              {session.course && (
-                <p className="text-sm text-slate-600">
-                  {session.courseCode && (
-                    <span className="text-slate-500 mr-1">{session.courseCode}</span>
-                  )}
-                  {session.course}
-                </p>
-              )}
-            </div>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-4 mt-4 text-sm text-slate-600">
-            <div className="flex items-center gap-1">
-              <Calendar className="h-4 w-4" />
-              {formatDate(session.date)}
-            </div>
-            <div className="flex items-center gap-1">
-              <Clock className="h-4 w-4" />
-              {formatTime(session.startTime)} - {formatTime(session.endTime)}
-            </div>
-            <div className="flex items-center gap-1">
-              <MapPin className="h-4 w-4" />
-              {session.location}
-            </div>
-            <div className="flex items-center gap-1">
-              <Users className="h-4 w-4" />
-              {session.participants}
-              {session.maxParticipants && ` / ${session.maxParticipants}`}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 mt-4">
-            <span
-              className={`rounded-full px-2 py-0.5 text-xs font-medium ${getStatusColor(
-                session.status
-              )}`}
-            >
-              {(session.status || 'upcoming').charAt(0).toUpperCase() +
-                (session.status || 'upcoming').slice(1)}
-            </span>
-            {session.isCreator ? (
-              <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-amber-50 text-amber-700">
-                Organizer
-              </span>
-            ) : session.isAttending ? (
-              <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-emerald-50 text-emerald-700">
-                Attending
-              </span>
-            ) : null}
-          </div>
-        </div>
           <div className="flex items-center gap-3 mt-4">
             <span
               className={`rounded-full px-2 py-0.5 text-xs font-medium ${getStatusColor(
@@ -666,74 +466,18 @@ function SessionCard({
           )}
         </div>
       </div>
-        <div className="flex items-center gap-2">
-          {onChat && (
-            <button
-              onClick={onChat}
-              className="rounded-lg border border-slate-200 p-2 text-emerald-700 hover:bg-emerald-50"
-              aria-label="Open chat"
-              title="Open group chat"
-            >
-              <MessageSquare className="h-4 w-4" />
-            </button>
-          )}
-          {onJoin && (
-            <button
-              onClick={onJoin}
-              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm text-white hover:bg-emerald-700"
-            >
-              Attend
-            </button>
-          )}
-          {onLeave && (
-            <button
-              onClick={onLeave}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
-            >
-              Leave
-            </button>
-          )}
-          {onEdit && (
-            <button
-              onClick={onEdit}
-              className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50"
-              aria-label="Edit session"
-            >
-              <Edit className="h-4 w-4" />
-            </button>
-          )}
-          {onDelete && (
-            <button
-              onClick={onDelete}
-              className="rounded-lg border border-slate-200 p-2 text-red-600 hover:bg-red-50"
-              aria-label="Delete session"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      </div>
     </div>
   );
 }
 
-function SessionModal({
 function SessionModal({
   open,
   onClose,
   onSubmit,
   editingSession,
-  editingSession,
 }: {
   open: boolean;
   onClose: () => void;
-  onSubmit: (
-    session: Omit<
-      StudySession,
-      'id' | 'isCreator' | 'isAttending' | 'participants' | 'currentParticipants' | 'status'
-    >
-  ) => void;
-  editingSession?: StudySession | null;
   onSubmit: (
     session: Omit<
       StudySession,
@@ -832,12 +576,10 @@ function SessionModal({
     document.addEventListener('keydown', onKey);
 
     const { overflow } = document.body.style;
-    const { overflow } = document.body.style;
     document.body.style.overflow = 'hidden';
 
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = overflow;
       document.body.style.overflow = overflow;
       prev?.focus();
     };
@@ -861,10 +603,7 @@ function SessionModal({
     e.preventDefault();
     if (!title.trim() || !date || !startTime || !endTime || !location.trim()) return;
 
-    if (!title.trim() || !date || !startTime || !endTime || !location.trim()) return;
-
     onSubmit({
-      title: title.trim(),
       title: title.trim(),
       course: course.trim() || undefined,
       courseCode: courseCode.trim() || undefined,
@@ -877,7 +616,6 @@ function SessionModal({
       groupId,
     });
 
-
     onClose();
   };
 
@@ -887,7 +625,6 @@ function SessionModal({
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="session-modal-title"
         aria-labelledby="session-modal-title"
         className="fixed inset-0 z-[9999] grid place-items-center p-4"
       >
@@ -899,12 +636,7 @@ function SessionModal({
             <div>
               <h2 id="session-modal-title" className="text-lg font-semibold text-slate-900">
                 {editingSession ? 'Edit session' : 'Create new session'}
-              <h2 id="session-modal-title" className="text-lg font-semibold text-slate-900">
-                {editingSession ? 'Edit session' : 'Create new session'}
               </h2>
-              <p className="text-sm text-slate-600">
-                Schedule a collaborative study session with your peers
-              </p>
               <p className="text-sm text-slate-600">
                 Schedule a collaborative study session with your peers
               </p>
@@ -987,15 +719,8 @@ function SessionModal({
               <div>
                 <label htmlFor={dateId} className="block mb-1 text-sm font-medium text-slate-800">
                   Date <span className="text-emerald-700">*</span>
-                <label htmlFor={dateId} className="block mb-1 text-sm font-medium text-slate-800">
-                  Date <span className="text-emerald-700">*</span>
                 </label>
                 <input
-                  id={dateId}
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  required
                   id={dateId}
                   type="date"
                   value={date}
@@ -1012,20 +737,7 @@ function SessionModal({
                 >
                   Location <span className="text-emerald-700">*</span>
                 </label>
-              <div>
-                <label
-                  htmlFor={locationId}
-                  className="block mb-1 text-sm font-medium text-slate-800"
-                >
-                  Location <span className="text-emerald-700">*</span>
-                </label>
                 <input
-                  id={locationId}
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="e.g., Library Room 204"
-                  required
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
                   id={locationId}
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
@@ -1041,23 +753,7 @@ function SessionModal({
                   className="block mb-1 text-sm font-medium text-slate-800"
                 >
                   Start time <span className="text-emerald-700">*</span>
-              </div>
-
-              <div>
-                <label
-                  htmlFor={startTimeId}
-                  className="block mb-1 text-sm font-medium text-slate-800"
-                >
-                  Start time <span className="text-emerald-700">*</span>
                 </label>
-                <input
-                  id={startTimeId}
-                  type="time"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  required
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
-                />
                 <input
                   id={startTimeId}
                   type="time"
@@ -1137,7 +833,6 @@ function SessionModal({
                 type="submit"
                 className="rounded-xl bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
               >
-                {editingSession ? 'Update session' : 'Create session'}
                 {editingSession ? 'Update session' : 'Create session'}
               </button>
             </div>

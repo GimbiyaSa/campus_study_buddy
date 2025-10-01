@@ -553,7 +553,7 @@ export class DataService {
     h.set('Content-Type', 'application/json');
     return h;
   }
-  
+
   private static async request(path: string, init?: RequestInit) {
     const url = buildApiUrl(path);
     return fetch(url, { credentials: 'include', ...init });
@@ -763,7 +763,7 @@ export class DataService {
     } catch (error) {
       console.error('❌ createSession error:', error);
     }
-    
+
     // Return null if all attempts failed
     return null;
   }

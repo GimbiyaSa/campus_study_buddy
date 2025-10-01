@@ -62,7 +62,7 @@ export type StudyPartner = {
 // ---- NEW: Notifications ----
 export type NotificationRow = {
   notification_id?: number; // server field
-  id?: number;              // some UIs prefer 'id'
+  id?: number; // some UIs prefer 'id'
   user_id: number;
   notification_type: string;
   title: string;
@@ -84,11 +84,45 @@ export type NotificationCounts = {
 
 // -------------------- Demo fallbacks --------------------
 export const FALLBACK_COURSES: Course[] = [
-  { id: '1', type: 'institution', code: 'CS301', title: 'Data Structures & Algorithms', term: '2025 · Semester 2', progress: 78 },
-  { id: '2', type: 'institution', code: 'CS305', title: 'Database Systems', term: '2025 · Semester 2', progress: 65 },
-  { id: '3', type: 'institution', code: 'MATH204', title: 'Linear Algebra', term: '2025 · Semester 2', progress: 82 },
-  { id: '4', type: 'institution', code: 'CS403', title: 'Software Engineering', term: '2025 · Semester 2', progress: 45 },
-  { id: '5', type: 'casual', title: 'Machine Learning Basics', description: 'Self-paced learning of ML fundamentals', progress: 23 },
+  {
+    id: '1',
+    type: 'institution',
+    code: 'CS301',
+    title: 'Data Structures & Algorithms',
+    term: '2025 · Semester 2',
+    progress: 78,
+  },
+  {
+    id: '2',
+    type: 'institution',
+    code: 'CS305',
+    title: 'Database Systems',
+    term: '2025 · Semester 2',
+    progress: 65,
+  },
+  {
+    id: '3',
+    type: 'institution',
+    code: 'MATH204',
+    title: 'Linear Algebra',
+    term: '2025 · Semester 2',
+    progress: 82,
+  },
+  {
+    id: '4',
+    type: 'institution',
+    code: 'CS403',
+    title: 'Software Engineering',
+    term: '2025 · Semester 2',
+    progress: 45,
+  },
+  {
+    id: '5',
+    type: 'casual',
+    title: 'Machine Learning Basics',
+    description: 'Self-paced learning of ML fundamentals',
+    progress: 23,
+  },
 ];
 
 export const FALLBACK_SESSIONS: StudySession[] = [
@@ -212,12 +246,72 @@ export const FALLBACK_GROUPS: StudyGroup[] = [
 ];
 
 export const FALLBACK_PARTNERS: StudyPartner[] = [
-  { id: '1', name: 'Emma Wilson', year: '3rd Year', major: 'Computer Science', courses: ['CS301', 'CS305', 'MATH204'], bio: 'Algorithms + ML', studyHours: 45, rating: 4.8, lastActive: '2025-09-16' },
-  { id: '2', name: 'Marcus Johnson', year: '2nd Year', major: 'Computer Science', courses: ['CS201', 'MATH204', 'PHY101'], bio: 'Math collab', studyHours: 38, rating: 4.6, lastActive: '2025-09-15' },
-  { id: '3', name: 'Sophia Chen', year: '4th Year', major: 'Software Engineering', courses: ['CS403', 'CS305', 'CS450'], bio: 'Design + DB', studyHours: 52, rating: 4.9, lastActive: '2025-09-17' },
-  { id: '4', name: 'James Rodriguez', year: '3rd Year', major: 'Data Science', courses: ['STAT301', 'CS301', 'MATH204'], bio: 'Stats/analysis', studyHours: 41, rating: 4.7, lastActive: '2025-09-14' },
-  { id: '5', name: 'Aisha Patel', year: '2nd Year', major: 'Computer Science', courses: ['CS201', 'CS205', 'MATH204'], bio: 'Web + UI/UX', studyHours: 33, rating: 4.5, lastActive: '2025-09-16' },
-  { id: '6', name: 'Ryan Thompson', year: '4th Year', major: 'Computer Engineering', courses: ['CS403', 'EE301', 'CS450'], bio: 'Systems/arch', studyHours: 48, rating: 4.8, lastActive: '2025-09-17' },
+  {
+    id: '1',
+    name: 'Emma Wilson',
+    year: '3rd Year',
+    major: 'Computer Science',
+    courses: ['CS301', 'CS305', 'MATH204'],
+    bio: 'Algorithms + ML',
+    studyHours: 45,
+    rating: 4.8,
+    lastActive: '2025-09-16',
+  },
+  {
+    id: '2',
+    name: 'Marcus Johnson',
+    year: '2nd Year',
+    major: 'Computer Science',
+    courses: ['CS201', 'MATH204', 'PHY101'],
+    bio: 'Math collab',
+    studyHours: 38,
+    rating: 4.6,
+    lastActive: '2025-09-15',
+  },
+  {
+    id: '3',
+    name: 'Sophia Chen',
+    year: '4th Year',
+    major: 'Software Engineering',
+    courses: ['CS403', 'CS305', 'CS450'],
+    bio: 'Design + DB',
+    studyHours: 52,
+    rating: 4.9,
+    lastActive: '2025-09-17',
+  },
+  {
+    id: '4',
+    name: 'James Rodriguez',
+    year: '3rd Year',
+    major: 'Data Science',
+    courses: ['STAT301', 'CS301', 'MATH204'],
+    bio: 'Stats/analysis',
+    studyHours: 41,
+    rating: 4.7,
+    lastActive: '2025-09-14',
+  },
+  {
+    id: '5',
+    name: 'Aisha Patel',
+    year: '2nd Year',
+    major: 'Computer Science',
+    courses: ['CS201', 'CS205', 'MATH204'],
+    bio: 'Web + UI/UX',
+    studyHours: 33,
+    rating: 4.5,
+    lastActive: '2025-09-16',
+  },
+  {
+    id: '6',
+    name: 'Ryan Thompson',
+    year: '4th Year',
+    major: 'Computer Engineering',
+    courses: ['CS403', 'EE301', 'CS450'],
+    bio: 'Systems/arch',
+    studyHours: 48,
+    rating: 4.8,
+    lastActive: '2025-09-17',
+  },
 ];
 
 // -------------------- Service --------------------
@@ -232,7 +326,10 @@ export class DataService {
         const p = JSON.parse(raw);
         if (typeof p === 'string') t = p;
       } catch {}
-      t = t.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
+      t = t
+        .replace(/^["']|["']$/g, '')
+        .replace(/^Bearer\s+/i, '')
+        .trim();
       if (t) h.set('Authorization', `Bearer ${t}`);
     }
     return h;
@@ -246,7 +343,7 @@ export class DataService {
     if (typeof window === 'undefined') return false;
     const q = new URLSearchParams(window.location.search);
     return q.get('mockSessions') === '1' || localStorage.getItem('mockSessions') === '1';
-    }
+  }
   private static async request(path: string, init?: RequestInit) {
     const url = buildApiUrl(path);
     return fetch(url, { credentials: 'include', ...init });

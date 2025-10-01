@@ -280,7 +280,10 @@ export default function Groups() {
         credentials: 'include',
       });
       if (!res.ok) {
-        res = await fetch(buildApiUrl('/api/v1/groups'), { headers: authHeadersJSON(), credentials: 'include' });
+        res = await fetch(buildApiUrl('/api/v1/groups'), {
+          headers: authHeadersJSON(),
+          credentials: 'include',
+        });
       }
       if (!res.ok) throw new Error('Failed');
       const data = await res.json();

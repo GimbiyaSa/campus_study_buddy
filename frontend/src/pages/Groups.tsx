@@ -301,7 +301,10 @@ export default function Groups() {
         credentials: 'include',
       });
       if (!res.ok) {
-        res = await fetch(buildApiUrl('/api/v1/groups'), { headers: authHeadersJSON(), credentials: 'include' });
+        res = await fetch(buildApiUrl('/api/v1/groups'), {
+          headers: authHeadersJSON(),
+          credentials: 'include',
+        });
       }
       if (!res.ok) throw new Error('Failed');
       const data = await res.json();
@@ -547,12 +550,15 @@ export default function Groups() {
     if (!groupCtx.groupId || groupCtx.groupId === String(groupCtx.groupLocalId)) return;
 
     try {
-      const res = await fetch(buildApiUrl(`/api/v1/groups/${encodeURIComponent(groupCtx.groupId)}/sessions`), {
-        method: 'POST',
-        headers: authHeadersJSON(),
-        credentials: 'include',
-        body: JSON.stringify(payload),
-      });
+      const res = await fetch(
+        buildApiUrl(`/api/v1/groups/${encodeURIComponent(groupCtx.groupId)}/sessions`),
+        {
+          method: 'POST',
+          headers: authHeadersJSON(),
+          credentials: 'include',
+          body: JSON.stringify(payload),
+        }
+      );
 
       if (res.ok) {
         const created = await res.json();

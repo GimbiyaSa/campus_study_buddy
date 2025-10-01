@@ -73,11 +73,11 @@ export default function Header() {
       try {
         const token = localStorage.getItem('google_id_token');
         if (!token) {
-        throw new Error('No authentication token found');
+          throw new Error('No authentication token found');
         }
         const headers = {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
         };
         const notifRes = await fetch(buildApiUrl(`/api/v1/notifications`), {
           signal: controller.signal,
@@ -130,11 +130,11 @@ export default function Header() {
     try {
       const token = localStorage.getItem('google_id_token');
       if (!token) {
-      throw new Error('No authentication token found');
+        throw new Error('No authentication token found');
       }
       const headers = {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
       };
       await fetch(buildApiUrl(`/api/v1/notifications/${notificationId}/read`), {
         method: 'PUT',

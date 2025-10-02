@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bell, User, Shield, Palette, Globe, Clock, Save, Eye, EyeOff } from 'lucide-react';
+import { Bell, User, Shield, Palette, Globe, /*Clock,*/ Save, Eye, EyeOff } from 'lucide-react';
 import { buildApiUrl } from '../utils/url';
 
 type UserProfile = {
@@ -133,9 +133,17 @@ export default function Settings() {
   const saveSettings = async (section: string, data: any) => {
     setSaving(true);
     try {
-      const res = await fetch(`/api/v1/user/${section}`, {
+      const token = localStorage.getItem('google_id_token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
+      const res = await fetch(buildApiUrl(`/api/v1/user/${section}`), {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(data),
       });
       if (res.ok) {

@@ -89,6 +89,23 @@ export default function App() {
     );
   }
 
+  // If user is logged in and on home page, redirect to dashboard
+  if (currentUser && route === 'home') {
+    window.history.replaceState({}, '', '/dashboard');
+    setRoute('dashboard');
+    return (
+      <div className="flex min-h-screen">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header />
+          <main className="p-6 md:p-8">
+            <Dashboard />
+          </main>
+        </div>
+      </div>
+    );
+  }
+
   // Determine if we should show chrome (header/sidebar)
   const shouldShowChrome = currentUser && chromeRoutes.has(route);
 

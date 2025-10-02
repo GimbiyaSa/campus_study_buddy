@@ -2,11 +2,11 @@ import { test, expect, vi } from 'vitest';
 import { getRouteFromPathname, navigate } from './router';
 
 test('getRouteFromPathname handles common paths', () => {
-  expect(getRouteFromPathname('/')).toBe('dashboard');
+  expect(getRouteFromPathname('/')).toBe('home');
   expect(getRouteFromPathname('/home')).toBe('home');
   expect(getRouteFromPathname('/home/')).toBe('home');
   expect(getRouteFromPathname('/courses/')).toBe('courses');
-  expect(getRouteFromPathname('')).toBe('dashboard');
+  expect(getRouteFromPathname('')).toBe('home');
 });
 
 test('navigate pushes state and dispatches popstate when changing path', () => {

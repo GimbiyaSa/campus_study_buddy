@@ -2,6 +2,7 @@
 import { useState, useEffect, useId, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Users, Plus, MessageSquare, Calendar, Trash2, X } from 'lucide-react';
+import { buildApiUrl } from '../utils/url';
 import { DataService, type StudyPartner, FALLBACK_PARTNERS } from '../services/dataService';
 
 type StudyGroup = {
@@ -116,10 +117,16 @@ export default function Groups() {
     },
   ];
 
+  // ---- headers consistent with DataService ----
   function authHeadersJSON(): Headers {
     const h = new Headers();
     h.set('Content-Type', 'application/json');
-    const raw = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+
+    const googleToken =
+      typeof window !== 'undefined' ? localStorage.getItem('google_id_token') : null;
+    const generalToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const raw = googleToken || generalToken;
+
     if (raw) {
       let t = raw;
       try {
@@ -231,7 +238,7 @@ export default function Groups() {
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch('/api/v1/users/me', {
+        const res = await fetch(buildApiUrl('/api/v1/users/me'), {
           headers: authHeadersJSON(),
           credentials: 'include',
         });
@@ -277,7 +284,7 @@ export default function Groups() {
     if (connLoading || connections.length > 0) return;
     setConnLoading(true);
     try {
-      const list = await DataService.fetchPartners();
+      const list = await DataService.searchPartners();
       setConnections(Array.isArray(list) && list.length > 0 ? list : FALLBACK_PARTNERS);
     } catch {
       setConnections(FALLBACK_PARTNERS);
@@ -295,15 +302,12 @@ export default function Groups() {
 
   async function refreshGroups(): Promise<boolean> {
     try {
-      let res = await fetch('/api/v1/groups/my-groups', {
-        headers: authHeadersJSON(),
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        res = await fetch('/api/v1/groups', { headers: authHeadersJSON(), credentials: 'include' });
+      let data: any[] = [];
+      try {
+        data = await DataService.fetchMyGroups();
+      } catch {
+        data = await DataService.fetchGroupsRaw();
       }
-      if (!res.ok) throw new Error('Failed');
-      const data = await res.json();
       const mapped = (Array.isArray(data) ? data : []).map((g) => toStudyGroup(g));
       setGroups((prev) =>
         mapped.length > 0 ? mergeGroups(prev, mapped) : prev.length ? prev : fallbackGroups
@@ -345,12 +349,8 @@ export default function Groups() {
     }
 
     try {
-      const res = await fetch(`/api/v1/groups/${encodeURIComponent(realId)}/join`, {
-        method: 'POST',
-        headers: authHeadersJSON(),
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error(`join ${res.status}`);
+      const ok = await DataService.joinGroup(realId);
+      if (!ok) throw new Error('join failed');
       await refreshGroups();
     } catch (err) {
       console.error('Error joining group:', err);
@@ -391,12 +391,8 @@ export default function Groups() {
     }
 
     try {
-      const res = await fetch(`/api/v1/groups/${encodeURIComponent(realId)}/leave`, {
-        method: 'POST',
-        headers: authHeadersJSON(),
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error(`leave ${res.status}`);
+      const ok = await DataService.leaveGroup(realId);
+      if (!ok) throw new Error('leave failed');
       await refreshGroups();
     } catch (err) {
       console.error('Error leaving group:', err);
@@ -420,12 +416,8 @@ export default function Groups() {
     const snapshot = groups;
     setGroups((prev) => prev.filter((g) => g.group_id !== groupId));
     try {
-      const res = await fetch(`/api/v1/groups/${encodeURIComponent(realId)}`, {
-        method: 'DELETE',
-        headers: authHeadersJSON(),
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error(`delete ${res.status}`);
+      const ok = await DataService.deleteGroup(realId);
+      if (!ok) throw new Error('delete failed');
       await refreshGroups();
     } catch (err) {
       console.error('Error deleting group:', err);
@@ -443,23 +435,17 @@ export default function Groups() {
     isPublic?: boolean;
   }) => {
     try {
-      const res = await fetch('/api/v1/groups', {
-        method: 'POST',
-        headers: authHeadersJSON(),
-        credentials: 'include',
-        body: JSON.stringify({
-          name: form.name,
-          description: form.description || '',
-          subjects: [],
-          maxMembers: form.maxMembers ?? 8,
-          isPublic: form.isPublic ?? true,
-          course: form.course || '',
-          courseCode: form.courseCode || '',
-        }),
+      const created = await DataService.createGroup({
+        name: form.name,
+        description: form.description || '',
+        subjects: [],
+        maxMembers: form.maxMembers ?? 8,
+        isPublic: form.isPublic ?? true,
+        course: form.course || '',
+        courseCode: form.courseCode || '',
       });
 
-      if (res.ok) {
-        const created = await res.json();
+      if (created) {
         const sg = toStudyGroup(created);
         setJoinedByMe((prev) => ({ ...prev, [sg.group_id]: true }));
         setGroups((prev) => [sg, ...prev]);
@@ -493,10 +479,10 @@ export default function Groups() {
     broadcastGroupCreated(localGroup);
   };
 
-  // --- schedule a session for a group (NEW) ---
+  // --- schedule a session for a group (type-safe; no 'description' in payload) ---
   const handleScheduleSession = async (
     groupCtx: {
-      groupId: string; // cosmos id
+      groupId: string; // same type used in Sessions.tsx (string)
       groupLocalId: number;
       groupName: string;
       course?: string;
@@ -508,22 +494,10 @@ export default function Groups() {
       startTime: string;
       endTime: string;
       location: string;
-      description?: string;
+      description?: string; // still allowed in UI, just not sent to createSession
     }
   ) => {
-    // Build payload expected by your backend
-    const startISO = new Date(`${form.date}T${form.startTime}:00`).toISOString();
-    const endISO = new Date(`${form.date}T${form.endTime}:00`).toISOString();
-    const payload = {
-      title: form.title,
-      description: form.description || '',
-      startTime: startISO,
-      endTime: endISO,
-      location: form.location,
-      topics: [], // optional
-    };
-
-    // optimistic broadcast first so Calendar feels instant
+    // Optimistic broadcast (keeps local date/time so Calendar feels instant)
     const optimistic = {
       id: String(Date.now()),
       title: form.title,
@@ -542,45 +516,41 @@ export default function Groups() {
     };
     broadcastSessionCreated(optimistic);
 
-    // If there is no real cosmos id (fallback groups), stop here
-    if (!groupCtx.groupId || groupCtx.groupId === String(groupCtx.groupLocalId)) return;
+    // If there's no real group id (demo/fallback), stop after optimistic update
+    if (!groupCtx.groupId) return;
 
     try {
-      const res = await fetch(`/api/v1/groups/${encodeURIComponent(groupCtx.groupId)}/sessions`, {
-        method: 'POST',
-        headers: authHeadersJSON(),
-        credentials: 'include',
-        body: JSON.stringify(payload),
+      const created = await DataService.createSession({
+        title: form.title,
+        course: groupCtx.course,
+        courseCode: groupCtx.courseCode,
+        date: form.date,
+        startTime: form.startTime,
+        endTime: form.endTime,
+        location: form.location,
+        type: 'study',
+        groupId: groupCtx.groupId, // keep as string; DataService handles coercion
+        // maxParticipants: optional if you want to include it
       });
 
-      if (res.ok) {
-        const created = await res.json();
-        // try to normalize for listeners (Sessions/Calendar)
-        const sDate = payload.startTime.slice(0, 10);
-        const sStart = new Date(payload.startTime).toISOString().slice(11, 16); // HH:MM
-        const sEnd = new Date(payload.endTime).toISOString().slice(11, 16);
-
-        const createdForBroadcast = {
-          id: String(created.id),
+      if (created) {
+        // Re-broadcast using same local date/time to avoid timezone jumps
+        broadcastSessionCreated({
+          id: String(created.id ?? Date.now()),
           title: created.title ?? form.title,
-          date: created.date ?? sDate,
-          startTime: created.startTime
-            ? new Date(created.startTime).toISOString().slice(11, 16)
-            : sStart,
-          endTime: created.endTime ? new Date(created.endTime).toISOString().slice(11, 16) : sEnd,
+          date: form.date,
+          startTime: form.startTime,
+          endTime: form.endTime,
           location: created.location ?? form.location,
           type: created.type ?? 'study',
           participants: created.participants ?? 1,
           status: created.status ?? 'upcoming',
           isCreator: true,
           isAttending: true,
-          groupId: created.groupId ?? groupCtx.groupId,
+          groupId: String(created.groupId ?? groupCtx.groupId),
           course: created.course ?? groupCtx.course,
           courseCode: created.courseCode ?? groupCtx.courseCode,
-        };
-        broadcastSessionCreated(createdForBroadcast);
-      } else {
-        console.warn('Schedule session failed:', res.status);
+        });
       }
     } catch (err) {
       console.error('Error scheduling session:', err);
@@ -812,7 +782,6 @@ export default function Groups() {
         onClose={() => setOpenSchedule({ open: false })}
         groupName={openSchedule.groupName}
         defaults={{
-          // sensible defaults; type is always "study"
           title: openSchedule.groupName
             ? `Study session: ${openSchedule.groupName}`
             : 'Study session',
@@ -1302,7 +1271,7 @@ function ScheduleSessionModal({
   );
 }
 
-/* ---------------- Invite Members Modal (unchanged behavior) ---------------- */
+/* ---------------- Invite Members Modal ---------------- */
 function InviteMembersModal({
   onClose,
   groupId,
@@ -1324,13 +1293,8 @@ function InviteMembersModal({
     if (selectedIds.length === 0 || sending || sent) return;
     setSending(true);
     try {
-      const res = await fetch(`/api/v1/groups/${encodeURIComponent(groupId)}/invite`, {
-        method: 'POST',
-        headers: authHeadersJSON(),
-        credentials: 'include',
-        body: JSON.stringify({ inviteUserIds: selectedIds }),
-      });
-      if (!res.ok) throw new Error('Failed to send invites');
+      const ok = await DataService.inviteToGroup(groupId, selectedIds);
+      if (!ok) throw new Error('invite failed');
       setSent(true);
     } catch (err) {
       console.error('Error sending invites:', err);
@@ -1342,7 +1306,10 @@ function InviteMembersModal({
   function authHeadersJSON(): Headers {
     const h = new Headers();
     h.set('Content-Type', 'application/json');
-    const raw = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const googleToken =
+      typeof window !== 'undefined' ? localStorage.getItem('google_id_token') : null;
+    const generalToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const raw = googleToken || generalToken;
     if (raw) {
       let t = raw;
       try {

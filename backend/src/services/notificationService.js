@@ -1,3 +1,4 @@
+// services/notificationService.js
 const express = require('express');
 const sql = require('mssql');
 const { authenticateToken } = require('../middleware/authMiddleware');
@@ -9,7 +10,7 @@ const getPool = () => {
   return sql.globalPool || require('./userService').pool;
 };
 
-// Create notification
+// ------------------------- Core helper -------------------------
 const createNotification = async (
   userId,
   notificationType,
@@ -40,12 +41,12 @@ const createNotification = async (
   }
 };
 
-// Send session reminders
+// ---------------------- Existing hourly reminder ----------------------
+// (kept as-is; 1-hour-before reminder logic)
 const sendSessionReminders = async () => {
   try {
     const request = getPool().request();
 
-    // Get sessions starting in the next hour that haven't had reminders sent
     const upcomingSessions = await request.query(`
       SELECT 
         ss.*,
@@ -56,9 +57,9 @@ const sendSessionReminders = async () => {
       FROM study_sessions ss
       JOIN session_attendees sa ON ss.session_id = sa.session_id
       JOIN users u ON sa.user_id = u.user_id
-      JOIN study_groups sg ON ss.group_id = sg.group_id
+      LEFT JOIN study_groups sg ON ss.group_id = sg.group_id
       WHERE ss.scheduled_start BETWEEN GETUTCDATE() AND DATEADD(hour, 1, GETUTCDATE())
-        AND ss.status = 'scheduled'
+        AND ss.status IN ('scheduled', 'upcoming')
         AND sa.attendance_status = 'attending'
         AND NOT EXISTS (
           SELECT 1 FROM notifications n 
@@ -69,12 +70,12 @@ const sendSessionReminders = async () => {
         )
     `);
 
-    // Send reminders
     for (const session of upcomingSessions.recordset) {
       const metadata = {
         session_id: session.session_id,
         group_id: session.group_id,
         scheduled_start: session.scheduled_start,
+        reminder_offset_hours: 1,
       };
 
       await createNotification(
@@ -82,18 +83,102 @@ const sendSessionReminders = async () => {
         'session_reminder',
         'Study Session Reminder',
         `Your study session "${session.session_title}" in ${
-          session.group_name
+          session.group_name || 'your schedule'
         } starts at ${new Date(session.scheduled_start).toLocaleTimeString()}.`,
         metadata,
         new Date(Date.now() + 5 * 60 * 1000) // Send in 5 minutes
       );
     }
 
-    console.log(`Sent ${upcomingSessions.recordset.length} session reminders`);
+    console.log(`[notifications] Sent ${upcomingSessions.recordset.length} "1 hour" reminders`);
   } catch (error) {
     console.error('Error sending session reminders:', error);
   }
 };
+
+// ---------------------- NEW: 24-hour reminders ----------------------
+const schedule24hRemindersForSession = async (sessionId) => {
+  try {
+    const request = getPool().request();
+    request.input('sessionId', sql.Int, sessionId);
+
+    const result = await request.query(`
+      SELECT 
+        ss.session_id,
+        ss.session_title,
+        ss.scheduled_start,
+        ss.group_id,
+        sg.group_name,
+        sa.user_id
+      FROM study_sessions ss
+      JOIN session_attendees sa ON sa.session_id = ss.session_id
+      LEFT JOIN study_groups sg ON ss.group_id = sg.group_id
+      WHERE ss.session_id = @sessionId
+        AND sa.attendance_status = 'attending'
+        AND ss.status IN ('scheduled', 'upcoming')
+    `);
+
+    if (!result.recordset.length) return { created: 0 };
+
+    const start = new Date(result.recordset[0].scheduled_start);
+    const scheduledFor = new Date(start.getTime() - 24 * 60 * 60 * 1000); // 24h before
+    let created = 0;
+
+    for (const row of result.recordset) {
+      try {
+        await createNotification(
+          row.user_id,
+          'session_reminder',
+          'Study Session Reminder',
+          `Reminder: "${row.session_title}" in ${
+            row.group_name || 'your schedule'
+          } starts ${start.toLocaleString()}.`,
+          {
+            session_id: row.session_id,
+            group_id: row.group_id ?? null,
+            scheduled_start: start.toISOString(),
+            reminder_offset_hours: 24,
+          },
+          scheduledFor
+        );
+        created++;
+      } catch (e) {
+        console.error('Failed to schedule 24h reminder for user', row.user_id, e);
+      }
+    }
+
+    console.log(`[notifications] Scheduled ${created} "24h" reminders for session ${sessionId}`);
+    return { created };
+  } catch (e) {
+    console.error('schedule24hRemindersForSession error:', e);
+    return { created: 0 };
+  }
+};
+
+// Batch scheduler (run via worker/cron): enqueue 24h-out reminders for sessions starting ~24–25h from now
+const scheduleDaily24hReminders = async () => {
+  try {
+    const request = getPool().request();
+    const sessionsRes = await request.query(`
+      SELECT ss.session_id
+      FROM study_sessions ss
+      WHERE ss.scheduled_start BETWEEN DATEADD(hour, 24, GETUTCDATE())
+                                  AND DATEADD(hour, 25, GETUTCDATE())
+        AND ss.status IN ('scheduled', 'upcoming')
+    `);
+
+    let total = 0;
+    for (const s of sessionsRes.recordset) {
+      const { created } = await schedule24hRemindersForSession(s.session_id);
+      total += created;
+    }
+    console.log('[notifications] scheduleDaily24hReminders created:', total);
+  } catch (err) {
+    console.error('[notifications] scheduleDaily24hReminders error:', err);
+  }
+};
+
+// ----------------------------- Routes -----------------------------
 
 // Get all notifications for a user
 router.get('/', authenticateToken, async (req, res) => {
@@ -124,7 +209,6 @@ router.get('/', authenticateToken, async (req, res) => {
       OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
     `);
 
-    // Parse metadata JSON
     const notifications = result.recordset.map((notification) => ({
       ...notification,
       metadata: notification.metadata ? JSON.parse(notification.metadata) : null,
@@ -242,8 +326,8 @@ router.post('/', authenticateToken, async (req, res) => {
       });
     }
 
-    // Validate notification type
     const validTypes = [
+      'session_created',
       'session_reminder',
       'group_invite',
       'progress_update',
@@ -261,10 +345,9 @@ router.post('/', authenticateToken, async (req, res) => {
       title,
       message,
       metadata,
-      scheduled_for
+      scheduled_for ? new Date(scheduled_for) : null
     );
 
-    // Parse metadata for response
     notification.metadata = notification.metadata ? JSON.parse(notification.metadata) : null;
 
     res.status(201).json(notification);
@@ -289,7 +372,7 @@ router.post('/group/:groupId/notify', authenticateToken, async (req, res) => {
     request.input('groupId', sql.Int, req.params.groupId);
     request.input('userId', sql.Int, req.user.id);
 
-    // Check if user is admin or creator of the group
+    // Creators/admins only
     const permissionCheck = await request.query(`
       SELECT sg.creator_id, gm.role
       FROM study_groups sg
@@ -308,7 +391,6 @@ router.post('/group/:groupId/notify', authenticateToken, async (req, res) => {
         .json({ error: 'Only group creators and admins can send group notifications' });
     }
 
-    // Get all group members
     const membersResult = await request.query(`
       SELECT user_id FROM group_members 
       WHERE group_id = @groupId AND status = 'active'
@@ -354,7 +436,6 @@ router.get('/pending', authenticateToken, async (req, res) => {
       ORDER BY scheduled_for ASC
     `);
 
-    // Parse metadata JSON
     const notifications = result.recordset.map((notification) => ({
       ...notification,
       metadata: notification.metadata ? JSON.parse(notification.metadata) : null,
@@ -378,7 +459,6 @@ router.put('/mark-sent', authenticateToken, async (req, res) => {
 
     const request = getPool().request();
 
-    // Create a table-valued parameter for the IDs
     const idList = notification_ids.map((id) => `(${parseInt(id)})`).join(',');
 
     const result = await request.query(`
@@ -396,7 +476,23 @@ router.put('/mark-sent', authenticateToken, async (req, res) => {
   }
 });
 
-// Export the notification creation function for use in other services
+// NEW: schedule 24h-before reminders for a single session (handy to call right after creation)
+router.post('/sessions/:sessionId/schedule-24h', authenticateToken, async (req, res) => {
+  try {
+    const sessionId = parseInt(req.params.sessionId, 10);
+    if (Number.isNaN(sessionId)) {
+      return res.status(400).json({ error: 'Invalid sessionId' });
+    }
+    const { created } = await schedule24hRemindersForSession(sessionId);
+    res.json({ message: `Scheduled ${created} reminders for session ${sessionId}` });
+  } catch (e) {
+    console.error('Error scheduling 24h reminders:', e);
+    res.status(500).json({ error: 'Failed to schedule 24h reminders' });
+  }
+});
+
 module.exports = router;
 module.exports.createNotification = createNotification;
 module.exports.sendSessionReminders = sendSessionReminders;
+module.exports.schedule24hRemindersForSession = schedule24hRemindersForSession;
+module.exports.scheduleDaily24hReminders = scheduleDaily24hReminders;

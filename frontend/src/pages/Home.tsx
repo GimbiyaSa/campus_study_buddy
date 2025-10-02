@@ -1,49 +1,86 @@
-import { useState, useId } from 'react';
-import { Eye, EyeOff, LogIn } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
 import { navigate } from '../router';
 import { useUser } from '../contexts/UserContext';
 import logo from '../assets/logo.jpg';
+import { buildApiUrl } from '../utils/url';
 
-export default function Login() {
-  const [username, setUsername] = useState('');
-  const [pwd, setPwd] = useState('');
-  const [showPwd, setShowPwd] = useState(false);
+export default function Home() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const userId = useId();
-  const pwdId = useId();
-  const errId = useId();
-
   const { login } = useUser();
+  const googleBtnRef = useRef<HTMLDivElement | null>(null);
 
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setSubmitting(true);
-    try {
-      // Simple mock user for development testing
-      const mockUser = {
-        user_id: 1,
-        email: 'john.doe@university.edu',
-        first_name: 'John',
-        last_name: 'Doe',
-        university: 'University of Technology',
-        course: 'Computer Science',
-        year_of_study: 3,
-        is_active: true,
-      };
+  useEffect(() => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+    if (!clientId) return; // Google sign-in disabled when not configured
 
-      login(mockUser);
-
-      // TODO: replace with real auth
-      navigate('/dashboard');
-    } catch (err: any) {
-      setError(err?.message || 'Login failed');
-    } finally {
-      setSubmitting(false);
+    const win = window as any;
+    const existing = document.getElementById('google-identity-script');
+    if (!existing) {
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.id = 'google-identity-script';
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+      script.onload = () => initializeGoogle();
+    } else {
+      initializeGoogle();
     }
-  }
+
+    function initializeGoogle() {
+      if (!win.google?.accounts?.id) {
+        setTimeout(() => initializeGoogle(), 200);
+        return;
+      }
+
+      win.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: async (response: { credential?: string }) => {
+          const idToken = response?.credential;
+          if (!idToken) return;
+
+          setSubmitting(true);
+          try {
+            // Persist token in all places our app checks
+            localStorage.setItem('google_id_token', idToken);
+            localStorage.setItem('last_google_id_token', idToken);
+            // IMPORTANT: DataService looks for "token"
+            localStorage.setItem('token', idToken);
+
+            const res = await fetch(buildApiUrl('/api/v1/users/me'), {
+              method: 'GET',
+              headers: { Authorization: 'Bearer ' + idToken },
+            });
+
+            if (!res.ok) {
+              const errText = await res.text();
+              throw new Error(`Sign-in failed: ${res.status} ${errText}`);
+            }
+
+            const user = await res.json();
+            login(user);
+            navigate('/dashboard');
+          } catch (err: any) {
+            setError(err?.message || 'Google sign-in failed');
+            localStorage.removeItem('google_id_token');
+            localStorage.removeItem('token');
+            localStorage.removeItem('last_google_id_token');
+          } finally {
+            setSubmitting(false);
+          }
+        },
+      });
+
+      if (googleBtnRef.current) {
+        win.google.accounts.id.renderButton(googleBtnRef.current, {
+          theme: 'outline',
+          size: 'large',
+        });
+      }
+    }
+  }, []);
 
   return (
     <main className="min-h-[calc(100vh-64px)]">
@@ -62,101 +99,17 @@ export default function Login() {
               </p>
             </div>
 
-            <form onSubmit={handleLogin} className="grid gap-4" noValidate>
-              <label htmlFor={userId} className="block">
-                <span className="mb-1 block text-sm font-medium text-slate-800">
-                  Username <span className="text-emerald-700">*</span>
-                </span>
-                <input
-                  id={userId}
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
-                  placeholder="e.g., gimbiyas"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                  autoComplete="username"
-                  aria-invalid={!!error && !username ? true : undefined}
-                  aria-describedby={error && !username ? errId : undefined}
-                />
-              </label>
+            {/* Google Sign-In button container */}
+            <div className="mt-3" ref={googleBtnRef}></div>
 
-              <label htmlFor={pwdId} className="block">
-                <span className="mb-1 block text-sm font-medium text-slate-800">
-                  Password <span className="text-emerald-700">*</span>
-                </span>
-                <div className="relative">
-                  <input
-                    id={pwdId}
-                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 pr-12 outline-none focus:ring-2 focus:ring-emerald-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
-                    placeholder="••••••••"
-                    value={pwd}
-                    onChange={(e) => setPwd(e.target.value)}
-                    type={showPwd ? 'text' : 'password'}
-                    required
-                    autoComplete="current-password"
-                    aria-invalid={!!error && !pwd ? true : undefined}
-                    aria-describedby={error && !pwd ? errId : undefined}
-                  />
-                  <button
-                    type="button"
-                    aria-label={showPwd ? 'Hide password' : 'Show password'}
-                    onClick={() => setShowPwd((v) => !v)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-slate-600 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
-                  >
-                    {showPwd ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </button>
-                </div>
-              </label>
-
-              <nav className="mt-1 space-y-1 text-sm">
-                <button
-                  type="button"
-                  onClick={() => navigate('/forgot-password')}
-                  className="text-emerald-700 hover:text-emerald-800 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600 rounded"
-                >
-                  Forgot your password?
-                </button>
-                <br />
-                <button
-                  type="button"
-                  onClick={() => navigate('/forgot-username')}
-                  className="text-emerald-700 hover:text-emerald-800 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600 rounded"
-                >
-                  Forgot your username?
-                </button>
-              </nav>
-
-              <button
-                type="submit"
-                disabled={submitting}
-                aria-busy={submitting || undefined}
-                className="mt-2 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 font-medium text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
+            {error && (
+              <div
+                role="status"
+                className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
               >
-                <LogIn className="h-4 w-4" />
-                {submitting ? 'Logging in…' : 'Login'}
-              </button>
-
-              <p className="mt-2 text-sm text-slate-700">
-                Don’t have an account?{' '}
-                <button
-                  type="button"
-                  onClick={() => navigate('/register')}
-                  className="font-medium text-emerald-700 hover:text-emerald-800 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600 rounded"
-                >
-                  Get started
-                </button>
-              </p>
-
-              {error && (
-                <div
-                  id={errId}
-                  role="status"
-                  className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
-                >
-                  {error}
-                </div>
-              )}
-            </form>
+                {error}
+              </div>
+            )}
           </section>
 
           <aside className="overflow-hidden">

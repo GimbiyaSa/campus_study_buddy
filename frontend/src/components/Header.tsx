@@ -1,8 +1,10 @@
 // src/components/Header.tsx
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Bell, ChevronDown, User, Settings, LogOut } from 'lucide-react';
+import { Search, Bell, ChevronDown, Settings, LogOut } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
+import { buildApiUrl } from '../utils/url';
+import { DataService } from '../services/dataService';
 
 type User = {
   user_id: number;
@@ -21,6 +23,7 @@ type Notification = {
   user_id: number;
   title: string;
   message: string;
+  /** visual category used by the header UI */
   type: 'info' | 'warning' | 'success' | 'error';
   is_read: boolean;
   created_at: string;
@@ -40,7 +43,7 @@ export default function Header() {
   const notificationRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  // Fallback notifications
+  // Fallback notifications (unchanged)
   const fallbackNotifications: Notification[] = [
     {
       id: 1,
@@ -62,27 +65,74 @@ export default function Header() {
     },
   ];
 
-  useEffect(() => {
-    async function fetchNotifications() {
-      if (!currentUser) return;
+  // Map API rows -> local Notification UI shape
+  function mapRowToNotification(row: any): Notification {
+    const id = Number(row.id ?? row.notification_id ?? Date.now());
+    const user_id = Number(row.user_id ?? 0);
+    const created_at = String(row.created_at ?? new Date().toISOString());
+    const title = String(row.title ?? 'Notification');
+    const message = String(row.message ?? '');
 
+    // Convert backend types to your visual categories
+    const rawType = String(row.notification_type ?? row.type ?? 'info').toLowerCase();
+    const type: Notification['type'] =
+      rawType === 'session_reminder'
+        ? 'warning'
+        : rawType === 'partner_match'
+        ? 'success'
+        : rawType === 'group_invite'
+        ? 'info'
+        : rawType === 'system'
+        ? 'info'
+        : rawType === 'message'
+        ? 'info'
+        : rawType === 'success' || rawType === 'warning' || rawType === 'error'
+        ? (rawType as Notification['type'])
+        : 'info';
+
+    return {
+      id,
+      user_id,
+      title,
+      message,
+      type,
+      is_read: !!row.is_read,
+      created_at,
+    };
+  }
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    let isMounted = true;
+    const controller = new AbortController();
+
+    const fetchNotifications = async () => {
       try {
-        const notifRes = await fetch(`/api/v1/notifications/${currentUser.user_id}`);
-        if (notifRes.ok) {
-          const notifData = await notifRes.json();
-          setNotifications(notifData);
-        } else {
-          setNotifications(fallbackNotifications);
-        }
-      } catch (err) {
+        const rows = await DataService.fetchNotifications({ limit: 50, offset: 0 });
+        if (!isMounted) return;
+        setNotifications(Array.isArray(rows) ? rows.map(mapRowToNotification) : []);
+      } catch {
+        // Keep behavior similar to your original: show fallback on error
+        if (!isMounted) return;
         setNotifications(fallbackNotifications);
       }
-    }
+    };
 
+    // Initial fetch immediately
     fetchNotifications();
-  }, [currentUser, fallbackNotifications]);
 
-  // Close dropdowns when clicking outside
+    // Then poll every 60 seconds
+    const interval = setInterval(fetchNotifications, 60 * 1000);
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+      clearInterval(interval);
+    };
+  }, [currentUser]);
+
+  // Close dropdowns when clicking outside (unchanged)
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
@@ -99,14 +149,12 @@ export default function Header() {
 
   const markNotificationAsRead = async (notificationId: number) => {
     try {
-      await fetch(`/api/v1/notifications/${notificationId}/read`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      setNotifications((prev) =>
-        prev.map((notif) => (notif.id === notificationId ? { ...notif, is_read: true } : notif))
-      );
+      const ok = await DataService.markNotificationRead(notificationId);
+      if (ok) {
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notificationId ? { ...n, is_read: true } : n))
+        );
+      }
     } catch (err) {
       console.error('Error marking notification as read:', err);
     }
@@ -124,7 +172,7 @@ export default function Header() {
 
   const handleLogoutConfirm = async () => {
     try {
-      await fetch('/api/v1/auth/logout', {
+      await fetch(buildApiUrl('/api/v1/auth/logout'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -132,13 +180,50 @@ export default function Header() {
       console.error('Error logging out:', err);
     }
 
-    // Clear user data from context (this will sync with sidebar)
+    // Try to disable Google's auto sign-in and revoke session where possible
+    try {
+      const win = window as any;
+      if (win.google?.accounts?.id?.disableAutoSelect) {
+        win.google.accounts.id.disableAutoSelect();
+      }
+      // revoke the last used credential if stored in localStorage (best-effort)
+      const lastToken = localStorage.getItem('google_id_token');
+      if (lastToken && win.google?.accounts?.id?.revoke) {
+        win.google.accounts.id.revoke(lastToken, () => {});
+      }
+      // Clear stored token
+      localStorage.removeItem('google_id_token');
+    } catch (e) {
+      // ignore
+    }
+
+    // Clear user data from context
     logout();
     setNotifications([]);
 
     // Redirect to login
     window.location.href = '/login';
   };
+
+  /*const handleUpdateProfile = async (updatedData: Partial<User>) => {
+    if (!currentUser) return;
+
+    try {
+      const res = await fetch(buildApiUrl(`/api/v1/users/${currentUser.user_id}`), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedData),
+      });
+
+      if (res.ok) {
+        const updatedUser = await res.json();
+        updateUser(updatedUser);
+        setShowProfileModal(false);
+      }
+    } catch (err) {
+      console.error('Error updating profile:', err);
+    }
+  };*/
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
@@ -159,7 +244,7 @@ export default function Header() {
     return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
   };
 
-  // If no user is logged in, show minimal header
+  // If no user is logged in, show minimal header (unchanged)
   if (!currentUser && !loading) {
     return (
       <header className="bg-white border-b border-gray-200 h-16 px-6 flex items-center">
@@ -171,10 +256,11 @@ export default function Header() {
     );
   }
 
+  // Loading skeleton (unchanged; your test looks for .animate-pulse)
   if (loading) {
     return (
       <header className="bg-white border-b border-gray-200 h-16 px-6 flex items-center">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between w-full">
           <div className="animate-pulse h-8 bg-gray-200 rounded w-48"></div>
           <div className="animate-pulse h-8 bg-gray-200 rounded w-32"></div>
         </div>
@@ -333,6 +419,7 @@ export default function Header() {
 function SettingsModal({
   open,
   onClose,
+  user: _user,
 }: {
   open: boolean;
   onClose: () => void;

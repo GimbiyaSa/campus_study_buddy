@@ -29,26 +29,74 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUser = async () => {
+  const cleanBearerFromLocalStorage = (): Record<string, string> => {
+    const keys = ['google_id_token', 'last_google_id_token', 'token'];
+    for (const k of keys) {
+      const raw = localStorage.getItem(k);
+      if (!raw) continue;
+
+      let t = raw;
+      // If it was stored as a JSON string, parse it back
+      try {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed === 'string') t = parsed;
+      } catch {
+        // ignore parse errors – raw is fine
+      }
+
+      // Remove surrounding quotes and any leading "Bearer "
+      t = t
+        .replace(/^["']|["']$/g, '')
+        .replace(/^Bearer\s+/i, '')
+        .trim();
+      if (t) return { Authorization: `Bearer ${t}` };
+    }
+    return {};
+  };
+
+  const fetchUser = async (token?: string) => {
     setLoading(true);
     try {
-      // Try to get current user first
-      const res = await fetch(buildApiUrl('/api/v1/users/me'));
+      let headers: Record<string, string> = {};
+
+      if (token) {
+        // If caller passed a token, sanitize it too
+        const sanitized = token
+          .replace(/^["']|["']$/g, '')
+          .replace(/^Bearer\s+/i, '')
+          .trim();
+        if (sanitized) headers['Authorization'] = `Bearer ${sanitized}`;
+      } else {
+        headers = { ...cleanBearerFromLocalStorage() };
+      }
+
+      const res = await fetch(buildApiUrl('/api/v1/users/me'), {
+        headers,
+        credentials: 'include', // optional, but harmless if you use cookies
+      });
+
       if (res.ok) {
         const userData = await res.json();
         setCurrentUser(userData);
+      } else if (res.status === 401) {
+        // only clear token on auth failure
+        setCurrentUser(null);
+        localStorage.removeItem('google_id_token');
+        localStorage.removeItem('last_google_id_token');
+        localStorage.removeItem('token');
       } else {
-        // Fallback - get first user for demo
-        const usersRes = await fetch(buildApiUrl('/api/v1/users'));
-        if (usersRes.ok) {
-          const usersData = await usersRes.json();
-          if (usersData.length > 0) {
-            setCurrentUser(usersData[0]);
-          }
-        }
+        // log the server-side problem but don't throw away the token on 5xx
+        console.error(
+          'users/me failed:',
+          res.status,
+          res.statusText,
+          await res.text().catch(() => '')
+        );
+        setCurrentUser(null);
       }
     } catch (err) {
       console.error('Error fetching user:', err);
+      setCurrentUser(null);
     } finally {
       setLoading(false);
     }
@@ -64,6 +112,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     setCurrentUser(null);
+    localStorage.removeItem('google_id_token');
   };
 
   const updateUser = (updatedData: Partial<User>) => {

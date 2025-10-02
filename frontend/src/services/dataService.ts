@@ -2,7 +2,6 @@
 import { buildApiUrl } from '../utils/url';
 import { ErrorHandler } from '../utils/errorHandler';
 
-// Enhanced Course type leveraging database richness
 // -------------------- Types --------------------
 export type Course = {
   id: string;
@@ -13,7 +12,7 @@ export type Course = {
   description?: string;
   university?: string;
 
-  // Progress & Analytics (from user_progress + study_hours tables)
+  // Progress & Analytics
   progress?: number;
   totalHours?: number;
   totalTopics?: number;
@@ -21,18 +20,18 @@ export type Course = {
   completedChapters?: number;
   totalChapters?: number;
 
-  // Enrollment details (from user_modules table)
+  // Enrollment
   enrollmentStatus?: 'active' | 'completed' | 'dropped';
   enrolledAt?: string;
 
-  // Study metrics (from study_hours aggregations)
+  // Study metrics
   weeklyHours?: number;
   monthlyHours?: number;
   averageSessionDuration?: number;
   studyStreak?: number;
   lastStudiedAt?: string;
 
-  // Social context (from study_groups + session_attendees)
+  // Social context
   activeStudyGroups?: number;
   upcomingSessions?: number;
   studyPartners?: number;
@@ -50,19 +49,18 @@ export type Course = {
   updatedAt?: string;
 };
 
-// Enhanced Study Partner type with rich profile data
 export type StudyPartner = {
   id: string;
   name: string;
   avatar?: string;
 
-  // Academic profile (from users table)
+  // Academic profile
   university: string;
   course: string;
   yearOfStudy: number;
   bio?: string;
 
-  // Study preferences & compatibility
+  // Preferences
   studyPreferences?: {
     preferredTimes: string[];
     studyStyle: 'visual' | 'auditory' | 'kinesthetic' | 'mixed';
@@ -70,34 +68,33 @@ export type StudyPartner = {
     environment: 'quiet' | 'collaborative' | 'flexible';
   };
 
-  // Shared academic context (from user_modules overlap)
+  // Shared context
   sharedCourses: string[];
   sharedTopics: string[];
   compatibilityScore: number;
 
-  // Activity & engagement metrics
+  // Activity
   studyHours: number;
   weeklyHours: number;
   studyStreak: number;
   activeGroups: number;
   sessionsAttended: number;
 
-  // Social proof & reliability
+  // Social proof
   rating: number;
   reviewCount: number;
   responseRate: number;
   lastActive: string;
 
-  // Connection status
+  // Connection
   connectionStatus?: 'not_connected' | 'pending' | 'connected' | 'blocked';
   mutualConnections?: number;
 
-  // Study match details
+  // Match details
   recommendationReason?: string;
   sharedGoals?: string[];
 };
 
-// Pagination type for API responses
 export type PaginatedResponse<T> = {
   courses?: T[];
   data?: T[];
@@ -138,7 +135,7 @@ export type StudySession = {
 };
 
 export type StudyGroup = {
-  id: string; // backend/cosmos id
+  id: string;
   name: string;
   description?: string;
   course?: string;
@@ -150,21 +147,30 @@ export type StudyGroup = {
   createdAt?: string;
   lastActivity?: string;
   group_type?: 'study' | 'project' | 'exam_prep' | 'discussion';
-  member_count?: number; // optional count
+  member_count?: number;
 };
 
-// -------- Demo fallback data (keeping for sessions, groups, partners) --------
-export type StudyPartner = {
-  id: string;
-  name: string;
-  avatar?: string;
-  year: string;
-  major: string;
-  courses: string[];
-  bio?: string;
-  studyHours: number;
-  rating: number;
-  lastActive: string;
+// ---- Notifications types (for Header, etc.) ----
+export type NotificationRow = {
+  notification_id?: number;
+  id?: number;
+  user_id: number | string;
+  notification_type: string;
+  title: string;
+  message: string;
+  metadata?: any;
+  is_read: boolean;
+  created_at: string;
+  scheduled_for?: string | null;
+  sent_at?: string | null;
+};
+
+export type NotificationCounts = {
+  total_notifications: number;
+  unread_notifications: number;
+  unread_reminders: number;
+  unread_invites: number;
+  unread_matches: number;
 };
 
 // -------------------- Demo fallbacks --------------------
@@ -341,9 +347,6 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
     sharedTopics: ['Algorithms', 'Databases'],
     compatibilityScore: 94,
     bio: 'Passionate about algorithms and machine learning. Looking for study partners for advanced CS topics.',
-    year: '3rd Year',
-    major: 'Computer Science',
-    courses: ['CS301', 'CS305', 'MATH204'],
     studyHours: 45,
     weeklyHours: 12,
     studyStreak: 7,
@@ -366,9 +369,6 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
     sharedTopics: ['Linear Algebra', 'Physics'],
     compatibilityScore: 87,
     bio: 'Strong in mathematics, enjoy collaborative problem solving and explaining concepts.',
-    year: '2nd Year',
-    major: 'Computer Science',
-    courses: ['CS201', 'MATH204', 'PHY101'],
     studyHours: 38,
     weeklyHours: 10,
     studyStreak: 12,
@@ -391,9 +391,6 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
     sharedTopics: ['Software Design', 'Databases', 'Architecture'],
     compatibilityScore: 91,
     bio: 'Experienced with software design patterns and database optimization. Happy to mentor others.',
-    year: '4th Year',
-    major: 'Software Engineering',
-    courses: ['CS403', 'CS305', 'CS450'],
     studyHours: 52,
     weeklyHours: 15,
     studyStreak: 21,
@@ -416,9 +413,6 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
     sharedTopics: ['Statistics', 'Algorithms', 'Linear Algebra'],
     compatibilityScore: 89,
     bio: 'Statistics and data analysis enthusiast. Great at breaking down complex problems.',
-    year: '3rd Year',
-    major: 'Data Science',
-    courses: ['STAT301', 'CS301', 'MATH204'],
     studyHours: 41,
     weeklyHours: 11,
     studyStreak: 14,
@@ -441,9 +435,6 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
     sharedTopics: ['Web Development', 'UI/UX', 'Linear Algebra'],
     compatibilityScore: 82,
     bio: 'Web development and UI/UX interested. Love working on projects and learning new technologies.',
-    year: '2nd Year',
-    major: 'Computer Science',
-    courses: ['CS201', 'CS205', 'MATH204'],
     studyHours: 33,
     weeklyHours: 9,
     studyStreak: 8,
@@ -466,9 +457,6 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
     sharedTopics: ['System Design', 'Hardware', 'Architecture'],
     compatibilityScore: 93,
     bio: 'Hardware-software integration expert. Excellent at system design and architecture discussions.',
-    year: '4th Year',
-    major: 'Computer Engineering',
-    courses: ['CS403', 'EE301', 'CS450'],
     studyHours: 48,
     weeklyHours: 13,
     studyStreak: 18,
@@ -483,23 +471,16 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
   },
 ];
 
-// -------- Enhanced Service with Retry Logic --------
 // -------------------- Service --------------------
 export class DataService {
   // --- headers/helpers ---
   private static authHeaders(): Headers {
     const h = new Headers();
-    // Check for both 'google_id_token' (Google Auth) and 'token' (fallback)
+    // Prefer Google token; fall back to generic app token
     const googleToken =
       typeof window !== 'undefined' ? localStorage.getItem('google_id_token') : null;
     const generalToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     const raw = googleToken || generalToken;
-
-    console.log('🔍 Auth token check:', {
-      googleToken: googleToken ? `${googleToken.substring(0, 20)}...` : null,
-      generalToken: generalToken ? `${generalToken.substring(0, 20)}...` : null,
-      selectedToken: raw ? `${raw.substring(0, 20)}...` : null,
-    });
 
     if (raw) {
       let t = raw;
@@ -513,14 +494,8 @@ export class DataService {
         .trim();
       if (t) {
         h.set('Authorization', `Bearer ${t}`);
-        console.log('✅ Authorization header set');
-      } else {
-        console.warn('⚠️ Token was empty after processing');
       }
-    } else {
-      console.warn('⚠️ No authentication token found in localStorage');
     }
-
     return h;
   }
 
@@ -528,12 +503,11 @@ export class DataService {
   private static async fetchWithRetry(
     url: string,
     options: RequestInit = {},
-    retries = 2, // Reduced retries for faster response
-    timeout = 5000 // 5 second timeout
+    retries = 2,
+    timeout = 5000
   ): Promise<Response> {
     for (let i = 0; i < retries; i++) {
       try {
-        // Create abort controller for timeout
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
 
@@ -544,8 +518,6 @@ export class DataService {
           ...options.headers,
         };
 
-        console.log('📡 Final request headers:', finalHeaders);
-
         const response = await fetch(url, {
           ...options,
           headers: finalHeaders,
@@ -555,45 +527,44 @@ export class DataService {
 
         clearTimeout(timeoutId);
 
-        if (response.ok) {
-          return response;
-        }
+        if (response.ok) return response;
 
-        // Don't retry for client errors (4xx), only server errors (5xx)
+        // Don't retry 4xx
         if (response.status >= 400 && response.status < 500) {
-          throw new Error(`Client error: ${response.status} ${response.statusText}`);
+          throw Object.assign(
+            new Error(`Client error: ${response.status} ${response.statusText}`),
+            { status: response.status }
+          );
         }
-
         if (i === retries - 1) {
-          throw new Error(`Server error: ${response.status} ${response.statusText}`);
+          throw Object.assign(
+            new Error(`Server error: ${response.status} ${response.statusText}`),
+            { status: response.status }
+          );
         }
-      } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') {
-          console.warn(`Request timeout after ${timeout}ms for ${url}`);
-        }
+      } catch (error: any) {
         if (i === retries - 1) throw error;
-        // Reduced backoff for faster response
-        await new Promise((resolve) => setTimeout(resolve, Math.min(500, Math.pow(2, i) * 200)));
+        await new Promise((r) => setTimeout(r, Math.min(500, Math.pow(2, i) * 200)));
       }
     }
     throw new Error('Should not reach here');
   }
+
   private static jsonHeaders(): Headers {
     const h = this.authHeaders();
     h.set('Content-Type', 'application/json');
     return h;
   }
-  private static devForceFallback(): boolean {
-    if (typeof window === 'undefined') return false;
-    const q = new URLSearchParams(window.location.search);
-    return q.get('mockSessions') === '1' || localStorage.getItem('mockSessions') === '1';
-  }
-  private static async request(path: string, init?: RequestInit) {
+
+  // ⬇️ now consistently uses fetchWithRetry + merged headers
+  private static async request(path: string, init: RequestInit = {}) {
     const url = buildApiUrl(path);
-    return fetch(url, { credentials: 'include', ...init });
+    const auth = Object.fromEntries(this.authHeaders().entries());
+    const headers = { 'Content-Type': 'application/json', ...auth, ...(init.headers || {}) };
+    return this.fetchWithRetry(url, { credentials: 'include', ...init, headers });
   }
+
   private static toISO(date: string, time: string): string {
-    // local → ISO
     return new Date(`${date}T${time}:00`).toISOString();
   }
   private static pad2(n: number) {
@@ -608,33 +579,74 @@ export class DataService {
     const MM = this.pad2(d.getMinutes());
     return { date: `${yyyy}-${mm}-${dd}`, time: `${HH}:${MM}` };
   }
+  private static looksISO(x: unknown): x is string {
+    return typeof x === 'string' && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(x);
+  }
+
+  // Safe JSON parser that never throws (handles 500/HTML/empty/problem+json)
+  private static async safeJson<T = any>(res: Response, fallback: T): Promise<T> {
+    try {
+      const ct = (res.headers.get('content-type') || '').toLowerCase();
+      if (!ct.includes('json')) return fallback;
+      const text = await res.text();
+      if (!text) return fallback;
+      return JSON.parse(text) as T;
+    } catch {
+      return fallback;
+    }
+  }
+
   private static normalizeSession(s: any): StudySession {
-    // Try a variety of shapes coming from the backend
     const id = String(s?.id ?? s?.session_id ?? cryptoRandomId());
     const title = s?.title ?? s?.session_title ?? 'Study session';
 
-    // date/time sources
-    let date = s?.date;
-    let startTime = s?.startTime;
-    let endTime = s?.endTime;
+    // Accept both HH:mm and ISO for start/end
+    let date = s?.date as string | undefined;
+    let startTime = s?.startTime as string | undefined; // may be 'HH:mm' OR ISO
+    let endTime = s?.endTime as string | undefined; // may be 'HH:mm' OR ISO
 
-    const isoStart = s?.scheduled_start ?? s?.start_time ?? s?.startISO ?? s?.start;
-    const isoEnd = s?.scheduled_end ?? s?.end_time ?? s?.endISO ?? s?.end;
+    const isoStart =
+      s?.scheduled_start ??
+      s?.start_time ??
+      s?.startISO ??
+      s?.start ??
+      (this.looksISO(s?.startTime) ? s.startTime : undefined);
 
-    if ((!date || !startTime) && isoStart) {
+    const isoEnd =
+      s?.scheduled_end ??
+      s?.end_time ??
+      s?.endISO ??
+      s?.end ??
+      (this.looksISO(s?.endTime) ? s.endTime : undefined);
+
+    // If we have ISO, derive date/time
+    if ((!date || !startTime || this.looksISO(startTime)) && isoStart) {
       const dt = this.fromISO(isoStart);
       date = date || dt.date;
-      startTime = startTime || dt.time;
+      startTime = dt.time;
     }
-    if (!endTime && isoEnd) {
-      const dt = this.fromISO(isoEnd);
-      endTime = dt.time;
+    if (!endTime || this.looksISO(endTime)) {
+      if (isoEnd) {
+        const dt = this.fromISO(isoEnd);
+        endTime = dt.time;
+      }
     }
 
-    // fallback if still missing
+    // Fallback sensible defaults
     date = date || new Date().toISOString().slice(0, 10);
-    startTime = startTime || '09:00';
-    endTime = endTime || '10:00';
+    startTime = startTime && !this.looksISO(startTime) ? startTime : '09:00';
+    endTime = endTime && !this.looksISO(endTime) ? endTime : '10:00';
+
+    // Participants: prefer attendees length if present
+    const attendeesCount = Array.isArray(s?.attendees) ? s.attendees.length : undefined;
+    const participants =
+      Number(
+        s?.participants ?? s?.currentParticipants ?? s?.attendee_count ?? attendeesCount ?? 1
+      ) || 1;
+
+    // Map backend 'scheduled' -> UI 'upcoming'
+    let status = s?.status ?? 'upcoming';
+    if (status === 'scheduled') status = 'upcoming';
 
     return {
       id,
@@ -646,10 +658,10 @@ export class DataService {
       endTime,
       location: s?.location ?? 'TBD',
       type: (s?.type ?? s?.session_type ?? 'study') as StudySession['type'],
-      participants: Number(s?.participants ?? s?.currentParticipants ?? s?.attendee_count ?? 1),
+      participants,
       maxParticipants: s?.maxParticipants ?? s?.max_participants,
-      status: s?.status ?? 'upcoming',
-      isCreator: !!(s?.isCreator ?? s?.organizer ?? s?.is_owner),
+      status,
+      isCreator: !!(s?.isCreator ?? s?.organizer ?? s?.is_owner ?? (s?.createdBy && true)),
       isAttending: !!(s?.isAttending ?? s?.attending),
       groupId: s?.groupId ?? s?.group_id,
     };
@@ -658,9 +670,9 @@ export class DataService {
   // -------------------- Auth/User --------------------
   static async getMe(): Promise<{ id: string } | null> {
     try {
-      const res = await this.request('/api/v1/users/me', { headers: this.jsonHeaders() });
+      const res = await this.request('/api/v1/users/me', { method: 'GET' });
       if (!res.ok) return null;
-      const data = await res.json();
+      const data = await this.safeJson<any>(res, null);
       const id = data?.user_id ?? data?.id;
       return id ? { id: String(id) } : null;
     } catch {
@@ -668,7 +680,7 @@ export class DataService {
     }
   }
 
-  // Enhanced course fetching with expert error handling
+  // -------------------- Courses --------------------
   static async fetchCourses(options?: CourseFetchOptions): Promise<Course[]> {
     try {
       const params = new URLSearchParams();
@@ -678,80 +690,60 @@ export class DataService {
       if (options?.sortBy) params.append('sortBy', options.sortBy);
       if (options?.sortOrder) params.append('sortOrder', options.sortOrder);
 
-      const url = buildApiUrl(`/api/v1/courses${params.toString() ? `?${params.toString()}` : ''}`);
-      console.log('🎓 Fetching courses from:', url);
-      console.log('🔑 Auth headers:', this.authHeaders());
-
-      const res = await this.fetchWithRetry(url);
-      console.log('📡 Response status:', res.status, res.statusText);
-
-      const data = await res.json();
-      console.log('📦 Response data:', data);
-
-      // Handle both paginated and non-paginated responses
-      let courses: Course[] = [];
-      if (data.courses) {
-        courses = data.courses; // Paginated response
-      } else if (Array.isArray(data)) {
-        courses = data; // Direct array response (backwards compatibility)
-      } else {
-        console.warn('⚠️ Unexpected response format:', data);
-        courses = []; // Default to empty array for unexpected formats
+      const res = await this.request(`/api/v1/courses${params.toString() ? `?${params}` : ''}`, {
+        method: 'GET',
+      });
+      if (!res.ok) {
+        throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
       }
 
-      console.log('✅ Courses processed successfully:', courses.length, 'courses');
+      const data = await this.safeJson<any>(res, []);
+      let courses: Course[] = [];
+      if (data?.courses) {
+        courses = data.courses;
+      } else if (Array.isArray(data)) {
+        courses = data;
+      } else {
+        courses = [];
+      }
+
       return courses;
     } catch (error) {
-      console.error('❌ fetchCourses error details:', {
-        error,
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-
-      // Re-throw the error so the component can handle it
       throw error;
     }
   }
 
-  // Add a new course with optimistic updates support
   static async addCourse(courseData: Omit<Course, 'id' | 'progress'>): Promise<Course> {
-    const url = buildApiUrl('/api/v1/courses');
-    console.log('➕ Adding course:', courseData);
-
-    const res = await this.fetchWithRetry(url, {
+    const res = await this.request('/api/v1/courses', {
       method: 'POST',
       body: JSON.stringify(courseData),
     });
-
-    const newCourse = await res.json();
-    console.log('✅ Course added:', newCourse);
-    return newCourse;
+    if (!res.ok) {
+      throw Object.assign(new Error('Failed to add course'), { status: res.status });
+    }
+    return this.safeJson<Course>(res, null as any);
   }
 
-  // Remove a course
   static async removeCourse(courseId: string): Promise<void> {
-    const url = buildApiUrl(`/api/v1/courses/${courseId}`);
-    console.log('🗑️ Removing course:', courseId);
-
-    await this.fetchWithRetry(url, {
+    const res = await this.request(`/api/v1/courses/${encodeURIComponent(courseId)}`, {
       method: 'DELETE',
     });
-
-    console.log('✅ Course removed:', courseId);
+    if (!res.ok) {
+      throw Object.assign(new Error('Failed to remove course'), { status: res.status });
+    }
   }
 
+  // -------------------- Sessions --------------------
   static async fetchSessions(): Promise<StudySession[]> {
     try {
-      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/sessions'));
-      const data = await res.json();
-      return (data as any[]).map((s) => ({
-        ...s,
-        isAttending: !!s.isAttending,
-        id: String(s.id),
-      }));
-    } catch (error) {
-      console.error('❌ fetchSessions error:', error);
-      // Keep fallback for sessions (not in your focus list)
+      const res = await this.request('/api/v1/sessions', { method: 'GET' });
+      if (!res.ok) {
+        // fallback keeps dashboard usable
+        return FALLBACK_SESSIONS;
+      }
+      const data = await this.safeJson<any[]>(res, []);
+      return data.map((row) => this.normalizeSession(row));
+    } catch {
       return FALLBACK_SESSIONS;
     }
   }
@@ -768,30 +760,32 @@ export class DataService {
         startTime: this.toISO(sessionData.date, sessionData.startTime),
         endTime: this.toISO(sessionData.date, sessionData.endTime),
         location: sessionData.location,
-        topics: [],
-        type: sessionData.type,
-        course: sessionData.course,
-        courseCode: sessionData.courseCode,
-        maxParticipants: sessionData.maxParticipants,
+        topics: [] as string[],
       };
       try {
         const res = await this.request(
           `/api/v1/groups/${encodeURIComponent(String(sessionData.groupId))}/sessions`,
-          { method: 'POST', headers: this.jsonHeaders(), body: JSON.stringify(payload) }
+          { method: 'POST', body: JSON.stringify(payload) }
         );
         if (res.ok) {
-          const created = await res.json();
-          return this.normalizeSession(created);
+          const created = await this.safeJson<any>(res, null);
+          return created ? this.normalizeSession(created) : null;
         }
       } catch {}
-      // If group endpoint failed, fall back to global create
+      // fall through to global create
     }
 
-    // Generic sessions endpoint; include a liberal payload to match common backends
+    // Generic sessions endpoint (backend expects snake_case keys)
     const startISO = this.toISO(sessionData.date, sessionData.startTime);
     const endISO = this.toISO(sessionData.date, sessionData.endTime);
+
+    const groupIdNum =
+      sessionData.groupId != null && !Number.isNaN(Number(sessionData.groupId))
+        ? Number(sessionData.groupId)
+        : undefined;
+
     const payload = {
-      // "new" style
+      // helpful extras (ignored by backend if not handled)
       title: sessionData.title,
       startTime: startISO,
       endTime: endISO,
@@ -801,7 +795,9 @@ export class DataService {
       courseCode: sessionData.courseCode,
       maxParticipants: sessionData.maxParticipants,
       groupId: sessionData.groupId,
-      // "legacy" style fields some backends use
+
+      // backend contract
+      group_id: groupIdNum ?? sessionData.groupId,
       session_title: sessionData.title,
       scheduled_start: startISO,
       scheduled_end: endISO,
@@ -810,48 +806,43 @@ export class DataService {
     };
 
     try {
-      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/groups'));
-      return await res.json();
-    } catch (error) {
-      console.error('❌ fetchGroups error:', error);
-      // Keep fallback for groups (not in your focus list)
-      return FALLBACK_GROUPS;
-    }
+      const res = await this.request('/api/v1/sessions', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const created = await this.safeJson<any>(res, null);
+        return created ? this.normalizeSession(created) : null;
+      }
+    } catch {}
+    return null;
   }
 
   static async updateSession(
     sessionId: string,
     sessionData: Omit<StudySession, 'id' | 'participants' | 'status' | 'isCreator' | 'isAttending'>
   ): Promise<StudySession | null> {
-    const startISO = this.toISO(sessionData.date, sessionData.startTime);
-    const endISO = this.toISO(sessionData.date, sessionData.endTime);
-    const payload = {
+    const payload: Record<string, any> = {
       title: sessionData.title,
-      startTime: startISO,
-      endTime: endISO,
+      date: sessionData.date, // YYYY-MM-DD
+      startTime: sessionData.startTime, // HH:mm
+      endTime: sessionData.endTime, // HH:mm
       location: sessionData.location,
       type: sessionData.type,
       course: sessionData.course,
       courseCode: sessionData.courseCode,
       maxParticipants: sessionData.maxParticipants,
       groupId: sessionData.groupId,
-      // legacy mirrors
-      session_title: sessionData.title,
-      scheduled_start: startISO,
-      scheduled_end: endISO,
-      session_type: sessionData.type,
-      max_participants: sessionData.maxParticipants,
     };
 
     try {
       const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}`, {
         method: 'PUT',
-        headers: this.jsonHeaders(),
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        const updated = await res.json();
-        return this.normalizeSession(updated);
+        const updated = await this.safeJson<any>(res, null);
+        return updated ? this.normalizeSession(updated) : null;
       }
     } catch {}
     return null;
@@ -861,14 +852,9 @@ export class DataService {
     try {
       const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}`, {
         method: 'DELETE',
-        headers: this.authHeaders(),
       });
       if (res.ok) {
-        // some backends return the cancelled row
-        let data: any = null;
-        try {
-          data = await res.json();
-        } catch {}
+        const data = await this.safeJson<any>(res, null);
         return { ok: true, data };
       }
       return { ok: false };
@@ -881,7 +867,6 @@ export class DataService {
     try {
       const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/join`, {
         method: 'POST',
-        headers: this.authHeaders(),
       });
       return res.ok;
     } catch {
@@ -890,19 +875,17 @@ export class DataService {
   }
 
   static async leaveSession(sessionId: string): Promise<boolean> {
-    // Try DELETE first (matches your existing code), then POST fallback
     try {
-      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/partners'));
-      const data = await res.json();
-      console.log('👥 Study partners loaded successfully:', data);
-      return data;
-    } catch (error) {
-      console.error('❌ fetchPartners error:', error);
-      const appError = ErrorHandler.handleApiError(error, 'partners');
-      throw appError;
+      const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/leave`, {
+        method: 'DELETE',
+      });
+      return res.ok;
+    } catch {
+      return false;
     }
   }
 
+  // -------------------- Partners --------------------
   static async searchPartners(params?: {
     subjects?: string[];
     studyStyle?: string;
@@ -913,33 +896,24 @@ export class DataService {
   }): Promise<StudyPartner[]> {
     try {
       const queryParams = new URLSearchParams();
-
-      if (params?.subjects?.length) {
-        queryParams.append('subjects', params.subjects.join(','));
-      }
-      if (params?.studyStyle) {
-        queryParams.append('studyStyle', params.studyStyle);
-      }
-      if (params?.groupSize) {
-        queryParams.append('groupSize', params.groupSize);
-      }
-      if (params?.availability?.length) {
+      if (params?.subjects?.length) queryParams.append('subjects', params.subjects.join(','));
+      if (params?.studyStyle) queryParams.append('studyStyle', params.studyStyle);
+      if (params?.groupSize) queryParams.append('groupSize', params.groupSize);
+      if (params?.availability?.length)
         queryParams.append('availability', params.availability.join(','));
-      }
-      if (params?.university) {
-        queryParams.append('university', params.university);
-      }
-      if (params?.search) {
-        queryParams.append('search', params.search);
-      }
+      if (params?.university) queryParams.append('university', params.university);
+      if (params?.search) queryParams.append('search', params.search);
 
-      const url = buildApiUrl(`/api/v1/partners/search?${queryParams.toString()}`);
-      const res = await this.fetchWithRetry(url);
-      const data = await res.json();
-      console.log('🔍 Partner search results:', data);
+      const res = await this.request(`/api/v1/partners/search?${queryParams.toString()}`, {
+        method: 'GET',
+      });
+      if (!res.ok) {
+        const appError = ErrorHandler.handleApiError({ status: res.status }, 'partners');
+        throw appError;
+      }
+      const data = await this.safeJson<StudyPartner[]>(res, []);
       return data;
     } catch (error) {
-      console.error('❌ searchPartners error:', error);
       const appError = ErrorHandler.handleApiError(error, 'partners');
       throw appError;
     }
@@ -947,15 +921,16 @@ export class DataService {
 
   static async sendBuddyRequest(recipientId: string, message?: string): Promise<void> {
     try {
-      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/partners/request'), {
+      const res = await this.request('/api/v1/partners/request', {
         method: 'POST',
         body: JSON.stringify({ recipientId, message }),
       });
-      const data = await res.json();
-      console.log('🤝 Buddy request sent:', data);
-      return data;
+      if (!res.ok) {
+        const appError = ErrorHandler.handleApiError({ status: res.status }, 'partners');
+        throw appError;
+      }
+      await this.safeJson<any>(res, null);
     } catch (error) {
-      console.error('❌ sendBuddyRequest error:', error);
       const appError = ErrorHandler.handleApiError(error, 'partners');
       throw appError;
     }
@@ -964,9 +939,9 @@ export class DataService {
   // -------------------- Groups --------------------
   static async fetchMyGroups(): Promise<any[]> {
     try {
-      const res = await this.request('/api/v1/groups/my-groups', { headers: this.authHeaders() });
-      if (res.ok) return await res.json();
-      return await this.fetchGroupsRaw();
+      const res = await this.request('/api/v1/groups/my-groups', { method: 'GET' });
+      if (!res.ok) return await this.fetchGroupsRaw();
+      return await this.safeJson<any[]>(res, []);
     } catch {
       return await this.fetchGroupsRaw();
     }
@@ -974,10 +949,12 @@ export class DataService {
 
   static async fetchGroupsRaw(): Promise<any[]> {
     try {
-      const res = await this.request('/api/v1/groups', { headers: this.authHeaders() });
-      if (res.ok) return await res.json();
+      const res = await this.request('/api/v1/groups', { method: 'GET' });
+      if (res.ok) {
+        return await this.safeJson<any[]>(res, []);
+      }
     } catch {}
-    // fallback to demo-like objects
+    // Map demo fallback to API-ish shape
     return FALLBACK_GROUPS.map((g) => ({
       id: g.id,
       name: g.name,
@@ -994,6 +971,7 @@ export class DataService {
     }));
   }
 
+  // -------------------- Groups --------------------
   static async createGroup(payload: {
     name: string;
     description?: string;
@@ -1002,15 +980,53 @@ export class DataService {
     course?: string;
     courseCode?: string;
     subjects?: string[];
+    moduleId?: number | string; // <-- NEW
   }): Promise<any | null> {
+    let moduleId: number | string | null = payload.moduleId != null ? payload.moduleId : null;
+
+    // If moduleId not provided, try to infer from latest enrolled course
+    if (moduleId == null) {
+      try {
+        const res = await this.request(
+          '/api/v1/courses?limit=1&sortBy=enrolled_at&sortOrder=DESC',
+          {
+            method: 'GET',
+          }
+        );
+        if (res.ok) {
+          const data = await this.safeJson<any>(res, []);
+          const courses = Array.isArray(data?.courses)
+            ? data.courses
+            : Array.isArray(data)
+            ? data
+            : [];
+          if (courses.length && courses[0]?.id != null) {
+            moduleId = courses[0].id;
+          }
+        }
+      } catch {
+        // ignore — backend will still try its own fallback
+      }
+    }
+
+    const body = {
+      name: payload.name,
+      description: payload.description ?? '',
+      maxMembers: payload.maxMembers ?? 10,
+      isPublic: payload.isPublic ?? true,
+      course: payload.course ?? undefined,
+      courseCode: payload.courseCode ?? undefined,
+      moduleId: moduleId != null ? Number(moduleId) : undefined, // <-- send when known
+      subjects: Array.isArray(payload.subjects) ? payload.subjects : [],
+    };
+
     try {
       const res = await this.request('/api/v1/groups', {
         method: 'POST',
-        headers: this.jsonHeaders(),
-        body: JSON.stringify(payload),
+        body: JSON.stringify(body),
       });
       if (!res.ok) return null;
-      return await res.json();
+      return await this.safeJson<any>(res, null);
     } catch {
       return null;
     }
@@ -1020,7 +1036,6 @@ export class DataService {
     try {
       const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}`, {
         method: 'DELETE',
-        headers: this.authHeaders(),
       });
       return res.ok;
     } catch {
@@ -1032,7 +1047,6 @@ export class DataService {
     try {
       const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}/join`, {
         method: 'POST',
-        headers: this.authHeaders(),
       });
       return res.ok;
     } catch {
@@ -1043,8 +1057,7 @@ export class DataService {
   static async leaveGroup(groupId: string): Promise<boolean> {
     try {
       const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}/leave`, {
-        method: 'POST',
-        headers: this.authHeaders(),
+        method: 'POST', // backend uses POST /:groupId/leave
       });
       return res.ok;
     } catch {
@@ -1056,7 +1069,6 @@ export class DataService {
     try {
       const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}/invite`, {
         method: 'POST',
-        headers: this.jsonHeaders(),
         body: JSON.stringify({ inviteUserIds }),
       });
       return res.ok;
@@ -1075,22 +1087,170 @@ export class DataService {
       endTime: string; // ISO
       location: string;
       topics?: string[];
-      type?: StudySession['type'];
-      course?: string;
-      courseCode?: string;
-      maxParticipants?: number;
     }
-  ): Promise<any | null> {
+  ): Promise<StudySession | null> {
     try {
+      const body = {
+        title: payload.title,
+        description: payload.description ?? undefined,
+        startTime: payload.startTime,
+        endTime: payload.endTime,
+        location: payload.location,
+        topics: Array.isArray(payload.topics) ? payload.topics : [],
+      };
+
       const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}/sessions`, {
         method: 'POST',
-        headers: this.jsonHeaders(),
-        body: JSON.stringify(payload),
+        body: JSON.stringify(body),
       });
-      if (!res.ok) return null;
-      return await res.json();
+
+      if (!res.ok) {
+        return null;
+      }
+      const created = await this.safeJson<any>(res, null);
+      return created ? this.normalizeSession(created) : null;
     } catch {
       return null;
+    }
+  }
+
+  // -------------------- Notifications API --------------------
+  static async fetchNotifications(opts?: {
+    unreadOnly?: boolean;
+    type?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<NotificationRow[]> {
+    const params = new URLSearchParams();
+    if (opts?.unreadOnly) params.set('unreadOnly', 'true');
+    if (opts?.type) params.set('type', String(opts.type));
+    if (opts?.limit) params.set('limit', String(opts.limit));
+    if (opts?.offset) params.set('offset', String(opts.offset));
+
+    const res = await this.request(`/api/v1/users/me/notifications?${params.toString()}`, {
+      method: 'GET',
+    });
+    if (!res.ok) return [];
+    const rows = await this.safeJson<NotificationRow[]>(res, []);
+    return Array.isArray(rows) ? rows : [];
+  }
+
+  static async fetchNotificationCounts(): Promise<NotificationCounts | null> {
+    try {
+      const res = await this.request('/api/v1/notifications/counts', { method: 'GET' });
+      if (!res.ok) return null;
+      return await this.safeJson<NotificationCounts | null>(res, null);
+    } catch {
+      return null;
+    }
+  }
+
+  static async markNotificationRead(notificationId: number): Promise<boolean> {
+    const res = await this.request(`/api/v1/users/me/notifications/${notificationId}/read`, {
+      method: 'PUT',
+    });
+    return res.ok;
+  }
+
+  static async markAllNotificationsRead(): Promise<boolean> {
+    try {
+      const res = await this.request('/api/v1/notifications/read-all', { method: 'PUT' });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  static async deleteNotification(notificationId: number): Promise<boolean> {
+    try {
+      const res = await this.request(`/api/v1/notifications/${notificationId}`, {
+        method: 'DELETE',
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  static async createNotification(payload: {
+    user_id: number | string;
+    notification_type: string;
+    title: string;
+    message: string;
+    metadata?: any;
+    scheduled_for?: string | Date | null;
+  }): Promise<NotificationRow | null> {
+    const body = {
+      ...payload,
+      scheduled_for:
+        payload.scheduled_for instanceof Date
+          ? payload.scheduled_for.toISOString()
+          : payload.scheduled_for ?? null,
+    };
+    try {
+      const res = await this.request('/api/v1/notifications', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) return null;
+      return await this.safeJson<NotificationRow | null>(res, null);
+    } catch {
+      return null;
+    }
+  }
+
+  static async notifyGroup(
+    groupId: string | number,
+    payload: {
+      notification_type: string;
+      title: string;
+      message: string;
+      metadata?: any;
+    }
+  ): Promise<boolean> {
+    try {
+      const res = await this.request(
+        `/api/v1/notifications/group/${encodeURIComponent(String(groupId))}/notify`,
+        { method: 'POST', body: JSON.stringify(payload) }
+      );
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  static async fetchPendingNotifications(): Promise<NotificationRow[]> {
+    try {
+      const res = await this.request('/api/v1/notifications/pending', { method: 'GET' });
+      if (!res.ok) return [];
+      return await this.safeJson<NotificationRow[]>(res, []);
+    } catch {
+      return [];
+    }
+  }
+
+  static async markNotificationsSent(notificationIds: Array<number | string>): Promise<boolean> {
+    try {
+      const res = await this.request('/api/v1/notifications/mark-sent', {
+        method: 'PUT',
+        body: JSON.stringify({ notification_ids: notificationIds }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  // Trigger 24h reminder scheduling for a single session
+  static async scheduleSession24hReminders(sessionId: string | number): Promise<boolean> {
+    try {
+      const res = await this.request(
+        `/api/v1/notifications/sessions/${encodeURIComponent(String(sessionId))}/schedule-24h`,
+        { method: 'POST' }
+      );
+      return res.ok;
+    } catch {
+      return false;
     }
   }
 }

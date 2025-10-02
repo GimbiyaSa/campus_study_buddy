@@ -10,7 +10,7 @@ export const getBaseUrl = (): string => {
   }
 
   // In Node.js test environment, provide localhost fallback
-  return 'http://localhost:3000';
+  return 'http://localhost:5000';
 };
 
 export const buildApiUrl = (path: string): string => {

@@ -10,12 +10,14 @@
     "test": "jest",
     "test:coverage": "jest --coverage",
     "test:ci": "jest --ci --coverage",
-    "build": "tsc",
+    "clean": "rimraf dist",
+    "build": "npm run clean && tsc",
     "config:health": "node dist/config/healthCheckTest.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{js,ts,json,md}\"",
-    "seed:test-user": "node src/database/seed_test_user.js"
+    "seed:test-user": "node src/database/seed_test_user.js",
+    "worker:notifications": "node workers/notificationsWorker.js"
   },
   "dependencies": {
     "@azure/communication-email": "^1.0.0",
@@ -48,6 +50,7 @@
     "mssql": "^11.0.1",
     "nodemon": "^3.0.1",
     "prettier": "^2.8.8",
+    "rimraf": "^6.0.1",
     "supertest": "^6.3.3",
     "ts-jest": "^29.4.1",
     "ts-node": "^10.9.2",

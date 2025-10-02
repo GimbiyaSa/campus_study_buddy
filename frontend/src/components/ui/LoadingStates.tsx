@@ -56,10 +56,9 @@ interface ErrorDisplayProps {
   error: AppError;
   onRetry?: () => void;
   onDismiss?: () => void;
-  context: 'courses' | 'progress' | 'partners' | 'dashboard';
 }
 
-export function ErrorDisplay({ error, onRetry, onDismiss, context }: ErrorDisplayProps) {
+export function ErrorDisplay({ error, onRetry, onDismiss }: ErrorDisplayProps) {
   const getContextIcon = () => {
     if (error.type === 'network') {
       return <WifiOff className="h-5 w-5" />;
@@ -123,10 +122,9 @@ interface EmptyStateProps {
     onClick: () => void;
   };
   icon: React.ReactNode;
-  context: 'courses' | 'progress' | 'partners' | 'dashboard';
 }
 
-export function EmptyState({ title, message, action, icon, context }: EmptyStateProps) {
+export function EmptyState({ title, message, action, icon }: EmptyStateProps) {
   return (
     <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 p-12 text-center">
       <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-xl bg-slate-100 text-slate-500">

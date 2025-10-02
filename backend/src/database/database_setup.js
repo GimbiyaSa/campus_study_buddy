@@ -31,12 +31,36 @@ class DatabaseConnection {
 
   async connect() {
     try {
+      // First try to connect to the target database
       this.pool = await sql.connect(this.config);
       console.log('✅ Connected to Azure SQL Database');
       return this.pool;
     } catch (error) {
       console.error('❌ Database connection failed:', error);
       throw error;
+    }
+  }
+
+  async createDatabaseIfNotExists() {
+    try {
+      // Connect to master database to create the target database
+      const masterConfig = { ...this.config, database: 'master' };
+      const masterPool = await sql.connect(masterConfig);
+
+      const createDbQuery = `
+        IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = '${this.config.database}')
+        BEGIN
+          CREATE DATABASE [${this.config.database}]
+        END
+      `;
+
+      await masterPool.request().query(createDbQuery);
+      console.log(`Database '${this.config.database}' created successfully!`);
+
+      await masterPool.close();
+    } catch (error) {
+      console.error('Error creating database:', error.message);
+      // Don't throw here - we'll try with the original config anyway
     }
   }
 

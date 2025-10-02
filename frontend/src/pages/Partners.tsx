@@ -136,7 +136,7 @@ export default function Partners() {
       setPartnersError(null);
       try {
         // Fetch existing buddies (accepted connections)
-        const data = await DataService.fetchPartners();
+        const data = await DataService.searchPartners();
         if (mounted) {
           // These are already connected buddies from the backend
           setBuddies(data);

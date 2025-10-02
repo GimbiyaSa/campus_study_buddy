@@ -46,9 +46,9 @@ app.use(
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000,                // per IP per window
-  standardHeaders: true,    // add RateLimit-* headers
-  legacyHeaders: false,     // remove X-RateLimit-*
+  max: 1000, // per IP per window
+  standardHeaders: true, // add RateLimit-* headers
+  legacyHeaders: false, // remove X-RateLimit-*
 });
 app.use('/api/', limiter);
 
@@ -80,14 +80,28 @@ process.on('unhandledRejection', (reason, promise) => {
 (async () => {
   try {
     console.log('🔄 Initializing Azure services...');
-    let dbOk = false, storageOk = false, pubsubOk = false;
-    try { await azureConfig.getDatabaseConfig(); dbOk = true; } catch {}
-    try { await azureConfig.getBlobServiceClient(); storageOk = true; } catch {}
-    try { await azureConfig.getWebPubSubClient(); pubsubOk = true; } catch {}
+    let dbOk = false,
+      storageOk = false,
+      pubsubOk = false;
+    try {
+      await azureConfig.getDatabaseConfig();
+      dbOk = true;
+    } catch {}
+    try {
+      await azureConfig.getBlobServiceClient();
+      storageOk = true;
+    } catch {}
+    try {
+      await azureConfig.getWebPubSubClient();
+      pubsubOk = true;
+    } catch {}
 
-    if (dbOk) console.log('✅ Connected to Azure SQL (via Azure Config)'); else console.warn('⚠️ Could not connect to Azure SQL');
-    if (storageOk) console.log('✅ Connected to Azure Storage (via Azure Config)'); else console.warn('⚠️ Could not connect to Azure Storage');
-    if (pubsubOk) console.log('✅ Connected to Azure Web PubSub (via Azure Config)'); else console.warn('⚠️ Could not connect to Azure Web PubSub');
+    if (dbOk) console.log('✅ Connected to Azure SQL (via Azure Config)');
+    else console.warn('⚠️ Could not connect to Azure SQL');
+    if (storageOk) console.log('✅ Connected to Azure Storage (via Azure Config)');
+    else console.warn('⚠️ Could not connect to Azure Storage');
+    if (pubsubOk) console.log('✅ Connected to Azure Web PubSub (via Azure Config)');
+    else console.warn('⚠️ Could not connect to Azure Web PubSub');
 
     await azureConfig.healthCheck();
   } catch (error) {

@@ -21,16 +21,16 @@ let pool;
 // detected schema cache
 const schema = {
   tables: {
-    groups: 'study_groups',          // will switch to "groups" if it exists
+    groups: 'study_groups', // will switch to "groups" if it exists
     group_members: 'group_members',
     study_sessions: 'study_sessions',
     session_attendees: 'session_attendees',
   },
   groupsCols: {
     // dynamic picks (actual column names or null)
-    nameCol: null,           // one of: name | group_name | title
-    descriptionCol: null,    // one of: description | details | group_description | desc
-    created_at: true,        // assumed
+    nameCol: null, // one of: name | group_name | title
+    descriptionCol: null, // one of: description | details | group_description | desc
+    created_at: true, // assumed
     last_activity: false,
     max_members: false,
     is_public: false,
@@ -72,17 +72,18 @@ async function getPool() {
 }
 
 async function hasTable(name) {
-  const { recordset } = await pool.request()
+  const { recordset } = await pool
+    .request()
     .input('name', sql.NVarChar(128), name)
     .query(`SELECT 1 FROM sys.tables WHERE name = @name`);
   return recordset.length > 0;
 }
 
 async function hasColumn(table, col) {
-  const { recordset } = await pool.request()
+  const { recordset } = await pool
+    .request()
     .input('tbl', sql.NVarChar(256), `dbo.${table}`)
-    .input('col', sql.NVarChar(128), col)
-    .query(`
+    .input('col', sql.NVarChar(128), col).query(`
       SELECT 1
       FROM sys.columns
       WHERE object_id = OBJECT_ID(@tbl) AND name = @col
@@ -107,7 +108,12 @@ async function detectSchema() {
 
   // groups: pick name/description columns
   schema.groupsCols.nameCol = await firstExistingColumn(g, ['name', 'group_name', 'title']);
-  schema.groupsCols.descriptionCol = await firstExistingColumn(g, ['description', 'details', 'group_description', 'desc']);
+  schema.groupsCols.descriptionCol = await firstExistingColumn(g, [
+    'description',
+    'details',
+    'group_description',
+    'desc',
+  ]);
   schema.groupsCols.last_activity = await hasColumn(g, 'last_activity');
   schema.groupsCols.max_members = await hasColumn(g, 'max_members');
   schema.groupsCols.is_public = await hasColumn(g, 'is_public');
@@ -118,7 +124,11 @@ async function detectSchema() {
   schema.membersCols.role = await hasColumn('group_members', 'role');
   schema.membersCols.joined_at = await hasColumn('group_members', 'joined_at');
   schema.membersCols.created_at = await hasColumn('group_members', 'created_at');
-  schema.membersCols.idCol = await firstExistingColumn('group_members', ['member_id', 'id', 'group_member_id']);
+  schema.membersCols.idCol = await firstExistingColumn('group_members', [
+    'member_id',
+    'id',
+    'group_member_id',
+  ]);
 
   console.log('📐 groups table:', g);
   console.log('📐 groups cols:', schema.groupsCols);
@@ -137,7 +147,8 @@ function memberOrderExpr(alias = 'gm') {
 
 // helper: ORDER BY for groups activity
 function groupsOrderBy(alias = 'g') {
-  if (schema.groupsCols.last_activity) return `ORDER BY ${alias}.last_activity DESC, ${alias}.created_at DESC`;
+  if (schema.groupsCols.last_activity)
+    return `ORDER BY ${alias}.last_activity DESC, ${alias}.created_at DESC`;
   return `ORDER BY ${alias}.created_at DESC`; // avoid duplicate created_at
 }
 
@@ -186,21 +197,23 @@ router.get('/', authenticateToken, async (req, res) => {
 
     const { recordset } = await r.query(q);
 
-    res.json(recordset.map((x) => ({
-      id: String(x.id),
-      name: x.name,
-      description: x.description,
-      course: x.course ?? null,
-      courseCode: x.courseCode ?? null,
-      maxMembers: x.maxMembers ?? null,
-      isPublic: !!x.isPublic,
-      createdBy: x.createdBy ?? null,
-      createdAt: x.createdAt,
-      lastActivity: x.lastActivity,
-      member_count: x.memberCount,
-      session_count: x.sessionCount,
-      isMember: !!x.isMember,
-    })));
+    res.json(
+      recordset.map((x) => ({
+        id: String(x.id),
+        name: x.name,
+        description: x.description,
+        course: x.course ?? null,
+        courseCode: x.courseCode ?? null,
+        maxMembers: x.maxMembers ?? null,
+        isPublic: !!x.isPublic,
+        createdBy: x.createdBy ?? null,
+        createdAt: x.createdAt,
+        lastActivity: x.lastActivity,
+        member_count: x.memberCount,
+        session_count: x.sessionCount,
+        isMember: !!x.isMember,
+      }))
+    );
   } catch (err) {
     console.error('GET /groups error:', err);
     res.status(500).json({ error: 'Failed to fetch groups' });
@@ -241,17 +254,19 @@ router.get('/my-groups', authenticateToken, async (req, res) => {
 
     const { recordset } = await r.query(q);
 
-    res.json(recordset.map((x) => ({
-      id: String(x.id),
-      name: x.name,
-      description: x.description,
-      course: x.course ?? null,
-      courseCode: x.courseCode ?? null,
-      maxMembers: x.maxMembers ?? null,
-      isPublic: !!x.isPublic,
-      createdAt: x.createdAt,
-      lastActivity: x.lastActivity,
-    })));
+    res.json(
+      recordset.map((x) => ({
+        id: String(x.id),
+        name: x.name,
+        description: x.description,
+        course: x.course ?? null,
+        courseCode: x.courseCode ?? null,
+        maxMembers: x.maxMembers ?? null,
+        isPublic: !!x.isPublic,
+        createdAt: x.createdAt,
+        lastActivity: x.lastActivity,
+      }))
+    );
   } catch (err) {
     console.error('GET /groups/my-groups error:', err);
     res.status(500).json({ error: 'Failed to fetch user groups' });
@@ -272,7 +287,9 @@ router.post('/', authenticateToken, async (req, res) => {
   const gc = schema.groupsCols;
 
   if (!gc.nameCol) {
-    return res.status(500).json({ error: 'Server cannot find a suitable name/title column on groups table' });
+    return res
+      .status(500)
+      .json({ error: 'Server cannot find a suitable name/title column on groups table' });
   }
 
   const tx = new sql.Transaction(pool);
@@ -283,12 +300,30 @@ router.post('/', authenticateToken, async (req, res) => {
     const cols = [gc.nameCol, 'created_at'];
     const vals = ['@name', 'SYSUTCDATETIME()'];
 
-    if (gc.descriptionCol) { cols.push(gc.descriptionCol); vals.push('@description'); }
-    if (gc.max_members)    { cols.push('max_members');    vals.push('@maxMembers'); }
-    if (gc.is_public)      { cols.push('is_public');      vals.push('@isPublic'); }
-    if (gc.course)         { cols.push('course');         vals.push('@course'); }
-    if (gc.course_code)    { cols.push('course_code');    vals.push('@courseCode'); }
-    if (gc.last_activity)  { cols.push('last_activity');  vals.push('SYSUTCDATETIME()'); }
+    if (gc.descriptionCol) {
+      cols.push(gc.descriptionCol);
+      vals.push('@description');
+    }
+    if (gc.max_members) {
+      cols.push('max_members');
+      vals.push('@maxMembers');
+    }
+    if (gc.is_public) {
+      cols.push('is_public');
+      vals.push('@isPublic');
+    }
+    if (gc.course) {
+      cols.push('course');
+      vals.push('@course');
+    }
+    if (gc.course_code) {
+      cols.push('course_code');
+      vals.push('@courseCode');
+    }
+    if (gc.last_activity) {
+      cols.push('last_activity');
+      vals.push('SYSUTCDATETIME()');
+    }
 
     const r = new sql.Request(tx);
     r.input('name', sql.NVarChar(255), name.trim());
@@ -313,9 +348,17 @@ router.post('/', authenticateToken, async (req, res) => {
 
     const mmCols = ['group_id', 'user_id'];
     const mmVals = ['@groupId', '@userId'];
-    if (schema.membersCols.joined_at) { mmCols.push('joined_at'); mmVals.push('SYSUTCDATETIME()'); }
-    else if (schema.membersCols.created_at) { mmCols.push('created_at'); mmVals.push('SYSUTCDATETIME()'); }
-    if (schema.membersCols.role) { mmCols.push('role'); mmVals.push(`'owner'`); }
+    if (schema.membersCols.joined_at) {
+      mmCols.push('joined_at');
+      mmVals.push('SYSUTCDATETIME()');
+    } else if (schema.membersCols.created_at) {
+      mmCols.push('created_at');
+      mmVals.push('SYSUTCDATETIME()');
+    }
+    if (schema.membersCols.role) {
+      mmCols.push('role');
+      mmVals.push(`'owner'`);
+    }
 
     await r2.query(`
       INSERT INTO dbo.group_members (${mmCols.join(', ')})
@@ -364,7 +407,7 @@ router.delete('/:groupId', authenticateToken, async (req, res) => {
       SELECT TOP 1 1 AS ok
       FROM dbo.group_members gm
       WHERE gm.group_id = @groupId
-        ${schema.membersCols.role ? 'AND gm.role = \'owner\'' : ''}
+        ${schema.membersCols.role ? "AND gm.role = 'owner'" : ''}
         AND gm.user_id = @userId
     `);
     if (own.recordset.length === 0) {
@@ -429,8 +472,13 @@ router.post('/:groupId/join', authenticateToken, async (req, res) => {
     // upsert membership
     const mmCols = ['group_id', 'user_id'];
     const mmVals = ['@groupId', '@userId'];
-    if (schema.membersCols.joined_at) { mmCols.push('joined_at'); mmVals.push('SYSUTCDATETIME()'); }
-    else if (schema.membersCols.created_at) { mmCols.push('created_at'); mmVals.push('SYSUTCDATETIME()'); }
+    if (schema.membersCols.joined_at) {
+      mmCols.push('joined_at');
+      mmVals.push('SYSUTCDATETIME()');
+    } else if (schema.membersCols.created_at) {
+      mmCols.push('created_at');
+      mmVals.push('SYSUTCDATETIME()');
+    }
 
     await r.query(`
       IF NOT EXISTS (SELECT 1 FROM dbo.group_members WHERE group_id = @groupId AND user_id = @userId)
@@ -439,7 +487,11 @@ router.post('/:groupId/join', authenticateToken, async (req, res) => {
         VALUES (${mmVals.join(', ')});
       END;
 
-      ${gc.last_activity ? `UPDATE dbo.${g} SET last_activity = SYSUTCDATETIME() WHERE group_id = @groupId;` : ''}
+      ${
+        gc.last_activity
+          ? `UPDATE dbo.${g} SET last_activity = SYSUTCDATETIME() WHERE group_id = @groupId;`
+          : ''
+      }
     `);
 
     res.status(204).end();
@@ -475,14 +527,23 @@ router.post('/:groupId/leave', authenticateToken, async (req, res) => {
     if (!own.recordset.length) return res.status(404).json({ error: 'Group not found' });
     const { isOwner, memberCount } = own.recordset[0];
     if (isOwner && memberCount > 1) {
-      return res.status(403).json({ error: 'Owner cannot leave while group has members. Transfer ownership or delete the group.' });
+      return res
+        .status(403)
+        .json({
+          error:
+            'Owner cannot leave while group has members. Transfer ownership or delete the group.',
+        });
     }
 
     await r.query(`
       DELETE FROM dbo.group_members WHERE group_id = @groupId AND user_id = @userId;
-      ${schema.groupsCols.last_activity
-        ? `UPDATE ${tbl('groups')} SET last_activity = SYSUTCDATETIME() WHERE group_id = @groupId;`
-        : ''}
+      ${
+        schema.groupsCols.last_activity
+          ? `UPDATE ${tbl(
+              'groups'
+            )} SET last_activity = SYSUTCDATETIME() WHERE group_id = @groupId;`
+          : ''
+      }
     `);
 
     res.status(204).end();

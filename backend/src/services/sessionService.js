@@ -66,10 +66,10 @@ async function getPool() {
 }
 
 async function hasColumn(table, col) {
-  const { recordset } = await pool.request()
+  const { recordset } = await pool
+    .request()
     .input('tbl', sql.NVarChar(256), `dbo.${table}`)
-    .input('col', sql.NVarChar(128), col)
-    .query(`
+    .input('col', sql.NVarChar(128), col).query(`
       SELECT 1
       FROM sys.columns
       WHERE object_id = OBJECT_ID(@tbl) AND name = @col
@@ -97,7 +97,11 @@ async function detectSchema() {
   // session_attendees
   schema.attendeesCols.joined_at = await hasColumn('session_attendees', 'joined_at');
   schema.attendeesCols.created_at = await hasColumn('session_attendees', 'created_at');
-  schema.attendeesCols.idCol = await firstExistingColumn('session_attendees', ['attendee_id', 'id', 'session_attendee_id']);
+  schema.attendeesCols.idCol = await firstExistingColumn('session_attendees', [
+    'attendee_id',
+    'id',
+    'session_attendee_id',
+  ]);
 
   console.log('📐 study_sessions cols:', schema.sessionsCols);
   console.log('📐 session_attendees cols:', schema.attendeesCols);
@@ -231,7 +235,7 @@ router.post('/', authenticateToken, async (req, res) => {
     } = req.body;
 
     const finalTitle = (session_title || title || '').trim();
-    const finalType = (session_type || type || (schema.sessionsCols.session_type ? 'study' : null));
+    const finalType = session_type || type || (schema.sessionsCols.session_type ? 'study' : null);
     const finalMax = Number(max_participants ?? maxParticipants);
     const hasMax = schema.sessionsCols.max_participants && !Number.isNaN(finalMax);
     const groupIdNum = group_id ?? groupId ?? null;
@@ -249,7 +253,9 @@ router.post('/', authenticateToken, async (req, res) => {
       const chk = new sql.Request(tx);
       chk.input('gid', sql.Int, Number(groupIdNum));
       chk.input('uid', sql.NVarChar(255), req.user.id);
-      const m = await chk.query(`SELECT 1 FROM dbo.group_members WHERE group_id = @gid AND user_id = @uid`);
+      const m = await chk.query(
+        `SELECT 1 FROM dbo.group_members WHERE group_id = @gid AND user_id = @uid`
+      );
       if (!m.recordset.length) {
         await tx.rollback();
         return res.status(403).json({ error: 'Not a member of this group' });
@@ -261,13 +267,34 @@ router.post('/', authenticateToken, async (req, res) => {
     const vals = ['@title', '@start', '@end', 'SYSUTCDATETIME()'];
     const sc = schema.sessionsCols;
 
-    if (sc.description) { cols.push('description'); vals.push('@description'); }
-    if (sc.location) { cols.push('location'); vals.push('@location'); }
-    if (groupIdNum != null) { cols.push('group_id'); vals.push('@groupId'); }
-    if (sc.status) { cols.push('status'); vals.push(`'upcoming'`); }
-    if (sc.session_type && finalType) { cols.push('session_type'); vals.push('@stype'); }
-    if (sc.max_participants && hasMax) { cols.push('max_participants'); vals.push('@max'); }
-    if (sc.created_by) { cols.push('created_by'); vals.push('@createdBy'); }
+    if (sc.description) {
+      cols.push('description');
+      vals.push('@description');
+    }
+    if (sc.location) {
+      cols.push('location');
+      vals.push('@location');
+    }
+    if (groupIdNum != null) {
+      cols.push('group_id');
+      vals.push('@groupId');
+    }
+    if (sc.status) {
+      cols.push('status');
+      vals.push(`'upcoming'`);
+    }
+    if (sc.session_type && finalType) {
+      cols.push('session_type');
+      vals.push('@stype');
+    }
+    if (sc.max_participants && hasMax) {
+      cols.push('max_participants');
+      vals.push('@max');
+    }
+    if (sc.created_by) {
+      cols.push('created_by');
+      vals.push('@createdBy');
+    }
 
     const r = new sql.Request(tx);
     if (groupIdNum != null) r.input('groupId', sql.Int, Number(groupIdNum));
@@ -296,7 +323,10 @@ router.post('/', authenticateToken, async (req, res) => {
     const chrono = attendeesChronoInsertCols();
     const aCols = ['session_id', 'user_id'];
     const aVals = ['@sid', '@uid'];
-    if (chrono) { aCols.push(chrono.col); aVals.push(chrono.val); }
+    if (chrono) {
+      aCols.push(chrono.col);
+      aVals.push(chrono.val);
+    }
 
     await r2.query(`
       IF NOT EXISTS (SELECT 1 FROM dbo.session_attendees WHERE session_id = @sid AND user_id = @uid)
@@ -311,12 +341,12 @@ router.post('/', authenticateToken, async (req, res) => {
     const row = {
       id: created.id,
       session_title: created.session_title,
-      description: sc.description ? created.description : (description ?? null),
+      description: sc.description ? created.description : description ?? null,
       scheduled_start: created.scheduled_start,
       scheduled_end: created.scheduled_end,
-      location: sc.location ? created.location : (location ?? null),
+      location: sc.location ? created.location : location ?? null,
       status: sc.status ? created.status : 'upcoming',
-      session_type: sc.session_type ? created.session_type : (finalType || 'study'),
+      session_type: sc.session_type ? created.session_type : finalType || 'study',
       max_participants: sc.max_participants ? created.max_participants : null,
       group_id: created.group_id ?? groupIdNum ?? null,
       created_by: sc.created_by ? created.created_by : req.user.id,
@@ -342,10 +372,10 @@ router.put('/:id', authenticateToken, async (req, res) => {
     await getPool();
 
     // verify ownership
-    const c = await pool.request()
+    const c = await pool
+      .request()
       .input('sid', sql.Int, sessionId)
-      .input('uid', sql.NVarChar(255), req.user.id)
-      .query(`
+      .input('uid', sql.NVarChar(255), req.user.id).query(`
         SELECT 1
         FROM dbo.study_sessions s
         WHERE s.session_id = @sid AND (${ownerExpr('s')} = @uid)
@@ -355,24 +385,53 @@ router.put('/:id', authenticateToken, async (req, res) => {
     }
 
     const {
-      title, session_title, description, location,
-      startTime, endTime,
-      type, session_type, maxParticipants, max_participants,
+      title,
+      session_title,
+      description,
+      location,
+      startTime,
+      endTime,
+      type,
+      session_type,
+      maxParticipants,
+      max_participants,
     } = req.body;
 
     const sc = schema.sessionsCols;
     const r = pool.request().input('sid', sql.Int, sessionId);
     const sets = [];
 
-    if (title || session_title) { r.input('title', sql.NVarChar(255), (session_title || title).trim()); sets.push('session_title = @title'); }
-    if (sc.description && description !== undefined) { r.input('desc', sql.NVarChar(sql.MAX), description ?? null); sets.push('description = @desc'); }
-    if (sc.location && location !== undefined) { r.input('loc', sql.NVarChar(255), location ?? null); sets.push('location = @loc'); }
-    if (sc.session_type && (type || session_type)) { r.input('stype', sql.NVarChar(50), session_type || type); sets.push('session_type = @stype'); }
-    if (sc.max_participants && (max_participants != null || maxParticipants != null)) { r.input('max', sql.Int, Number(max_participants ?? maxParticipants)); sets.push('max_participants = @max'); }
-    if (startTime) { r.input('st', sql.DateTime2, new Date(startTime)); sets.push('scheduled_start = @st'); }
-    if (endTime)   { r.input('et', sql.DateTime2, new Date(endTime));   sets.push('scheduled_end = @et'); }
+    if (title || session_title) {
+      r.input('title', sql.NVarChar(255), (session_title || title).trim());
+      sets.push('session_title = @title');
+    }
+    if (sc.description && description !== undefined) {
+      r.input('desc', sql.NVarChar(sql.MAX), description ?? null);
+      sets.push('description = @desc');
+    }
+    if (sc.location && location !== undefined) {
+      r.input('loc', sql.NVarChar(255), location ?? null);
+      sets.push('location = @loc');
+    }
+    if (sc.session_type && (type || session_type)) {
+      r.input('stype', sql.NVarChar(50), session_type || type);
+      sets.push('session_type = @stype');
+    }
+    if (sc.max_participants && (max_participants != null || maxParticipants != null)) {
+      r.input('max', sql.Int, Number(max_participants ?? maxParticipants));
+      sets.push('max_participants = @max');
+    }
+    if (startTime) {
+      r.input('st', sql.DateTime2, new Date(startTime));
+      sets.push('scheduled_start = @st');
+    }
+    if (endTime) {
+      r.input('et', sql.DateTime2, new Date(endTime));
+      sets.push('scheduled_end = @et');
+    }
 
-    if (!sets.length) return res.status(400).json({ error: 'No fields to update or columns not supported' });
+    if (!sets.length)
+      return res.status(400).json({ error: 'No fields to update or columns not supported' });
 
     const { recordset } = await r.query(`
       UPDATE dbo.study_sessions
@@ -478,7 +537,10 @@ router.post('/:id/join', authenticateToken, async (req, res) => {
     const chrono = attendeesChronoInsertCols();
     const aCols = ['session_id', 'user_id'];
     const aVals = ['@sid', '@uid'];
-    if (chrono) { aCols.push(chrono.col); aVals.push(chrono.val); }
+    if (chrono) {
+      aCols.push(chrono.col);
+      aVals.push(chrono.val);
+    }
 
     await r.query(`
       IF NOT EXISTS (SELECT 1 FROM dbo.session_attendees WHERE session_id = @sid AND user_id = @uid)

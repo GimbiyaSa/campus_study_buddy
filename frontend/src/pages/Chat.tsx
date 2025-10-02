@@ -109,7 +109,7 @@ export default function Chat() {
           </p>
         </div>
         <div className="flex items-center justify-center py-16">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600" role="status" aria-label="Loading"></div>
         </div>
       </div>
     );
@@ -313,6 +313,7 @@ export default function Chat() {
                     <button
                       type="submit"
                       disabled={!input.trim()}
+                      aria-label="Send"
                       className="w-12 h-12 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-2xl flex items-center justify-center transition-colors shadow-sm"
                     >
                       <Send className="h-5 w-5" />

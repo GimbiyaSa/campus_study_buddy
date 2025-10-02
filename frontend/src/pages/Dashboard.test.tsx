@@ -4,8 +4,8 @@ import { expect, test } from 'vitest';
 
 test('Dashboard renders main sections', () => {
   render(<Dashboard />);
-  // BuddySearch heading
-  expect(screen.getByText(/Study Buddy Suggestions/i)).toBeInTheDocument();
+  // Study Partner Suggestions heading
+  expect(screen.getByText(/Study Partner Suggestions/i)).toBeInTheDocument();
   // Courses heading inside the courses card
   expect(screen.getByText(/My Courses/i)).toBeInTheDocument();
 });

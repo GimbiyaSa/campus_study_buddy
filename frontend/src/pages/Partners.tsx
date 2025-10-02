@@ -493,6 +493,7 @@ function EnhancedSuggestionCard({ suggestion, onConnect, isPending = false }: { 
               {suggestion.name}
             </h3>
             <p className="text-sm text-slate-600 mb-2">{suggestion.course}</p>
+            <p className="text-xs text-slate-500">{suggestion.university}</p>
             <div className="flex flex-wrap gap-1.5">
               <span className="text-xs px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 font-medium">
                 {sharedCoursesText}
@@ -585,6 +586,7 @@ function EnhancedPartnerCard({ partner, onConnect, isPending = false }: { partne
             {partner.name}
           </h3>
           <p className="text-xs text-slate-600">{partner.course}</p>
+          <p className="text-xs text-slate-500">{partner.university}</p>
         </div>
       </div>
       

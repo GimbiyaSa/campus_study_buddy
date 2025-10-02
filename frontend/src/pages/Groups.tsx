@@ -476,99 +476,84 @@ export default function Groups() {
     broadcastGroupCreated(localGroup);
   };
 
-  // --- schedule a session for a group (hardened) ---
-  const handleScheduleSession = async (
-    groupCtx: {
-      groupId: string; // cosmos id
-      groupLocalId: number;
-      groupName: string;
-      course?: string;
-      courseCode?: string;
-    },
-    form: {
-      title: string;
-      date: string;
-      startTime: string;
-      endTime: string;
-      location: string;
-      description?: string;
-    }
-  ) => {
-    // Build backend payload (expects ISO times)
-    const startISO = new Date(`${form.date}T${form.startTime}:00`).toISOString();
-    const endISO = new Date(`${form.date}T${form.endTime}:00`).toISOString();
-    const payload = {
-      title: form.title,
-      description: form.description || '',
-      startTime: startISO,
-      endTime: endISO,
-      location: form.location,
-      topics: [],
-    };
+  // --- schedule a session for a group (type-safe; no 'description' in payload) ---
+const handleScheduleSession = async (
+  groupCtx: {
+    groupId: string; // same type used in Sessions.tsx (string)
+    groupLocalId: number;
+    groupName: string;
+    course?: string;
+    courseCode?: string;
+  },
+  form: {
+    title: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    location: string;
+    description?: string; // still allowed in UI, just not sent to createSession
+  }
+) => {
+  // Optimistic broadcast (keeps local date/time so Calendar feels instant)
+  const optimistic = {
+    id: String(Date.now()),
+    title: form.title,
+    date: form.date,
+    startTime: form.startTime,
+    endTime: form.endTime,
+    location: form.location,
+    type: 'study',
+    participants: 1,
+    status: 'upcoming',
+    isCreator: true,
+    isAttending: true,
+    groupId: groupCtx.groupId,
+    course: groupCtx.course,
+    courseCode: groupCtx.courseCode,
+  };
+  broadcastSessionCreated(optimistic);
 
-    // optimistic broadcast first so Calendar feels instant (use local date/times to avoid UTC drift)
-    const optimistic = {
-      id: String(Date.now()),
+  // If there's no real group id (demo/fallback), stop after optimistic update
+  if (!groupCtx.groupId) return;
+
+  try {
+    const created = await DataService.createSession({
       title: form.title,
+      course: groupCtx.course,
+      courseCode: groupCtx.courseCode,
       date: form.date,
       startTime: form.startTime,
       endTime: form.endTime,
       location: form.location,
       type: 'study',
-      participants: 1,
-      status: 'upcoming',
-      isCreator: true,
-      isAttending: true,
-      groupId: groupCtx.groupId,
-      course: groupCtx.course,
-      courseCode: groupCtx.courseCode,
-    };
-    broadcastSessionCreated(optimistic);
+      groupId: groupCtx.groupId, // keep as string; DataService handles coercion
+      // maxParticipants: optional if you want to include it
+    });
 
-    // If there is no real cosmos id (fallback groups), stop here
-    if (!groupCtx.groupId || groupCtx.groupId === String(groupCtx.groupLocalId)) return;
-
-    try {
-      const created = await DataService.createGroupSession(groupCtx.groupId, payload as any);
-
-      if (created) {
-        // Re-broadcast from server response but preserve local date/time to avoid timezone jumps
-        const createdForBroadcast = {
-          id: String(created.id ?? Date.now()),
-          title: created.title ?? form.title,
-          date: form.date,
-          startTime: form.startTime,
-          endTime: form.endTime,
-          location: created.location ?? form.location,
-          type: created.type ?? 'study',
-          participants: created.participants ?? 1,
-          status: created.status ?? 'upcoming',
-          isCreator: true,
-          isAttending: true,
-          groupId: created.groupId ?? groupCtx.groupId,
-          course: created.course ?? groupCtx.course,
-          courseCode: created.courseCode ?? groupCtx.courseCode,
-        };
-        broadcastSessionCreated(createdForBroadcast);
-        await DataService.createGroupSession(groupCtx.groupId, {
-        title: form.title,
-        description: form.description,
-        startTime: startISO,
-        endTime: endISO,
-        location: form.location,
-        topics: [],
+    if (created) {
+      // Re-broadcast using same local date/time to avoid timezone jumps
+      broadcastSessionCreated({
+        id: String(created.id ?? Date.now()),
+        title: created.title ?? form.title,
+        date: form.date,
+        startTime: form.startTime,
+        endTime: form.endTime,
+        location: created.location ?? form.location,
+        type: created.type ?? 'study',
+        participants: created.participants ?? 1,
+        status: created.status ?? 'upcoming',
+        isCreator: true,
+        isAttending: true,
+        groupId: String(created.groupId ?? groupCtx.groupId),
+        course: created.course ?? groupCtx.course,
+        courseCode: created.courseCode ?? groupCtx.courseCode,
       });
-// keep your optimistic broadcast exactly as you already have it
-
-// (keep your optimistic broadcast as-is)
-
-      } else {
-        console.warn('Schedule session failed (no body)');
-      }
-    } catch (err) {
-      console.error('Error scheduling session:', err);
     }
-  };
+  } catch (err) {
+    console.error('Error scheduling session:', err);
+  }
+};
+
 
   const getGroupTypeColor = (type: string) => {
     switch (type) {

@@ -972,61 +972,65 @@ export class DataService {
   }
 
   // -------------------- Groups --------------------
-static async createGroup(payload: {
-  name: string;
-  description?: string;
-  maxMembers?: number;
-  isPublic?: boolean;
-  course?: string;
-  courseCode?: string;
-  subjects?: string[];
-  moduleId?: number | string; // <-- NEW
-}): Promise<any | null> {
-  let moduleId: number | string | null =
-    payload.moduleId != null ? payload.moduleId : null;
+  static async createGroup(payload: {
+    name: string;
+    description?: string;
+    maxMembers?: number;
+    isPublic?: boolean;
+    course?: string;
+    courseCode?: string;
+    subjects?: string[];
+    moduleId?: number | string; // <-- NEW
+  }): Promise<any | null> {
+    let moduleId: number | string | null = payload.moduleId != null ? payload.moduleId : null;
 
-  // If moduleId not provided, try to infer from latest enrolled course
-  if (moduleId == null) {
-    try {
-      const res = await this.request('/api/v1/courses?limit=1&sortBy=enrolled_at&sortOrder=DESC', {
-        method: 'GET',
-      });
-      if (res.ok) {
-        const data = await this.safeJson<any>(res, []);
-        const courses = Array.isArray(data?.courses) ? data.courses
-                        : (Array.isArray(data) ? data : []);
-        if (courses.length && courses[0]?.id != null) {
-          moduleId = courses[0].id;
+    // If moduleId not provided, try to infer from latest enrolled course
+    if (moduleId == null) {
+      try {
+        const res = await this.request(
+          '/api/v1/courses?limit=1&sortBy=enrolled_at&sortOrder=DESC',
+          {
+            method: 'GET',
+          }
+        );
+        if (res.ok) {
+          const data = await this.safeJson<any>(res, []);
+          const courses = Array.isArray(data?.courses)
+            ? data.courses
+            : Array.isArray(data)
+            ? data
+            : [];
+          if (courses.length && courses[0]?.id != null) {
+            moduleId = courses[0].id;
+          }
         }
+      } catch {
+        // ignore — backend will still try its own fallback
       }
+    }
+
+    const body = {
+      name: payload.name,
+      description: payload.description ?? '',
+      maxMembers: payload.maxMembers ?? 10,
+      isPublic: payload.isPublic ?? true,
+      course: payload.course ?? undefined,
+      courseCode: payload.courseCode ?? undefined,
+      moduleId: moduleId != null ? Number(moduleId) : undefined, // <-- send when known
+      subjects: Array.isArray(payload.subjects) ? payload.subjects : [],
+    };
+
+    try {
+      const res = await this.request('/api/v1/groups', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) return null;
+      return await this.safeJson<any>(res, null);
     } catch {
-      // ignore — backend will still try its own fallback
+      return null;
     }
   }
-
-  const body = {
-    name: payload.name,
-    description: payload.description ?? '',
-    maxMembers: payload.maxMembers ?? 10,
-    isPublic: payload.isPublic ?? true,
-    course: payload.course ?? undefined,
-    courseCode: payload.courseCode ?? undefined,
-    moduleId: moduleId != null ? Number(moduleId) : undefined, // <-- send when known
-    subjects: Array.isArray(payload.subjects) ? payload.subjects : [],
-  };
-
-  try {
-    const res = await this.request('/api/v1/groups', {
-      method: 'POST',
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) return null;
-    return await this.safeJson<any>(res, null);
-  } catch {
-    return null;
-  }
-}
-
 
   static async deleteGroup(groupId: string): Promise<boolean> {
     try {

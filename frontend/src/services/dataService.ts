@@ -175,11 +175,45 @@ export type NotificationCounts = {
 
 // -------------------- Demo fallbacks --------------------
 export const FALLBACK_COURSES: Course[] = [
-  { id: '1', type: 'institution', code: 'CS301', title: 'Data Structures & Algorithms', term: '2025 · Semester 2', progress: 78 },
-  { id: '2', type: 'institution', code: 'CS305', title: 'Database Systems', term: '2025 · Semester 2', progress: 65 },
-  { id: '3', type: 'institution', code: 'MATH204', title: 'Linear Algebra', term: '2025 · Semester 2', progress: 82 },
-  { id: '4', type: 'institution', code: 'CS403', title: 'Software Engineering', term: '2025 · Semester 2', progress: 45 },
-  { id: '5', type: 'casual', title: 'Machine Learning Basics', description: 'Self-paced learning of ML fundamentals', progress: 23 },
+  {
+    id: '1',
+    type: 'institution',
+    code: 'CS301',
+    title: 'Data Structures & Algorithms',
+    term: '2025 · Semester 2',
+    progress: 78,
+  },
+  {
+    id: '2',
+    type: 'institution',
+    code: 'CS305',
+    title: 'Database Systems',
+    term: '2025 · Semester 2',
+    progress: 65,
+  },
+  {
+    id: '3',
+    type: 'institution',
+    code: 'MATH204',
+    title: 'Linear Algebra',
+    term: '2025 · Semester 2',
+    progress: 82,
+  },
+  {
+    id: '4',
+    type: 'institution',
+    code: 'CS403',
+    title: 'Software Engineering',
+    term: '2025 · Semester 2',
+    progress: 45,
+  },
+  {
+    id: '5',
+    type: 'casual',
+    title: 'Machine Learning Basics',
+    description: 'Self-paced learning of ML fundamentals',
+    progress: 23,
+  },
 ];
 
 export const FALLBACK_SESSIONS: StudySession[] = [
@@ -252,10 +286,54 @@ export const FALLBACK_SESSIONS: StudySession[] = [
 ];
 
 export const FALLBACK_GROUPS: StudyGroup[] = [
-  { id: '1', name: 'CS Advanced Study Circle', description: 'Advanced CS topics', course: 'Data Structures & Algorithms', courseCode: 'CS301', isPublic: true, maxMembers: 15, member_count: 12, createdBy: 'Alex Johnson', createdAt: '2025-08-15' },
-  { id: '2', name: 'Database Design Masters', description: 'Database design, SQL, optimization', course: 'Database Systems', courseCode: 'CS305', isPublic: true, maxMembers: 12, member_count: 8, createdBy: 'Sarah Chen', createdAt: '2025-08-20' },
-  { id: '3', name: 'Math Study Warriors', description: 'Linear algebra, calculus, proofs', course: 'Linear Algebra', courseCode: 'MATH204', isPublic: true, maxMembers: 10, member_count: 6, createdBy: 'Maria Rodriguez', createdAt: '2025-08-25' },
-  { id: '4', name: 'Software Engineering Pros', description: 'Patterns, agile, testing', course: 'Software Engineering', courseCode: 'CS403', isPublic: true, maxMembers: 20, member_count: 15, createdBy: 'David Kim', createdAt: '2025-09-01' },
+  {
+    id: '1',
+    name: 'CS Advanced Study Circle',
+    description: 'Advanced CS topics',
+    course: 'Data Structures & Algorithms',
+    courseCode: 'CS301',
+    isPublic: true,
+    maxMembers: 15,
+    member_count: 12,
+    createdBy: 'Alex Johnson',
+    createdAt: '2025-08-15',
+  },
+  {
+    id: '2',
+    name: 'Database Design Masters',
+    description: 'Database design, SQL, optimization',
+    course: 'Database Systems',
+    courseCode: 'CS305',
+    isPublic: true,
+    maxMembers: 12,
+    member_count: 8,
+    createdBy: 'Sarah Chen',
+    createdAt: '2025-08-20',
+  },
+  {
+    id: '3',
+    name: 'Math Study Warriors',
+    description: 'Linear algebra, calculus, proofs',
+    course: 'Linear Algebra',
+    courseCode: 'MATH204',
+    isPublic: true,
+    maxMembers: 10,
+    member_count: 6,
+    createdBy: 'Maria Rodriguez',
+    createdAt: '2025-08-25',
+  },
+  {
+    id: '4',
+    name: 'Software Engineering Pros',
+    description: 'Patterns, agile, testing',
+    course: 'Software Engineering',
+    courseCode: 'CS403',
+    isPublic: true,
+    maxMembers: 20,
+    member_count: 15,
+    createdBy: 'David Kim',
+    createdAt: '2025-09-01',
+  },
 ];
 
 export const FALLBACK_PARTNERS: StudyPartner[] = [
@@ -399,7 +477,8 @@ export class DataService {
   private static authHeaders(): Headers {
     const h = new Headers();
     // Prefer Google token; fall back to generic app token
-    const googleToken = typeof window !== 'undefined' ? localStorage.getItem('google_id_token') : null;
+    const googleToken =
+      typeof window !== 'undefined' ? localStorage.getItem('google_id_token') : null;
     const generalToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     const raw = googleToken || generalToken;
 
@@ -409,7 +488,10 @@ export class DataService {
         const p = JSON.parse(raw);
         if (typeof p === 'string') t = p;
       } catch {}
-      t = t.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
+      t = t
+        .replace(/^["']|["']$/g, '')
+        .replace(/^Bearer\s+/i, '')
+        .trim();
       if (t) {
         h.set('Authorization', `Bearer ${t}`);
       }
@@ -449,10 +531,16 @@ export class DataService {
 
         // Don't retry 4xx
         if (response.status >= 400 && response.status < 500) {
-          throw Object.assign(new Error(`Client error: ${response.status} ${response.statusText}`), { status: response.status });
+          throw Object.assign(
+            new Error(`Client error: ${response.status} ${response.statusText}`),
+            { status: response.status }
+          );
         }
         if (i === retries - 1) {
-          throw Object.assign(new Error(`Server error: ${response.status} ${response.statusText}`), { status: response.status });
+          throw Object.assign(
+            new Error(`Server error: ${response.status} ${response.statusText}`),
+            { status: response.status }
+          );
         }
       } catch (error: any) {
         if (i === retries - 1) throw error;
@@ -515,7 +603,7 @@ export class DataService {
     // Accept both HH:mm and ISO for start/end
     let date = s?.date as string | undefined;
     let startTime = s?.startTime as string | undefined; // may be 'HH:mm' OR ISO
-    let endTime = s?.endTime as string | undefined;     // may be 'HH:mm' OR ISO
+    let endTime = s?.endTime as string | undefined; // may be 'HH:mm' OR ISO
 
     const isoStart =
       s?.scheduled_start ??
@@ -736,9 +824,9 @@ export class DataService {
   ): Promise<StudySession | null> {
     const payload: Record<string, any> = {
       title: sessionData.title,
-      date: sessionData.date,            // YYYY-MM-DD
-      startTime: sessionData.startTime,  // HH:mm
-      endTime: sessionData.endTime,      // HH:mm
+      date: sessionData.date, // YYYY-MM-DD
+      startTime: sessionData.startTime, // HH:mm
+      endTime: sessionData.endTime, // HH:mm
       location: sessionData.location,
       type: sessionData.type,
       course: sessionData.course,
@@ -811,7 +899,8 @@ export class DataService {
       if (params?.subjects?.length) queryParams.append('subjects', params.subjects.join(','));
       if (params?.studyStyle) queryParams.append('studyStyle', params.studyStyle);
       if (params?.groupSize) queryParams.append('groupSize', params.groupSize);
-      if (params?.availability?.length) queryParams.append('availability', params.availability.join(','));
+      if (params?.availability?.length)
+        queryParams.append('availability', params.availability.join(','));
       if (params?.university) queryParams.append('university', params.university);
       if (params?.search) queryParams.append('search', params.search);
 
@@ -955,7 +1044,7 @@ export class DataService {
       title: string;
       description?: string;
       startTime: string; // ISO
-      endTime: string;   // ISO
+      endTime: string; // ISO
       location: string;
       topics?: string[];
     }
@@ -1016,7 +1105,6 @@ export class DataService {
     }
   }
 
-
   static async markNotificationRead(notificationId: number): Promise<boolean> {
     const res = await this.request(`/api/v1/users/me/notifications/${notificationId}/read`, {
       method: 'PUT',
@@ -1045,12 +1133,12 @@ export class DataService {
   }
 
   static async createNotification(payload: {
-  user_id: number | string;
-  notification_type: string;
-  title: string;
-  message: string;
-  metadata?: any;
-  scheduled_for?: string | Date | null;
+    user_id: number | string;
+    notification_type: string;
+    title: string;
+    message: string;
+    metadata?: any;
+    scheduled_for?: string | Date | null;
   }): Promise<NotificationRow | null> {
     const body = {
       ...payload,
@@ -1070,7 +1158,6 @@ export class DataService {
       return null;
     }
   }
-
 
   static async notifyGroup(
     groupId: string | number,

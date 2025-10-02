@@ -30,26 +30,29 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const cleanBearerFromLocalStorage = (): Record<string, string> => {
-  const keys = ['google_id_token', 'last_google_id_token', 'token'];
-  for (const k of keys) {
-    const raw = localStorage.getItem(k);
-    if (!raw) continue;
+    const keys = ['google_id_token', 'last_google_id_token', 'token'];
+    for (const k of keys) {
+      const raw = localStorage.getItem(k);
+      if (!raw) continue;
 
-    let t = raw;
-    // If it was stored as a JSON string, parse it back
-    try {
-      const parsed = JSON.parse(raw);
-      if (typeof parsed === 'string') t = parsed;
-    } catch {
-      // ignore parse errors – raw is fine
+      let t = raw;
+      // If it was stored as a JSON string, parse it back
+      try {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed === 'string') t = parsed;
+      } catch {
+        // ignore parse errors – raw is fine
+      }
+
+      // Remove surrounding quotes and any leading "Bearer "
+      t = t
+        .replace(/^["']|["']$/g, '')
+        .replace(/^Bearer\s+/i, '')
+        .trim();
+      if (t) return { Authorization: `Bearer ${t}` };
     }
-
-    // Remove surrounding quotes and any leading "Bearer "
-    t = t.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
-    if (t) return { Authorization: `Bearer ${t}` };
-  }
-  return {};
-};
+    return {};
+  };
 
   const fetchUser = async (token?: string) => {
     setLoading(true);
@@ -58,7 +61,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
       if (token) {
         // If caller passed a token, sanitize it too
-        const sanitized = token.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
+        const sanitized = token
+          .replace(/^["']|["']$/g, '')
+          .replace(/^Bearer\s+/i, '')
+          .trim();
         if (sanitized) headers['Authorization'] = `Bearer ${sanitized}`;
       } else {
         headers = { ...cleanBearerFromLocalStorage() };
@@ -80,7 +86,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem('token');
       } else {
         // log the server-side problem but don't throw away the token on 5xx
-        console.error('users/me failed:', res.status, res.statusText, await res.text().catch(() => ''));
+        console.error(
+          'users/me failed:',
+          res.status,
+          res.statusText,
+          await res.text().catch(() => '')
+        );
         setCurrentUser(null);
       }
     } catch (err) {
@@ -90,7 +101,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     }
   };
-
 
   useEffect(() => {
     fetchUser();

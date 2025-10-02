@@ -133,7 +133,10 @@ export default function Groups() {
         const p = JSON.parse(raw);
         if (typeof p === 'string') t = p;
       } catch {}
-      t = t.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
+      t = t
+        .replace(/^["']|["']$/g, '')
+        .replace(/^Bearer\s+/i, '')
+        .trim();
       if (t) h.set('Authorization', `Bearer ${t}`);
     }
     return h;
@@ -477,83 +480,82 @@ export default function Groups() {
   };
 
   // --- schedule a session for a group (type-safe; no 'description' in payload) ---
-const handleScheduleSession = async (
-  groupCtx: {
-    groupId: string; // same type used in Sessions.tsx (string)
-    groupLocalId: number;
-    groupName: string;
-    course?: string;
-    courseCode?: string;
-  },
-  form: {
-    title: string;
-    date: string;
-    startTime: string;
-    endTime: string;
-    location: string;
-    description?: string; // still allowed in UI, just not sent to createSession
-  }
-) => {
-  // Optimistic broadcast (keeps local date/time so Calendar feels instant)
-  const optimistic = {
-    id: String(Date.now()),
-    title: form.title,
-    date: form.date,
-    startTime: form.startTime,
-    endTime: form.endTime,
-    location: form.location,
-    type: 'study',
-    participants: 1,
-    status: 'upcoming',
-    isCreator: true,
-    isAttending: true,
-    groupId: groupCtx.groupId,
-    course: groupCtx.course,
-    courseCode: groupCtx.courseCode,
-  };
-  broadcastSessionCreated(optimistic);
-
-  // If there's no real group id (demo/fallback), stop after optimistic update
-  if (!groupCtx.groupId) return;
-
-  try {
-    const created = await DataService.createSession({
+  const handleScheduleSession = async (
+    groupCtx: {
+      groupId: string; // same type used in Sessions.tsx (string)
+      groupLocalId: number;
+      groupName: string;
+      course?: string;
+      courseCode?: string;
+    },
+    form: {
+      title: string;
+      date: string;
+      startTime: string;
+      endTime: string;
+      location: string;
+      description?: string; // still allowed in UI, just not sent to createSession
+    }
+  ) => {
+    // Optimistic broadcast (keeps local date/time so Calendar feels instant)
+    const optimistic = {
+      id: String(Date.now()),
       title: form.title,
-      course: groupCtx.course,
-      courseCode: groupCtx.courseCode,
       date: form.date,
       startTime: form.startTime,
       endTime: form.endTime,
       location: form.location,
       type: 'study',
-      groupId: groupCtx.groupId, // keep as string; DataService handles coercion
-      // maxParticipants: optional if you want to include it
-    });
+      participants: 1,
+      status: 'upcoming',
+      isCreator: true,
+      isAttending: true,
+      groupId: groupCtx.groupId,
+      course: groupCtx.course,
+      courseCode: groupCtx.courseCode,
+    };
+    broadcastSessionCreated(optimistic);
 
-    if (created) {
-      // Re-broadcast using same local date/time to avoid timezone jumps
-      broadcastSessionCreated({
-        id: String(created.id ?? Date.now()),
-        title: created.title ?? form.title,
+    // If there's no real group id (demo/fallback), stop after optimistic update
+    if (!groupCtx.groupId) return;
+
+    try {
+      const created = await DataService.createSession({
+        title: form.title,
+        course: groupCtx.course,
+        courseCode: groupCtx.courseCode,
         date: form.date,
         startTime: form.startTime,
         endTime: form.endTime,
-        location: created.location ?? form.location,
-        type: created.type ?? 'study',
-        participants: created.participants ?? 1,
-        status: created.status ?? 'upcoming',
-        isCreator: true,
-        isAttending: true,
-        groupId: String(created.groupId ?? groupCtx.groupId),
-        course: created.course ?? groupCtx.course,
-        courseCode: created.courseCode ?? groupCtx.courseCode,
+        location: form.location,
+        type: 'study',
+        groupId: groupCtx.groupId, // keep as string; DataService handles coercion
+        // maxParticipants: optional if you want to include it
       });
-    }
-  } catch (err) {
-    console.error('Error scheduling session:', err);
-  }
-};
 
+      if (created) {
+        // Re-broadcast using same local date/time to avoid timezone jumps
+        broadcastSessionCreated({
+          id: String(created.id ?? Date.now()),
+          title: created.title ?? form.title,
+          date: form.date,
+          startTime: form.startTime,
+          endTime: form.endTime,
+          location: created.location ?? form.location,
+          type: created.type ?? 'study',
+          participants: created.participants ?? 1,
+          status: created.status ?? 'upcoming',
+          isCreator: true,
+          isAttending: true,
+          groupId: String(created.groupId ?? groupCtx.groupId),
+          course: created.course ?? groupCtx.course,
+          courseCode: created.courseCode ?? groupCtx.courseCode,
+        });
+      }
+    } catch (err) {
+      console.error('Error scheduling session:', err);
+    }
+  };
 
   const getGroupTypeColor = (type: string) => {
     switch (type) {
@@ -1314,7 +1316,10 @@ function InviteMembersModal({
         const p = JSON.parse(raw);
         if (typeof p === 'string') t = p;
       } catch {}
-      t = t.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
+      t = t
+        .replace(/^["']|["']$/g, '')
+        .replace(/^Bearer\s+/i, '')
+        .trim();
       if (t) h.set('Authorization', `Bearer ${t}`);
     }
     return h;

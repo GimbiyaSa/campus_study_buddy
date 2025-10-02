@@ -36,6 +36,10 @@ const schema = {
     is_public: false,
     course: false,
     course_code: false,
+    creator_id: false,
+    creator_id_required: false,
+    module_id: false,             // NEW
+    module_id_required: false,    // NEW
   },
   membersCols: {
     role: false,
@@ -90,6 +94,21 @@ async function hasColumn(table, col) {
   return recordset.length > 0;
 }
 
+async function columnIsNotNullable(table, col) {
+  const { recordset } = await pool.request()
+    .input('tbl', sql.NVarChar(256), table)
+    .input('col', sql.NVarChar(128), col)
+    .query(`
+      SELECT IS_NULLABLE
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = 'dbo'
+        AND TABLE_NAME = @tbl
+        AND COLUMN_NAME = @col
+    `);
+  if (!recordset.length) return false;
+  return String(recordset[0].IS_NULLABLE).toUpperCase() === 'NO';
+}
+
 async function firstExistingColumn(table, candidates) {
   for (const c of candidates) {
     // eslint-disable-next-line no-await-in-loop
@@ -113,6 +132,14 @@ async function detectSchema() {
   schema.groupsCols.is_public = await hasColumn(g, 'is_public');
   schema.groupsCols.course = await hasColumn(g, 'course');
   schema.groupsCols.course_code = await hasColumn(g, 'course_code');
+  schema.groupsCols.creator_id = await hasColumn(g, 'creator_id');
+  schema.groupsCols.creator_id_required = schema.groupsCols.creator_id
+    ? (await columnIsNotNullable(g, 'creator_id'))
+    : false;
+  schema.groupsCols.module_id = await hasColumn(g, 'module_id');                 // NEW
+  schema.groupsCols.module_id_required = schema.groupsCols.module_id             // NEW
+    ? (await columnIsNotNullable(g, 'module_id'))
+    : false;
 
   // group_members
   schema.membersCols.role = await hasColumn('group_members', 'role');
@@ -138,7 +165,20 @@ function memberOrderExpr(alias = 'gm') {
 // helper: ORDER BY for groups activity
 function groupsOrderBy(alias = 'g') {
   if (schema.groupsCols.last_activity) return `ORDER BY ${alias}.last_activity DESC, ${alias}.created_at DESC`;
-  return `ORDER BY ${alias}.created_at DESC`; // avoid duplicate created_at
+  return `ORDER BY ${alias}.created_at DESC`;
+}
+
+// Utility: pick a fallback module_id from existing rows if needed
+async function pickFallbackModuleId() {
+  const g = schema.tables.groups;
+  if (!schema.groupsCols.module_id) return null;
+  const r = await pool.request().query(`
+    SELECT TOP 1 module_id AS mid
+    FROM dbo.${g}
+    WHERE module_id IS NOT NULL
+    ORDER BY group_id ASC
+  `);
+  return r.recordset.length ? r.recordset[0].mid : null;
 }
 
 // ---------- GET /groups ----------
@@ -151,6 +191,16 @@ router.get('/', authenticateToken, async (req, res) => {
     const g = schema.tables.groups;
     const gc = schema.groupsCols;
 
+    const createdByExpr = gc.creator_id
+      ? `g.creator_id`
+      : `(
+        SELECT TOP 1 gm_owner.user_id
+        FROM dbo.group_members gm_owner
+        WHERE gm_owner.group_id = g.group_id
+          ${schema.membersCols.role ? `AND gm_owner.role = 'owner'` : ''}
+        ORDER BY ${memberOrderExpr('gm_owner')}
+      )`;
+
     const selectPieces = [
       'g.group_id AS id',
       gc.nameCol ? `g.${gc.nameCol} AS name` : `NULL AS name`,
@@ -161,15 +211,7 @@ router.get('/', authenticateToken, async (req, res) => {
       gc.is_public ? 'g.is_public AS isPublic' : 'CAST(1 AS bit) AS isPublic',
       'g.created_at AS createdAt',
       gc.last_activity ? 'g.last_activity AS lastActivity' : 'g.created_at AS lastActivity',
-      // owner (prefer role='owner' if role exists)
-      `(
-        SELECT TOP 1 gm_owner.user_id
-        FROM dbo.group_members gm_owner
-        WHERE gm_owner.group_id = g.group_id
-          ${schema.membersCols.role ? `AND gm_owner.role = 'owner'` : ''}
-        ORDER BY ${memberOrderExpr('gm_owner')}
-      ) AS createdBy`,
-      // counters/flags
+      `${createdByExpr} AS createdBy`,
       `(SELECT COUNT(*) FROM dbo.group_members gm WHERE gm.group_id = g.group_id) AS memberCount`,
       `(SELECT COUNT(*) FROM dbo.study_sessions s WHERE s.group_id = g.group_id) AS sessionCount`,
       `CASE WHEN EXISTS (
@@ -260,7 +302,7 @@ router.get('/my-groups', authenticateToken, async (req, res) => {
 
 // ---------- POST /groups (create) ----------
 router.post('/', authenticateToken, async (req, res) => {
-  const { name, description, maxMembers = 10, isPublic = true, course, courseCode } = req.body;
+  const { name, description, maxMembers = 10, isPublic = true, course, courseCode, moduleId, module_id } = req.body;
 
   if (!name || typeof name !== 'string') {
     return res.status(400).json({ error: 'Group name is required' });
@@ -280,6 +322,15 @@ router.post('/', authenticateToken, async (req, res) => {
   try {
     await tx.begin();
 
+    let finalModuleId = module_id ?? moduleId ?? null;
+    if (gc.module_id && finalModuleId == null && gc.module_id_required) {
+      finalModuleId = await pickFallbackModuleId();
+      if (finalModuleId == null) {
+        await tx.rollback();
+        return res.status(400).json({ error: 'module_id is required by schema and no fallback could be determined' });
+      }
+    }
+
     const cols = [gc.nameCol, 'created_at'];
     const vals = ['@name', 'SYSUTCDATETIME()'];
 
@@ -289,6 +340,8 @@ router.post('/', authenticateToken, async (req, res) => {
     if (gc.course)         { cols.push('course');         vals.push('@course'); }
     if (gc.course_code)    { cols.push('course_code');    vals.push('@courseCode'); }
     if (gc.last_activity)  { cols.push('last_activity');  vals.push('SYSUTCDATETIME()'); }
+    if (gc.creator_id)     { cols.push('creator_id');     vals.push('@creatorId'); }
+    if (gc.module_id && finalModuleId != null) { cols.push('module_id'); vals.push('@moduleId'); }
 
     const r = new sql.Request(tx);
     r.input('name', sql.NVarChar(255), name.trim());
@@ -297,6 +350,8 @@ router.post('/', authenticateToken, async (req, res) => {
     r.input('isPublic', sql.Bit, isPublic ? 1 : 0);
     r.input('course', sql.NVarChar(255), course ?? null);
     r.input('courseCode', sql.NVarChar(50), courseCode ?? null);
+    if (gc.creator_id) r.input('creatorId', sql.NVarChar(255), req.user.id);
+    if (gc.module_id && finalModuleId != null) r.input('moduleId', sql.Int, Number(finalModuleId));
 
     const ins = await r.query(`
       INSERT INTO dbo.${g} (${cols.join(', ')})
@@ -318,8 +373,11 @@ router.post('/', authenticateToken, async (req, res) => {
     if (schema.membersCols.role) { mmCols.push('role'); mmVals.push(`'owner'`); }
 
     await r2.query(`
-      INSERT INTO dbo.group_members (${mmCols.join(', ')})
-      VALUES (${mmVals.join(', ')});
+      IF NOT EXISTS (SELECT 1 FROM dbo.group_members WHERE group_id = @groupId AND user_id = @userId)
+      BEGIN
+        INSERT INTO dbo.group_members (${mmCols.join(', ')})
+        VALUES (${mmVals.join(', ')});
+      END
     `);
 
     await tx.commit();
@@ -332,7 +390,7 @@ router.post('/', authenticateToken, async (req, res) => {
       courseCode: gc.course_code ? created.course_code : null,
       maxMembers: gc.max_members ? created.max_members : null,
       isPublic: gc.is_public ? !!created.is_public : true,
-      createdBy: req.user.id,
+      createdBy: gc.creator_id ? created.creator_id : req.user.id,
       createdAt: created.created_at,
       lastActivity: gc.last_activity ? created.last_activity : created.created_at,
     });
@@ -356,18 +414,23 @@ router.delete('/:groupId', authenticateToken, async (req, res) => {
   try {
     await tx.begin();
 
-    // verify ownership via group_members
+    // verify ownership via creator_id if present, else group_members
     const c = new sql.Request(tx);
     c.input('groupId', sql.Int, groupId);
     c.input('userId', sql.NVarChar(255), req.user.id);
     const own = await c.query(`
       SELECT TOP 1 1 AS ok
+      FROM dbo.${g} gx
+      WHERE gx.group_id = @groupId
+        ${schema.groupsCols.creator_id ? 'AND gx.creator_id = @userId' : 'AND 1=0'}
+      UNION ALL
+      SELECT TOP 1 1
       FROM dbo.group_members gm
       WHERE gm.group_id = @groupId
         ${schema.membersCols.role ? 'AND gm.role = \'owner\'' : ''}
         AND gm.user_id = @userId
     `);
-    if (own.recordset.length === 0) {
+    if (!own.recordset.length) {
       await tx.rollback();
       return res.status(403).json({ error: 'Only the owner can delete this group' });
     }
@@ -465,11 +528,13 @@ router.post('/:groupId/leave', authenticateToken, async (req, res) => {
     const own = await r.query(`
       SELECT
         (SELECT COUNT(*) FROM dbo.group_members gm WHERE gm.group_id = g.group_id) AS memberCount,
-        CASE WHEN EXISTS (
-          SELECT 1 FROM dbo.group_members gm2
-          WHERE gm2.group_id = g.group_id AND gm2.user_id = @userId
-          ${schema.membersCols.role ? `AND gm2.role = 'owner'` : ''}
-        ) THEN 1 ELSE 0 END AS isOwner
+        CASE WHEN ${
+          schema.groupsCols.creator_id
+            ? 'g.creator_id = @userId'
+            : `EXISTS (SELECT 1 FROM dbo.group_members gm2
+                       WHERE gm2.group_id = g.group_id AND gm2.user_id = @userId
+                       ${schema.membersCols.role ? `AND gm2.role = 'owner'` : ''})`
+        } THEN 1 ELSE 0 END AS isOwner
       FROM ${tbl('groups')} g WHERE g.group_id = @groupId
     `);
     if (!own.recordset.length) return res.status(404).json({ error: 'Group not found' });

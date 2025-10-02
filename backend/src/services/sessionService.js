@@ -1,5 +1,6 @@
 // backend/src/services/sessionService.js
-// Harden for missing created_by/max_participants/location/description, and missing joined_at on session_attendees.
+// Harden for missing created_by/max_participants/location/description, group_id NOT NULL, and joined_at;
+// auto-provision group handles module_id if required (accepts moduleId/module_id from request).
 
 class SessionServiceError extends Error {
   constructor(message, code, statusCode = 500) {
@@ -23,6 +24,7 @@ const schema = {
     study_sessions: 'study_sessions',
     session_attendees: 'session_attendees',
     group_members: 'group_members',
+    groups: 'study_groups',
   },
   sessionsCols: {
     created_by: false,
@@ -31,11 +33,23 @@ const schema = {
     status: false,
     location: false,
     description: false,
+    group_id: true,
+    group_id_required: false,
   },
   attendeesCols: {
     joined_at: false,
     created_at: false,
-    idCol: null, // one of: attendee_id | id | session_attendee_id
+    idCol: null,
+  },
+  groupsCols: {
+    tableName: 'study_groups',
+    nameCol: null,
+    descriptionCol: null,
+    creator_id: false,
+    creator_id_required: false,
+    is_public: false,
+    module_id: false,
+    module_id_required: false,
   },
 };
 
@@ -77,6 +91,21 @@ async function hasColumn(table, col) {
   return recordset.length > 0;
 }
 
+async function columnIsNotNullable(table, col) {
+  const { recordset } = await pool.request()
+    .input('tbl', sql.NVarChar(256), table)
+    .input('col', sql.NVarChar(128), col)
+    .query(`
+      SELECT IS_NULLABLE
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = 'dbo'
+        AND TABLE_NAME = @tbl
+        AND COLUMN_NAME = @col
+    `);
+  if (!recordset.length) return false;
+  return String(recordset[0].IS_NULLABLE).toUpperCase() === 'NO';
+}
+
 async function firstExistingColumn(table, candidates) {
   for (const c of candidates) {
     // eslint-disable-next-line no-await-in-loop
@@ -93,20 +122,40 @@ async function detectSchema() {
   schema.sessionsCols.status = await hasColumn('study_sessions', 'status');
   schema.sessionsCols.location = await hasColumn('study_sessions', 'location');
   schema.sessionsCols.description = await hasColumn('study_sessions', 'description');
+  schema.sessionsCols.group_id = await hasColumn('study_sessions', 'group_id');
+  schema.sessionsCols.group_id_required = schema.sessionsCols.group_id
+    ? (await columnIsNotNullable('study_sessions', 'group_id'))
+    : false;
 
   // session_attendees
   schema.attendeesCols.joined_at = await hasColumn('session_attendees', 'joined_at');
   schema.attendeesCols.created_at = await hasColumn('session_attendees', 'created_at');
   schema.attendeesCols.idCol = await firstExistingColumn('session_attendees', ['attendee_id', 'id', 'session_attendee_id']);
 
+  // groups (for auto-provision)
+  const groupsTable = (await hasColumn('groups', 'group_id')) ? 'groups' : 'study_groups';
+  schema.tables.groups = groupsTable;
+  schema.groupsCols.tableName = groupsTable;
+  schema.groupsCols.nameCol = await firstExistingColumn(groupsTable, ['name', 'group_name', 'title']);
+  schema.groupsCols.descriptionCol = await firstExistingColumn(groupsTable, ['description', 'details', 'group_description', 'desc']);
+  schema.groupsCols.creator_id = await hasColumn(groupsTable, 'creator_id');
+  schema.groupsCols.creator_id_required = schema.groupsCols.creator_id
+    ? (await columnIsNotNullable(groupsTable, 'creator_id'))
+    : false;
+  schema.groupsCols.is_public = await hasColumn(groupsTable, 'is_public');
+  schema.groupsCols.module_id = await hasColumn(groupsTable, 'module_id');
+  schema.groupsCols.module_id_required = schema.groupsCols.module_id
+    ? (await columnIsNotNullable(groupsTable, 'module_id'))
+    : false;
+
   console.log('📐 study_sessions cols:', schema.sessionsCols);
   console.log('📐 session_attendees cols:', schema.attendeesCols);
+  console.log('📐 groups cols for session provisioning:', schema.groupsCols);
 }
 
 // helper: expression to get session creator id
 function ownerExpr(alias = 's') {
   if (schema.sessionsCols.created_by) return `${alias}.created_by`;
-  // derive from earliest attendee by available chronology
   const sa = 'sa2';
   if (schema.attendeesCols.joined_at) {
     return `(SELECT TOP 1 ${sa}.user_id FROM dbo.session_attendees ${sa} WHERE ${sa}.session_id = ${alias}.session_id ORDER BY ${sa}.joined_at ASC)`;
@@ -117,7 +166,6 @@ function ownerExpr(alias = 's') {
   if (schema.attendeesCols.idCol) {
     return `(SELECT TOP 1 ${sa}.user_id FROM dbo.session_attendees ${sa} WHERE ${sa}.session_id = ${alias}.session_id ORDER BY ${sa}.${schema.attendeesCols.idCol} ASC)`;
   }
-  // fallback: arbitrary
   return `(SELECT TOP 1 ${sa}.user_id FROM dbo.session_attendees ${sa} WHERE ${sa}.session_id = ${alias}.session_id)`;
 }
 
@@ -160,6 +208,98 @@ function mapSessionRow(row, userId) {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+// Fallback module_id selector (reuse any existing valid FK in groups)
+async function pickFallbackModuleId(tx) {
+  if (!schema.groupsCols.module_id) return null;
+  const gTable = schema.groupsCols.tableName;
+  const r = await new sql.Request(tx).query(`
+    SELECT TOP 1 module_id AS mid
+    FROM dbo.${gTable}
+    WHERE module_id IS NOT NULL
+    ORDER BY group_id ASC
+  `);
+  return r.recordset.length ? r.recordset[0].mid : null;
+}
+
+// Ensure a per-user personal group exists when sessions require a group_id
+// Accept optional moduleIdOverride to satisfy NOT NULL module_id schemas.
+async function ensurePersonalGroupForUser(tx, userId, moduleIdOverride = null) {
+  const gTable = schema.groupsCols.tableName;
+  const nameCol = schema.groupsCols.nameCol || 'group_name';
+  const personalName = `Personal study sessions`;
+
+  // Try to find by creator_id (if present) OR by name + membership
+  const rFind = new sql.Request(tx);
+  rFind.input('uid', sql.NVarChar(255), userId);
+  rFind.input('pname', sql.NVarChar(255), personalName);
+
+  const byCreatorSql = schema.groupsCols.creator_id
+    ? `SELECT TOP 1 g.group_id AS id FROM dbo.${gTable} g WHERE g.${nameCol} = @pname AND g.creator_id = @uid`
+    : `SELECT TOP 1 g.group_id AS id FROM dbo.${gTable} g
+         JOIN dbo.group_members gm ON gm.group_id = g.group_id AND gm.user_id = @uid
+       WHERE g.${nameCol} = @pname`;
+
+  let existing = await rFind.query(byCreatorSql);
+  if (existing.recordset.length) return existing.recordset[0].id;
+
+  // Need a module_id if schema requires it
+  let moduleIdForPersonal = null;
+  if (schema.groupsCols.module_id && schema.groupsCols.module_id_required) {
+    if (moduleIdOverride != null) {
+      moduleIdForPersonal = Number(moduleIdOverride);
+    } else {
+      moduleIdForPersonal = await pickFallbackModuleId(tx);
+    }
+    if (moduleIdForPersonal == null) {
+      throw new SessionServiceError(
+        'module_id is required by groups schema and no fallback could be determined',
+        'MODULE_ID_REQUIRED',
+        400
+      );
+    }
+  }
+
+  // Create if not found
+  const rIns = new sql.Request(tx);
+  rIns.input('pname', sql.NVarChar(255), personalName);
+  rIns.input('uid', sql.NVarChar(255), userId);
+  if (moduleIdForPersonal != null) rIns.input('mid', sql.Int, Number(moduleIdForPersonal));
+
+  const cols = [nameCol, 'created_at'];
+  const vals = ['@pname', 'SYSUTCDATETIME()'];
+  if (schema.groupsCols.is_public) { cols.push('is_public'); vals.push('0'); }
+  if (schema.groupsCols.creator_id) { cols.push('creator_id'); vals.push('@uid'); }
+  if (schema.groupsCols.module_id && moduleIdForPersonal != null) { cols.push('module_id'); vals.push('@mid'); }
+
+  const ins = await rIns.query(`
+    INSERT INTO dbo.${gTable} (${cols.join(', ')})
+    OUTPUT INSERTED.group_id AS id
+    VALUES (${vals.join(', ')});
+  `);
+  const newId = ins.recordset[0].id;
+
+  // Add user as member/owner
+  const rMem = new sql.Request(tx);
+  rMem.input('gid', sql.Int, newId);
+  rMem.input('uid', sql.NVarChar(255), userId);
+
+  const gmCols = ['group_id', 'user_id'];
+  const gmVals = ['@gid', '@uid'];
+  const gmHasJoined = await hasColumn('group_members', 'joined_at');
+  const gmHasCreated = await hasColumn('group_members', 'created_at');
+  if (gmHasJoined) { gmCols.push('joined_at'); gmVals.push('SYSUTCDATETIME()'); }
+  else if (gmHasCreated) { gmCols.push('created_at'); gmVals.push('SYSUTCDATETIME()'); }
+  const gmHasRole = await hasColumn('group_members', 'role');
+  if (gmHasRole) { gmCols.push('role'); gmVals.push(`'owner'`); }
+
+  await rMem.query(`
+    INSERT INTO dbo.group_members (${gmCols.join(', ')})
+    VALUES (${gmVals.join(', ')});
+  `);
+
+  return newId;
 }
 
 // ---------- GET /sessions ----------
@@ -228,13 +368,16 @@ router.post('/', authenticateToken, async (req, res) => {
       max_participants,
       groupId,
       group_id,
+      moduleId,        // NEW: allow client to pass module for auto-provisioned group
+      module_id,       // NEW: snake_case alias
     } = req.body;
 
     const finalTitle = (session_title || title || '').trim();
     const finalType = (session_type || type || (schema.sessionsCols.session_type ? 'study' : null));
     const finalMax = Number(max_participants ?? maxParticipants);
     const hasMax = schema.sessionsCols.max_participants && !Number.isNaN(finalMax);
-    const groupIdNum = group_id ?? groupId ?? null;
+    let groupIdNum = group_id ?? groupId ?? null;
+    const moduleIdOverride = module_id ?? moduleId ?? null; // NEW
 
     if (!finalTitle || !startTime || !endTime) {
       return res.status(400).json({ error: 'title, startTime, endTime are required' });
@@ -243,6 +386,12 @@ router.post('/', authenticateToken, async (req, res) => {
     await getPool();
     const tx = new sql.Transaction(pool);
     await tx.begin();
+
+    // If DB requires group_id but client didn't send it, create/reuse a personal group.
+    // If module_id is required on groups, we use moduleIdOverride if provided.
+    if (schema.sessionsCols.group_id && schema.sessionsCols.group_id_required && groupIdNum == null) {
+      groupIdNum = await ensurePersonalGroupForUser(tx, req.user.id, moduleIdOverride);
+    }
 
     // if group scoped, require membership
     if (groupIdNum != null) {
@@ -263,7 +412,11 @@ router.post('/', authenticateToken, async (req, res) => {
 
     if (sc.description) { cols.push('description'); vals.push('@description'); }
     if (sc.location) { cols.push('location'); vals.push('@location'); }
-    if (groupIdNum != null) { cols.push('group_id'); vals.push('@groupId'); }
+    if (sc.group_id && groupIdNum != null) { cols.push('group_id'); vals.push('@groupId'); }
+    else if (sc.group_id && sc.group_id_required && groupIdNum == null) {
+      await tx.rollback();
+      return res.status(400).json({ error: 'groupId is required by server schema' });
+    }
     if (sc.status) { cols.push('status'); vals.push(`'upcoming'`); }
     if (sc.session_type && finalType) { cols.push('session_type'); vals.push('@stype'); }
     if (sc.max_participants && hasMax) { cols.push('max_participants'); vals.push('@max'); }

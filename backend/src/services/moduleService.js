@@ -27,8 +27,8 @@ const initializeDatabase = async () => {
           password: process.env.DB_PASSWORD || 'YourPassword123',
           options: {
             encrypt: true,
-            trustServerCertificate: true
-          }
+            trustServerCertificate: true,
+          },
         };
         pool = await sql.connect(config);
       }

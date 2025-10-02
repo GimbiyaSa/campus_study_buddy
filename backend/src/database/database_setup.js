@@ -6,24 +6,27 @@ const sql = require('mssql');
  */
 class DatabaseConnection {
   constructor(config) {
-    this.config = typeof config === 'string' ? config : {
-      user: config.user,
-      password: config.password,
-      server: config.server,
-      database: config.database,
-      options: {
-        encrypt: true,
-        enableArithAbort: true,
-        trustServerCertificate: false,
-        requestTimeout: 30000,
-        connectionTimeout: 30000,
-      },
-      pool: {
-        max: 10,
-        min: 0,
-        idleTimeoutMillis: 30000,
-      },
-    };
+    this.config =
+      typeof config === 'string'
+        ? config
+        : {
+            user: config.user,
+            password: config.password,
+            server: config.server,
+            database: config.database,
+            options: {
+              encrypt: true,
+              enableArithAbort: true,
+              trustServerCertificate: false,
+              requestTimeout: 30000,
+              connectionTimeout: 30000,
+            },
+            pool: {
+              max: 10,
+              min: 0,
+              idleTimeoutMillis: 30000,
+            },
+          };
   }
 
   async connect() {

@@ -4,7 +4,7 @@ const DatabaseConnection = require('./database_setup');
 async function checkDatabaseHealth() {
   // Use Azure configuration for database connection
   let dbConfig;
-  
+
   try {
     const { azureConfig } = require('../config/azureConfig');
     dbConfig = await azureConfig.getLegacyDatabaseConfig();
@@ -15,12 +15,14 @@ async function checkDatabaseHealth() {
       user: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
       server: process.env.DB_SERVER || 'csb-prod-sql-san-7ndjbzgu.database.windows.net',
-      database: process.env.DB_DATABASE || 'csb-prod-sqldb-7ndjbzgu'
+      database: process.env.DB_DATABASE || 'csb-prod-sqldb-7ndjbzgu',
     };
   }
 
   console.log('Starting Database Health Check...\n');
-  console.log(`Connecting to: ${dbConfig.server}/${dbConfig.database || 'csb-prod-sqldb-7ndjbzgu'}`);
+  console.log(
+    `Connecting to: ${dbConfig.server}/${dbConfig.database || 'csb-prod-sqldb-7ndjbzgu'}`
+  );
 
   const dbConnection = new DatabaseConnection(dbConfig);
 
@@ -29,7 +31,8 @@ async function checkDatabaseHealth() {
     // Run a simple query to check DB health
     if (typeof dbConnection.query === 'function') {
       const result = await dbConnection.query('SELECT 1 AS ok');
-      const isHealthy = result && result.recordset && result.recordset[0] && result.recordset[0].ok === 1;
+      const isHealthy =
+        result && result.recordset && result.recordset[0] && result.recordset[0].ok === 1;
       if (isHealthy) {
         console.log('\n✅ Database is healthy and ready!');
       } else {

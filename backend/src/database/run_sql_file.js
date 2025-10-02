@@ -21,7 +21,10 @@ async function runSqlFile(sqlFilePath) {
   const sqlScript = fs.readFileSync(sqlFilePath, 'utf8');
 
   // Split script on GO (case-insensitive, on its own line)
-  const batches = sqlScript.split(/^[ \t]*GO[ \t]*$/gim).map(batch => batch.trim()).filter(Boolean);
+  const batches = sqlScript
+    .split(/^[ \t]*GO[ \t]*$/gim)
+    .map((batch) => batch.trim())
+    .filter(Boolean);
 
   try {
     console.log('Connecting to database...');

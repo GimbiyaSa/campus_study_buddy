@@ -80,10 +80,10 @@ async function getPool() {
 }
 
 async function hasColumn(table, col) {
-  const { recordset } = await pool.request()
+  const { recordset } = await pool
+    .request()
     .input('tbl', sql.NVarChar(256), `dbo.${table}`)
-    .input('col', sql.NVarChar(128), col)
-    .query(`
+    .input('col', sql.NVarChar(128), col).query(`
       SELECT 1
       FROM sys.columns
       WHERE object_id = OBJECT_ID(@tbl) AND name = @col
@@ -92,10 +92,10 @@ async function hasColumn(table, col) {
 }
 
 async function columnIsNotNullable(table, col) {
-  const { recordset } = await pool.request()
+  const { recordset } = await pool
+    .request()
     .input('tbl', sql.NVarChar(256), table)
-    .input('col', sql.NVarChar(128), col)
-    .query(`
+    .input('col', sql.NVarChar(128), col).query(`
       SELECT IS_NULLABLE
       FROM INFORMATION_SCHEMA.COLUMNS
       WHERE TABLE_SCHEMA = 'dbo'
@@ -124,28 +124,41 @@ async function detectSchema() {
   schema.sessionsCols.description = await hasColumn('study_sessions', 'description');
   schema.sessionsCols.group_id = await hasColumn('study_sessions', 'group_id');
   schema.sessionsCols.group_id_required = schema.sessionsCols.group_id
-    ? (await columnIsNotNullable('study_sessions', 'group_id'))
+    ? await columnIsNotNullable('study_sessions', 'group_id')
     : false;
 
   // session_attendees
   schema.attendeesCols.joined_at = await hasColumn('session_attendees', 'joined_at');
   schema.attendeesCols.created_at = await hasColumn('session_attendees', 'created_at');
-  schema.attendeesCols.idCol = await firstExistingColumn('session_attendees', ['attendee_id', 'id', 'session_attendee_id']);
+  schema.attendeesCols.idCol = await firstExistingColumn('session_attendees', [
+    'attendee_id',
+    'id',
+    'session_attendee_id',
+  ]);
 
   // groups (for auto-provision)
   const groupsTable = (await hasColumn('groups', 'group_id')) ? 'groups' : 'study_groups';
   schema.tables.groups = groupsTable;
   schema.groupsCols.tableName = groupsTable;
-  schema.groupsCols.nameCol = await firstExistingColumn(groupsTable, ['name', 'group_name', 'title']);
-  schema.groupsCols.descriptionCol = await firstExistingColumn(groupsTable, ['description', 'details', 'group_description', 'desc']);
+  schema.groupsCols.nameCol = await firstExistingColumn(groupsTable, [
+    'name',
+    'group_name',
+    'title',
+  ]);
+  schema.groupsCols.descriptionCol = await firstExistingColumn(groupsTable, [
+    'description',
+    'details',
+    'group_description',
+    'desc',
+  ]);
   schema.groupsCols.creator_id = await hasColumn(groupsTable, 'creator_id');
   schema.groupsCols.creator_id_required = schema.groupsCols.creator_id
-    ? (await columnIsNotNullable(groupsTable, 'creator_id'))
+    ? await columnIsNotNullable(groupsTable, 'creator_id')
     : false;
   schema.groupsCols.is_public = await hasColumn(groupsTable, 'is_public');
   schema.groupsCols.module_id = await hasColumn(groupsTable, 'module_id');
   schema.groupsCols.module_id_required = schema.groupsCols.module_id
-    ? (await columnIsNotNullable(groupsTable, 'module_id'))
+    ? await columnIsNotNullable(groupsTable, 'module_id')
     : false;
 
   console.log('📐 study_sessions cols:', schema.sessionsCols);
@@ -269,9 +282,18 @@ async function ensurePersonalGroupForUser(tx, userId, moduleIdOverride = null) {
 
   const cols = [nameCol, 'created_at'];
   const vals = ['@pname', 'SYSUTCDATETIME()'];
-  if (schema.groupsCols.is_public) { cols.push('is_public'); vals.push('0'); }
-  if (schema.groupsCols.creator_id) { cols.push('creator_id'); vals.push('@uid'); }
-  if (schema.groupsCols.module_id && moduleIdForPersonal != null) { cols.push('module_id'); vals.push('@mid'); }
+  if (schema.groupsCols.is_public) {
+    cols.push('is_public');
+    vals.push('0');
+  }
+  if (schema.groupsCols.creator_id) {
+    cols.push('creator_id');
+    vals.push('@uid');
+  }
+  if (schema.groupsCols.module_id && moduleIdForPersonal != null) {
+    cols.push('module_id');
+    vals.push('@mid');
+  }
 
   const ins = await rIns.query(`
     INSERT INTO dbo.${gTable} (${cols.join(', ')})
@@ -289,10 +311,18 @@ async function ensurePersonalGroupForUser(tx, userId, moduleIdOverride = null) {
   const gmVals = ['@gid', '@uid'];
   const gmHasJoined = await hasColumn('group_members', 'joined_at');
   const gmHasCreated = await hasColumn('group_members', 'created_at');
-  if (gmHasJoined) { gmCols.push('joined_at'); gmVals.push('SYSUTCDATETIME()'); }
-  else if (gmHasCreated) { gmCols.push('created_at'); gmVals.push('SYSUTCDATETIME()'); }
+  if (gmHasJoined) {
+    gmCols.push('joined_at');
+    gmVals.push('SYSUTCDATETIME()');
+  } else if (gmHasCreated) {
+    gmCols.push('created_at');
+    gmVals.push('SYSUTCDATETIME()');
+  }
   const gmHasRole = await hasColumn('group_members', 'role');
-  if (gmHasRole) { gmCols.push('role'); gmVals.push(`'owner'`); }
+  if (gmHasRole) {
+    gmCols.push('role');
+    gmVals.push(`'owner'`);
+  }
 
   await rMem.query(`
     INSERT INTO dbo.group_members (${gmCols.join(', ')})
@@ -475,12 +505,12 @@ router.post('/', authenticateToken, async (req, res) => {
       max_participants,
       groupId,
       group_id,
-      moduleId,        // NEW: allow client to pass module for auto-provisioned group
-      module_id,       // NEW: snake_case alias
+      moduleId, // NEW: allow client to pass module for auto-provisioned group
+      module_id, // NEW: snake_case alias
     } = req.body;
 
     const finalTitle = (session_title || title || '').trim();
-    const finalType = (session_type || type || (schema.sessionsCols.session_type ? 'study' : null));
+    const finalType = session_type || type || (schema.sessionsCols.session_type ? 'study' : null);
     const finalMax = Number(max_participants ?? maxParticipants);
     const hasMax = schema.sessionsCols.max_participants && !Number.isNaN(finalMax);
     let groupIdNum = group_id ?? groupId ?? null;
@@ -496,7 +526,11 @@ router.post('/', authenticateToken, async (req, res) => {
 
     // If DB requires group_id but client didn't send it, create/reuse a personal group.
     // If module_id is required on groups, we use moduleIdOverride if provided.
-    if (schema.sessionsCols.group_id && schema.sessionsCols.group_id_required && groupIdNum == null) {
+    if (
+      schema.sessionsCols.group_id &&
+      schema.sessionsCols.group_id_required &&
+      groupIdNum == null
+    ) {
       groupIdNum = await ensurePersonalGroupForUser(tx, req.user.id, moduleIdOverride);
     }
 
@@ -505,7 +539,9 @@ router.post('/', authenticateToken, async (req, res) => {
       const chk = new sql.Request(tx);
       chk.input('gid', sql.Int, Number(groupIdNum));
       chk.input('uid', sql.NVarChar(255), req.user.id);
-      const m = await chk.query(`SELECT 1 FROM dbo.group_members WHERE group_id = @gid AND user_id = @uid`);
+      const m = await chk.query(
+        `SELECT 1 FROM dbo.group_members WHERE group_id = @gid AND user_id = @uid`
+      );
       if (!m.recordset.length) {
         await tx.rollback();
         return res.status(403).json({ error: 'Not a member of this group' });
@@ -517,17 +553,37 @@ router.post('/', authenticateToken, async (req, res) => {
     const vals = ['@title', '@start', '@end', 'SYSUTCDATETIME()'];
     const sc = schema.sessionsCols;
 
-    if (sc.description) { cols.push('description'); vals.push('@description'); }
-    if (sc.location) { cols.push('location'); vals.push('@location'); }
-    if (sc.group_id && groupIdNum != null) { cols.push('group_id'); vals.push('@groupId'); }
-    else if (sc.group_id && sc.group_id_required && groupIdNum == null) {
+    if (sc.description) {
+      cols.push('description');
+      vals.push('@description');
+    }
+    if (sc.location) {
+      cols.push('location');
+      vals.push('@location');
+    }
+    if (sc.group_id && groupIdNum != null) {
+      cols.push('group_id');
+      vals.push('@groupId');
+    } else if (sc.group_id && sc.group_id_required && groupIdNum == null) {
       await tx.rollback();
       return res.status(400).json({ error: 'groupId is required by server schema' });
     }
-    if (sc.status) { cols.push('status'); vals.push(`'upcoming'`); }
-    if (sc.session_type && finalType) { cols.push('session_type'); vals.push('@stype'); }
-    if (sc.max_participants && hasMax) { cols.push('max_participants'); vals.push('@max'); }
-    if (sc.created_by) { cols.push('created_by'); vals.push('@createdBy'); }
+    if (sc.status) {
+      cols.push('status');
+      vals.push(`'upcoming'`);
+    }
+    if (sc.session_type && finalType) {
+      cols.push('session_type');
+      vals.push('@stype');
+    }
+    if (sc.max_participants && hasMax) {
+      cols.push('max_participants');
+      vals.push('@max');
+    }
+    if (sc.created_by) {
+      cols.push('created_by');
+      vals.push('@createdBy');
+    }
 
     const r = new sql.Request(tx);
     if (groupIdNum != null) r.input('groupId', sql.Int, Number(groupIdNum));
@@ -556,7 +612,10 @@ router.post('/', authenticateToken, async (req, res) => {
     const chrono = attendeesChronoInsertCols();
     const aCols = ['session_id', 'user_id'];
     const aVals = ['@sid', '@uid'];
-    if (chrono) { aCols.push(chrono.col); aVals.push(chrono.val); }
+    if (chrono) {
+      aCols.push(chrono.col);
+      aVals.push(chrono.val);
+    }
 
     await r2.query(`
       IF NOT EXISTS (SELECT 1 FROM dbo.session_attendees WHERE session_id = @sid AND user_id = @uid)
@@ -571,12 +630,12 @@ router.post('/', authenticateToken, async (req, res) => {
     const row = {
       id: created.id,
       session_title: created.session_title,
-      description: sc.description ? created.description : (description ?? null),
+      description: sc.description ? created.description : description ?? null,
       scheduled_start: created.scheduled_start,
       scheduled_end: created.scheduled_end,
-      location: sc.location ? created.location : (location ?? null),
+      location: sc.location ? created.location : location ?? null,
       status: sc.status ? created.status : 'upcoming',
-      session_type: sc.session_type ? created.session_type : (finalType || 'study'),
+      session_type: sc.session_type ? created.session_type : finalType || 'study',
       max_participants: sc.max_participants ? created.max_participants : null,
       group_id: created.group_id ?? groupIdNum ?? null,
       created_by: sc.created_by ? created.created_by : req.user.id,
@@ -602,10 +661,10 @@ router.put('/:id', authenticateToken, async (req, res) => {
     await getPool();
 
     // verify ownership
-    const c = await pool.request()
+    const c = await pool
+      .request()
       .input('sid', sql.Int, sessionId)
-      .input('uid', sql.NVarChar(255), req.user.id)
-      .query(`
+      .input('uid', sql.NVarChar(255), req.user.id).query(`
         SELECT 1
         FROM dbo.study_sessions s
         WHERE s.session_id = @sid AND (${ownerExpr('s')} = @uid)
@@ -615,24 +674,53 @@ router.put('/:id', authenticateToken, async (req, res) => {
     }
 
     const {
-      title, session_title, description, location,
-      startTime, endTime,
-      type, session_type, maxParticipants, max_participants,
+      title,
+      session_title,
+      description,
+      location,
+      startTime,
+      endTime,
+      type,
+      session_type,
+      maxParticipants,
+      max_participants,
     } = req.body;
 
     const sc = schema.sessionsCols;
     const r = pool.request().input('sid', sql.Int, sessionId);
     const sets = [];
 
-    if (title || session_title) { r.input('title', sql.NVarChar(255), (session_title || title).trim()); sets.push('session_title = @title'); }
-    if (sc.description && description !== undefined) { r.input('desc', sql.NVarChar(sql.MAX), description ?? null); sets.push('description = @desc'); }
-    if (sc.location && location !== undefined) { r.input('loc', sql.NVarChar(255), location ?? null); sets.push('location = @loc'); }
-    if (sc.session_type && (type || session_type)) { r.input('stype', sql.NVarChar(50), session_type || type); sets.push('session_type = @stype'); }
-    if (sc.max_participants && (max_participants != null || maxParticipants != null)) { r.input('max', sql.Int, Number(max_participants ?? maxParticipants)); sets.push('max_participants = @max'); }
-    if (startTime) { r.input('st', sql.DateTime2, new Date(startTime)); sets.push('scheduled_start = @st'); }
-    if (endTime)   { r.input('et', sql.DateTime2, new Date(endTime));   sets.push('scheduled_end = @et'); }
+    if (title || session_title) {
+      r.input('title', sql.NVarChar(255), (session_title || title).trim());
+      sets.push('session_title = @title');
+    }
+    if (sc.description && description !== undefined) {
+      r.input('desc', sql.NVarChar(sql.MAX), description ?? null);
+      sets.push('description = @desc');
+    }
+    if (sc.location && location !== undefined) {
+      r.input('loc', sql.NVarChar(255), location ?? null);
+      sets.push('location = @loc');
+    }
+    if (sc.session_type && (type || session_type)) {
+      r.input('stype', sql.NVarChar(50), session_type || type);
+      sets.push('session_type = @stype');
+    }
+    if (sc.max_participants && (max_participants != null || maxParticipants != null)) {
+      r.input('max', sql.Int, Number(max_participants ?? maxParticipants));
+      sets.push('max_participants = @max');
+    }
+    if (startTime) {
+      r.input('st', sql.DateTime2, new Date(startTime));
+      sets.push('scheduled_start = @st');
+    }
+    if (endTime) {
+      r.input('et', sql.DateTime2, new Date(endTime));
+      sets.push('scheduled_end = @et');
+    }
 
-    if (!sets.length) return res.status(400).json({ error: 'No fields to update or columns not supported' });
+    if (!sets.length)
+      return res.status(400).json({ error: 'No fields to update or columns not supported' });
 
     const q = await request.query(`
       UPDATE study_sessions
@@ -759,7 +847,10 @@ router.put('/:sessionId/cancel', authenticateToken, async (req, res) => {
     const chrono = attendeesChronoInsertCols();
     const aCols = ['session_id', 'user_id'];
     const aVals = ['@sid', '@uid'];
-    if (chrono) { aCols.push(chrono.col); aVals.push(chrono.val); }
+    if (chrono) {
+      aCols.push(chrono.col);
+      aVals.push(chrono.val);
+    }
 
     await r.query(`
       IF NOT EXISTS (SELECT 1 FROM dbo.session_attendees WHERE session_id = @sid AND user_id = @uid)

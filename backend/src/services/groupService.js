@@ -38,8 +38,8 @@ const schema = {
     course_code: false,
     creator_id: false,
     creator_id_required: false,
-    module_id: false,
-    module_id_required: false,
+    module_id: false,             // NEW
+    module_id_required: false,    // NEW
   },
   membersCols: {
     role: false,
@@ -136,8 +136,8 @@ async function detectSchema() {
   schema.groupsCols.creator_id_required = schema.groupsCols.creator_id
     ? (await columnIsNotNullable(g, 'creator_id'))
     : false;
-  schema.groupsCols.module_id = await hasColumn(g, 'module_id');
-  schema.groupsCols.module_id_required = schema.groupsCols.module_id
+  schema.groupsCols.module_id = await hasColumn(g, 'module_id');                 // NEW
+  schema.groupsCols.module_id_required = schema.groupsCols.module_id             // NEW
     ? (await columnIsNotNullable(g, 'module_id'))
     : false;
 
@@ -179,36 +179,6 @@ async function pickFallbackModuleId() {
     ORDER BY group_id ASC
   `);
   return r.recordset.length ? r.recordset[0].mid : null;
-}
-
-/* NEW: Detect allowed role literals from CHECK constraints */
-async function detectAllowedRoleValues() {
-  try {
-    const q = await pool.request().query(`
-      SELECT cc.definition
-      FROM sys.check_constraints cc
-      WHERE cc.parent_object_id = OBJECT_ID('dbo.group_members')
-        AND cc.definition LIKE '%role%'
-    `);
-    const defs = (q.recordset || []).map(r => String(r.definition || ''));
-    const values = new Set();
-    const re = /'([^']+)'/g;
-    for (const d of defs) {
-      let m;
-      while ((m = re.exec(d)) !== null) values.add(m[1]);
-    }
-    return Array.from(values);
-  } catch {
-    return [];
-  }
-}
-
-/* Prefer an "owner-ish" role if allowed; else fall back to first allowed */
-function pickOwnerishRole(allowed) {
-  if (!Array.isArray(allowed) || allowed.length === 0) return null;
-  const prefs = ['owner', 'admin', 'leader', 'creator'];
-  for (const p of prefs) if (allowed.includes(p)) return p;
-  return allowed[0];
 }
 
 // ---------- GET /groups ----------
@@ -400,19 +370,7 @@ router.post('/', authenticateToken, async (req, res) => {
     const mmVals = ['@groupId', '@userId'];
     if (schema.membersCols.joined_at) { mmCols.push('joined_at'); mmVals.push('SYSUTCDATETIME()'); }
     else if (schema.membersCols.created_at) { mmCols.push('created_at'); mmVals.push('SYSUTCDATETIME()'); }
-
-    if (schema.membersCols.role) {
-      // Detect allowed role values from CHECK constraint and pick a safe one
-      const allowed = await detectAllowedRoleValues();
-      const roleVal = pickOwnerishRole(allowed) || null;
-      if (roleVal) {
-        r2.input('roleVal', sql.NVarChar(64), roleVal);
-        mmCols.push('role');
-        mmVals.push('@roleVal');
-      }
-      // If no roleVal could be determined, skip the column entirely
-      // (assumes column is nullable or has a default that satisfies constraint)
-    }
+    if (schema.membersCols.role) { mmCols.push('role'); mmVals.push(`'owner'`); }
 
     await r2.query(`
       IF NOT EXISTS (SELECT 1 FROM dbo.group_members WHERE group_id = @groupId AND user_id = @userId)

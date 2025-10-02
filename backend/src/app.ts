@@ -119,6 +119,8 @@ app.use('/api/v1/sessions', require('./services/sessionService'));
 // Aliases (router-level logic determines "me" semantics)
 app.use('/api/v1/users/me/notifications', notificationService);
 app.use('/api/v1/users/me/sessions', sessionService);
+app.use('/api/v1/users/me/notifications', notificationService); // alias for user-scoped path
+app.use('/api/v1/users/me/sessions', sessionService); // alias for user-scoped path
 
 // Error handling middleware
 app.use((error: any, req: Request, res: Response, next: NextFunction) => {

@@ -609,12 +609,10 @@ router.post('/:groupId/leave', authenticateToken, async (req, res) => {
     if (!own.recordset.length) return res.status(404).json({ error: 'Group not found' });
     const { isOwner, memberCount } = own.recordset[0];
     if (isOwner && memberCount > 1) {
-      return res
-        .status(403)
-        .json({
-          error:
-            'Owner cannot leave while group has members. Transfer ownership or delete the group.',
-        });
+      return res.status(403).json({
+        error:
+          'Owner cannot leave while group has members. Transfer ownership or delete the group.',
+      });
     }
 
     await r.query(`

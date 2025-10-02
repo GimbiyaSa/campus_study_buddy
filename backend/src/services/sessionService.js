@@ -352,7 +352,7 @@ router.delete('/:sessionId/leave', authenticateToken, async (req, res) => {
   try {
     const request = getPool().request();
     request.input('sessionId', sql.Int, req.params.sessionId);
-    request.input('userId', sql.Int, parseInt(req.user.id, 10));;
+    request.input('userId', sql.Int, parseInt(req.user.id, 10));
 
     // Organizer cannot leave
     const org = await request.query(

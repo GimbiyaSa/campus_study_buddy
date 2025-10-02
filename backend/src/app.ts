@@ -154,7 +154,6 @@ app.use(
   sessionService
 );
 
-
 // Error handling middleware
 app.use((error: any, req: Request, res: Response, next: NextFunction) => {
   console.error('Unhandled error:', error);

@@ -4,17 +4,57 @@ const { authenticateToken } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
-// Get database pool (assuming it's initialized in userService.js)
-const getPool = () => {
-  return sql.globalPool || require('./userService').pool;
+// Azure SQL Database configuration
+let pool;
+const initializeDatabase = async () => {
+  try {
+    // Try to use Azure configuration first
+    try {
+      const { azureConfig } = require('../config/azureConfig');
+      const dbConfig = await azureConfig.getDatabaseConfig();
+      pool = await sql.connect(dbConfig);
+    } catch (azureError) {
+      console.warn('Azure config not available, using environment variables');
+      // Fallback to connection string
+      if (process.env.DATABASE_CONNECTION_STRING) {
+        pool = await sql.connect(process.env.DATABASE_CONNECTION_STRING);
+      } else {
+        // Local development fallback
+        const config = {
+          server: process.env.DB_SERVER || 'localhost',
+          database: process.env.DB_NAME || 'study_buddy_db',
+          user: process.env.DB_USER || 'sa',
+          password: process.env.DB_PASSWORD || 'YourPassword123',
+          options: {
+            encrypt: true,
+            trustServerCertificate: true
+          }
+        };
+        pool = await sql.connect(config);
+      }
+    }
+    console.log('✅ Module Service: Database connected successfully');
+  } catch (error) {
+    console.error('❌ Module Service: Database connection failed:', error);
+    throw error;
+  }
 };
+
+// Helper function to get database pool
+async function getPool() {
+  if (!pool) {
+    await initializeDatabase();
+  }
+  return pool;
+}
 
 // Get all modules (with filtering)
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const { university, search, limit = 50, offset = 0 } = req.query;
 
-    const request = getPool().request();
+    const pool = await getPool();
+    const request = pool.request();
     request.input('limit', sql.Int, parseInt(limit));
     request.input('offset', sql.Int, parseInt(offset));
 
@@ -55,7 +95,8 @@ router.get('/', authenticateToken, async (req, res) => {
 // Get specific module with details
 router.get('/:moduleId', authenticateToken, async (req, res) => {
   try {
-    const request = getPool().request();
+    const pool = await getPool();
+    const request = pool.request();
     request.input('moduleId', sql.Int, req.params.moduleId);
 
     const result = await request.query(`
@@ -86,7 +127,8 @@ router.get('/:moduleId', authenticateToken, async (req, res) => {
 // Get module topics
 router.get('/:moduleId/topics', authenticateToken, async (req, res) => {
   try {
-    const request = getPool().request();
+    const pool = await getPool();
+    const request = pool.request();
     request.input('moduleId', sql.Int, req.params.moduleId);
 
     const result = await request.query(`
@@ -110,7 +152,8 @@ router.get('/:moduleId/topics', authenticateToken, async (req, res) => {
 // Get topic chapters
 router.get('/topics/:topicId/chapters', authenticateToken, async (req, res) => {
   try {
-    const request = getPool().request();
+    const pool = await getPool();
+    const request = pool.request();
     request.input('topicId', sql.Int, req.params.topicId);
 
     const result = await request.query(`
@@ -138,16 +181,23 @@ router.post('/', authenticateToken, async (req, res) => {
         .json({ error: 'module_code, module_name, and university are required' });
     }
 
-    const request = getPool().request();
+    const pool = await getPool();
+    const request = pool.request();
     request.input('moduleCode', sql.NVarChar(50), module_code);
     request.input('moduleName', sql.NVarChar(255), module_name);
     request.input('description', sql.NText, description || null);
     request.input('university', sql.NVarChar(255), university);
 
-    const result = await request.query(`
+    await request.query(`
       INSERT INTO modules (module_code, module_name, description, university)
-      OUTPUT inserted.*
       VALUES (@moduleCode, @moduleName, @description, @university)
+    `);
+
+    // Get the inserted module
+    const result = await request.query(`
+      SELECT TOP 1 * FROM modules 
+      WHERE module_code = @moduleCode AND university = @university
+      ORDER BY module_id DESC
     `);
 
     res.status(201).json(result.recordset[0]);
@@ -169,16 +219,23 @@ router.post('/:moduleId/topics', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'topic_name is required' });
     }
 
-    const request = getPool().request();
+    const pool = await getPool();
+    const request = pool.request();
     request.input('moduleId', sql.Int, req.params.moduleId);
     request.input('topicName', sql.NVarChar(255), topic_name);
     request.input('description', sql.NText, description || null);
     request.input('orderSequence', sql.Int, order_sequence || 0);
 
-    const result = await request.query(`
+    await request.query(`
       INSERT INTO topics (module_id, topic_name, description, order_sequence)
-      OUTPUT inserted.*
       VALUES (@moduleId, @topicName, @description, @orderSequence)
+    `);
+
+    // Get the inserted topic
+    const result = await request.query(`
+      SELECT TOP 1 * FROM topics 
+      WHERE module_id = @moduleId AND topic_name = @topicName
+      ORDER BY topic_id DESC
     `);
 
     res.status(201).json(result.recordset[0]);
@@ -197,17 +254,24 @@ router.post('/topics/:topicId/chapters', authenticateToken, async (req, res) => 
       return res.status(400).json({ error: 'chapter_name is required' });
     }
 
-    const request = getPool().request();
+    const pool = await getPool();
+    const request = pool.request();
     request.input('topicId', sql.Int, req.params.topicId);
     request.input('chapterName', sql.NVarChar(255), chapter_name);
     request.input('description', sql.NText, description || null);
     request.input('orderSequence', sql.Int, order_sequence || 0);
     request.input('contentSummary', sql.NText, content_summary || null);
 
-    const result = await request.query(`
+    await request.query(`
       INSERT INTO chapters (topic_id, chapter_name, description, order_sequence, content_summary)
-      OUTPUT inserted.*
       VALUES (@topicId, @chapterName, @description, @orderSequence, @contentSummary)
+    `);
+
+    // Get the inserted chapter
+    const result = await request.query(`
+      SELECT TOP 1 * FROM chapters 
+      WHERE topic_id = @topicId AND chapter_name = @chapterName
+      ORDER BY chapter_id DESC
     `);
 
     res.status(201).json(result.recordset[0]);
@@ -223,7 +287,8 @@ router.put('/:moduleId', authenticateToken, async (req, res) => {
     const allowedFields = ['module_name', 'description'];
     const updateFields = [];
 
-    const request = getPool().request();
+    const pool = await getPool();
+    const request = pool.request();
     request.input('moduleId', sql.Int, req.params.moduleId);
 
     allowedFields.forEach((field) => {
@@ -237,11 +302,15 @@ router.put('/:moduleId', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'No valid fields to update' });
     }
 
-    const result = await request.query(`
+    await request.query(`
       UPDATE modules 
       SET ${updateFields.join(', ')}
-      OUTPUT inserted.*
       WHERE module_id = @moduleId AND is_active = 1
+    `);
+
+    // Get the updated module
+    const result = await request.query(`
+      SELECT * FROM modules WHERE module_id = @moduleId AND is_active = 1
     `);
 
     if (result.recordset.length === 0) {
@@ -258,17 +327,22 @@ router.put('/:moduleId', authenticateToken, async (req, res) => {
 // Delete module (soft delete)
 router.delete('/:moduleId', authenticateToken, async (req, res) => {
   try {
-    const request = getPool().request();
+    const pool = await getPool();
+    const request = pool.request();
     request.input('moduleId', sql.Int, req.params.moduleId);
 
-    const result = await request.query(`
+    await request.query(`
       UPDATE modules 
       SET is_active = 0
-      OUTPUT inserted.*
       WHERE module_id = @moduleId
     `);
 
-    if (result.recordset.length === 0) {
+    // Check if module was found and updated
+    const checkResult = await request.query(`
+      SELECT module_id FROM modules WHERE module_id = @moduleId AND is_active = 0
+    `);
+
+    if (checkResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Module not found' });
     }
 
@@ -278,5 +352,8 @@ router.delete('/:moduleId', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to delete module' });
   }
 });
+
+// Initialize database connection
+initializeDatabase().catch(console.error);
 
 module.exports = router;

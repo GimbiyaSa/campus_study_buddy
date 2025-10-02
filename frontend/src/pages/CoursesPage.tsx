@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { BookOpen, GraduationCap, Plus, X, Trash2, Calendar, Clock, Search, Filter, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { DataService, type Course } from '../services/dataService';
 import { ErrorHandler, type AppError } from '../utils/errorHandler';
+import { navigate } from '../router';
 
 export default function CoursesPage() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -256,48 +257,144 @@ function EnhancedCourseCard({ course, onRemove, isDeleting }: {
   const progressPercentage = Math.round(course.progress ?? 0);
   const hasProgress = progressPercentage > 0;
 
+  const handleCourseClick = () => {
+    navigate(`/courses/${course.id}`);
+  };
+
   return (
-    <article className="group relative rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-lg hover:border-emerald-200 transition-all duration-300">
-      {/* Course Header */}
-      <div className="flex items-start justify-between gap-4 mb-4">
-        <div className="flex items-center gap-4 min-w-0 flex-1">
-          <div className={`grid h-14 w-14 place-items-center rounded-2xl flex-shrink-0 transition-colors ${
-            isInstitution 
-              ? 'bg-emerald-50 text-emerald-700 group-hover:bg-emerald-100' 
-              : 'bg-blue-50 text-blue-700 group-hover:bg-blue-100'
-          }`}>
-            {isInstitution ? (
-              <GraduationCap className="h-7 w-7" />
-            ) : (
-              <BookOpen className="h-7 w-7" />
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <h3 className="font-bold text-slate-900 group-hover:text-emerald-700 transition-colors text-lg">
-              {isInstitution && course.code && (
-                <span className="block text-sm font-medium text-slate-500 mb-1">
-                  {/* Clean up course code by removing ugly suffixes */}
-                  {course.code.replace(/_[a-zA-Z0-9]{3,}$/, '')}
-                </span>
+    <article className="group relative rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-lg hover:border-emerald-200 transition-all duration-300">
+      {/* Clickable Course Area */}
+      <div 
+        onClick={handleCourseClick}
+        className="p-6 cursor-pointer"
+      >
+        {/* Course Header */}
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div className="flex items-center gap-4 min-w-0 flex-1">
+            <div className={`grid h-14 w-14 place-items-center rounded-2xl flex-shrink-0 transition-colors ${
+              isInstitution 
+                ? 'bg-emerald-50 text-emerald-700 group-hover:bg-emerald-100' 
+                : 'bg-blue-50 text-blue-700 group-hover:bg-blue-100'
+            }`}>
+              {isInstitution ? (
+                <GraduationCap className="h-7 w-7" />
+              ) : (
+                <BookOpen className="h-7 w-7" />
               )}
-              {course.title}
-            </h3>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <Badge variant={isInstitution ? 'emerald' : 'slate'}>
-                {isInstitution ? 'Institution' : 'Personal Topic'}
-              </Badge>
-              {isInstitution && course.term && (
-                <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
-                  {course.term}
-                </span>
-              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="font-bold text-slate-900 group-hover:text-emerald-700 transition-colors text-lg">
+                {isInstitution && course.code && (
+                  <span className="block text-sm font-medium text-slate-500 mb-1">
+                    {/* Clean up course code by removing ugly suffixes */}
+                    {course.code.replace(/_[a-zA-Z0-9]{3,}$/, '')}
+                  </span>
+                )}
+                {course.title}
+              </h3>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Badge variant={isInstitution ? 'emerald' : 'slate'}>
+                  {isInstitution ? 'Institution' : 'Personal Topic'}
+                </Badge>
+                {isInstitution && course.term && (
+                  <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
+                    {course.term}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>
+        
+        {/* Course Description (for personal topics) */}
+        {course.type === 'casual' && course.description && (
+          <p className="text-sm text-slate-700 mb-4 line-clamp-2">{course.description}</p>
+        )}
+        
+        {/* Course Metadata */}
+        <div className="flex items-center gap-4 text-xs text-slate-500 mb-4">
+          {course.createdAt && (
+            <span className="flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              Enrolled {new Date(course.createdAt).toLocaleDateString()}
+            </span>
+          )}
+          <span className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {course.totalHours || 0}h studied
+          </span>
+        </div>
+        
+        {/* Enhanced Progress Section */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-700">Progress</span>
+            <div className="flex items-center gap-2">
+              {hasProgress ? (
+                <span className="font-bold text-emerald-600">
+                  {progressPercentage}%
+                </span>
+              ) : (
+                <span className="text-xs text-slate-500 bg-slate-50 rounded-full px-2 py-1">
+                  {(course.totalTopics && course.totalTopics > 0) || (course.totalHours && course.totalHours > 0) ? 'In progress' : 'Not started'}
+                </span>
+              )}
+              <span className="text-xs text-slate-500 bg-slate-100 rounded-full px-2 py-1">
+                {course.completedTopics || 0}/{course.totalTopics || 0} topics
+              </span>
+            </div>
+          </div>
+          
+          <div className="relative h-3 w-full overflow-hidden rounded-full bg-slate-100">
+            <div
+              className={`h-3 rounded-full transition-all duration-500 ease-out ${
+                progressPercentage >= 100 
+                  ? 'bg-gradient-to-r from-emerald-500 to-emerald-600' 
+                  : progressPercentage > 0 
+                  ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
+                  : ((course.totalTopics && course.totalTopics > 0) || (course.totalHours && course.totalHours > 0))
+                  ? 'bg-gradient-to-r from-blue-400 to-blue-500'
+                  : 'bg-slate-300'
+              }`}
+              style={{ 
+                width: progressPercentage > 0 
+                  ? `${Math.min(100, Math.max(0, progressPercentage))}%`
+                  : ((course.totalTopics && course.totalTopics > 0) || (course.totalHours && course.totalHours > 0))
+                  ? '10%' // Show small progress if there are topics/hours but no completed topics
+                  : '0%'
+              }}
+            />
+            {progressPercentage >= 100 && (
+              <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-emerald-600/20 rounded-full animate-pulse" />
+            )}
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-slate-600">
+              {progressPercentage >= 100 ? (
+                <span className="text-emerald-600 font-medium">🎉 Completed!</span>
+              ) : ((course.totalTopics && course.totalTopics > 0) || (course.totalHours && course.totalHours > 0)) ? (
+                progressPercentage > 0 ? 'In progress - keep it up!' : 'Started - add more progress!'
+              ) : (
+                'Ready to begin'
+              )}
+            </p>
+            <span className="text-xs text-emerald-600 font-medium group-hover:text-emerald-700">
+              Click to manage →
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Remove Button - Outside clickable area */}
+      <div className="absolute top-4 right-4">
         <button
-          onClick={onRemove}
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent card click
+            onRemove();
+          }}
           disabled={isDeleting}
-          className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex-shrink-0"
+          className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex-shrink-0 shadow-sm"
           aria-label={`Remove ${course.title}`}
         >
           {isDeleting ? (
@@ -307,70 +404,6 @@ function EnhancedCourseCard({ course, onRemove, isDeleting }: {
           )}
           {isDeleting ? 'Removing...' : 'Remove'}
         </button>
-      </div>
-      
-      {/* Course Description (for personal topics) */}
-      {course.type === 'casual' && course.description && (
-        <p className="text-sm text-slate-700 mb-4 line-clamp-2">{course.description}</p>
-      )}
-      
-      {/* Course Metadata */}
-      <div className="flex items-center gap-4 text-xs text-slate-500 mb-4">
-        {course.createdAt && (
-          <span className="flex items-center gap-1">
-            <Calendar className="h-3 w-3" />
-            Enrolled {new Date(course.createdAt).toLocaleDateString()}
-          </span>
-        )}
-        {course.totalHours && course.totalHours > 0 && (
-          <span className="flex items-center gap-1">
-            <Clock className="h-3 w-3" />
-            {course.totalHours}h studied
-          </span>
-        )}
-      </div>
-      
-      {/* Enhanced Progress Section */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-slate-700">Progress</span>
-          <div className="flex items-center gap-2">
-            <span className={`font-bold ${hasProgress ? 'text-emerald-600' : 'text-slate-400'}`}>
-              {progressPercentage}%
-            </span>
-            {course.totalTopics && course.totalTopics > 0 && course.completedTopics !== undefined && (
-              <span className="text-xs text-slate-500 bg-slate-100 rounded-full px-2 py-1">
-                {course.completedTopics}/{course.totalTopics} topics
-              </span>
-            )}
-          </div>
-        </div>
-        
-        <div className="relative h-3 w-full overflow-hidden rounded-full bg-slate-100">
-          <div
-            className={`h-3 rounded-full transition-all duration-500 ease-out ${
-              progressPercentage >= 100 
-                ? 'bg-gradient-to-r from-emerald-500 to-emerald-600' 
-                : progressPercentage > 0 
-                ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
-                : 'bg-slate-300'
-            }`}
-            style={{ width: `${Math.min(100, Math.max(0, progressPercentage))}%` }}
-          />
-          {progressPercentage >= 100 && (
-            <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-emerald-600/20 rounded-full animate-pulse" />
-          )}
-        </div>
-        
-        <p className="text-xs text-slate-600">
-          {progressPercentage >= 100 ? (
-            <span className="text-emerald-600 font-medium">🎉 Completed!</span>
-          ) : progressPercentage > 0 ? (
-            'In progress - keep it up!'
-          ) : (
-            'Ready to begin'
-          )}
-        </p>
       </div>
     </article>
   );

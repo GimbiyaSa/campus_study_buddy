@@ -32,7 +32,9 @@ CREATE TABLE dbo.users (
     bio NTEXT,
     profile_image_url NVARCHAR(500),
     study_preferences NVARCHAR(MAX) CHECK (ISJSON(study_preferences) = 1),
+    profile_visibility NVARCHAR(50) DEFAULT 'public' CHECK (profile_visibility IN ('public', 'university', 'private')),
     is_active BIT DEFAULT 1,
+    last_login_at DATETIME2,
     created_at DATETIME2 DEFAULT GETUTCDATE(),
     updated_at DATETIME2 DEFAULT GETUTCDATE()
 );
@@ -67,6 +69,7 @@ CREATE TABLE dbo.topics (
     topic_name NVARCHAR(255) NOT NULL,
     description NTEXT,
     order_sequence INT DEFAULT 0,
+    estimated_hours DECIMAL(5,2) DEFAULT 0,
     is_active BIT DEFAULT 1,
     created_at DATETIME2 DEFAULT GETUTCDATE(),
     FOREIGN KEY (module_id) REFERENCES dbo.modules(module_id) ON DELETE CASCADE
@@ -262,11 +265,14 @@ CREATE TABLE dbo.shared_notes (
 -- Create indexes for better performance
 CREATE INDEX IX_users_email ON dbo.users(email);
 CREATE INDEX IX_users_university_course ON dbo.users(university, course);
+CREATE INDEX IX_users_last_login ON dbo.users(last_login_at);
 CREATE INDEX IX_modules_code ON dbo.modules(module_code);
 CREATE INDEX IX_modules_university ON dbo.modules(university);
 CREATE INDEX IX_user_modules_user_id ON dbo.user_modules(user_id);
 CREATE INDEX IX_user_modules_module_id ON dbo.user_modules(module_id);
+CREATE INDEX IX_user_modules_enrollment_status ON dbo.user_modules(enrollment_status);
 CREATE INDEX IX_topics_module_id ON dbo.topics(module_id);
+CREATE INDEX IX_topics_order_sequence ON dbo.topics(order_sequence);
 CREATE INDEX IX_chapters_topic_id ON dbo.chapters(topic_id);
 CREATE INDEX IX_study_groups_creator_id ON dbo.study_groups(creator_id);
 CREATE INDEX IX_study_groups_module_id ON dbo.study_groups(module_id);
@@ -278,8 +284,10 @@ CREATE INDEX IX_session_attendees_session_id ON dbo.session_attendees(session_id
 CREATE INDEX IX_session_attendees_user_id ON dbo.session_attendees(user_id);
 CREATE INDEX IX_user_progress_user_id ON dbo.user_progress(user_id);
 CREATE INDEX IX_user_progress_topic_id ON dbo.user_progress(topic_id);
+CREATE INDEX IX_user_progress_topic_completion ON dbo.user_progress(user_id, topic_id, completion_status) WHERE chapter_id IS NULL;
 CREATE INDEX IX_study_hours_user_id ON dbo.study_hours(user_id);
 CREATE INDEX IX_study_hours_study_date ON dbo.study_hours(study_date);
+CREATE INDEX IX_study_hours_topic_user ON dbo.study_hours(topic_id, user_id, study_date);
 CREATE INDEX IX_notifications_user_id_is_read ON dbo.notifications(user_id, is_read);
 CREATE INDEX IX_chat_messages_room_id_created_at ON dbo.chat_messages(room_id, created_at);
 CREATE INDEX IX_partner_matches_requester_id ON dbo.partner_matches(requester_id);

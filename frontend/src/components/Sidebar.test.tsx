@@ -1,4 +1,4 @@
-import { render, screen } from '../test-utils';
+import { render } from '../test-utils';
 import Sidebar from './Sidebar';
 import { expect, test } from 'vitest';
 

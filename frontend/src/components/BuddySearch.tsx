@@ -2,8 +2,10 @@ import { useLayoutEffect, useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, Mail, X, Users, Loader2, AlertCircle, Heart } from 'lucide-react';
 import { navigate } from '../router';
+
 import { DataService, type StudyPartner } from '../services/dataService';
 import { ErrorHandler, type AppError } from '../utils/errorHandler';
+import azureIntegrationService from '../services/azureIntegrationService';
 
 export default function BuddySearch() {
   const [open, setOpen] = useState(false);
@@ -14,6 +16,9 @@ export default function BuddySearch() {
   const [suggestions, setSuggestions] = useState<StudyPartner[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<AppError | null>(null);
+  
+  // Track pending invites by partner ID
+  const [pendingInvites, setPendingInvites] = useState<Set<string>>(new Set());
 
   // Fetch study partners using centralized data service with unified error handling
   useEffect(() => {
@@ -21,7 +26,7 @@ export default function BuddySearch() {
       setLoading(true);
       setError(null);
       try {
-        const partners = await DataService.fetchPartners();
+        const partners = await DataService.searchPartners(); // Use search for suggestions, not existing partners
         setSuggestions(partners.slice(0, 4)); // Show top 4 suggestions
       } catch (err) {
         const appError = ErrorHandler.handleApiError(err, 'partners');
@@ -30,7 +35,47 @@ export default function BuddySearch() {
         setLoading(false);
       }
     }
+    
     fetchSuggestions();
+
+    // Listen for partner request status updates
+    const handlePartnerAccepted = (data: any) => {
+      console.log('Partner request accepted:', data);
+      setPendingInvites(prev => {
+        const newSet = new Set(prev);
+        // Find and remove the partner ID that was accepted
+        newSet.delete(data.acceptedBy);
+        return newSet;
+      });
+      // Refresh suggestions
+      fetchSuggestions();
+    };
+
+    const handlePartnerRejected = (data: any) => {
+      console.log('Partner request rejected:', data);
+      setPendingInvites(prev => {
+        const newSet = new Set(prev);
+        // Find and remove the partner ID that was rejected
+        newSet.delete(data.rejectedBy);
+        return newSet;
+      });
+    };
+
+    // Listen for general partner updates
+    const handleBuddiesInvalidate = () => {
+      fetchSuggestions();
+    };
+
+    const unsubscribeAccepted = azureIntegrationService.onConnectionEvent('partner_accepted', handlePartnerAccepted);
+    const unsubscribeRejected = azureIntegrationService.onConnectionEvent('partner_rejected', handlePartnerRejected);
+    
+    window.addEventListener('buddies:invalidate', handleBuddiesInvalidate);
+
+    return () => {
+      unsubscribeAccepted();
+      unsubscribeRejected();
+      window.removeEventListener('buddies:invalidate', handleBuddiesInvalidate);
+    };
   }, []);
 
   const openModal = (person: StudyPartner) => {
@@ -41,18 +86,40 @@ export default function BuddySearch() {
 
   const closeModal = () => setOpen(false);
 
+
   const sendInvite = async () => {
-    if (selected?.id) {
+    if (!selected?.id) return;
+    setError(null);
+    try {
+      // 1. Send buddy request to backend (creates connection)
+      await DataService.sendBuddyRequest(selected.id);
+      // 2. Optionally, send real-time notification (if backend supports it)
       try {
-        // Simplified invite logic - can be enhanced with actual API
-        await new Promise(resolve => setTimeout(resolve, 500));
-        // Dispatch custom event for consistent behavior across app
-        window.dispatchEvent(new CustomEvent('buddy:connected', { detail: selected }));
-      } catch (err) {
-        console.error('Error sending invite:', err);
+        await azureIntegrationService.sendPartnerRequest(Number(selected.id));
+      } catch (notifyErr) {
+        // Log but don't block UI if notification fails
+        console.warn('Notification send failed:', notifyErr);
       }
+      
+      // 3. Update pending invites state
+      setPendingInvites(prev => new Set(prev).add(selected.id));
+      
+      // 4. Dispatch event for local state update (optional)
+      window.dispatchEvent(new CustomEvent('buddy:connected', { detail: selected }));
+      setInvited(true);
+      
+      // 5. Close modal immediately after successful invite
+      setTimeout(() => {
+        closeModal();
+        // Reset state for next time
+        setInvited(false);
+      }, 1000); // Show "Invite sent" for 1 second, then close
+      
+    } catch (err) {
+      const appError = ErrorHandler.handleApiError(err, 'partners');
+      setError(appError);
+      setInvited(false);
     }
-    setInvited(true);
   };
 
   const handleRetry = () => {
@@ -125,7 +192,8 @@ export default function BuddySearch() {
               <EnhancedSuggestionCard 
                 key={s.id} 
                 suggestion={s} 
-                onConnect={() => openModal(s)} 
+                onConnect={() => openModal(s)}
+                isPending={pendingInvites.has(s.id)}
               />
             ))}
           </ul>
@@ -162,7 +230,7 @@ export default function BuddySearch() {
 
 /* ---------- Enhanced Components ---------- */
 
-function EnhancedSuggestionCard({ suggestion, onConnect }: { suggestion: StudyPartner; onConnect: () => void }) {
+function EnhancedSuggestionCard({ suggestion, onConnect, isPending = false }: { suggestion: StudyPartner; onConnect: () => void; isPending?: boolean }) {
   const initials = suggestion.name
     .split(' ')
     .map((n) => n[0])
@@ -206,10 +274,24 @@ function EnhancedSuggestionCard({ suggestion, onConnect }: { suggestion: StudyPa
       
       <button
         onClick={onConnect}
-        className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white shadow-md hover:bg-emerald-700 hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600 transition-all duration-200"
+        disabled={isPending || suggestion.connectionStatus === 'pending' || suggestion.connectionStatus === 'accepted'}
+        className={`w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold shadow-md hover:shadow-lg focus-visible:outline focus-visible:outline-2 transition-all duration-200 ${
+          isPending || suggestion.connectionStatus === 'pending'
+            ? 'bg-yellow-100 text-yellow-800 cursor-not-allowed' 
+            : suggestion.connectionStatus === 'accepted'
+            ? 'bg-green-100 text-green-800 cursor-not-allowed'
+            : 'bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:outline-emerald-600'
+        }`}
       >
         <Users className="h-4 w-4" />
-        Connect
+        {isPending || suggestion.connectionStatus === 'pending'
+          ? suggestion.isPendingSent 
+            ? 'Pending acceptance' 
+            : 'Pending response'
+          : suggestion.connectionStatus === 'accepted'
+          ? 'Study buddies'
+          : 'Connect'
+        }
       </button>
     </li>
   );
@@ -336,39 +418,12 @@ function EnhancedProfileModal({
           </div>
 
           <div className="space-y-4 mb-6">
-            <div className="flex flex-wrap gap-2">
-              <span className="text-sm px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 font-semibold">
-                {person.compatibilityScore.toFixed(0)}% compatibility
-              </span>
-              <span className="text-sm px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                {person.sharedCourses.length} shared courses
-              </span>
-              <span className="text-sm px-3 py-1.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
-                Year {person.yearOfStudy}
-              </span>
-            </div>
-            
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
               <h4 className="font-semibold text-slate-900 mb-2">About this study partner</h4>
               <p className="text-sm text-slate-700 leading-relaxed">
                 {person.bio || person.recommendationReason || 
                   'Active study partner with strong academic performance. Looking for consistent study sessions and collaborative learning.'}
               </p>
-            </div>
-            
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200 text-center">
-                <div className="text-xl font-bold text-emerald-700 mb-1">{person.studyHours}</div>
-                <div className="text-xs text-emerald-600 font-medium">Study hours</div>
-              </div>
-              <div className="bg-blue-50 rounded-xl p-4 border border-blue-200 text-center">
-                <div className="text-xl font-bold text-blue-700 mb-1">{person.rating}</div>
-                <div className="text-xs text-blue-600 font-medium">Rating</div>
-              </div>
-              <div className="bg-purple-50 rounded-xl p-4 border border-purple-200 text-center">
-                <div className="text-xl font-bold text-purple-700 mb-1">{person.activeGroups}</div>
-                <div className="text-xs text-purple-600 font-medium">Active groups</div>
-              </div>
             </div>
           </div>
 

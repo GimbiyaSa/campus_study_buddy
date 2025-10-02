@@ -121,11 +121,18 @@ router.post('/sessions', authenticateToken, async (req, res) => {
 
       const studyHoursResult = await studyHoursRequest.query(`
                 INSERT INTO dbo.study_hours (user_id, module_id, topic_id, session_id, hours_logged, description, study_date, logged_at)
-                OUTPUT inserted.hour_id, inserted.study_date, inserted.logged_at
                 VALUES (@userId, @moduleId, @topicId, @sessionId, @hoursLogged, @description, @studyDate, GETUTCDATE())
             `);
 
-      const loggedHour = studyHoursResult.recordset[0];
+      // Get the inserted hour record
+      const loggedHourResult = await studyHoursRequest.query(`
+                SELECT TOP 1 hour_id, study_date, logged_at 
+                FROM dbo.study_hours 
+                WHERE user_id = @userId AND topic_id = @topicId 
+                ORDER BY logged_at DESC
+            `);
+
+      const loggedHour = loggedHourResult.recordset[0];
 
       // Update topic progress if topicIds provided
       const progressUpdates = [];
@@ -171,15 +178,22 @@ router.post('/sessions', authenticateToken, async (req, res) => {
 
             const newProgressResult = await progressRequest.query(`
                             INSERT INTO dbo.user_progress (user_id, topic_id, chapter_id, completion_status, hours_spent, started_at, updated_at)
-                            OUTPUT inserted.progress_id
                             VALUES (@userId, @topicId, NULL, 'in_progress', @hoursSpent, GETUTCDATE(), GETUTCDATE())
+                        `);
+
+            // Get the inserted progress record
+            const progressIdResult = await progressRequest.query(`
+                            SELECT TOP 1 progress_id 
+                            FROM dbo.user_progress 
+                            WHERE user_id = @userId AND topic_id = @topicId AND chapter_id IS NULL
+                            ORDER BY updated_at DESC
                         `);
 
             progressUpdates.push({
               topicId,
               status: 'in_progress',
               hours: duration / 60,
-              progressId: newProgressResult.recordset[0].progress_id,
+              progressId: progressIdResult.recordset[0].progress_id,
             });
           }
         }
@@ -367,8 +381,8 @@ router.get('/modules/:moduleId', authenticateToken, async (req, res) => {
                  INNER JOIN dbo.user_progress up2 ON c.chapter_id = up2.chapter_id 
                  WHERE c.topic_id = t.topic_id AND up2.user_id = @userId AND up2.completion_status = 'completed'
                 ) as completed_chapters,
-                -- Study hours for this topic
-                ISNULL((SELECT SUM(hours_logged) FROM dbo.study_hours sh WHERE sh.topic_id = t.topic_id AND sh.user_id = @userId), 0) as logged_hours
+                -- Study hours for this topic (combine study_hours and user_progress.hours_spent)
+                ISNULL((SELECT SUM(hours_logged) FROM dbo.study_hours sh WHERE sh.topic_id = t.topic_id AND sh.user_id = @userId), 0) + ISNULL(up.hours_spent, 0) as logged_hours
             FROM dbo.topics t
             LEFT JOIN dbo.user_progress up ON t.topic_id = up.topic_id AND up.user_id = @userId AND up.chapter_id IS NULL
             WHERE t.module_id = @moduleId AND t.is_active = 1
@@ -680,6 +694,256 @@ router.get('/goals', authenticateToken, async (req, res) => {
   }
 });
 
+// PUT /progress/topics/:topicId/goal - Set study goal for topic
+router.put('/topics/:topicId/goal', authenticateToken, async (req, res) => {
+  try {
+    const { topicId } = req.params;
+    const { hoursGoal, targetCompletionDate, personalNotes } = req.body;
+
+    if (!hoursGoal || hoursGoal <= 0) {
+      return res.status(400).json({ error: 'Hours goal must be greater than 0' });
+    }
+
+    const pool = await getPool();
+    const request = pool.request();
+    request.input('userId', sql.NVarChar(255), req.user.id);
+    request.input('topicId', sql.Int, topicId);
+
+    // Check if topic exists and user has access
+    const topicCheck = await request.query(`
+      SELECT t.topic_id, t.topic_name, m.module_id, m.module_name
+      FROM dbo.topics t
+      INNER JOIN dbo.modules m ON t.module_id = m.module_id
+      INNER JOIN dbo.user_modules um ON m.module_id = um.module_id
+      WHERE t.topic_id = @topicId AND um.user_id = @userId AND um.enrollment_status = 'active'
+    `);
+
+    if (topicCheck.recordset.length === 0) {
+      return res.status(404).json({ error: 'Topic not found or access denied' });
+    }
+
+    // Check if progress record exists
+    const progressCheck = await request.query(`
+      SELECT progress_id, completion_status, hours_spent, notes
+      FROM dbo.user_progress 
+      WHERE user_id = @userId AND topic_id = @topicId AND chapter_id IS NULL
+    `);
+
+    request.input('hoursGoal', sql.Decimal(5, 2), hoursGoal);
+    request.input('targetDate', sql.Date, targetCompletionDate || null);
+    request.input('personalNotes', sql.NText, personalNotes || '');
+
+    let result;
+    if (progressCheck.recordset.length > 0) {
+      // Update existing progress with goal
+      request.input('progressId', sql.Int, progressCheck.recordset[0].progress_id);
+      
+      const updatedNotes = personalNotes ? 
+        `GOAL: ${hoursGoal}h by ${targetCompletionDate || 'TBD'}\n${personalNotes}\n\n--- Previous Notes ---\n${progressCheck.recordset[0].notes || ''}` :
+        progressCheck.recordset[0].notes;
+
+      request.input('updatedNotes', sql.NText, updatedNotes);
+
+      await request.query(`
+        UPDATE dbo.user_progress 
+        SET notes = @updatedNotes,
+            started_at = COALESCE(started_at, GETUTCDATE()),
+            updated_at = GETUTCDATE()
+        WHERE progress_id = @progressId
+      `);
+
+      // Get the updated record
+      result = await request.query(`
+        SELECT * FROM dbo.user_progress WHERE progress_id = @progressId
+      `);
+    } else {
+      // Create new progress record with goal
+      const goalNotes = `GOAL: ${hoursGoal}h by ${targetCompletionDate || 'TBD'}\n${personalNotes || ''}`;
+      request.input('goalNotes', sql.NText, goalNotes);
+
+      await request.query(`
+        INSERT INTO dbo.user_progress (user_id, topic_id, chapter_id, completion_status, hours_spent, notes, started_at, updated_at)
+        VALUES (@userId, @topicId, NULL, 'not_started', 0, @goalNotes, GETUTCDATE(), GETUTCDATE())
+      `);
+
+      // Get the inserted record
+      result = await request.query(`
+        SELECT TOP 1 * FROM dbo.user_progress 
+        WHERE user_id = @userId AND topic_id = @topicId AND chapter_id IS NULL
+        ORDER BY updated_at DESC
+      `);
+    }
+
+    const progressData = result.recordset[0];
+    const topicData = topicCheck.recordset[0];
+
+    res.json({
+      topicId: parseInt(topicId),
+      topicName: topicData.topic_name,
+      moduleName: topicData.module_name,
+      hoursGoal: hoursGoal,
+      targetCompletionDate: targetCompletionDate,
+      personalNotes: personalNotes,
+      currentHours: progressData.hours_spent,
+      completionStatus: progressData.completion_status,
+      createdAt: progressData.updated_at
+    });
+
+  } catch (error) {
+    console.error('Error setting topic goal:', error);
+    res.status(500).json({ error: 'Failed to set topic goal' });
+  }
+});
+
+// POST /progress/topics/:topicId/log-hours - Student logs their own study hours
+router.post('/topics/:topicId/log-hours', authenticateToken, async (req, res) => {
+  try {
+    const { topicId } = req.params;
+    const { hours, description, studyDate, reflections } = req.body;
+
+    if (!hours || hours <= 0) {
+      return res.status(400).json({ error: 'Hours must be greater than 0' });
+    }
+
+    const pool = await getPool();
+    const transaction = new sql.Transaction(pool);
+    
+    try {
+      await transaction.begin();
+
+      const request = new sql.Request(transaction);
+      request.input('userId', sql.NVarChar(255), req.user.id);
+      request.input('topicId', sql.Int, topicId);
+
+      // Verify access to topic
+      const topicCheck = await request.query(`
+        SELECT t.topic_id, t.topic_name, m.module_id, m.module_name
+        FROM dbo.topics t
+        INNER JOIN dbo.modules m ON t.module_id = m.module_id
+        INNER JOIN dbo.user_modules um ON m.module_id = um.module_id
+        WHERE t.topic_id = @topicId AND um.user_id = @userId AND um.enrollment_status = 'active'
+      `);
+
+      if (topicCheck.recordset.length === 0) {
+        await transaction.rollback();
+        return res.status(404).json({ error: 'Topic not found or access denied' });
+      }
+
+      const moduleId = topicCheck.recordset[0].module_id;
+
+      // Log in study_hours table
+      request.input('moduleId', sql.Int, moduleId);
+      request.input('hoursLogged', sql.Decimal(5, 2), hours);
+      request.input('description', sql.NText, description || '');
+      request.input('studyDate', sql.Date, studyDate || new Date());
+
+      await request.query(`
+        INSERT INTO dbo.study_hours (user_id, module_id, topic_id, session_id, hours_logged, description, study_date, logged_at)
+        VALUES (@userId, @moduleId, @topicId, NULL, @hoursLogged, @description, @studyDate, GETUTCDATE())
+      `);
+
+      // Update user_progress hours_spent
+      const progressCheck = await request.query(`
+        SELECT progress_id, completion_status, hours_spent, notes
+        FROM dbo.user_progress 
+        WHERE user_id = @userId AND topic_id = @topicId AND chapter_id IS NULL
+      `);
+
+      let progressResult;
+      if (progressCheck.recordset.length > 0) {
+        // Update existing progress
+        const current = progressCheck.recordset[0];
+        const newHours = (current.hours_spent || 0) + hours;
+        // Only change status from not_started to in_progress, don't auto-complete
+        const newStatus = current.completion_status === 'not_started' ? 'in_progress' : current.completion_status;
+        
+        const updatedNotes = reflections ? 
+          `${current.notes || ''}\n\n--- Study Log ${new Date(studyDate || Date.now()).toLocaleDateString()} ---\n${reflections}` :
+          current.notes;
+
+        request.input('newHours', sql.Decimal(5, 2), newHours);
+        request.input('newStatus', sql.NVarChar(50), newStatus);
+        request.input('progressId', sql.Int, current.progress_id);
+        request.input('updatedNotes', sql.NText, updatedNotes);
+
+        await request.query(`
+          UPDATE dbo.user_progress 
+          SET hours_spent = @newHours, 
+              completion_status = @newStatus,
+              notes = @updatedNotes,
+              started_at = COALESCE(started_at, GETUTCDATE()),
+              updated_at = GETUTCDATE(),
+              completed_at = CASE WHEN @newStatus = 'completed' AND completed_at IS NULL THEN GETUTCDATE() ELSE completed_at END
+          WHERE progress_id = @progressId
+        `);
+
+        // Get the updated record
+        progressResult = await request.query(`
+          SELECT * FROM dbo.user_progress WHERE progress_id = @progressId
+        `);
+      } else {
+        // Create new progress record
+        const initialNotes = reflections ? 
+          `--- Study Log ${new Date(studyDate || Date.now()).toLocaleDateString()} ---\n${reflections}` :
+          '';
+        
+        // Always start as in_progress, let user manually complete
+        const initialStatus = 'in_progress';
+        
+        request.input('initialHours', sql.Decimal(5, 2), hours);
+        request.input('initialNotes', sql.NText, initialNotes);
+        request.input('initialStatus', sql.NVarChar(50), initialStatus);
+
+        await request.query(`
+          INSERT INTO dbo.user_progress (user_id, topic_id, chapter_id, completion_status, hours_spent, notes, started_at, updated_at, completed_at)
+          VALUES (@userId, @topicId, NULL, @initialStatus, @initialHours, @initialNotes, GETUTCDATE(), GETUTCDATE(), NULL)
+        `);
+
+        // Get the inserted record
+        progressResult = await request.query(`
+          SELECT TOP 1 * FROM dbo.user_progress 
+          WHERE user_id = @userId AND topic_id = @topicId AND chapter_id IS NULL
+          ORDER BY updated_at DESC
+        `);
+      }
+
+      await transaction.commit();
+
+      // Get the topic data for response
+      const topic = topicCheck.recordset[0];
+      const progress = progressResult.recordset[0];
+
+      res.json({
+        success: true,
+        studyLog: {
+          hours: hours,
+          description: description || '',
+          studyDate: studyDate || new Date(),
+          loggedAt: new Date()
+        },
+        progress: {
+          topicName: topic.topic_name,
+          totalHours: progress.hours_spent,
+          completionStatus: progress.completion_status,
+          notes: progress.notes
+        }
+      });
+
+    } catch (transactionError) {
+      try {
+        await transaction.rollback();
+      } catch (rollbackError) {
+        console.error('Rollback error:', rollbackError);
+      }
+      throw transactionError;
+    }
+
+  } catch (error) {
+    console.error('Error logging study hours:', error);
+    res.status(500).json({ error: 'Failed to log study hours' });
+  }
+});
+
 // Helper functions
 function generateDailyBreakdown(studyHours, days) {
   const breakdown = {};
@@ -751,6 +1015,157 @@ router.use((err, req, res, next) => {
     return;
   }
   next(err);
+});
+
+// GET /progress/overview - Get comprehensive progress overview with courses and topics
+router.get('/overview', authenticateToken, async (req, res) => {
+  try {
+    const pool = await getPool();
+    const request = pool.request();
+    request.input('userId', sql.NVarChar(255), req.user.id);
+
+    // Get overall progress stats
+    const overallStatsQuery = `
+      SELECT 
+        -- Total study hours from both study_hours and user_progress
+        ISNULL(
+          (SELECT SUM(hours_logged) FROM dbo.study_hours WHERE user_id = @userId), 0
+        ) + ISNULL(
+          (SELECT SUM(hours_spent) FROM dbo.user_progress WHERE user_id = @userId AND chapter_id IS NULL), 0
+        ) as totalHours,
+        
+        -- Total completed topics
+        (SELECT COUNT(*) 
+         FROM dbo.user_progress up 
+         INNER JOIN dbo.topics t ON up.topic_id = t.topic_id 
+         WHERE up.user_id = @userId 
+         AND up.chapter_id IS NULL 
+         AND up.completion_status = 'completed'
+        ) as completedTopics,
+        
+        -- Total study sessions
+        (SELECT COUNT(*) FROM dbo.study_hours WHERE user_id = @userId) as totalSessions
+    `;
+
+    const overallStats = await request.query(overallStatsQuery);
+    const stats = overallStats.recordset[0];
+
+    // Get enrolled modules with progress
+    const modulesQuery = `
+      SELECT 
+        m.module_id as id,
+        m.module_code as code,
+        m.module_name as name,
+        m.description,
+        um.enrollment_status as enrollmentStatus,
+        um.enrolled_at as enrolledAt,
+        
+        -- Calculate progress based on completed topics
+        ISNULL(
+          (SELECT COUNT(*) 
+           FROM dbo.user_progress up 
+           INNER JOIN dbo.topics t ON up.topic_id = t.topic_id 
+           WHERE up.user_id = @userId 
+           AND t.module_id = m.module_id 
+           AND up.chapter_id IS NULL
+           AND up.completion_status = 'completed'
+          ) * 100.0 / 
+          NULLIF((SELECT COUNT(*) FROM dbo.topics t WHERE t.module_id = m.module_id AND t.is_active = 1), 0), 
+          0
+        ) as progress,
+        
+        -- Total study hours for this module
+        ISNULL(
+          (SELECT SUM(hours_logged) 
+           FROM dbo.study_hours sh 
+           WHERE sh.user_id = @userId AND sh.module_id = m.module_id
+          ), 0
+        ) + ISNULL(
+          (SELECT SUM(up.hours_spent)
+           FROM dbo.user_progress up 
+           INNER JOIN dbo.topics t ON up.topic_id = t.topic_id 
+           WHERE up.user_id = @userId 
+           AND t.module_id = m.module_id 
+           AND up.chapter_id IS NULL
+          ), 0
+        ) as totalHours
+        
+      FROM dbo.modules m
+      INNER JOIN dbo.user_modules um ON m.module_id = um.module_id
+      WHERE um.user_id = @userId 
+      AND m.is_active = 1
+      ORDER BY um.enrolled_at DESC
+    `;
+
+    const modulesResult = await request.query(modulesQuery);
+    const modules = modulesResult.recordset;
+
+    // For each module, get topics with progress
+    const modulesWithTopics = await Promise.all(
+      modules.map(async (module) => {
+        const topicsRequest = pool.request();
+        topicsRequest.input('userId', sql.NVarChar(255), req.user.id);
+        topicsRequest.input('moduleId', sql.Int, module.id);
+
+        const topicsQuery = `
+          SELECT 
+            t.topic_id as id,
+            t.topic_name as name,
+            t.description,
+            t.order_sequence as orderSequence,
+            ISNULL(up.completion_status, 'not_started') as completionStatus,
+            ISNULL(up.hours_spent, 0) as hoursSpent,
+            up.started_at as startedAt,
+            up.completed_at as completedAt,
+            up.notes
+          FROM dbo.topics t
+          LEFT JOIN dbo.user_progress up ON t.topic_id = up.topic_id AND up.user_id = @userId AND up.chapter_id IS NULL
+          WHERE t.module_id = @moduleId AND t.is_active = 1
+          ORDER BY t.order_sequence ASC, t.topic_name ASC
+        `;
+
+        const topicsResult = await topicsRequest.query(topicsQuery);
+        
+        return {
+          id: module.id,
+          code: module.code,
+          name: module.name,
+          description: module.description,
+          enrollmentStatus: module.enrollmentStatus,
+          enrolledAt: module.enrolledAt,
+          progress: Math.round(module.progress),
+          totalHours: parseFloat(module.totalHours.toFixed(1)),
+          topics: topicsResult.recordset.map(topic => ({
+            id: topic.id,
+            name: topic.name,
+            description: topic.description,
+            orderSequence: topic.orderSequence,
+            completionStatus: topic.completionStatus,
+            hoursSpent: parseFloat((topic.hoursSpent || 0).toFixed(1)),
+            startedAt: topic.startedAt,
+            completedAt: topic.completedAt,
+            notes: topic.notes
+          }))
+        };
+      })
+    );
+
+    const response = {
+      goals: {
+        overall: {
+          totalHours: parseFloat(stats.totalHours.toFixed(1)),
+          completedTopics: stats.completedTopics,
+          totalSessions: stats.totalSessions
+        }
+      },
+      modules: modulesWithTopics
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('Error fetching progress overview:', error);
+    res.status(500).json({ error: 'Failed to fetch progress overview' });
+  }
 });
 
 module.exports = router;

@@ -1,3 +1,4 @@
+// services/sessionService.js
 const express = require('express');
 const sql = require('mssql');
 const { authenticateToken } = require('../middleware/authMiddleware');
@@ -58,13 +59,13 @@ router.get('/', authenticateToken, async (req, res) => {
     await bumpStatuses(pool); // keep statuses fresh on read
 
     const request = pool.request();
-    request.input('limit', sql.Int, parseInt(limit));
-    request.input('offset', sql.Int, parseInt(offset));
-    request.input('userId', sql.NVarChar(36), req.user.id);
+    request.input('limit', sql.Int, parseInt(limit, 10));
+    request.input('offset', sql.Int, parseInt(offset, 10));
+    request.input('userId', sql.Int, parseInt(req.user.id, 10));
 
     let whereClause = 'WHERE 1=1';
     if (groupId) {
-      request.input('groupId', sql.Int, groupId);
+      request.input('groupId', sql.Int, parseInt(groupId, 10));
       whereClause += ' AND ss.group_id = @groupId';
     }
     if (status) {
@@ -108,7 +109,7 @@ router.get('/', authenticateToken, async (req, res) => {
         m.module_code AS courseCode
       FROM study_sessions ss
       JOIN study_groups sg ON ss.group_id = sg.group_id
-      JOIN modules m ON sg.module_id = m.module_id
+      LEFT JOIN modules m ON sg.module_id = m.module_id
       LEFT JOIN session_attendees sa    ON ss.session_id = sa.session_id
       LEFT JOIN session_attendees my_sa ON ss.session_id = my_sa.session_id 
         AND my_sa.user_id = @userId 
@@ -148,8 +149,8 @@ router.get('/:sessionId', authenticateToken, async (req, res) => {
     await bumpStatuses(pool);
 
     const request = pool.request();
-    request.input('sessionId', sql.Int, req.params.sessionId);
-    request.input('userId', sql.NVarChar(36), req.user.id);
+    request.input('sessionId', sql.Int, parseInt(req.params.sessionId, 10));
+    request.input('userId', sql.Int, parseInt(req.user.id, 10));
 
     const q = await request.query(`
       SELECT 
@@ -175,7 +176,7 @@ router.get('/:sessionId', authenticateToken, async (req, res) => {
         m.module_code AS courseCode
       FROM study_sessions ss
       JOIN study_groups sg ON ss.group_id = sg.group_id
-      JOIN modules m ON sg.module_id = m.module_id
+      LEFT JOIN modules m ON sg.module_id = m.module_id
       LEFT JOIN session_attendees sa    ON ss.session_id = sa.session_id
       LEFT JOIN session_attendees my_sa ON ss.session_id = my_sa.session_id 
         AND my_sa.user_id = @userId
@@ -231,7 +232,8 @@ router.post('/', authenticateToken, async (req, res) => {
 
     const pool = getPool();
     const request = pool.request();
-    request.input('organizerId', sql.NVarChar(36), req.user.id);
+    // Bind the organizerId (used by queries and INSERT)
+    request.input('organizerId', sql.Int, parseInt(req.user.id, 10));
     request.input('sessionTitle', sql.NVarChar(255), session_title);
     request.input('description', sql.NText, description || null);
     request.input('scheduledStart', sql.DateTime2, scheduled_start);
@@ -240,7 +242,7 @@ router.post('/', authenticateToken, async (req, res) => {
     request.input('sessionType', sql.NVarChar(50), session_type || 'study');
 
     if (group_id) {
-      request.input('groupId', sql.Int, group_id);
+      request.input('groupId', sql.Int, parseInt(group_id, 10));
     } else {
       const g = await request.query(`
         SELECT TOP 1 gm.group_id 
@@ -278,7 +280,7 @@ router.post('/', authenticateToken, async (req, res) => {
     // Auto-RSVP organizer
     const attendReq = pool.request();
     attendReq.input('sessionId', sql.Int, created.id);
-    attendReq.input('userId', sql.NVarChar(36), req.user.id);
+    attendReq.input('userId', sql.Int, parseInt(req.user.id, 10));
     await attendReq.query(`
       IF NOT EXISTS (SELECT 1 FROM session_attendees WHERE session_id=@sessionId AND user_id=@userId)
       INSERT INTO session_attendees (session_id, user_id, attendance_status, responded_at)
@@ -289,7 +291,7 @@ router.post('/', authenticateToken, async (req, res) => {
     const ownerRes = await pool
       .request()
       .input('groupId', sql.Int, created.groupId)
-      .input('userId', sql.NVarChar(36), req.user.id)
+      .input('userId', sql.Int, parseInt(req.user.id, 10))
       .query(
         `SELECT 1 FROM group_members WHERE group_id=@groupId AND user_id=@userId AND role IN ('owner','admin')`
       );
@@ -313,8 +315,8 @@ router.post('/', authenticateToken, async (req, res) => {
 router.post('/:sessionId/join', authenticateToken, async (req, res) => {
   try {
     const request = getPool().request();
-    request.input('sessionId', sql.Int, req.params.sessionId);
-    request.input('userId', sql.NVarChar(36), req.user.id);
+    request.input('sessionId', sql.Int, parseInt(req.params.sessionId, 10));
+    request.input('userId', sql.Int, parseInt(req.user.id, 10));
 
     // Guard: session exists & not cancelled
     const s = await request.query(`SELECT status FROM study_sessions WHERE session_id=@sessionId`);
@@ -351,15 +353,15 @@ router.post('/:sessionId/join', authenticateToken, async (req, res) => {
 router.delete('/:sessionId/leave', authenticateToken, async (req, res) => {
   try {
     const request = getPool().request();
-    request.input('sessionId', sql.Int, req.params.sessionId);
-    request.input('userId', sql.NVarChar(36), req.user.id);
+    request.input('sessionId', sql.Int, parseInt(req.params.sessionId, 10));
+    request.input('userId', sql.Int, parseInt(req.user.id, 10));
 
     // Organizer cannot leave
     const org = await request.query(
       `SELECT organizer_id FROM study_sessions WHERE session_id=@sessionId`
     );
     if (!org.recordset.length) return res.status(404).json({ error: 'Session not found' });
-    if (org.recordset[0].organizer_id === req.user.id) {
+    if (org.recordset[0].organizer_id === parseInt(req.user.id, 10)) {
       return res.status(400).json({ error: 'Organizer cannot leave their own session' });
     }
 
@@ -378,8 +380,8 @@ router.delete('/:sessionId/leave', authenticateToken, async (req, res) => {
 router.put('/:sessionId', authenticateToken, async (req, res) => {
   try {
     const request = getPool().request();
-    request.input('sessionId', sql.Int, req.params.sessionId);
-    request.input('userId', sql.NVarChar(36), req.user.id);
+    request.input('sessionId', sql.Int, parseInt(req.params.sessionId, 10));
+    request.input('userId', sql.Int, parseInt(req.user.id, 10));
 
     const org = await request.query(`
       SELECT organizer_id, status FROM study_sessions WHERE session_id=@sessionId AND organizer_id=@userId
@@ -461,8 +463,8 @@ router.put('/:sessionId', authenticateToken, async (req, res) => {
 router.put('/:sessionId/start', authenticateToken, async (req, res) => {
   try {
     const request = getPool().request();
-    request.input('sessionId', sql.Int, req.params.sessionId);
-    request.input('userId', sql.NVarChar(36), req.user.id);
+    request.input('sessionId', sql.Int, parseInt(req.params.sessionId, 10));
+    request.input('userId', sql.Int, parseInt(req.user.id, 10));
 
     const org = await request.query(
       `SELECT organizer_id, status FROM study_sessions WHERE session_id=@sessionId AND organizer_id=@userId`
@@ -490,8 +492,8 @@ router.put('/:sessionId/start', authenticateToken, async (req, res) => {
 router.put('/:sessionId/end', authenticateToken, async (req, res) => {
   try {
     const request = getPool().request();
-    request.input('sessionId', sql.Int, req.params.sessionId);
-    request.input('userId', sql.NVarChar(36), req.user.id);
+    request.input('sessionId', sql.Int, parseInt(req.params.sessionId, 10));
+    request.input('userId', sql.Int, parseInt(req.user.id, 10));
 
     const org = await request.query(
       `SELECT organizer_id, status FROM study_sessions WHERE session_id=@sessionId AND organizer_id=@userId`
@@ -525,8 +527,8 @@ router.put('/:sessionId/end', authenticateToken, async (req, res) => {
 router.put('/:sessionId/cancel', authenticateToken, async (req, res) => {
   try {
     const request = getPool().request();
-    request.input('sessionId', sql.Int, req.params.sessionId);
-    request.input('userId', sql.NVarChar(36), req.user.id);
+    request.input('sessionId', sql.Int, parseInt(req.params.sessionId, 10));
+    request.input('userId', sql.Int, parseInt(req.user.id, 10));
 
     const org = await request.query(
       `SELECT organizer_id, status FROM study_sessions WHERE session_id=@sessionId AND organizer_id=@userId`
@@ -565,8 +567,8 @@ router.delete('/:sessionId', authenticateToken, async (req, res) => {
   try {
     // Same as cancel to ensure "Cancelled" counts are reflected
     const request = getPool().request();
-    request.input('sessionId', sql.Int, req.params.sessionId);
-    request.input('userId', sql.NVarChar(36), req.user.id);
+    request.input('sessionId', sql.Int, parseInt(req.params.sessionId, 10));
+    request.input('userId', sql.Int, parseInt(req.user.id, 10));
 
     const org = await request.query(
       `SELECT organizer_id, status FROM study_sessions WHERE session_id=@sessionId AND organizer_id=@userId`

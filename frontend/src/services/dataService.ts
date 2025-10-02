@@ -682,6 +682,7 @@ export class DataService {
       courseCode: sessionData.courseCode,
       maxParticipants: sessionData.maxParticipants,
       groupId: sessionData.groupId,
+      group_id: sessionData.groupId,
       // legacy mirrors
       session_title: sessionData.title,
       scheduled_start: startISO,

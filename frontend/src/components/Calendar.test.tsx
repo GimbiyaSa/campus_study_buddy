@@ -53,12 +53,20 @@ beforeEach(() => {
   vi.setSystemTime(FIXED_NOW);
 
   // Default sessions for initial render: 3 on today (so "+1 more" appears) and 1 on another day
-  fetchSessionsMock.mockReset().mockResolvedValue([
-    mk({ id: 's1', title: 'Algorithms Study Group', startTime: '10:00' }),
-    mk({ id: 's2', title: 'Database Design Workshop', startTime: '12:00' }),
-    mk({ id: 's3', title: 'Extra Session', startTime: '15:00' }),
-    mk({ id: 's4', title: 'Weekend Review', date: '2025-10-05', startTime: '09:30', location: 'Hall A' }),
-  ]);
+  fetchSessionsMock
+    .mockReset()
+    .mockResolvedValue([
+      mk({ id: 's1', title: 'Algorithms Study Group', startTime: '10:00' }),
+      mk({ id: 's2', title: 'Database Design Workshop', startTime: '12:00' }),
+      mk({ id: 's3', title: 'Extra Session', startTime: '15:00' }),
+      mk({
+        id: 's4',
+        title: 'Weekend Review',
+        date: '2025-10-05',
+        startTime: '09:30',
+        location: 'Hall A',
+      }),
+    ]);
 });
 
 afterEach(() => {
@@ -144,7 +152,9 @@ describe('Calendar', () => {
     // Close modal to proceed with other tests
     await userEvent.click(screen.getByRole('button', { name: /Cancel/i }));
     await waitFor(() => {
-      expect(screen.queryByRole('heading', { name: /Schedule Study Session/i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('heading', { name: /Schedule Study Session/i })
+      ).not.toBeInTheDocument();
     });
   });
 

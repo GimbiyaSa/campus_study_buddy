@@ -127,9 +127,7 @@ describe('UpcomingSessions', () => {
 
     // Dispatch a created event with a session in window
     const created = mkSession({ id: 'b', title: 'B', date: '2025-10-02', startTime: '13:00' });
-    window.dispatchEvent(
-      new CustomEvent('session:created', { detail: created })
-    );
+    window.dispatchEvent(new CustomEvent('session:created', { detail: created }));
 
     // Both A and B now; ensure sort ascending by date/time
     await screen.findByText('B');
@@ -177,7 +175,7 @@ describe('UpcomingSessions', () => {
     ]);
 
     // First click -> respond with 409 to trigger rollback
-    ;(global.fetch as any)
+    (global.fetch as any)
       .mockResolvedValueOnce({ ok: false, status: 409 }) // join
       .mockResolvedValue({ ok: true, status: 200 }); // any subsequent fetches safe
 
@@ -214,7 +212,7 @@ describe('UpcomingSessions', () => {
       }),
     ]);
 
-    ;(global.fetch as any).mockResolvedValueOnce({ ok: false, status: 400 }); // leave -> rollback
+    (global.fetch as any).mockResolvedValueOnce({ ok: false, status: 400 }); // leave -> rollback
 
     render(<UpcomingSessions />);
 
@@ -245,7 +243,7 @@ describe('UpcomingSessions', () => {
       ])
       .mockResolvedValueOnce([mkSession({ id: 'other', title: 'Other' })]); // after invalidate
 
-    ;(global.fetch as any).mockResolvedValueOnce({ ok: true, status: 200 }); // cancel
+    (global.fetch as any).mockResolvedValueOnce({ ok: true, status: 200 }); // cancel
 
     const spyInvalidate = vi.fn();
     window.addEventListener('sessions:invalidate', spyInvalidate);

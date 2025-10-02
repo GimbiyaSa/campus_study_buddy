@@ -61,19 +61,17 @@ const mockLogout = vi.fn();
 
 const mockState = {
   loading: true as boolean,
-  currentUser: null as
-    | {
-        user_id: number;
-        email: string;
-        first_name: string;
-        last_name: string;
-        university: string;
-        course: string;
-        year_of_study: number;
-        profile_image_url?: string;
-        is_active: boolean;
-      }
-    | null,
+  currentUser: null as {
+    user_id: number;
+    email: string;
+    first_name: string;
+    last_name: string;
+    university: string;
+    course: string;
+    year_of_study: number;
+    profile_image_url?: string;
+    is_active: boolean;
+  } | null,
 };
 
 vi.mock('../contexts/UserContext', () => {
@@ -122,9 +120,7 @@ describe('Header', () => {
 
     render(<Header />);
 
-    expect(
-      screen.getByRole('heading', { name: /campus study buddy/i })
-    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /campus study buddy/i })).toBeInTheDocument();
     expect(screen.getByText(/please log in/i)).toBeInTheDocument();
   });
 
@@ -175,15 +171,13 @@ describe('Header', () => {
     render(<Header />);
 
     // Search input and initials (no profile image)
-    expect(
-      screen.getByPlaceholderText(/search courses, groups, or buddies/i)
-    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/search courses, groups, or buddies/i)).toBeInTheDocument();
     expect(screen.getByText('GS')).toBeInTheDocument();
 
     // Open notifications
-    const bellBtn = screen.getAllByRole('button').find((b) =>
-      b.querySelector('svg')
-    ) as HTMLButtonElement;
+    const bellBtn = screen
+      .getAllByRole('button')
+      .find((b) => b.querySelector('svg')) as HTMLButtonElement;
     await userEvent.click(bellBtn);
 
     // Badge '2'
@@ -230,9 +224,9 @@ describe('Header', () => {
     render(<Header />);
 
     // Open notifications
-    const bellBtn = screen.getAllByRole('button').find((b) =>
-      b.querySelector('svg')
-    ) as HTMLButtonElement;
+    const bellBtn = screen
+      .getAllByRole('button')
+      .find((b) => b.querySelector('svg')) as HTMLButtonElement;
     await userEvent.click(bellBtn);
 
     expect(await screen.findByText(/new study group invitation/i)).toBeInTheDocument();

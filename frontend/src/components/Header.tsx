@@ -186,12 +186,14 @@ export default function Header() {
       if (win.google?.accounts?.id?.disableAutoSelect) {
         win.google.accounts.id.disableAutoSelect();
       }
-      const lastToken = localStorage.getItem('last_google_id_token');
+      // revoke the last used credential if stored in localStorage (best-effort)
+      const lastToken = localStorage.getItem('google_id_token');
       if (lastToken && win.google?.accounts?.id?.revoke) {
         win.google.accounts.id.revoke(lastToken, () => {});
       }
-      localStorage.removeItem('last_google_id_token');
-    } catch {
+      // Clear stored token
+      localStorage.removeItem('google_id_token');
+    } catch (e) {
       // ignore
     }
 

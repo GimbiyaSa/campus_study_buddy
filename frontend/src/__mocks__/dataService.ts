@@ -28,9 +28,9 @@ export const mockPartners: StudyPartner[] = [
     studyPreferences: {
       preferredTimes: ['Morning'],
       environment: 'Library',
-      studyStyle: 'Group'
+      studyStyle: 'Group',
     },
-    compatibilityScore: 95
+    compatibilityScore: 95,
   },
   {
     id: '2',
@@ -43,10 +43,10 @@ export const mockPartners: StudyPartner[] = [
     studyPreferences: {
       preferredTimes: ['Evening'],
       environment: 'Home',
-      studyStyle: 'Solo'
+      studyStyle: 'Solo',
     },
-    compatibilityScore: 90
-  }
+    compatibilityScore: 90,
+  },
 ];
 
 const DataService = {

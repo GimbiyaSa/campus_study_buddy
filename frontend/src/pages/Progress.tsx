@@ -1,5 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Clock, BookOpen, Trophy, TrendingUp, AlertCircle, RefreshCw, Loader2, Plus, CheckCircle } from 'lucide-react';
+import {
+  Clock,
+  BookOpen,
+  Trophy,
+  TrendingUp,
+  AlertCircle,
+  RefreshCw,
+  Loader2,
+  Plus,
+  CheckCircle,
+} from 'lucide-react';
 import { ErrorHandler, type AppError } from '../utils/errorHandler';
 import { createInitialLoadingState } from '../components/ui/LoadingStates';
 import type { LoadingState } from '../components/ui/LoadingStates';
@@ -21,7 +31,11 @@ export default function Progress() {
   const [loadingState, setLoadingState] = useState<LoadingState>(createInitialLoadingState());
   const [courses, setCourses] = useState<Course[]>([]);
   const [showLogDialog, setShowLogDialog] = useState(false);
-  const [selectedTopic, setSelectedTopic] = useState<{id: number, name: string, module: string} | null>(null);
+  const [selectedTopic, setSelectedTopic] = useState<{
+    id: number;
+    name: string;
+    module: string;
+  } | null>(null);
   const [expandedCourses, setExpandedCourses] = useState<Set<string>>(new Set());
   const [courseTopics, setCourseTopics] = useState<Record<string, any[]>>({});
 
@@ -32,9 +46,9 @@ export default function Progress() {
 
     try {
       const topics = await DataService.fetchModuleTopics(parseInt(courseId));
-      setCourseTopics(prev => ({
+      setCourseTopics((prev) => ({
         ...prev,
-        [courseId]: topics
+        [courseId]: topics,
       }));
     } catch (error) {
       console.error('Failed to load course topics:', error);
@@ -53,27 +67,27 @@ export default function Progress() {
   };
 
   const fetchProgressData = async () => {
-    setLoadingState(prev => ({ ...prev, isLoading: true, error: null }));
-    
+    setLoadingState((prev) => ({ ...prev, isLoading: true, error: null }));
+
     try {
       // Leverage the existing course data that already has progress calculations
       const coursesData = await DataService.fetchCourses();
       setCourses(coursesData);
-      
-      setLoadingState(prev => ({ 
-        ...prev, 
-        isLoading: false, 
+
+      setLoadingState((prev) => ({
+        ...prev,
+        isLoading: false,
         lastUpdated: new Date(),
-        retryCount: 0 
+        retryCount: 0,
       }));
     } catch (err) {
       console.error('Progress fetch error:', err);
       const appError = ErrorHandler.handleApiError(err, 'progress');
-      setLoadingState(prev => ({ 
-        ...prev, 
-        isLoading: false, 
+      setLoadingState((prev) => ({
+        ...prev,
+        isLoading: false,
         error: appError,
-        retryCount: prev.retryCount + 1
+        retryCount: prev.retryCount + 1,
       }));
     }
   };
@@ -96,7 +110,7 @@ export default function Progress() {
     }
   };
 
-  const openLogDialog = (topic: {id: number, name: string, module: string}) => {
+  const openLogDialog = (topic: { id: number; name: string; module: string }) => {
     setSelectedTopic(topic);
     setShowLogDialog(true);
   };
@@ -107,10 +121,14 @@ export default function Progress() {
     const totalTopics = courses.reduce((sum, course) => sum + (course.totalTopics || 0), 0);
     const completedTopics = courses.reduce((sum, course) => sum + (course.completedTopics || 0), 0);
     const totalCourses = courses.length;
-    const activeCourses = courses.filter(course => course.enrollmentStatus === 'active').length;
-    const completedCourses = courses.filter(course => course.progress === 100).length;
-    const averageProgress = totalCourses > 0 ? 
-      Math.round(courses.reduce((sum, course) => sum + (course.progress || 0), 0) / totalCourses) : 0;
+    const activeCourses = courses.filter((course) => course.enrollmentStatus === 'active').length;
+    const completedCourses = courses.filter((course) => course.progress === 100).length;
+    const averageProgress =
+      totalCourses > 0
+        ? Math.round(
+            courses.reduce((sum, course) => sum + (course.progress || 0), 0) / totalCourses
+          )
+        : 0;
 
     return {
       totalHours,
@@ -119,7 +137,7 @@ export default function Progress() {
       averageProgress,
       activeCourses,
       completedCourses,
-      totalCourses
+      totalCourses,
     };
   };
 
@@ -148,10 +166,10 @@ export default function Progress() {
           <h1 className="text-2xl font-semibold text-slate-900">Track my progress</h1>
           <p className="text-slate-600 text-sm">Monitor your study habits and achievements</p>
         </div>
-        <EnhancedErrorDisplay 
-          error={loadingState.error} 
+        <EnhancedErrorDisplay
+          error={loadingState.error}
           onRetry={fetchProgressData}
-          onDismiss={() => setLoadingState(prev => ({ ...prev, error: null }))}
+          onDismiss={() => setLoadingState((prev) => ({ ...prev, error: null }))}
         />
       </div>
     );
@@ -173,7 +191,11 @@ export default function Progress() {
           title="Total Hours"
           value={Math.round(overview.totalHours).toString()}
           subtitle="All time"
-          trend={overview.totalHours > 0 ? `${Math.round(overview.totalHours)}h logged` : 'Start logging hours'}
+          trend={
+            overview.totalHours > 0
+              ? `${Math.round(overview.totalHours)}h logged`
+              : 'Start logging hours'
+          }
           color="emerald"
         />
         <EnhancedStatCard
@@ -181,7 +203,13 @@ export default function Progress() {
           title="Average Progress"
           value={`${overview.averageProgress}%`}
           subtitle="Across all courses"
-          trend={overview.averageProgress > 50 ? 'Excellent progress!' : overview.averageProgress > 0 ? 'Keep it up!' : 'Just getting started'}
+          trend={
+            overview.averageProgress > 50
+              ? 'Excellent progress!'
+              : overview.averageProgress > 0
+              ? 'Keep it up!'
+              : 'Just getting started'
+          }
           color="blue"
         />
         <EnhancedStatCard
@@ -189,7 +217,11 @@ export default function Progress() {
           title="Topics Mastered"
           value={`${overview.completedTopics}`}
           subtitle={`of ${overview.totalTopics} total`}
-          trend={overview.completedTopics > 0 ? `${overview.completedTopics} completed!` : 'Complete your first topic'}
+          trend={
+            overview.completedTopics > 0
+              ? `${overview.completedTopics} completed!`
+              : 'Complete your first topic'
+          }
           color="purple"
         />
         <EnhancedStatCard
@@ -197,7 +229,13 @@ export default function Progress() {
           title="Active Courses"
           value={`${overview.activeCourses}`}
           subtitle={`${overview.completedCourses} completed`}
-          trend={overview.activeCourses > 0 ? `${overview.activeCourses} active ${overview.activeCourses === 1 ? 'course' : 'courses'}` : 'Enroll in a course'}
+          trend={
+            overview.activeCourses > 0
+              ? `${overview.activeCourses} active ${
+                  overview.activeCourses === 1 ? 'course' : 'courses'
+                }`
+              : 'Enroll in a course'
+          }
           color="amber"
         />
       </div>
@@ -206,13 +244,17 @@ export default function Progress() {
       {courses && courses.length > 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-6">
           <div className="mb-6">
-            <h2 className="text-lg font-semibold text-slate-900">Course Progress & Topic Management</h2>
-            <p className="text-sm text-slate-600">Track completion status and log study hours for each topic</p>
+            <h2 className="text-lg font-semibold text-slate-900">
+              Course Progress & Topic Management
+            </h2>
+            <p className="text-sm text-slate-600">
+              Track completion status and log study hours for each topic
+            </p>
           </div>
-          
+
           <div className="space-y-4">
             {courses.map((course) => (
-              <CourseProgressCard 
+              <CourseProgressCard
                 key={course.id}
                 course={course}
                 isExpanded={expandedCourses.has(course.id)}
@@ -227,9 +269,11 @@ export default function Progress() {
         <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center">
           <BookOpen className="h-12 w-12 mx-auto mb-4 text-slate-400" />
           <h3 className="text-lg font-semibold text-slate-900 mb-2">No courses enrolled</h3>
-          <p className="text-slate-600 mb-4">Enroll in courses to start tracking your progress and logging study hours.</p>
+          <p className="text-slate-600 mb-4">
+            Enroll in courses to start tracking your progress and logging study hours.
+          </p>
           <button
-            onClick={() => window.location.href = '/courses'}
+            onClick={() => (window.location.href = '/courses')}
             className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors"
           >
             <Plus className="h-4 w-4" />
@@ -246,7 +290,7 @@ export default function Progress() {
           topic={{
             id: selectedTopic.id,
             name: selectedTopic.name,
-            module: selectedTopic.module
+            module: selectedTopic.module,
           }}
           onSubmit={handleLogHours}
         />
@@ -256,26 +300,24 @@ export default function Progress() {
 }
 
 // Course Progress Card Component
-function CourseProgressCard({ 
-  course, 
-  isExpanded, 
-  topics, 
-  onToggleExpansion, 
-  onOpenLogDialog 
+function CourseProgressCard({
+  course,
+  isExpanded,
+  topics,
+  onToggleExpansion,
+  onOpenLogDialog,
 }: {
   course: Course;
   isExpanded: boolean;
   topics: any[];
   onToggleExpansion: () => void;
-  onOpenLogDialog: (topic: {id: number, name: string, module: string}) => void;
+  onOpenLogDialog: (topic: { id: number; name: string; module: string }) => void;
 }) {
   // Calculate progress from course data (which already has accurate calculations)
   const progressPercentage = course.progress || 0;
 
   return (
-    <div
-      className="border-2 border-slate-200 rounded-xl p-5 mb-4"
-    >
+    <div className="border-2 border-slate-200 rounded-xl p-5 mb-4">
       {/* Course Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
@@ -287,48 +329,70 @@ function CourseProgressCard({
               href={`/courses/${course.id}`}
               className="font-semibold text-slate-900 hover:underline focus:underline outline-none"
               tabIndex={0}
-              onClick={e => e.stopPropagation()}
-              onKeyDown={e => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
             >
               {course.title}
             </a>
             <div className="flex items-center gap-2 text-sm text-slate-500">
-              {course.code && <a
-                href={`/courses/${course.id}`}
-                className="hover:underline focus:underline outline-none"
-                tabIndex={0}
-                onClick={e => e.stopPropagation()}
-                onKeyDown={e => e.stopPropagation()}
-              >{course.code}</a>}
+              {course.code && (
+                <a
+                  href={`/courses/${course.id}`}
+                  className="hover:underline focus:underline outline-none"
+                  tabIndex={0}
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
+                  {course.code}
+                </a>
+              )}
               {course.code && <span>•</span>}
               <span>{progressPercentage}% complete</span>
               <span>•</span>
-              <span>{course.totalHours && course.totalHours > 0 ? `${course.totalHours}h logged` : '0h logged'}</span>
+              <span>
+                {course.totalHours && course.totalHours > 0
+                  ? `${course.totalHours}h logged`
+                  : '0h logged'}
+              </span>
               {course.completedTopics !== undefined && course.totalTopics !== undefined && (
                 <>
                   <span>•</span>
-                  <span>{course.completedTopics}/{course.totalTopics} topics</span>
+                  <span>
+                    {course.completedTopics}/{course.totalTopics} topics
+                  </span>
                 </>
               )}
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-            course.enrollmentStatus === 'active' 
-              ? 'bg-emerald-100 text-emerald-700'
-              : course.enrollmentStatus === 'completed'
-              ? 'bg-blue-100 text-blue-700'
-              : 'bg-slate-100 text-slate-700'
-          }`}>
+          <div
+            className={`px-2 py-1 rounded-full text-xs font-medium ${
+              course.enrollmentStatus === 'active'
+                ? 'bg-emerald-100 text-emerald-700'
+                : course.enrollmentStatus === 'completed'
+                ? 'bg-blue-100 text-blue-700'
+                : 'bg-slate-100 text-slate-700'
+            }`}
+          >
             {course.enrollmentStatus || 'active'}
           </div>
           <button
             onClick={onToggleExpansion}
             className="p-1 rounded-lg hover:bg-slate-100 transition-colors"
           >
-            <svg className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            <svg
+              className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
             </svg>
           </button>
         </div>
@@ -339,9 +403,9 @@ function CourseProgressCard({
         <div className="w-full bg-slate-100 rounded-full h-2">
           <div
             className={`h-2 rounded-full transition-all duration-500 ${
-              progressPercentage >= 100 
-                ? 'bg-gradient-to-r from-emerald-500 to-emerald-600' 
-                : progressPercentage > 0 
+              progressPercentage >= 100
+                ? 'bg-gradient-to-r from-emerald-500 to-emerald-600'
+                : progressPercentage > 0
                 ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
                 : 'bg-gradient-to-r from-blue-400 to-blue-500'
             }`}
@@ -349,29 +413,35 @@ function CourseProgressCard({
           />
         </div>
       </div>
-      
+
       {/* Topics */}
       {isExpanded && (
         <div>
           {topics.length > 0 ? (
             <div className="space-y-2">
               <h4 className="text-sm font-medium text-slate-700 mb-3">
-                Topics ({topics.filter(t => t.completionStatus === 'completed').length}/{topics.length} completed)
+                Topics ({topics.filter((t) => t.completionStatus === 'completed').length}/
+                {topics.length} completed)
               </h4>
               {topics
                 .sort((a, b) => a.orderSequence - b.orderSequence)
                 .map((topic) => {
                   const isCompleted = topic.completionStatus === 'completed';
                   return (
-                    <div key={topic.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
+                    <div
+                      key={topic.id}
+                      className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
+                    >
                       <div className="flex items-center gap-3 flex-1">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                          isCompleted
-                            ? 'bg-emerald-100 text-emerald-600'
-                            : topic.completionStatus === 'in_progress'
-                            ? 'bg-blue-100 text-blue-600'
-                            : 'bg-slate-200 text-slate-500'
-                        }`}>
+                        <div
+                          className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            isCompleted
+                              ? 'bg-emerald-100 text-emerald-600'
+                              : topic.completionStatus === 'in_progress'
+                              ? 'bg-blue-100 text-blue-600'
+                              : 'bg-slate-200 text-slate-500'
+                          }`}
+                        >
                           {isCompleted ? (
                             <CheckCircle className="h-4 w-4" />
                           ) : (
@@ -384,10 +454,14 @@ function CourseProgressCard({
                             {topic.hoursSpent > 0 && <span>{topic.hoursSpent}h logged</span>}
                             {/* Only show status if not completed, otherwise just show completed date */}
                             {!isCompleted && (
-                              <span className="capitalize">{topic.completionStatus.replace('_', ' ')}</span>
+                              <span className="capitalize">
+                                {topic.completionStatus.replace('_', ' ')}
+                              </span>
                             )}
                             {isCompleted && topic.completedAt && (
-                              <span>Completed {new Date(topic.completedAt).toLocaleDateString()}</span>
+                              <span>
+                                Completed {new Date(topic.completedAt).toLocaleDateString()}
+                              </span>
                             )}
                           </div>
                         </div>
@@ -396,12 +470,12 @@ function CourseProgressCard({
                       {!isCompleted && (
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <button
-                            onClick={e => {
+                            onClick={(e) => {
                               e.stopPropagation();
                               onOpenLogDialog({
                                 id: topic.id,
                                 name: topic.name,
-                                module: course.title
+                                module: course.title,
                               });
                             }}
                             className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
@@ -422,7 +496,7 @@ function CourseProgressCard({
               <a
                 href={`/courses/${course.id}`}
                 className="inline-block mt-2 text-blue-600 hover:underline text-sm font-medium"
-                onClick={e => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
               >
                 Go to course page to add or view topics
               </a>
@@ -435,13 +509,13 @@ function CourseProgressCard({
 }
 
 // Enhanced Stat Card Component with better design
-function EnhancedStatCard({ 
-  icon, 
-  title, 
-  value, 
-  subtitle, 
-  trend, 
-  color = 'emerald' 
+function EnhancedStatCard({
+  icon,
+  title,
+  value,
+  subtitle,
+  trend,
+  color = 'emerald',
 }: {
   icon: React.ReactNode;
   title: string;
@@ -454,7 +528,7 @@ function EnhancedStatCard({
     emerald: 'bg-emerald-50 text-emerald-700',
     blue: 'bg-blue-50 text-blue-700',
     purple: 'bg-purple-50 text-purple-700',
-    amber: 'bg-amber-50 text-amber-700'
+    amber: 'bg-amber-50 text-amber-700',
   };
 
   return (
@@ -477,14 +551,14 @@ function EnhancedStatCard({
 }
 
 // Enhanced Error Display Component
-function EnhancedErrorDisplay({ 
-  error, 
-  onRetry, 
-  onDismiss 
-}: { 
-  error: AppError; 
-  onRetry: () => void; 
-  onDismiss: () => void; 
+function EnhancedErrorDisplay({
+  error,
+  onRetry,
+  onDismiss,
+}: {
+  error: AppError;
+  onRetry: () => void;
+  onDismiss: () => void;
 }) {
   return (
     <div className="rounded-2xl border border-red-200 bg-red-50 p-6">

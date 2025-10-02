@@ -1,5 +1,16 @@
 import { useEffect, useState } from 'react';
-import { BookOpen, GraduationCap, ArrowLeft, Clock, Plus, CheckCircle, TrendingUp, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
+import {
+  BookOpen,
+  GraduationCap,
+  ArrowLeft,
+  Clock,
+  Plus,
+  CheckCircle,
+  TrendingUp,
+  AlertCircle,
+  Loader2,
+  RefreshCw,
+} from 'lucide-react';
 import { DataService } from '../services/dataService';
 import { ErrorHandler, type AppError } from '../utils/errorHandler';
 import StudyLogDialog, { type StudyLog } from '../components/StudyLogDialog';
@@ -14,7 +25,11 @@ export default function CourseDetails({ id }: { id: string }) {
   const [loading, setLoading] = useState(true);
   const [showLogDialog, setShowLogDialog] = useState(false);
   const [showAddTopicDialog, setShowAddTopicDialog] = useState(false);
-  const [selectedTopic, setSelectedTopic] = useState<{id: number, name: string, module: string} | null>(null);
+  const [selectedTopic, setSelectedTopic] = useState<{
+    id: number;
+    name: string;
+    module: string;
+  } | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -41,14 +56,14 @@ export default function CourseDetails({ id }: { id: string }) {
     try {
       await DataService.logStudyHours(log.topicId, {
         hours: log.hours,
-        description: log.description
+        description: log.description,
       });
       console.log('✅ Study hours logged successfully');
       // Refresh both course data and topics to update progress
       const courses = await DataService.fetchCourses();
       const updatedCourse = courses.find((c: any) => String(c.id) === String(course.id));
       setCourse(updatedCourse);
-      
+
       const topicsData = await DataService.fetchModuleTopics(Number(course.id));
       setTopics(topicsData);
     } catch (error) {
@@ -57,7 +72,7 @@ export default function CourseDetails({ id }: { id: string }) {
     }
   };
 
-  const openLogDialog = (topic: {id: number, name: string, module: string}) => {
+  const openLogDialog = (topic: { id: number; name: string; module: string }) => {
     setSelectedTopic(topic);
     setShowLogDialog(true);
   };
@@ -70,7 +85,7 @@ export default function CourseDetails({ id }: { id: string }) {
       const courses = await DataService.fetchCourses();
       const updatedCourse = courses.find((c: any) => String(c.id) === String(course.id));
       setCourse(updatedCourse);
-      
+
       const topicsData = await DataService.fetchModuleTopics(Number(course.id));
       setTopics(topicsData);
     } catch (error) {
@@ -162,7 +177,9 @@ export default function CourseDetails({ id }: { id: string }) {
         <div className="text-center py-16">
           <AlertCircle className="h-12 w-12 mx-auto mb-4 text-slate-400" />
           <h3 className="text-lg font-semibold text-slate-900 mb-2">Course not found</h3>
-          <p className="text-slate-600 mb-4">The course you're looking for doesn't exist or you don't have access to it.</p>
+          <p className="text-slate-600 mb-4">
+            The course you're looking for doesn't exist or you don't have access to it.
+          </p>
           <button
             onClick={() => navigate('/courses')}
             className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
@@ -194,11 +211,11 @@ export default function CourseDetails({ id }: { id: string }) {
       {/* Course Header Card */}
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-start gap-6">
-          <div className={`grid h-16 w-16 place-items-center rounded-2xl flex-shrink-0 ${
-            isInstitution 
-              ? 'bg-emerald-50 text-emerald-700' 
-              : 'bg-blue-50 text-blue-700'
-          }`}>
+          <div
+            className={`grid h-16 w-16 place-items-center rounded-2xl flex-shrink-0 ${
+              isInstitution ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'
+            }`}
+          >
             {isInstitution ? (
               <GraduationCap className="h-8 w-8" />
             ) : (
@@ -207,11 +224,13 @@ export default function CourseDetails({ id }: { id: string }) {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 mb-2">
-              <span className={`rounded-full px-3 py-1 text-xs font-medium ${
-                isInstitution 
-                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
-                  : 'bg-blue-100 text-blue-800 border border-blue-200'
-              }`}>
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-medium ${
+                  isInstitution
+                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                    : 'bg-blue-100 text-blue-800 border border-blue-200'
+                }`}
+              >
                 {isInstitution ? 'Institution Course' : 'Personal Topic'}
               </span>
               {isInstitution && course.code && (
@@ -221,16 +240,10 @@ export default function CourseDetails({ id }: { id: string }) {
               )}
             </div>
             <h1 className="text-2xl font-bold text-slate-900 mb-2">{course.title}</h1>
-            {course.description && (
-              <p className="text-slate-600 mb-4">{course.description}</p>
-            )}
+            {course.description && <p className="text-slate-600 mb-4">{course.description}</p>}
             <div className="flex items-center gap-6 text-sm text-slate-500">
-              {course.university && (
-                <span>📍 {course.university}</span>
-              )}
-              {course.term && (
-                <span>📅 {course.term}</span>
-              )}
+              {course.university && <span>📍 {course.university}</span>}
+              {course.term && <span>📅 {course.term}</span>}
               <span>⏱️ {course.totalHours || 0}h studied</span>
             </div>
           </div>
@@ -277,7 +290,7 @@ export default function CourseDetails({ id }: { id: string }) {
             <div>
               <p className="text-sm text-slate-600">Completed</p>
               <p className="text-2xl font-bold text-slate-900">
-                {topics.filter(t => t.completionStatus === 'completed').length}
+                {topics.filter((t) => t.completionStatus === 'completed').length}
               </p>
             </div>
           </div>
@@ -291,7 +304,7 @@ export default function CourseDetails({ id }: { id: string }) {
             <h2 className="text-lg font-semibold text-slate-900">Course Topics</h2>
             <p className="text-sm text-slate-600">Manage your study topics and track progress</p>
           </div>
-          <button 
+          <button
             onClick={() => setShowAddTopicDialog(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
           >
@@ -304,8 +317,10 @@ export default function CourseDetails({ id }: { id: string }) {
           <div className="text-center py-12">
             <BookOpen className="h-12 w-12 mx-auto mb-4 text-slate-400" />
             <h3 className="text-lg font-semibold text-slate-900 mb-2">No topics yet</h3>
-            <p className="text-slate-600 mb-4">Add topics to start tracking your progress and logging study hours.</p>
-            <button 
+            <p className="text-slate-600 mb-4">
+              Add topics to start tracking your progress and logging study hours.
+            </p>
+            <button
               onClick={() => setShowAddTopicDialog(true)}
               className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
             >
@@ -318,59 +333,70 @@ export default function CourseDetails({ id }: { id: string }) {
             {topics
               .sort((a: any, b: any) => a.orderSequence - b.orderSequence)
               .map((topic: any) => (
-              <div key={topic.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors">
-                <div className="flex items-center gap-4 flex-1">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                    topic.completionStatus === 'completed' 
-                      ? 'bg-emerald-100 text-emerald-600' 
-                      : topic.completionStatus === 'in_progress'
-                      ? 'bg-blue-100 text-blue-600'
-                      : 'bg-slate-200 text-slate-500'
-                  }`}>
-                    {topic.completionStatus === 'completed' ? (
-                      <CheckCircle className="h-5 w-5" />
-                    ) : (
-                      <span className="text-sm font-medium">{topic.orderSequence}</span>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-slate-900">{topic.name}</h4>
-                    <div className="flex items-center gap-4 text-sm text-slate-500 mt-1">
-                      {topic.hoursSpent > 0 && <span>Latest: {topic.hoursSpent}h studied</span>}
+                <div
+                  key={topic.id}
+                  className="flex items-center justify-between p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors"
+                >
+                  <div className="flex items-center gap-4 flex-1">
+                    <div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                        topic.completionStatus === 'completed'
+                          ? 'bg-emerald-100 text-emerald-600'
+                          : topic.completionStatus === 'in_progress'
+                          ? 'bg-blue-100 text-blue-600'
+                          : 'bg-slate-200 text-slate-500'
+                      }`}
+                    >
                       {topic.completionStatus === 'completed' ? (
-                        topic.completedAt && (
-                          <span>Completed {new Date(topic.completedAt).toLocaleDateString()}</span>
-                        )
+                        <CheckCircle className="h-5 w-5" />
                       ) : (
-                        <span className="capitalize">{topic.completionStatus.replace('_', ' ')}</span>
+                        <span className="text-sm font-medium">{topic.orderSequence}</span>
                       )}
                     </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-slate-900">{topic.name}</h4>
+                      <div className="flex items-center gap-4 text-sm text-slate-500 mt-1">
+                        {topic.hoursSpent > 0 && <span>Latest: {topic.hoursSpent}h studied</span>}
+                        {topic.completionStatus === 'completed' ? (
+                          topic.completedAt && (
+                            <span>
+                              Completed {new Date(topic.completedAt).toLocaleDateString()}
+                            </span>
+                          )
+                        ) : (
+                          <span className="capitalize">
+                            {topic.completionStatus.replace('_', ' ')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={() =>
+                        openLogDialog({
+                          id: topic.id,
+                          name: topic.name,
+                          module: course.title,
+                        })
+                      }
+                      className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                    >
+                      <Clock className="h-4 w-4" />
+                      Log Hours
+                    </button>
+                    {topic.completionStatus !== 'completed' && (
+                      <button
+                        onClick={() => handleMarkComplete(topic.id)}
+                        className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"
+                      >
+                        <CheckCircle className="h-4 w-4" />
+                        Complete
+                      </button>
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => openLogDialog({
-                      id: topic.id,
-                      name: topic.name,
-                      module: course.title
-                    })}
-                    className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
-                  >
-                    <Clock className="h-4 w-4" />
-                    Log Hours
-                  </button>
-                  {topic.completionStatus !== 'completed' && (
-                    <button
-                      onClick={() => handleMarkComplete(topic.id)}
-                      className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"
-                    >
-                      <CheckCircle className="h-4 w-4" />
-                      Complete
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
+              ))}
           </div>
         )}
       </div>

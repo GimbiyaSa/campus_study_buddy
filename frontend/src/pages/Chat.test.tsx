@@ -79,14 +79,16 @@ describe('Chat page', () => {
 
   test('shows loading state', async () => {
     // Simulate loading by delaying fetchPartners
-  vi.spyOn(DataService, 'fetchPartners').mockImplementationOnce(() => new Promise(() => {}));
+    vi.spyOn(DataService, 'fetchPartners').mockImplementationOnce(() => new Promise(() => {}));
     renderWithUser(<Chat />);
     expect(screen.getByText(/Chat with study partners/i)).toBeInTheDocument();
     expect(screen.getByRole('status')).toBeInTheDocument();
   });
 
   test('shows error state and retry', async () => {
-  vi.spyOn(DataService, 'fetchPartners').mockImplementationOnce(async () => { throw new Error('fail'); });
+    vi.spyOn(DataService, 'fetchPartners').mockImplementationOnce(async () => {
+      throw new Error('fail');
+    });
     renderWithUser(<Chat />);
     expect(await screen.findByText(/Failed to load study partners/i)).toBeInTheDocument();
     const retry = screen.getByRole('button', { name: /Try again/i });
@@ -95,7 +97,7 @@ describe('Chat page', () => {
   });
 
   test('shows empty state when no buddies', async () => {
-  vi.spyOn(DataService, 'fetchPartners').mockImplementationOnce(async () => []);
+    vi.spyOn(DataService, 'fetchPartners').mockImplementationOnce(async () => []);
     renderWithUser(<Chat />);
     expect(await screen.findByText(/No partners yet/i)).toBeInTheDocument();
   });
@@ -122,5 +124,3 @@ describe('Chat page', () => {
     await waitFor(() => expect(screen.getByPlaceholderText(/Type your message/i)).toHaveValue(''));
   });
 });
-
-

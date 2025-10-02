@@ -57,7 +57,7 @@ export default function App() {
       const id = route.replace('courses/', '');
       return <CourseDetails id={id} />;
     }
-    
+
     switch (route) {
       case 'home':
         return <Home />;
@@ -116,7 +116,9 @@ export default function App() {
         <Sidebar />
         <div className="flex-1 flex flex-col">
           <Header />
-          <main className="p-6 md:p-8"><Dashboard /></main>
+          <main className="p-6 md:p-8">
+            <Dashboard />
+          </main>
         </div>
       </div>
     );

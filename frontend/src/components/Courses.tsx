@@ -44,13 +44,15 @@ export default function Courses() {
 
   const stats = useMemo(() => {
     if (!courses.length) return { avg: 0, completed: 0, inProgress: 0, totalHours: 0 };
-    
-    const completed = courses.filter(c => (c.progress ?? 0) >= 100).length;
-    const inProgress = courses.filter(c => (c.progress ?? 0) > 0 && (c.progress ?? 0) < 100).length;
+
+    const completed = courses.filter((c) => (c.progress ?? 0) >= 100).length;
+    const inProgress = courses.filter(
+      (c) => (c.progress ?? 0) > 0 && (c.progress ?? 0) < 100
+    ).length;
     const totalHours = courses.reduce((sum, c) => sum + (c.totalHours ?? 0), 0);
     const total = courses.reduce((s, c) => s + clamp(c.progress ?? 0), 0);
     const avg = Math.round((total / courses.length) * 10) / 10;
-    
+
     return { avg, completed, inProgress, totalHours };
   }, [courses]);
 
@@ -135,9 +137,9 @@ export default function Courses() {
       ) : (
         <div className="space-y-4 mb-6">
           {courses.slice(0, 3).map((course) => (
-            <EnhancedCourseCard 
-              key={course.id} 
-              course={course} 
+            <EnhancedCourseCard
+              key={course.id}
+              course={course}
               onQuickLog={handleQuickLog}
               onViewProgress={handleViewProgress}
             />
@@ -254,11 +256,11 @@ export default function Courses() {
 
 /* ---------- Enhanced Components ---------- */
 
-function QuickLogDialog({ 
-  courseId, 
-  onClose, 
-  onSuccess 
-}: { 
+function QuickLogDialog({
+  courseId,
+  onClose,
+  onSuccess,
+}: {
   courseId: string;
   onClose: () => void;
   onSuccess: () => void;
@@ -277,14 +279,14 @@ function QuickLogDialog({
         const response = await fetch(`/api/v1/courses/${courseId}/log-hours`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('google_id_token')}`,
-            'Content-Type': 'application/json'
+            Authorization: `Bearer ${localStorage.getItem('google_id_token')}`,
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             hours: hoursNum,
             description: description || undefined,
-            studyDate: new Date().toISOString().split('T')[0]
-          })
+            studyDate: new Date().toISOString().split('T')[0],
+          }),
         });
 
         if (response.ok) {
@@ -303,15 +305,11 @@ function QuickLogDialog({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl max-w-md w-full p-6">
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">
-          Quick Log Study Hours
-        </h3>
-        
+        <h3 className="text-lg font-semibold text-slate-900 mb-4">Quick Log Study Hours</h3>
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Hours Studied
-            </label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Hours Studied</label>
             <input
               type="number"
               step="0.5"
@@ -325,7 +323,7 @@ function QuickLogDialog({
               disabled={loading}
             />
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">
               Description (optional)
@@ -339,7 +337,7 @@ function QuickLogDialog({
               disabled={loading}
             />
           </div>
-          
+
           <div className="flex gap-3 pt-4">
             <button
               type="button"
@@ -371,7 +369,8 @@ function EnhancedEmptyState() {
       </div>
       <h3 className="text-xl font-bold text-slate-900 mb-3">No courses yet</h3>
       <p className="text-slate-600 mb-6 max-w-md mx-auto">
-        Add your institution modules or create personal study topics to start tracking your academic progress.
+        Add your institution modules or create personal study topics to start tracking your academic
+        progress.
       </p>
       <button
         onClick={() => navigate('/courses')}

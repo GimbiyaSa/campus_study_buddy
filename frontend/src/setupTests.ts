@@ -74,7 +74,7 @@ beforeEach(() => {
               studyPreferences: {
                 preferredTimes: ['Morning'],
                 environment: 'On-campus',
-                studyStyle: 'Group'
+                studyStyle: 'Group',
               },
               compatibilityScore: 95,
               initials: 'AS',
@@ -89,7 +89,7 @@ beforeEach(() => {
               studyPreferences: {
                 preferredTimes: ['Evening'],
                 environment: 'Remote',
-                studyStyle: 'Solo'
+                studyStyle: 'Solo',
               },
               compatibilityScore: 80,
               initials: 'BL',
@@ -104,10 +104,10 @@ beforeEach(() => {
     if (url.includes('/api/v1/partners')) {
       if (input instanceof Request && input.method === 'POST') {
         return Promise.resolve(
-          new Response(
-            JSON.stringify({ success: true, message: 'Invite sent' }),
-            { status: 200, headers: { 'Content-Type': 'application/json' } }
-          )
+          new Response(JSON.stringify({ success: true, message: 'Invite sent' }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
         );
       }
       return Promise.resolve(
@@ -406,10 +406,10 @@ beforeEach(() => {
 
     // Default: empty success
     return Promise.resolve(
-      new Response(
-        JSON.stringify([]),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      )
+      new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
     );
   }) as any;
 });

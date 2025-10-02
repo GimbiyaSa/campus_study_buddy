@@ -8,10 +8,14 @@ interface EnhancedCourseCardProps {
   onViewProgress?: (courseId: string) => void;
 }
 
-export default function EnhancedCourseCard({ course, onQuickLog, onViewProgress }: EnhancedCourseCardProps) {
+export default function EnhancedCourseCard({
+  course,
+  onQuickLog,
+  onViewProgress,
+}: EnhancedCourseCardProps) {
   const progressPercentage = course.progress || 0;
   const hasProgress = progressPercentage > 0;
-  
+
   const getProgressColor = (progress: number) => {
     if (progress >= 80) return 'emerald';
     if (progress >= 50) return 'blue';
@@ -51,9 +55,7 @@ export default function EnhancedCourseCard({ course, onQuickLog, onViewProgress 
           <span className="text-sm font-medium text-slate-700">Progress</span>
           <div className="flex items-center gap-2">
             {hasProgress ? (
-              <span className={`font-bold text-${progressColor}-600`}>
-                {progressPercentage}%
-              </span>
+              <span className={`font-bold text-${progressColor}-600`}>{progressPercentage}%</span>
             ) : (
               <span className="text-xs text-slate-500 bg-slate-50 rounded-full px-2 py-1">
                 Not started
@@ -66,7 +68,7 @@ export default function EnhancedCourseCard({ course, onQuickLog, onViewProgress 
             )}
           </div>
         </div>
-        
+
         {/* Progress Bar */}
         <div className="w-full bg-slate-100 rounded-full h-2">
           <div
@@ -93,7 +95,12 @@ export default function EnhancedCourseCard({ course, onQuickLog, onViewProgress 
             <span className="text-xs font-medium text-slate-500">Enrolled</span>
           </div>
           <div className="text-lg font-bold text-slate-900">
-            {course.createdAt ? new Date(course.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'N/A'}
+            {course.createdAt
+              ? new Date(course.createdAt).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                })
+              : 'N/A'}
           </div>
         </div>
       </div>

@@ -10,3 +10,4 @@ We use **Scrum** methodology:
 
 This approach fits a small, part-time student team because it provides structure without being overwhelming.
 
+Weekly scrum meeting due to time contraints:

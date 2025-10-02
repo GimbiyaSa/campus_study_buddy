@@ -43,8 +43,12 @@ export default function Home() {
 
           setSubmitting(true);
           try {
-            // Save token to localStorage for persistence
+            // Persist token in all places our app checks
             localStorage.setItem('google_id_token', idToken);
+            localStorage.setItem('last_google_id_token', idToken);
+            // IMPORTANT: DataService looks for "token"
+            localStorage.setItem('token', idToken);
+
             const res = await fetch(buildApiUrl('/api/v1/users/me'), {
               method: 'GET',
               headers: { Authorization: 'Bearer ' + idToken },
@@ -61,6 +65,8 @@ export default function Home() {
           } catch (err: any) {
             setError(err?.message || 'Google sign-in failed');
             localStorage.removeItem('google_id_token');
+            localStorage.removeItem('token');
+            localStorage.removeItem('last_google_id_token');
           } finally {
             setSubmitting(false);
           }
@@ -93,7 +99,7 @@ export default function Home() {
               </p>
             </div>
 
-            {/* Google Sign-In button container (rendered by Google's JS) */}
+            {/* Google Sign-In button container */}
             <div className="mt-3" ref={googleBtnRef}></div>
 
             {error && (

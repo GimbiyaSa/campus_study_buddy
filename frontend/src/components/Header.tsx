@@ -1,9 +1,10 @@
 // src/components/Header.tsx
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Bell, ChevronDown, User, Settings, LogOut } from 'lucide-react';
+import { Search, Bell, ChevronDown, Settings, LogOut } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
 import { buildApiUrl } from '../utils/url';
+import { DataService } from '../services/dataService';
 
 type User = {
   user_id: number;
@@ -22,6 +23,7 @@ type Notification = {
   user_id: number;
   title: string;
   message: string;
+  /** visual category used by the header UI */
   type: 'info' | 'warning' | 'success' | 'error';
   is_read: boolean;
   created_at: string;
@@ -41,7 +43,7 @@ export default function Header() {
   const notificationRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  // Fallback notifications
+  // Fallback notifications (unchanged)
   const fallbackNotifications: Notification[] = [
     {
       id: 1,
@@ -63,6 +65,42 @@ export default function Header() {
     },
   ];
 
+  // Map API rows -> local Notification UI shape
+  function mapRowToNotification(row: any): Notification {
+    const id = Number(row.id ?? row.notification_id ?? Date.now());
+    const user_id = Number(row.user_id ?? 0);
+    const created_at = String(row.created_at ?? new Date().toISOString());
+    const title = String(row.title ?? 'Notification');
+    const message = String(row.message ?? '');
+
+    // Convert backend types to your visual categories
+    const rawType = String(row.notification_type ?? row.type ?? 'info').toLowerCase();
+    const type: Notification['type'] =
+      rawType === 'session_reminder'
+        ? 'warning'
+        : rawType === 'partner_match'
+        ? 'success'
+        : rawType === 'group_invite'
+        ? 'info'
+        : rawType === 'system'
+        ? 'info'
+        : rawType === 'message'
+        ? 'info'
+        : rawType === 'success' || rawType === 'warning' || rawType === 'error'
+        ? (rawType as Notification['type'])
+        : 'info';
+
+    return {
+      id,
+      user_id,
+      title,
+      message,
+      type,
+      is_read: !!row.is_read,
+      created_at,
+    };
+  }
+
   useEffect(() => {
     if (!currentUser) return;
 
@@ -71,20 +109,12 @@ export default function Header() {
 
     const fetchNotifications = async () => {
       try {
-        const notifRes = await fetch(buildApiUrl(`/api/v1/notifications`), {
-          signal: controller.signal,
-        });
+        const rows = await DataService.fetchNotifications({ limit: 50, offset: 0 });
         if (!isMounted) return;
-        if (notifRes.ok) {
-          const notifData = await notifRes.json();
-          setNotifications(notifData);
-        } else {
-          setNotifications(fallbackNotifications);
-        }
-      } catch (err: unknown) {
-        // AbortController throws a DOMException with name 'AbortError'
-        const anyErr = err as { name?: string } | undefined;
-        if (anyErr?.name === 'AbortError') return;
+        setNotifications(Array.isArray(rows) ? rows.map(mapRowToNotification) : []);
+      } catch {
+        // Keep behavior similar to your original: show fallback on error
+        if (!isMounted) return;
         setNotifications(fallbackNotifications);
       }
     };
@@ -102,7 +132,7 @@ export default function Header() {
     };
   }, [currentUser]);
 
-  // Close dropdowns when clicking outside
+  // Close dropdowns when clicking outside (unchanged)
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
@@ -119,14 +149,12 @@ export default function Header() {
 
   const markNotificationAsRead = async (notificationId: number) => {
     try {
-      await fetch(buildApiUrl(`/api/v1/notifications/${notificationId}/read`), {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      setNotifications((prev) =>
-        prev.map((notif) => (notif.id === notificationId ? { ...notif, is_read: true } : notif))
-      );
+      const ok = await DataService.markNotificationRead(notificationId);
+      if (ok) {
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notificationId ? { ...n, is_read: true } : n))
+        );
+      }
     } catch (err) {
       console.error('Error marking notification as read:', err);
     }
@@ -158,20 +186,16 @@ export default function Header() {
       if (win.google?.accounts?.id?.disableAutoSelect) {
         win.google.accounts.id.disableAutoSelect();
       }
-      // revoke the last used credential if stored in localStorage (best-effort)
       const lastToken = localStorage.getItem('last_google_id_token');
       if (lastToken && win.google?.accounts?.id?.revoke) {
-        win.google.accounts.id.revoke(lastToken, () => {
-          /* no-op */
-        });
+        win.google.accounts.id.revoke(lastToken, () => {});
       }
-      // Clear stored token
       localStorage.removeItem('last_google_id_token');
-    } catch (e) {
+    } catch {
       // ignore
     }
 
-    // Clear user data from context (this will sync with sidebar)
+    // Clear user data from context
     logout();
     setNotifications([]);
 
@@ -218,7 +242,7 @@ export default function Header() {
     return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
   };
 
-  // If no user is logged in, show minimal header
+  // If no user is logged in, show minimal header (unchanged)
   if (!currentUser && !loading) {
     return (
       <header className="bg-white border-b border-gray-200 h-16 px-6 flex items-center">
@@ -230,10 +254,11 @@ export default function Header() {
     );
   }
 
+  // Loading skeleton (unchanged; your test looks for .animate-pulse)
   if (loading) {
     return (
       <header className="bg-white border-b border-gray-200 h-16 px-6 flex items-center">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between w-full">
           <div className="animate-pulse h-8 bg-gray-200 rounded w-48"></div>
           <div className="animate-pulse h-8 bg-gray-200 rounded w-32"></div>
         </div>

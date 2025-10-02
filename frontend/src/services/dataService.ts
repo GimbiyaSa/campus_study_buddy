@@ -403,12 +403,6 @@ export class DataService {
     const generalToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     const raw = googleToken || generalToken;
 
-    console.log('🔍 Auth token check:', {
-      googleToken: googleToken ? `${googleToken.substring(0, 20)}...` : null,
-      generalToken: generalToken ? `${generalToken.substring(0, 20)}...` : null,
-      selectedToken: raw ? `${raw.substring(0, 20)}...` : null,
-    });
-
     if (raw) {
       let t = raw;
       try {
@@ -418,12 +412,7 @@ export class DataService {
       t = t.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
       if (t) {
         h.set('Authorization', `Bearer ${t}`);
-        console.log('✅ Authorization header set');
-      } else {
-        console.warn('⚠️ Token was empty after processing');
       }
-    } else {
-      console.warn('⚠️ No authentication token found in localStorage');
     }
     return h;
   }
@@ -447,8 +436,6 @@ export class DataService {
           ...options.headers,
         };
 
-        console.log('📡 Final request headers:', finalHeaders);
-
         const response = await fetch(url, {
           ...options,
           headers: finalHeaders,
@@ -462,15 +449,12 @@ export class DataService {
 
         // Don't retry 4xx
         if (response.status >= 400 && response.status < 500) {
-          throw new Error(`Client error: ${response.status} ${response.statusText}`);
+          throw Object.assign(new Error(`Client error: ${response.status} ${response.statusText}`), { status: response.status });
         }
         if (i === retries - 1) {
-          throw new Error(`Server error: ${response.status} ${response.statusText}`);
+          throw Object.assign(new Error(`Server error: ${response.status} ${response.statusText}`), { status: response.status });
         }
       } catch (error: any) {
-        if (error?.name === 'AbortError') {
-          console.warn(`Request timeout after ${timeout}ms for ${url}`);
-        }
         if (i === retries - 1) throw error;
         await new Promise((r) => setTimeout(r, Math.min(500, Math.pow(2, i) * 200)));
       }
@@ -484,9 +468,12 @@ export class DataService {
     return h;
   }
 
-  private static async request(path: string, init?: RequestInit) {
+  // ⬇️ now consistently uses fetchWithRetry + merged headers
+  private static async request(path: string, init: RequestInit = {}) {
     const url = buildApiUrl(path);
-    return fetch(url, { credentials: 'include', ...init });
+    const auth = Object.fromEntries(this.authHeaders().entries());
+    const headers = { 'Content-Type': 'application/json', ...auth, ...(init.headers || {}) };
+    return this.fetchWithRetry(url, { credentials: 'include', ...init, headers });
   }
 
   private static toISO(date: string, time: string): string {
@@ -504,31 +491,74 @@ export class DataService {
     const MM = this.pad2(d.getMinutes());
     return { date: `${yyyy}-${mm}-${dd}`, time: `${HH}:${MM}` };
   }
+  private static looksISO(x: unknown): x is string {
+    return typeof x === 'string' && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(x);
+  }
+
+  // Safe JSON parser that never throws (handles 500/HTML/empty/problem+json)
+  private static async safeJson<T = any>(res: Response, fallback: T): Promise<T> {
+    try {
+      const ct = (res.headers.get('content-type') || '').toLowerCase();
+      if (!ct.includes('json')) return fallback;
+      const text = await res.text();
+      if (!text) return fallback;
+      return JSON.parse(text) as T;
+    } catch {
+      return fallback;
+    }
+  }
 
   private static normalizeSession(s: any): StudySession {
     const id = String(s?.id ?? s?.session_id ?? cryptoRandomId());
     const title = s?.title ?? s?.session_title ?? 'Study session';
 
-    let date = s?.date;
-    let startTime = s?.startTime;
-    let endTime = s?.endTime;
+    // Accept both HH:mm and ISO for start/end
+    let date = s?.date as string | undefined;
+    let startTime = s?.startTime as string | undefined; // may be 'HH:mm' OR ISO
+    let endTime = s?.endTime as string | undefined;     // may be 'HH:mm' OR ISO
 
-    const isoStart = s?.scheduled_start ?? s?.start_time ?? s?.startISO ?? s?.start;
-    const isoEnd = s?.scheduled_end ?? s?.end_time ?? s?.endISO ?? s?.end;
+    const isoStart =
+      s?.scheduled_start ??
+      s?.start_time ??
+      s?.startISO ??
+      s?.start ??
+      (this.looksISO(s?.startTime) ? s.startTime : undefined);
 
-    if ((!date || !startTime) && isoStart) {
+    const isoEnd =
+      s?.scheduled_end ??
+      s?.end_time ??
+      s?.endISO ??
+      s?.end ??
+      (this.looksISO(s?.endTime) ? s.endTime : undefined);
+
+    // If we have ISO, derive date/time
+    if ((!date || !startTime || this.looksISO(startTime)) && isoStart) {
       const dt = this.fromISO(isoStart);
       date = date || dt.date;
-      startTime = startTime || dt.time;
+      startTime = dt.time;
     }
-    if (!endTime && isoEnd) {
-      const dt = this.fromISO(isoEnd);
-      endTime = dt.time;
+    if (!endTime || this.looksISO(endTime)) {
+      if (isoEnd) {
+        const dt = this.fromISO(isoEnd);
+        endTime = dt.time;
+      }
     }
 
+    // Fallback sensible defaults
     date = date || new Date().toISOString().slice(0, 10);
-    startTime = startTime || '09:00';
-    endTime = endTime || '10:00';
+    startTime = startTime && !this.looksISO(startTime) ? startTime : '09:00';
+    endTime = endTime && !this.looksISO(endTime) ? endTime : '10:00';
+
+    // Participants: prefer attendees length if present
+    const attendeesCount = Array.isArray(s?.attendees) ? s.attendees.length : undefined;
+    const participants =
+      Number(
+        s?.participants ?? s?.currentParticipants ?? s?.attendee_count ?? attendeesCount ?? 1
+      ) || 1;
+
+    // Map backend 'scheduled' -> UI 'upcoming'
+    let status = s?.status ?? 'upcoming';
+    if (status === 'scheduled') status = 'upcoming';
 
     return {
       id,
@@ -540,10 +570,10 @@ export class DataService {
       endTime,
       location: s?.location ?? 'TBD',
       type: (s?.type ?? s?.session_type ?? 'study') as StudySession['type'],
-      participants: Number(s?.participants ?? s?.currentParticipants ?? s?.attendee_count ?? 1),
+      participants,
       maxParticipants: s?.maxParticipants ?? s?.max_participants,
-      status: s?.status ?? 'upcoming',
-      isCreator: !!(s?.isCreator ?? s?.organizer ?? s?.is_owner),
+      status,
+      isCreator: !!(s?.isCreator ?? s?.organizer ?? s?.is_owner ?? (s?.createdBy && true)),
       isAttending: !!(s?.isAttending ?? s?.attending),
       groupId: s?.groupId ?? s?.group_id,
     };
@@ -552,9 +582,9 @@ export class DataService {
   // -------------------- Auth/User --------------------
   static async getMe(): Promise<{ id: string } | null> {
     try {
-      const res = await this.request('/api/v1/users/me', { headers: this.jsonHeaders() });
+      const res = await this.request('/api/v1/users/me', { method: 'GET' });
       if (!res.ok) return null;
-      const data = await res.json();
+      const data = await this.safeJson<any>(res, null);
       const id = data?.user_id ?? data?.id;
       return id ? { id: String(id) } : null;
     } catch {
@@ -572,68 +602,60 @@ export class DataService {
       if (options?.sortBy) params.append('sortBy', options.sortBy);
       if (options?.sortOrder) params.append('sortOrder', options.sortOrder);
 
-      const url = buildApiUrl(`/api/v1/courses${params.toString() ? `?${params}` : ''}`);
-      console.log('🎓 Fetching courses from:', url);
-      console.log('🔑 Auth headers:', this.authHeaders());
+      const res = await this.request(`/api/v1/courses${params.toString() ? `?${params}` : ''}`, {
+        method: 'GET',
+      });
+      if (!res.ok) {
+        throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
+      }
 
-      const res = await this.fetchWithRetry(url);
-      console.log('📡 Response status:', res.status, res.statusText);
-
-      const data = await res.json();
-      console.log('📦 Response data:', data);
-
+      const data = await this.safeJson<any>(res, []);
       let courses: Course[] = [];
-      if (data.courses) {
+      if (data?.courses) {
         courses = data.courses;
       } else if (Array.isArray(data)) {
         courses = data;
       } else {
-        console.warn('⚠️ Unexpected response format:', data);
         courses = [];
       }
 
-      console.log('✅ Courses processed:', courses.length);
       return courses;
     } catch (error) {
-      console.error('❌ fetchCourses error details:', {
-        error,
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-      });
       throw error;
     }
   }
 
   static async addCourse(courseData: Omit<Course, 'id' | 'progress'>): Promise<Course> {
-    const url = buildApiUrl('/api/v1/courses');
-    console.log('➕ Adding course:', courseData);
-
-    const res = await this.fetchWithRetry(url, {
+    const res = await this.request('/api/v1/courses', {
       method: 'POST',
       body: JSON.stringify(courseData),
     });
-
-    const newCourse = await res.json();
-    console.log('✅ Course added:', newCourse);
-    return newCourse;
+    if (!res.ok) {
+      throw Object.assign(new Error('Failed to add course'), { status: res.status });
+    }
+    return this.safeJson<Course>(res, null as any);
   }
 
   static async removeCourse(courseId: string): Promise<void> {
-    const url = buildApiUrl(`/api/v1/courses/${courseId}`);
-    console.log('🗑️ Removing course:', courseId);
-
-    await this.fetchWithRetry(url, { method: 'DELETE' });
-    console.log('✅ Course removed:', courseId);
+    const res = await this.request(`/api/v1/courses/${encodeURIComponent(courseId)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      throw Object.assign(new Error('Failed to remove course'), { status: res.status });
+    }
   }
 
   // -------------------- Sessions --------------------
   static async fetchSessions(): Promise<StudySession[]> {
     try {
-      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/sessions'));
-      const data = await res.json();
-      return (data as any[]).map((row) => this.normalizeSession(row));
-    } catch (error) {
-      console.error('❌ fetchSessions error:', error);
+      const res = await this.request('/api/v1/sessions', { method: 'GET' });
+      if (!res.ok) {
+        // fallback keeps dashboard usable
+        return FALLBACK_SESSIONS;
+      }
+      const data = await this.safeJson<any[]>(res, []);
+      return data.map((row) => this.normalizeSession(row));
+    } catch {
       return FALLBACK_SESSIONS;
     }
   }
@@ -650,29 +672,32 @@ export class DataService {
         startTime: this.toISO(sessionData.date, sessionData.startTime),
         endTime: this.toISO(sessionData.date, sessionData.endTime),
         location: sessionData.location,
-        topics: [],
-        type: sessionData.type,
-        course: sessionData.course,
-        courseCode: sessionData.courseCode,
-        maxParticipants: sessionData.maxParticipants,
+        topics: [] as string[],
       };
       try {
         const res = await this.request(
           `/api/v1/groups/${encodeURIComponent(String(sessionData.groupId))}/sessions`,
-          { method: 'POST', headers: this.jsonHeaders(), body: JSON.stringify(payload) }
+          { method: 'POST', body: JSON.stringify(payload) }
         );
         if (res.ok) {
-          const created = await res.json();
-          return this.normalizeSession(created);
+          const created = await this.safeJson<any>(res, null);
+          return created ? this.normalizeSession(created) : null;
         }
       } catch {}
       // fall through to global create
     }
 
-    // Generic sessions endpoint
+    // Generic sessions endpoint (backend expects snake_case keys)
     const startISO = this.toISO(sessionData.date, sessionData.startTime);
     const endISO = this.toISO(sessionData.date, sessionData.endTime);
+
+    const groupIdNum =
+      sessionData.groupId != null && !Number.isNaN(Number(sessionData.groupId))
+        ? Number(sessionData.groupId)
+        : undefined;
+
     const payload = {
+      // helpful extras (ignored by backend if not handled)
       title: sessionData.title,
       startTime: startISO,
       endTime: endISO,
@@ -682,8 +707,9 @@ export class DataService {
       courseCode: sessionData.courseCode,
       maxParticipants: sessionData.maxParticipants,
       groupId: sessionData.groupId,
-      group_id: sessionData.groupId,
-      // legacy mirrors
+
+      // backend contract
+      group_id: groupIdNum ?? sessionData.groupId,
       session_title: sessionData.title,
       scheduled_start: startISO,
       scheduled_end: endISO,
@@ -694,16 +720,13 @@ export class DataService {
     try {
       const res = await this.request('/api/v1/sessions', {
         method: 'POST',
-        headers: this.jsonHeaders(),
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        const created = await res.json();
-        return this.normalizeSession(created);
+        const created = await this.safeJson<any>(res, null);
+        return created ? this.normalizeSession(created) : null;
       }
-    } catch (error) {
-      console.error('❌ createSession error:', error);
-    }
+    } catch {}
     return null;
   }
 
@@ -711,35 +734,27 @@ export class DataService {
     sessionId: string,
     sessionData: Omit<StudySession, 'id' | 'participants' | 'status' | 'isCreator' | 'isAttending'>
   ): Promise<StudySession | null> {
-    const startISO = this.toISO(sessionData.date, sessionData.startTime);
-    const endISO = this.toISO(sessionData.date, sessionData.endTime);
-    const payload = {
+    const payload: Record<string, any> = {
       title: sessionData.title,
-      startTime: startISO,
-      endTime: endISO,
+      date: sessionData.date,            // YYYY-MM-DD
+      startTime: sessionData.startTime,  // HH:mm
+      endTime: sessionData.endTime,      // HH:mm
       location: sessionData.location,
       type: sessionData.type,
       course: sessionData.course,
       courseCode: sessionData.courseCode,
       maxParticipants: sessionData.maxParticipants,
       groupId: sessionData.groupId,
-      // legacy mirrors
-      session_title: sessionData.title,
-      scheduled_start: startISO,
-      scheduled_end: endISO,
-      session_type: sessionData.type,
-      max_participants: sessionData.maxParticipants,
     };
 
     try {
       const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}`, {
         method: 'PUT',
-        headers: this.jsonHeaders(),
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        const updated = await res.json();
-        return this.normalizeSession(updated);
+        const updated = await this.safeJson<any>(res, null);
+        return updated ? this.normalizeSession(updated) : null;
       }
     } catch {}
     return null;
@@ -749,13 +764,9 @@ export class DataService {
     try {
       const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}`, {
         method: 'DELETE',
-        headers: this.authHeaders(),
       });
       if (res.ok) {
-        let data: any = null;
-        try {
-          data = await res.json();
-        } catch {}
+        const data = await this.safeJson<any>(res, null);
         return { ok: true, data };
       }
       return { ok: false };
@@ -768,7 +779,6 @@ export class DataService {
     try {
       const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/join`, {
         method: 'POST',
-        headers: this.authHeaders(),
       });
       return res.ok;
     } catch {
@@ -778,18 +788,11 @@ export class DataService {
 
   static async leaveSession(sessionId: string): Promise<boolean> {
     try {
-      const res = await this.fetchWithRetry(
-        buildApiUrl(`/api/v1/sessions/${encodeURIComponent(sessionId)}/leave`),
-        { method: 'DELETE' }
-      );
-      if (res.ok) {
-        console.log('✅ Successfully left session:', sessionId);
-        return true;
-      }
-      console.warn('⚠️ Failed to leave session:', sessionId);
-      return false;
-    } catch (error) {
-      console.error('❌ leaveSession error:', error);
+      const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/leave`, {
+        method: 'DELETE',
+      });
+      return res.ok;
+    } catch {
       return false;
     }
   }
@@ -812,13 +815,16 @@ export class DataService {
       if (params?.university) queryParams.append('university', params.university);
       if (params?.search) queryParams.append('search', params.search);
 
-      const url = buildApiUrl(`/api/v1/partners/search?${queryParams.toString()}`);
-      const res = await this.fetchWithRetry(url);
-      const data = await res.json();
-      console.log('🔍 Partner search results:', data);
+      const res = await this.request(`/api/v1/partners/search?${queryParams.toString()}`, {
+        method: 'GET',
+      });
+      if (!res.ok) {
+        const appError = ErrorHandler.handleApiError({ status: res.status }, 'partners');
+        throw appError;
+      }
+      const data = await this.safeJson<StudyPartner[]>(res, []);
       return data;
     } catch (error) {
-      console.error('❌ searchPartners error:', error);
       const appError = ErrorHandler.handleApiError(error, 'partners');
       throw appError;
     }
@@ -826,15 +832,16 @@ export class DataService {
 
   static async sendBuddyRequest(recipientId: string, message?: string): Promise<void> {
     try {
-      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/partners/request'), {
+      const res = await this.request('/api/v1/partners/request', {
         method: 'POST',
         body: JSON.stringify({ recipientId, message }),
       });
-      const data = await res.json();
-      console.log('🤝 Buddy request sent:', data);
-      return data;
+      if (!res.ok) {
+        const appError = ErrorHandler.handleApiError({ status: res.status }, 'partners');
+        throw appError;
+      }
+      await this.safeJson<any>(res, null);
     } catch (error) {
-      console.error('❌ sendBuddyRequest error:', error);
       const appError = ErrorHandler.handleApiError(error, 'partners');
       throw appError;
     }
@@ -843,9 +850,9 @@ export class DataService {
   // -------------------- Groups --------------------
   static async fetchMyGroups(): Promise<any[]> {
     try {
-      const res = await this.request('/api/v1/groups/my-groups', { headers: this.authHeaders() });
-      if (res.ok) return await res.json();
-      return await this.fetchGroupsRaw();
+      const res = await this.request('/api/v1/groups/my-groups', { method: 'GET' });
+      if (!res.ok) return await this.fetchGroupsRaw();
+      return await this.safeJson<any[]>(res, []);
     } catch {
       return await this.fetchGroupsRaw();
     }
@@ -853,9 +860,12 @@ export class DataService {
 
   static async fetchGroupsRaw(): Promise<any[]> {
     try {
-      const res = await this.request('/api/v1/groups', { headers: this.authHeaders() });
-      if (res.ok) return await res.json();
+      const res = await this.request('/api/v1/groups', { method: 'GET' });
+      if (res.ok) {
+        return await this.safeJson<any[]>(res, []);
+      }
     } catch {}
+    // Map demo fallback to API-ish shape
     return FALLBACK_GROUPS.map((g) => ({
       id: g.id,
       name: g.name,
@@ -884,11 +894,10 @@ export class DataService {
     try {
       const res = await this.request('/api/v1/groups', {
         method: 'POST',
-        headers: this.jsonHeaders(),
         body: JSON.stringify(payload),
       });
       if (!res.ok) return null;
-      return await res.json();
+      return await this.safeJson<any>(res, null);
     } catch {
       return null;
     }
@@ -898,7 +907,6 @@ export class DataService {
     try {
       const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}`, {
         method: 'DELETE',
-        headers: this.authHeaders(),
       });
       return res.ok;
     } catch {
@@ -910,7 +918,6 @@ export class DataService {
     try {
       const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}/join`, {
         method: 'POST',
-        headers: this.authHeaders(),
       });
       return res.ok;
     } catch {
@@ -921,8 +928,7 @@ export class DataService {
   static async leaveGroup(groupId: string): Promise<boolean> {
     try {
       const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}/leave`, {
-        method: 'POST',
-        headers: this.authHeaders(),
+        method: 'POST', // backend uses POST /:groupId/leave
       });
       return res.ok;
     } catch {
@@ -934,7 +940,6 @@ export class DataService {
     try {
       const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}/invite`, {
         method: 'POST',
-        headers: this.jsonHeaders(),
         body: JSON.stringify({ inviteUserIds }),
       });
       return res.ok;
@@ -953,29 +958,34 @@ export class DataService {
       endTime: string;   // ISO
       location: string;
       topics?: string[];
-      type?: StudySession['type'];
-      course?: string;
-      courseCode?: string;
-      maxParticipants?: number;
     }
-  ): Promise<any | null> {
+  ): Promise<StudySession | null> {
     try {
+      const body = {
+        title: payload.title,
+        description: payload.description ?? undefined,
+        startTime: payload.startTime,
+        endTime: payload.endTime,
+        location: payload.location,
+        topics: Array.isArray(payload.topics) ? payload.topics : [],
+      };
+
       const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}/sessions`, {
         method: 'POST',
-        headers: this.jsonHeaders(),
-        body: JSON.stringify(payload),
+        body: JSON.stringify(body),
       });
-      if (!res.ok) return null;
-      return await res.json();
+
+      if (!res.ok) {
+        return null;
+      }
+      const created = await this.safeJson<any>(res, null);
+      return created ? this.normalizeSession(created) : null;
     } catch {
       return null;
     }
   }
 
   // -------------------- Notifications API --------------------
-  // DataService.fetchNotifications
-// DataService.fetchNotifications
-// DataService.fetchNotifications
   static async fetchNotifications(opts?: {
     unreadOnly?: boolean;
     type?: string;
@@ -988,43 +998,35 @@ export class DataService {
     if (opts?.limit) params.set('limit', String(opts.limit));
     if (opts?.offset) params.set('offset', String(opts.offset));
 
-    // ⬇️ use the user-scoped route
     const res = await this.request(`/api/v1/users/me/notifications?${params.toString()}`, {
-      headers: this.authHeaders(),
+      method: 'GET',
     });
     if (!res.ok) return [];
-    const rows = await res.json();
+    const rows = await this.safeJson<NotificationRow[]>(res, []);
     return Array.isArray(rows) ? rows : [];
   }
 
   static async fetchNotificationCounts(): Promise<NotificationCounts | null> {
     try {
-      const res = await this.request('/api/v1/notifications/counts', {
-        headers: this.authHeaders(),
-      });
+      const res = await this.request('/api/v1/notifications/counts', { method: 'GET' });
       if (!res.ok) return null;
-      return await res.json();
+      return await this.safeJson<NotificationCounts | null>(res, null);
     } catch {
       return null;
     }
   }
 
-    // DataService.markNotificationRead
+
   static async markNotificationRead(notificationId: number): Promise<boolean> {
-    // ⬇️ use the user-scoped route
     const res = await this.request(`/api/v1/users/me/notifications/${notificationId}/read`, {
       method: 'PUT',
-      headers: this.jsonHeaders(),
     });
     return res.ok;
   }
 
   static async markAllNotificationsRead(): Promise<boolean> {
     try {
-      const res = await this.request('/api/v1/notifications/read-all', {
-        method: 'PUT',
-        headers: this.jsonHeaders(),
-      });
+      const res = await this.request('/api/v1/notifications/read-all', { method: 'PUT' });
       return res.ok;
     } catch {
       return false;
@@ -1035,7 +1037,6 @@ export class DataService {
     try {
       const res = await this.request(`/api/v1/notifications/${notificationId}`, {
         method: 'DELETE',
-        headers: this.authHeaders(),
       });
       return res.ok;
     } catch {
@@ -1044,12 +1045,12 @@ export class DataService {
   }
 
   static async createNotification(payload: {
-    user_id: number | string;
-    notification_type: string;
-    title: string;
-    message: string;
-    metadata?: any;
-    scheduled_for?: string | Date | null;
+  user_id: number | string;
+  notification_type: string;
+  title: string;
+  message: string;
+  metadata?: any;
+  scheduled_for?: string | Date | null;
   }): Promise<NotificationRow | null> {
     const body = {
       ...payload,
@@ -1061,15 +1062,15 @@ export class DataService {
     try {
       const res = await this.request('/api/v1/notifications', {
         method: 'POST',
-        headers: this.jsonHeaders(),
         body: JSON.stringify(body),
       });
       if (!res.ok) return null;
-      return await res.json();
+      return await this.safeJson<NotificationRow | null>(res, null);
     } catch {
       return null;
     }
   }
+
 
   static async notifyGroup(
     groupId: string | number,
@@ -1083,7 +1084,7 @@ export class DataService {
     try {
       const res = await this.request(
         `/api/v1/notifications/group/${encodeURIComponent(String(groupId))}/notify`,
-        { method: 'POST', headers: this.jsonHeaders(), body: JSON.stringify(payload) }
+        { method: 'POST', body: JSON.stringify(payload) }
       );
       return res.ok;
     } catch {
@@ -1093,11 +1094,9 @@ export class DataService {
 
   static async fetchPendingNotifications(): Promise<NotificationRow[]> {
     try {
-      const res = await this.request('/api/v1/notifications/pending', {
-        headers: this.authHeaders(),
-      });
+      const res = await this.request('/api/v1/notifications/pending', { method: 'GET' });
       if (!res.ok) return [];
-      return await res.json();
+      return await this.safeJson<NotificationRow[]>(res, []);
     } catch {
       return [];
     }
@@ -1107,7 +1106,6 @@ export class DataService {
     try {
       const res = await this.request('/api/v1/notifications/mark-sent', {
         method: 'PUT',
-        headers: this.jsonHeaders(),
         body: JSON.stringify({ notification_ids: notificationIds }),
       });
       return res.ok;
@@ -1121,7 +1119,7 @@ export class DataService {
     try {
       const res = await this.request(
         `/api/v1/notifications/sessions/${encodeURIComponent(String(sessionId))}/schedule-24h`,
-        { method: 'POST', headers: this.authHeaders() }
+        { method: 'POST' }
       );
       return res.ok;
     } catch {

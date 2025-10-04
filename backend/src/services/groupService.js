@@ -27,7 +27,6 @@ const schema = {
     session_attendees: 'session_attendees',
   },
   groupsCols: {
-    // dynamic picks (actual column names or null)
     nameCol: null, // one of: name | group_name | title
     descriptionCol: null, // one of: description | details | group_description | desc
     created_at: true, // assumed
@@ -43,6 +42,7 @@ const schema = {
   },
   membersCols: {
     role: false,
+    role_required: false,   // NEW: detect NOT NULL
     joined_at: false,
     created_at: false,
     idCol: null, // one of: member_id | id | group_member_id
@@ -119,13 +119,11 @@ async function firstExistingColumn(table, candidates) {
 }
 
 async function detectSchema() {
-  // pick groups table
   if (await hasTable('groups')) schema.tables.groups = 'groups';
   else if (await hasTable('study_groups')) schema.tables.groups = 'study_groups';
 
   const g = schema.tables.groups;
 
-  // groups: pick name/description columns
   schema.groupsCols.nameCol = await firstExistingColumn(g, ['name', 'group_name', 'title']);
   schema.groupsCols.descriptionCol = await firstExistingColumn(g, [
     'description',
@@ -149,6 +147,9 @@ async function detectSchema() {
 
   // group_members
   schema.membersCols.role = await hasColumn('group_members', 'role');
+  schema.membersCols.role_required = schema.membersCols.role
+    ? await columnIsNotNullable('group_members', 'role')
+    : false;
   schema.membersCols.joined_at = await hasColumn('group_members', 'joined_at');
   schema.membersCols.created_at = await hasColumn('group_members', 'created_at');
   schema.membersCols.idCol = await firstExistingColumn('group_members', [
@@ -183,21 +184,30 @@ function groupsOrderBy(alias = 'g') {
 async function pickFallbackModuleId() {
   const g = schema.tables.groups;
   if (!schema.groupsCols.module_id) return null;
-  const r = await pool.request().query(`
+
+  // try groups first (existing association)
+  const r1 = await pool.request().query(`
     SELECT TOP 1 module_id AS mid
     FROM dbo.${g}
     WHERE module_id IS NOT NULL
     ORDER BY group_id ASC
   `);
-  return r.recordset.length ? r.recordset[0].mid : null;
+  if (r1.recordset.length) return r1.recordset[0].mid;
+
+  // then try any module at all
+  if (await hasTable('modules')) {
+    const r2 = await pool.request().query(`
+      SELECT TOP 1 module_id AS mid
+      FROM dbo.modules
+      ORDER BY module_id ASC
+    `);
+    if (r2.recordset.length) return r2.recordset[0].mid;
+  }
+
+  return null;
 }
 
-/* -------------------------------------------------------------------------- */
-/*  LOCAL helper used by POST /groups to resolve/create a module_id safely    */
-/*  - Uses the SAME transaction as the group insert to avoid partial writes   */
-/*  - Strategy: explicit id -> validate; else lookup by course/code; else     */
-/*    create if columns allow; else return null                               */
-/* -------------------------------------------------------------------------- */
+/* --------------------------- modules helper bits --------------------------- */
 async function modulesHasCol(col) {
   return hasColumn('modules', col);
 }
@@ -205,6 +215,72 @@ async function modulesColRequired(col) {
   return columnIsNotNullable('modules', col);
 }
 
+/* Create/ensure a default module and return its id (runs inside the caller tx) */
+async function ensureDefaultModuleId(tx) {
+  if (process.env.DEFAULT_MODULE_ID) {
+    const r = new sql.Request(tx);
+    r.input('mid', sql.Int, Number(process.env.DEFAULT_MODULE_ID));
+    const ok = await r.query(`SELECT module_id FROM dbo.modules WHERE module_id=@mid`);
+    if (ok.recordset.length) return Number(ok.recordset[0].module_id);
+  }
+
+  const defCode = process.env.DEFAULT_MODULE_CODE || 'GEN-DEFAULT';
+  const defName = process.env.DEFAULT_MODULE_NAME || 'General';
+  const defUniEnv = process.env.DEFAULT_MODULE_UNIVERSITY || null;
+
+  {
+    const r = new sql.Request(tx);
+    r.input('code', sql.NVarChar(50), defCode);
+    r.input('name', sql.NVarChar(255), defName);
+    const hit = await r.query(`
+      SELECT TOP 1 module_id AS id
+      FROM dbo.modules
+      WHERE LOWER(module_code)=LOWER(@code) OR LOWER(module_name)=LOWER(@name)
+      ORDER BY module_id ASC
+    `);
+    if (hit.recordset.length) return Number(hit.recordset[0].id);
+  }
+
+  const hasUni = await modulesHasCol('university');
+  const uniRequired = hasUni ? await modulesColRequired('university') : false;
+
+  let uniToUse = defUniEnv;
+  if (uniRequired && !uniToUse) {
+    const uq = await new sql.Request(tx).query(`
+      SELECT TOP 1 university AS uni
+      FROM dbo.modules
+      WHERE university IS NOT NULL
+      ORDER BY module_id ASC
+    `);
+    uniToUse = uq.recordset[0]?.uni || 'General';
+  }
+
+  const hasIsActive  = await modulesHasCol('is_active');
+  const hasCreatedAt = await modulesHasCol('created_at');
+  const hasUpdatedAt = await modulesHasCol('updated_at');
+
+  const r = new sql.Request(tx);
+  r.input('code', sql.NVarChar(50),  defCode);
+  r.input('name', sql.NVarChar(255), defName);
+  r.input('desc', sql.NVarChar(sql.MAX), 'Default module');
+  if (hasUni && uniToUse) r.input('uni', sql.NVarChar(255), uniToUse);
+
+  const cols = ['module_code','module_name','description'];
+  const vals = ['@code','@name','@desc'];
+  if (hasUni && uniToUse) { cols.push('university'); vals.push('@uni'); }
+  if (hasIsActive)        { cols.push('is_active');  vals.push('1'); }
+  if (hasCreatedAt)       { cols.push('created_at'); vals.push('SYSUTCDATETIME()'); }
+  if (hasUpdatedAt)       { cols.push('updated_at'); vals.push('SYSUTCDATETIME()'); }
+
+  const ins = await r.query(`
+    INSERT INTO dbo.modules (${cols.join(', ')})
+    OUTPUT inserted.module_id AS id
+    VALUES (${vals.join(', ')})
+  `);
+  return ins.recordset[0]?.id ? Number(ins.recordset[0].id) : null;
+}
+
+/* Resolve / create a modules.module_id for group creation */
 async function resolveModuleIdForGroupCreate({
   tx,
   moduleId,
@@ -215,7 +291,7 @@ async function resolveModuleIdForGroupCreate({
 }) {
   const explicit = module_id ?? moduleId;
 
-  // 1) Explicit id: validate existence
+  // 1) explicit id → validate
   if (explicit != null) {
     const r = new sql.Request(tx);
     r.input('mid', sql.Int, Number(explicit));
@@ -229,7 +305,7 @@ async function resolveModuleIdForGroupCreate({
   const name = course ? String(course).trim() : '';
   if (!code && !name) return null;
 
-  // 2) Try to find by code/name (prefers exact match)
+  // 2) find by code/name (+ optional university if provided)
   {
     const r = new sql.Request(tx);
     if (code) r.input('code', sql.NVarChar(50), code);
@@ -251,39 +327,44 @@ async function resolveModuleIdForGroupCreate({
     if (hit.recordset.length) return Number(hit.recordset[0].id);
   }
 
-  // 3) Create module if we can (respect NOT NULL constraints)
+  // 3) create if possible (respect NOT NULLs; add sensible defaults)
   const hasUni = await modulesHasCol('university');
   const uniRequired = hasUni ? await modulesColRequired('university') : false;
-  if (uniRequired && !university) {
-    // Can't create without required university
-    return null;
+  let uniToUse = university || null;
+
+  if (uniRequired && !uniToUse) {
+    const uniQ = await new sql.Request(tx).query(`
+      SELECT TOP 1 university AS uni
+      FROM dbo.modules
+      WHERE university IS NOT NULL
+      ORDER BY module_id ASC
+    `);
+    uniToUse = uniQ.recordset[0]?.uni || 'General';
   }
+
+  const hasIsActive = await modulesHasCol('is_active');
+  const hasCreatedAt = await modulesHasCol('created_at');
+  const hasUpdatedAt = await modulesHasCol('updated_at');
 
   const r = new sql.Request(tx);
   if (code) r.input('code', sql.NVarChar(50), code);
   if (name) r.input('name', sql.NVarChar(255), name);
-  if (hasUni && university) r.input('uni', sql.NVarChar(255), university);
+  if (hasUni && uniToUse) r.input('uni', sql.NVarChar(255), uniToUse);
   r.input('desc', sql.NVarChar(sql.MAX), null);
 
   const cols = [];
   const vals = [];
-  if (code) {
-    cols.push('module_code');
-    vals.push('@code');
-  }
-  if (name) {
-    cols.push('module_name');
-    vals.push('@name');
-  }
-  cols.push('description');
-  vals.push('@desc');
-  if (hasUni && university) {
-    cols.push('university');
-    vals.push('@uni');
-  }
 
-  // Defensive: require at least one of [name, code] to create
-  if (!cols.length || (cols.length === 2 && cols[0] === 'description')) return null;
+  if (code) { cols.push('module_code'); vals.push('@code'); }
+  if (name) { cols.push('module_name'); vals.push('@name'); }
+  cols.push('description'); vals.push('@desc');
+  if (hasUni && uniToUse) { cols.push('university'); vals.push('@uni'); }
+  if (hasIsActive) { cols.push('is_active'); vals.push('1'); }
+  if (hasCreatedAt) { cols.push('created_at'); vals.push('SYSUTCDATETIME()'); }
+  if (hasUpdatedAt) { cols.push('updated_at'); vals.push('SYSUTCDATETIME()'); }
+
+  const nonTrivial = cols.some((c) => c === 'module_code' || c === 'module_name');
+  if (!nonTrivial) return null;
 
   const ins = await r.query(`
     INSERT INTO dbo.modules (${cols.join(', ')})
@@ -291,6 +372,41 @@ async function resolveModuleIdForGroupCreate({
     VALUES (${vals.join(', ')})
   `);
   return ins.recordset[0]?.id ? Number(ins.recordset[0].id) : null;
+}
+
+/* -------------------------- role helper (NEW) -------------------------- */
+/** Detect allowed values for group_members.role from CHECK constraints */
+async function detectAllowedMemberRoles() {
+  if (!schema.membersCols.role) return [];
+  const q = `
+    SELECT cc.definition AS defn
+    FROM sys.check_constraints cc
+    JOIN sys.objects o ON o.object_id = cc.parent_object_id
+    WHERE o.name = 'group_members'
+  `;
+  const { recordset } = await pool.request().query(q);
+  const defs = (recordset || []).map(r => String(r.defn || ''));
+
+  // Parse things like: ([role] IN ('member','admin','owner'))
+  const roles = new Set();
+  for (const d of defs) {
+    const m = d.match(/role[^\)]*IN\s*\(([^)]+)\)/i);
+    if (m && m[1]) {
+      m[1]
+        .split(',')
+        .map(s => s.replace(/['"\s]/g, ''))
+        .filter(Boolean)
+        .forEach(x => roles.add(x.toLowerCase()));
+    }
+  }
+  return Array.from(roles);
+}
+
+/** Choose the best role for the creator that satisfies the CHECK */
+function pickCreatorRole(allowed = []) {
+  const pref = ['owner', 'admin', 'leader', 'moderator', 'creator', 'organizer', 'member'];
+  for (const p of pref) if (allowed.includes(p)) return p;
+  return allowed[0] || null;
 }
 
 /* --------------------------------- Routes --------------------------------- */
@@ -382,7 +498,7 @@ router.get('/my-groups', authenticateToken, async (req, res) => {
       gc.descriptionCol ? `g.${gc.descriptionCol} AS description` : `NULL AS description`,
       gc.course ? 'g.course' : 'NULL AS course',
       gc.course_code ? 'g.course_code AS courseCode' : 'NULL AS courseCode',
-      gc.max_members ? 'g.max_members AS maxMembers' : 'NULL AS maxMembers',
+      gc.max_members ? 'g.max_members' : 'NULL AS maxMembers',
       gc.is_public ? 'g.is_public AS isPublic' : 'CAST(1 AS bit) AS isPublic',
       'g.created_at AS createdAt',
       gc.last_activity ? 'g.last_activity AS lastActivity' : 'g.created_at AS lastActivity',
@@ -452,7 +568,7 @@ router.post('/', authenticateToken, async (req, res) => {
   try {
     await tx.begin();
 
-    // NEW: resolve module id (validate explicit id, else find by course/code, else create)
+    // Resolve module id (validate/find/create/fallback/default)
     const explicitProvided = module_id != null || moduleId != null;
     let finalModuleId = null;
 
@@ -466,15 +582,14 @@ router.post('/', authenticateToken, async (req, res) => {
         university,
       });
 
-      // If the user supplied an explicit id that doesn't exist, fail clearly
       if (explicitProvided && finalModuleId == null) {
         await tx.rollback();
         return res.status(400).json({ error: 'Invalid module_id (module not found)' });
       }
 
-      // If schema requires a module and we still don't have one, try fallback → else error
       if (finalModuleId == null && gc.module_id_required) {
         finalModuleId = await pickFallbackModuleId();
+        if (finalModuleId == null) finalModuleId = await ensureDefaultModuleId(tx);
         if (finalModuleId == null) {
           await tx.rollback();
           return res.status(400).json({
@@ -487,38 +602,14 @@ router.post('/', authenticateToken, async (req, res) => {
     const cols = [gc.nameCol, 'created_at'];
     const vals = ['@name', 'SYSUTCDATETIME()'];
 
-    if (gc.descriptionCol) {
-      cols.push(gc.descriptionCol);
-      vals.push('@description');
-    }
-    if (gc.max_members) {
-      cols.push('max_members');
-      vals.push('@maxMembers');
-    }
-    if (gc.is_public) {
-      cols.push('is_public');
-      vals.push('@isPublic');
-    }
-    if (gc.course) {
-      cols.push('course');
-      vals.push('@course');
-    }
-    if (gc.course_code) {
-      cols.push('course_code');
-      vals.push('@courseCode');
-    }
-    if (gc.last_activity) {
-      cols.push('last_activity');
-      vals.push('SYSUTCDATETIME()');
-    }
-    if (gc.creator_id) {
-      cols.push('creator_id');
-      vals.push('@creatorId');
-    }
-    if (gc.module_id && finalModuleId != null) {
-      cols.push('module_id');
-      vals.push('@moduleId');
-    }
+    if (gc.descriptionCol) { cols.push(gc.descriptionCol); vals.push('@description'); }
+    if (gc.max_members) { cols.push('max_members'); vals.push('@maxMembers'); }
+    if (gc.is_public) { cols.push('is_public'); vals.push('@isPublic'); }
+    if (gc.course) { cols.push('course'); vals.push('@course'); }
+    if (gc.course_code) { cols.push('course_code'); vals.push('@courseCode'); }
+    if (gc.last_activity) { cols.push('last_activity'); vals.push('SYSUTCDATETIME()'); }
+    if (gc.creator_id) { cols.push('creator_id'); vals.push('@creatorId'); }
+    if (gc.module_id && finalModuleId != null) { cols.push('module_id'); vals.push('@moduleId'); }
 
     const r = new sql.Request(tx);
     r.input('name', sql.NVarChar(255), name.trim());
@@ -538,23 +629,27 @@ router.post('/', authenticateToken, async (req, res) => {
 
     const created = ins.recordset[0];
 
-    // add creator as member (prefer role column if present)
+    // add creator as member (role must respect CHECK constraint)
     const r2 = new sql.Request(tx);
     r2.input('groupId', sql.Int, created.id);
     r2.input('userId', sql.NVarChar(255), req.user.id);
 
     const mmCols = ['group_id', 'user_id'];
     const mmVals = ['@groupId', '@userId'];
-    if (schema.membersCols.joined_at) {
-      mmCols.push('joined_at');
-      mmVals.push('SYSUTCDATETIME()');
-    } else if (schema.membersCols.created_at) {
-      mmCols.push('created_at');
-      mmVals.push('SYSUTCDATETIME()');
-    }
+    if (schema.membersCols.joined_at) { mmCols.push('joined_at'); mmVals.push('SYSUTCDATETIME()'); }
+    else if (schema.membersCols.created_at) { mmCols.push('created_at'); mmVals.push('SYSUTCDATETIME()'); }
+
     if (schema.membersCols.role) {
-      mmCols.push('role');
-      mmVals.push(`'owner'`);
+      const allowed = await detectAllowedMemberRoles();
+      const chosen = pickCreatorRole(allowed);
+
+      // If role is NOT NULL we must send a value; else we can omit if unsure
+      if (schema.membersCols.role_required || chosen) {
+        const roleToUse = chosen || 'member';
+        mmCols.push('role');
+        mmVals.push('@creatorRole');
+        r2.input('creatorRole', sql.NVarChar(50), roleToUse);
+      }
     }
 
     await r2.query(`
@@ -570,7 +665,7 @@ router.post('/', authenticateToken, async (req, res) => {
     res.status(201).json({
       id: String(created.id),
       name,
-      description: gc.descriptionCol ? created[gc.descriptionCol] : description ?? null,
+      description: schema.groupsCols.descriptionCol ? created[schema.groupsCols.descriptionCol] : description ?? null,
       course: gc.course ? created.course : null,
       courseCode: gc.course_code ? created.course_code : null,
       maxMembers: gc.max_members ? created.max_members : null,
@@ -580,9 +675,7 @@ router.post('/', authenticateToken, async (req, res) => {
       lastActivity: gc.last_activity ? created.last_activity : created.created_at,
     });
   } catch (err) {
-    try {
-      await tx.rollback();
-    } catch {}
+    try { await tx.rollback(); } catch {}
     console.error('POST /groups error:', err);
     res.status(500).json({ error: 'Failed to create group' });
   }
@@ -601,7 +694,6 @@ router.delete('/:groupId', authenticateToken, async (req, res) => {
   try {
     await tx.begin();
 
-    // verify ownership via creator_id if present, else group_members
     const c = new sql.Request(tx);
     c.input('groupId', sql.Int, groupId);
     c.input('userId', sql.NVarChar(255), req.user.id);
@@ -622,7 +714,6 @@ router.delete('/:groupId', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Only the owner can delete this group' });
     }
 
-    // cascade deletes
     const r1 = new sql.Request(tx);
     r1.input('groupId', sql.Int, groupId);
     await r1.query(`
@@ -638,9 +729,7 @@ router.delete('/:groupId', authenticateToken, async (req, res) => {
     await tx.commit();
     res.status(204).end();
   } catch (err) {
-    try {
-      await tx.rollback();
-    } catch {}
+    try { await tx.rollback(); } catch {}
     console.error('DELETE /groups/:groupId error:', err);
     res.status(500).json({ error: 'Failed to delete group' });
   }
@@ -661,7 +750,6 @@ router.post('/:groupId/join', authenticateToken, async (req, res) => {
     const g = schema.tables.groups;
     const gc = schema.groupsCols;
 
-    // capacity check only if max_members exists
     if (gc.max_members) {
       const cap = await r.query(`
         SELECT g.max_members AS maxMembers,
@@ -678,16 +766,10 @@ router.post('/:groupId/join', authenticateToken, async (req, res) => {
       if (!exists.recordset.length) return res.status(404).json({ error: 'Group not found' });
     }
 
-    // upsert membership
     const mmCols = ['group_id', 'user_id'];
     const mmVals = ['@groupId', '@userId'];
-    if (schema.membersCols.joined_at) {
-      mmCols.push('joined_at');
-      mmVals.push('SYSUTCDATETIME()');
-    } else if (schema.membersCols.created_at) {
-      mmCols.push('created_at');
-      mmVals.push('SYSUTCDATETIME()');
-    }
+    if (schema.membersCols.joined_at) { mmCols.push('joined_at'); mmVals.push('SYSUTCDATETIME()'); }
+    else if (schema.membersCols.created_at) { mmCols.push('created_at'); mmVals.push('SYSUTCDATETIME()'); }
 
     await r.query(`
       IF NOT EXISTS (SELECT 1 FROM dbo.group_members WHERE group_id = @groupId AND user_id = @userId)
@@ -723,10 +805,10 @@ router.post('/:groupId/sessions', authenticateToken, async (req, res) => {
     const {
       title,
       description,
-      startTime, // ISO string
-      endTime, // ISO string
+      startTime,
+      endTime,
       location,
-      type, // 'study' | 'review' | 'project' | 'exam_prep' | 'discussion'
+      type,
     } = req.body;
 
     if (!title || !startTime || !endTime || !location) {
@@ -738,8 +820,10 @@ router.post('/:groupId/sessions', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'endTime must be after startTime' });
     }
 
-    // verify group exists and fetch metadata we project on the response
-    const gq = await pool.request().input('groupId', sql.Int, groupId).query(`
+    const gq = await pool
+      .request()
+      .input('groupId', sql.Int, groupId)
+      .query(`
         SELECT 
           g.group_id AS id,
           ${schema.groupsCols.course ? 'g.course' : 'NULL'} AS course,
@@ -754,7 +838,6 @@ router.post('/:groupId/sessions', authenticateToken, async (req, res) => {
     }
     const grow = gq.recordset[0];
 
-    // Create session + auto-RSVP in a tx
     const tx = new sql.Transaction(pool);
     await tx.begin();
 
@@ -786,7 +869,6 @@ router.post('/:groupId/sessions', authenticateToken, async (req, res) => {
 
     const created = ins.recordset[0];
 
-    // Auto-RSVP organizer
     const rsvp = new sql.Request(tx);
     rsvp.input('sessionId', sql.Int, created.id);
     rsvp.input('userId', sql.NVarChar(255), req.user.id);
@@ -798,13 +880,10 @@ router.post('/:groupId/sessions', authenticateToken, async (req, res) => {
       END
     `);
 
-    // Bump group last_activity if present
     if (schema.groupsCols.last_activity) {
       await new sql.Request(tx)
         .input('groupId', sql.Int, groupId)
-        .query(
-          `UPDATE ${tbl('groups')} SET last_activity = SYSUTCDATETIME() WHERE group_id=@groupId`
-        );
+        .query(`UPDATE ${tbl('groups')} SET last_activity = SYSUTCDATETIME() WHERE group_id=@groupId`);
     }
 
     await tx.commit();
@@ -812,7 +891,8 @@ router.post('/:groupId/sessions', authenticateToken, async (req, res) => {
     const flags = await pool
       .request()
       .input('groupId', sql.Int, created.groupId)
-      .input('userId', sql.NVarChar(255), req.user.id).query(`
+      .input('userId', sql.NVarChar(255), req.user.id)
+      .query(`
         SELECT 
           CASE
             WHEN EXISTS (
@@ -823,7 +903,7 @@ router.post('/:groupId/sessions', authenticateToken, async (req, res) => {
           END AS isGroupOwner
       `);
 
-    const isGroupOwner = !!flags.recordset[0]?.isGroupOwner;
+    const isGroupOwner = !!(flags.recordset[0]?.isGroupOwner);
 
     res.status(201).json({
       ...created,
@@ -860,7 +940,6 @@ router.post('/:groupId/leave', authenticateToken, async (req, res) => {
     r.input('groupId', sql.Int, groupId);
     r.input('userId', sql.NVarChar(255), req.user.id);
 
-    // prevent owner from leaving if others exist
     const own = await r.query(`
       SELECT
         (SELECT COUNT(*) FROM dbo.group_members gm WHERE gm.group_id = g.group_id) AS memberCount,

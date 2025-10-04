@@ -131,6 +131,7 @@ export type StudySession = {
   status?: 'upcoming' | 'ongoing' | 'completed' | 'cancelled';
   isCreator?: boolean;
   isAttending?: boolean;
+  isGroupOwner?: boolean;
   groupId?: number | string;
 };
 
@@ -148,7 +149,12 @@ export type StudyGroup = {
   lastActivity?: string;
   group_type?: 'study' | 'project' | 'exam_prep' | 'discussion';
   member_count?: number;
+  /** NEW: count of sessions for the group (backend returns sessionCount) */
+  session_count?: number;
+  /** NEW: whether the current user is a member (backend returns isMember) */
+  isMember?: boolean;
 };
+
 
 // ---- Notifications types (for Header, etc.) ----
 export type NotificationRow = {
@@ -564,8 +570,9 @@ export class DataService {
     return this.fetchWithRetry(url, { credentials: 'include', ...init, headers });
   }
 
+  // Use local wall-clock time to avoid unintended UTC shifts
   private static toISO(date: string, time: string): string {
-    return new Date(`${date}T${time}:00`).toISOString();
+    return `${date}T${time}:00`;
   }
   private static pad2(n: number) {
     return n < 10 ? `0${n}` : String(n);
@@ -640,9 +647,8 @@ export class DataService {
     // Participants: prefer attendees length if present
     const attendeesCount = Array.isArray(s?.attendees) ? s.attendees.length : undefined;
     const participants =
-      Number(
-        s?.participants ?? s?.currentParticipants ?? s?.attendee_count ?? attendeesCount ?? 1
-      ) || 1;
+      Number(s?.participants ?? s?.currentParticipants ?? s?.attendee_count ?? attendeesCount ?? 0) ||
+      0;
 
     // Map backend 'scheduled' -> UI 'upcoming'
     let status = s?.status ?? 'upcoming';
@@ -659,10 +665,11 @@ export class DataService {
       location: s?.location ?? 'TBD',
       type: (s?.type ?? s?.session_type ?? 'study') as StudySession['type'],
       participants,
-      maxParticipants: s?.maxParticipants ?? s?.max_participants,
+      maxParticipants: Number(s?.maxParticipants ?? s?.max_participants) || undefined,
       status,
       isCreator: !!(s?.isCreator ?? s?.organizer ?? s?.is_owner ?? (s?.createdBy && true)),
       isAttending: !!(s?.isAttending ?? s?.attending),
+      isGroupOwner: !!s?.isGroupOwner,
       groupId: s?.groupId ?? s?.group_id,
     };
   }
@@ -734,13 +741,27 @@ export class DataService {
   }
 
   // -------------------- Sessions --------------------
-  static async fetchSessions(): Promise<StudySession[]> {
+  // overload with optional filters
+  static async fetchSessions(opts?: {
+    status?: 'upcoming' | 'ongoing' | 'completed' | 'cancelled';
+    groupId?: string | number;
+    startDate?: string; // ISO or 'YYYY-MM-DD'
+    endDate?: string; // ISO or 'YYYY-MM-DD'
+    limit?: number;
+    offset?: number;
+  }): Promise<StudySession[]> {
     try {
-      const res = await this.request('/api/v1/sessions', { method: 'GET' });
-      if (!res.ok) {
-        // fallback keeps dashboard usable
-        return FALLBACK_SESSIONS;
-      }
+      const p = new URLSearchParams();
+      if (opts?.status) p.set('status', opts.status);
+      if (opts?.groupId != null) p.set('groupId', String(opts.groupId));
+      if (opts?.startDate) p.set('startDate', opts.startDate);
+      if (opts?.endDate) p.set('endDate', opts.endDate);
+      if (opts?.limit != null) p.set('limit', String(opts.limit));
+      if (opts?.offset != null) p.set('offset', String(opts.offset));
+
+      const qs = p.toString();
+      const res = await this.request(`/api/v1/sessions${qs ? `?${qs}` : ''}`, { method: 'GET' });
+      if (!res.ok) return FALLBACK_SESSIONS;
       const data = await this.safeJson<any[]>(res, []);
       return data.map((row) => this.normalizeSession(row));
     } catch {
@@ -748,34 +769,29 @@ export class DataService {
     }
   }
 
+  /** Fetch a single session (full details). */
+  static async getSessionById(id: string): Promise<StudySession | null> {
+    try {
+      const res = await this.request(`/api/v1/sessions/${encodeURIComponent(id)}`, {
+        method: 'GET',
+      });
+      if (!res.ok) return null;
+      const data = await this.safeJson<any>(res, null);
+      return data ? this.normalizeSession(data) : null;
+    } catch {
+      return null;
+    }
+  }
+
   /** Create a standalone session (or group-linked if groupId provided). */
   static async createSession(
-    sessionData: Omit<StudySession, 'id' | 'participants' | 'status' | 'isCreator' | 'isAttending'>
+    sessionData: Omit<
+      StudySession,
+      'id' | 'participants' | 'status' | 'isCreator' | 'isAttending'
+    >
   ): Promise<StudySession | null> {
-    // Prefer group-scoped endpoint when groupId is present
-    if (sessionData.groupId) {
-      const payload = {
-        title: sessionData.title,
-        description: undefined,
-        startTime: this.toISO(sessionData.date, sessionData.startTime),
-        endTime: this.toISO(sessionData.date, sessionData.endTime),
-        location: sessionData.location,
-        topics: [] as string[],
-      };
-      try {
-        const res = await this.request(
-          `/api/v1/groups/${encodeURIComponent(String(sessionData.groupId))}/sessions`,
-          { method: 'POST', body: JSON.stringify(payload) }
-        );
-        if (res.ok) {
-          const created = await this.safeJson<any>(res, null);
-          return created ? this.normalizeSession(created) : null;
-        }
-      } catch {}
-      // fall through to global create
-    }
+    // keep the group-scoped attempt as-is if you like; if it 404s we fall back
 
-    // Generic sessions endpoint (backend expects snake_case keys)
     const startISO = this.toISO(sessionData.date, sessionData.startTime);
     const endISO = this.toISO(sessionData.date, sessionData.endTime);
 
@@ -785,7 +801,7 @@ export class DataService {
         : undefined;
 
     const payload = {
-      // helpful extras (ignored by backend if not handled)
+      // convenience extras (harmless)
       title: sessionData.title,
       startTime: startISO,
       endTime: endISO,
@@ -793,16 +809,15 @@ export class DataService {
       type: sessionData.type,
       course: sessionData.course,
       courseCode: sessionData.courseCode,
-      maxParticipants: sessionData.maxParticipants,
       groupId: sessionData.groupId,
 
-      // backend contract
+      // backend contract (snake_case)
       group_id: groupIdNum ?? sessionData.groupId,
       session_title: sessionData.title,
       scheduled_start: startISO,
       scheduled_end: endISO,
       session_type: sessionData.type,
-      max_participants: sessionData.maxParticipants,
+      // ⬇️ removed: max_participants (not a column)
     };
 
     try {
@@ -818,9 +833,49 @@ export class DataService {
     return null;
   }
 
+  static async startSession(sessionId: string): Promise<StudySession | null> {
+    try {
+      const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/start`, {
+        method: 'PUT',
+      });
+      if (!res.ok) return null;
+      // Backend returns a skinny payload; refetch full details
+      return await this.getSessionById(sessionId);
+    } catch {
+      return null;
+    }
+  }
+
+  static async endSession(sessionId: string): Promise<StudySession | null> {
+    try {
+      const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/end`, {
+        method: 'PUT',
+      });
+      if (!res.ok) return null;
+      return await this.getSessionById(sessionId);
+    } catch {
+      return null;
+    }
+  }
+
+  static async cancelSession(sessionId: string): Promise<StudySession | null> {
+    try {
+      const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/cancel`, {
+        method: 'PUT',
+      });
+      if (!res.ok) return null;
+      return await this.getSessionById(sessionId);
+    } catch {
+      return null;
+    }
+  }
+
   static async updateSession(
     sessionId: string,
-    sessionData: Omit<StudySession, 'id' | 'participants' | 'status' | 'isCreator' | 'isAttending'>
+    sessionData: Omit<
+      StudySession,
+      'id' | 'participants' | 'status' | 'isCreator' | 'isAttending'
+    >
   ): Promise<StudySession | null> {
     const payload: Record<string, any> = {
       title: sessionData.title,
@@ -853,7 +908,7 @@ export class DataService {
       const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}`, {
         method: 'DELETE',
       });
-      if (res.ok) {
+    if (res.ok) {
         const data = await this.safeJson<any>(res, null);
         return { ok: true, data };
       }
@@ -987,12 +1042,9 @@ export class DataService {
     // If moduleId not provided, try to infer from latest enrolled course
     if (moduleId == null) {
       try {
-        const res = await this.request(
-          '/api/v1/courses?limit=1&sortBy=enrolled_at&sortOrder=DESC',
-          {
-            method: 'GET',
-          }
-        );
+        const res = await this.request('/api/v1/courses?limit=1&sortBy=enrolled_at&sortOrder=DESC', {
+          method: 'GET',
+        });
         if (res.ok) {
           const data = await this.safeJson<any>(res, []);
           const courses = Array.isArray(data?.courses)

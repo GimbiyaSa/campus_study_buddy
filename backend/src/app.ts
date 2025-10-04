@@ -134,25 +134,7 @@ app.use('/api/v1/users/me/sessions', sessionService);
 app.use('/api/v1/users/me/notifications', notificationService); // alias for user-scoped path
 app.use('/api/v1/users/me/sessions', sessionService); // alias for user-scoped path
 
-// Bridge: allow POST /api/v1/groups/:groupId/sessions to create a session in that group
-app.use(
-  '/api/v1/groups/:groupId/sessions',
-  (req: Request, res: Response, next: NextFunction) => {
-    // Only need to augment POST bodies; other methods just pass through
-    if (req.method === 'POST') {
-      const gid = Number(req.params.groupId);
-      if (!Number.isFinite(gid)) {
-        return res.status(400).json({ error: 'Invalid group id' });
-      }
-      // Ensure backend sees a numeric FK so it doesn’t try to auto-provision a personal group
-      req.body = { ...req.body, group_id: gid, groupId: gid };
-    }
-    next();
-  },
-  // Mount the same sessions router under the group path.
-  // Its `POST '/'` will now serve POST /api/v1/groups/:groupId/sessions
-  sessionService
-);
+
 
 // Error handling middleware
 app.use((error: any, req: Request, res: Response, next: NextFunction) => {

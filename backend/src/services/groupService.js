@@ -38,8 +38,8 @@ const schema = {
     course_code: false,
     creator_id: false,
     creator_id_required: false,
-    module_id: false, // NEW
-    module_id_required: false, // NEW
+    module_id: false,
+    module_id_required: false,
   },
   membersCols: {
     role: false,
@@ -142,8 +142,8 @@ async function detectSchema() {
   schema.groupsCols.creator_id_required = schema.groupsCols.creator_id
     ? await columnIsNotNullable(g, 'creator_id')
     : false;
-  schema.groupsCols.module_id = await hasColumn(g, 'module_id'); // NEW
-  schema.groupsCols.module_id_required = schema.groupsCols.module_id // NEW
+  schema.groupsCols.module_id = await hasColumn(g, 'module_id');
+  schema.groupsCols.module_id_required = schema.groupsCols.module_id
     ? await columnIsNotNullable(g, 'module_id')
     : false;
 
@@ -191,6 +191,109 @@ async function pickFallbackModuleId() {
   `);
   return r.recordset.length ? r.recordset[0].mid : null;
 }
+
+/* -------------------------------------------------------------------------- */
+/*  LOCAL helper used by POST /groups to resolve/create a module_id safely    */
+/*  - Uses the SAME transaction as the group insert to avoid partial writes   */
+/*  - Strategy: explicit id -> validate; else lookup by course/code; else     */
+/*    create if columns allow; else return null                               */
+/* -------------------------------------------------------------------------- */
+async function modulesHasCol(col) {
+  return hasColumn('modules', col);
+}
+async function modulesColRequired(col) {
+  return columnIsNotNullable('modules', col);
+}
+
+async function resolveModuleIdForGroupCreate({
+  tx,
+  moduleId,
+  module_id,
+  course,
+  courseCode,
+  university,
+}) {
+  const explicit = module_id ?? moduleId;
+
+  // 1) Explicit id: validate existence
+  if (explicit != null) {
+    const r = new sql.Request(tx);
+    r.input('mid', sql.Int, Number(explicit));
+    const found = await r.query(
+      `SELECT module_id FROM dbo.modules WHERE module_id=@mid AND (is_active = 1 OR is_active IS NULL)`
+    );
+    return found.recordset.length ? Number(found.recordset[0].module_id) : null;
+  }
+
+  const code = courseCode ? String(courseCode).trim() : '';
+  const name = course ? String(course).trim() : '';
+  if (!code && !name) return null;
+
+  // 2) Try to find by code/name (prefers exact match)
+  {
+    const r = new sql.Request(tx);
+    if (code) r.input('code', sql.NVarChar(50), code);
+    if (name) r.input('name', sql.NVarChar(255), name);
+    if (university) r.input('uni', sql.NVarChar(255), university);
+
+    const whereParts = [`(m.is_active = 1 OR m.is_active IS NULL)`];
+    if (code) whereParts.push(`LOWER(m.module_code) = LOWER(@code)`);
+    if (name) whereParts.push(`LOWER(m.module_name) = LOWER(@name)`);
+    if (university) whereParts.push(`m.university = @uni`);
+
+    const q = `
+      SELECT TOP 1 m.module_id AS id
+      FROM dbo.modules m
+      WHERE ${whereParts.join(' AND ')}
+      ORDER BY m.module_code ASC
+    `;
+    const hit = await r.query(q);
+    if (hit.recordset.length) return Number(hit.recordset[0].id);
+  }
+
+  // 3) Create module if we can (respect NOT NULL constraints)
+  const hasUni = await modulesHasCol('university');
+  const uniRequired = hasUni ? await modulesColRequired('university') : false;
+  if (uniRequired && !university) {
+    // Can't create without required university
+    return null;
+  }
+
+  const r = new sql.Request(tx);
+  if (code) r.input('code', sql.NVarChar(50), code);
+  if (name) r.input('name', sql.NVarChar(255), name);
+  if (hasUni && university) r.input('uni', sql.NVarChar(255), university);
+  r.input('desc', sql.NVarChar(sql.MAX), null);
+
+  const cols = [];
+  const vals = [];
+  if (code) {
+    cols.push('module_code');
+    vals.push('@code');
+  }
+  if (name) {
+    cols.push('module_name');
+    vals.push('@name');
+  }
+  cols.push('description');
+  vals.push('@desc');
+  if (hasUni && university) {
+    cols.push('university');
+    vals.push('@uni');
+  }
+
+  // Defensive: require at least one of [name, code] to create
+  if (!cols.length || (cols.length === 2 && cols[0] === 'description')) return null;
+
+  const ins = await r.query(`
+    INSERT INTO dbo.modules (${cols.join(', ')})
+    OUTPUT inserted.module_id AS id
+    VALUES (${vals.join(', ')})
+  `);
+  return ins.recordset[0]?.id ? Number(ins.recordset[0].id) : null;
+}
+
+/* --------------------------------- Routes --------------------------------- */
 
 // ---------- GET /groups ----------
 router.get('/', authenticateToken, async (req, res) => {
@@ -326,6 +429,7 @@ router.post('/', authenticateToken, async (req, res) => {
     courseCode,
     moduleId,
     module_id,
+    university, // optional, used if we need to create a module
   } = req.body;
 
   if (!name || typeof name !== 'string') {
@@ -348,14 +452,35 @@ router.post('/', authenticateToken, async (req, res) => {
   try {
     await tx.begin();
 
-    let finalModuleId = module_id ?? moduleId ?? null;
-    if (gc.module_id && finalModuleId == null && gc.module_id_required) {
-      finalModuleId = await pickFallbackModuleId();
-      if (finalModuleId == null) {
+    // NEW: resolve module id (validate explicit id, else find by course/code, else create)
+    const explicitProvided = module_id != null || moduleId != null;
+    let finalModuleId = null;
+
+    if (gc.module_id) {
+      finalModuleId = await resolveModuleIdForGroupCreate({
+        tx,
+        moduleId,
+        module_id,
+        course,
+        courseCode,
+        university,
+      });
+
+      // If the user supplied an explicit id that doesn't exist, fail clearly
+      if (explicitProvided && finalModuleId == null) {
         await tx.rollback();
-        return res
-          .status(400)
-          .json({ error: 'module_id is required by schema and no fallback could be determined' });
+        return res.status(400).json({ error: 'Invalid module_id (module not found)' });
+      }
+
+      // If schema requires a module and we still don't have one, try fallback → else error
+      if (finalModuleId == null && gc.module_id_required) {
+        finalModuleId = await pickFallbackModuleId();
+        if (finalModuleId == null) {
+          await tx.rollback();
+          return res.status(400).json({
+            error: 'module_id is required by schema and no fallback could be determined',
+          });
+        }
       }
     }
 
@@ -455,7 +580,9 @@ router.post('/', authenticateToken, async (req, res) => {
       lastActivity: gc.last_activity ? created.last_activity : created.created_at,
     });
   } catch (err) {
-    await tx.rollback();
+    try {
+      await tx.rollback();
+    } catch {}
     console.error('POST /groups error:', err);
     res.status(500).json({ error: 'Failed to create group' });
   }
@@ -511,7 +638,9 @@ router.delete('/:groupId', authenticateToken, async (req, res) => {
     await tx.commit();
     res.status(204).end();
   } catch (err) {
-    await tx.rollback();
+    try {
+      await tx.rollback();
+    } catch {}
     console.error('DELETE /groups/:groupId error:', err);
     res.status(500).json({ error: 'Failed to delete group' });
   }
@@ -578,6 +707,146 @@ router.post('/:groupId/join', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('POST /groups/:groupId/join error:', err);
     res.status(500).json({ error: 'Failed to join group' });
+  }
+});
+
+// ---------- (Group-scoped) POST /groups/:groupId/sessions ----------
+router.post('/:groupId/sessions', authenticateToken, async (req, res) => {
+  try {
+    await getPool();
+
+    const groupId = Number(req.params.groupId);
+    if (Number.isNaN(groupId)) {
+      return res.status(400).json({ error: 'Invalid group id' });
+    }
+
+    const {
+      title,
+      description,
+      startTime, // ISO string
+      endTime,   // ISO string
+      location,
+      type,      // 'study' | 'review' | 'project' | 'exam_prep' | 'discussion'
+    } = req.body;
+
+    if (!title || !startTime || !endTime || !location) {
+      return res
+        .status(400)
+        .json({ error: 'title, startTime, endTime, and location are required' });
+    }
+    if (new Date(startTime) >= new Date(endTime)) {
+      return res.status(400).json({ error: 'endTime must be after startTime' });
+    }
+
+    // verify group exists and fetch metadata we project on the response
+    const gq = await pool
+      .request()
+      .input('groupId', sql.Int, groupId)
+      .query(`
+        SELECT 
+          g.group_id AS id,
+          ${schema.groupsCols.course ? 'g.course' : 'NULL'} AS course,
+          ${schema.groupsCols.course_code ? 'g.course_code' : 'NULL'} AS courseCode,
+          ${schema.groupsCols.max_members ? 'g.max_members' : 'NULL'} AS maxMembers
+        FROM ${tbl('groups')} g
+        WHERE g.group_id = @groupId
+      `);
+
+    if (!gq.recordset.length) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+    const grow = gq.recordset[0];
+
+    // Create session + auto-RSVP in a tx
+    const tx = new sql.Transaction(pool);
+    await tx.begin();
+
+    const r = new sql.Request(tx);
+    r.input('groupId', sql.Int, groupId);
+    r.input('organizerId', sql.NVarChar(255), req.user.id);
+    r.input('sessionTitle', sql.NVarChar(255), String(title).trim());
+    r.input('description', sql.NVarChar(sql.MAX), description ?? null);
+    r.input('scheduledStart', sql.DateTime2, new Date(startTime));
+    r.input('scheduledEnd', sql.DateTime2, new Date(endTime));
+    r.input('location', sql.NVarChar(500), String(location).trim());
+    r.input('sessionType', sql.NVarChar(50), (type || 'study').toString());
+
+    const ins = await r.query(`
+      INSERT INTO dbo.study_sessions
+        (group_id, organizer_id, session_title, description, scheduled_start, scheduled_end, location, session_type, status, created_at, updated_at)
+      OUTPUT 
+        inserted.session_id AS id,
+        inserted.group_id   AS groupId,
+        inserted.session_title AS title,
+        CONVERT(VARCHAR(10), inserted.scheduled_start, 23) AS date,
+        LEFT(CONVERT(VARCHAR(8), inserted.scheduled_start, 108), 5) AS startTime,
+        LEFT(CONVERT(VARCHAR(8), inserted.scheduled_end, 108), 5)   AS endTime,
+        inserted.location,
+        inserted.session_type AS [type],
+        inserted.status AS status
+      VALUES (@groupId, @organizerId, @sessionTitle, @description, @scheduledStart, @scheduledEnd, @location, @sessionType, 'scheduled', SYSUTCDATETIME(), SYSUTCDATETIME())
+    `);
+
+    const created = ins.recordset[0];
+
+    // Auto-RSVP organizer
+    const rsvp = new sql.Request(tx);
+    rsvp.input('sessionId', sql.Int, created.id);
+    rsvp.input('userId', sql.NVarChar(255), req.user.id);
+    await rsvp.query(`
+      IF NOT EXISTS (SELECT 1 FROM dbo.session_attendees WHERE session_id=@sessionId AND user_id=@userId)
+      BEGIN
+        INSERT INTO dbo.session_attendees (session_id, user_id, attendance_status, responded_at)
+        VALUES (@sessionId, @userId, 'attending', SYSUTCDATETIME());
+      END
+    `);
+
+    // Bump group last_activity if present
+    if (schema.groupsCols.last_activity) {
+      await new sql.Request(tx)
+        .input('groupId', sql.Int, groupId)
+        .query(`UPDATE ${tbl('groups')} SET last_activity = SYSUTCDATETIME() WHERE group_id=@groupId`);
+    }
+
+    await tx.commit();
+
+    const flags = await pool
+      .request()
+      .input('groupId', sql.Int, created.groupId)
+      .input('userId', sql.NVarChar(255), req.user.id)
+      .query(`
+        SELECT 
+          CASE
+            WHEN EXISTS (
+              SELECT 1 FROM dbo.group_members gm
+              WHERE gm.group_id=@groupId AND gm.user_id=@userId
+              ${schema.membersCols.role ? `AND gm.role IN ('owner','admin','moderator')` : ''}
+            ) THEN 1 ELSE 0
+          END AS isGroupOwner
+      `);
+
+    const isGroupOwner = !!(flags.recordset[0]?.isGroupOwner);
+
+    res.status(201).json({
+      ...created,
+      id: String(created.id),
+      status: created.status === 'scheduled' ? 'upcoming' : created.status,
+      participants: 1,
+      maxParticipants: grow.maxMembers ?? null,
+      isCreator: true,
+      isAttending: true,
+      isGroupOwner,
+      course: grow.course ?? null,
+      courseCode: grow.courseCode ?? null,
+    });
+  } catch (err) {
+    try {
+      if (err && err.transaction && err.transaction._aborted !== true) {
+        await err.transaction.rollback();
+      }
+    } catch {}
+    console.error('POST /groups/:groupId/sessions error:', err);
+    res.status(500).json({ error: 'Failed to create session for group' });
   }
 });
 

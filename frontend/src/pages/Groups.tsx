@@ -241,15 +241,12 @@ export default function Groups() {
     if ((group as any).isOwner === true) return true;
     // 2) Fallback to createdBy/creator_id logic
     const ownerId =
-      owners[group.group_id] ??
-      (group.creator_id != null ? String(group.creator_id) : '');
+      owners[group.group_id] ?? (group.creator_id != null ? String(group.creator_id) : '');
     if (ownerId && String(ownerId) === String(meId)) return true;
     // 3) Last resort: if members array is present, accept owner-by-role
     const m = (group as any).members;
     if (Array.isArray(m)) {
-      const mine = m.find(
-        (x: any) => String(x?.userId ?? x?.id ?? x?.user_id) === String(meId)
-      );
+      const mine = m.find((x: any) => String(x?.userId ?? x?.id ?? x?.user_id) === String(meId));
       if (mine && String(mine.role || '').toLowerCase() === 'owner') return true;
     }
     return false;
@@ -447,54 +444,53 @@ export default function Groups() {
   };
 
   // --- create group (API-first; optimistic fallback; broadcast) ---
-const handleCreateGroup = async (form: {
-  name: string;
-  description?: string;
-  maxMembers?: number;
-  isPublic?: boolean;
-}) => {
-  try {
-    const created = await DataService.createGroup({
+  const handleCreateGroup = async (form: {
+    name: string;
+    description?: string;
+    maxMembers?: number;
+    isPublic?: boolean;
+  }) => {
+    try {
+      const created = await DataService.createGroup({
+        name: form.name,
+        description: form.description || '',
+        subjects: [],
+        maxMembers: form.maxMembers ?? 8,
+        isPublic: form.isPublic ?? true,
+        // ⬅️ removed course / courseCode to avoid modules insert path
+      });
+
+      if (created) {
+        const sg = toStudyGroup(created);
+        setJoinedByMe((prev) => ({ ...prev, [sg.group_id]: true }));
+        setGroups((prev) => [sg, ...prev]);
+        broadcastGroupCreated(sg);
+        await refreshGroups();
+        return;
+      }
+    } catch (err) {
+      console.error('Error creating group:', err);
+    }
+
+    // Optimistic fallback stays the same (no course fields)
+    const localId = Date.now();
+    const localGroup = toStudyGroup({
+      id: String(localId),
       name: form.name,
       description: form.description || '',
-      subjects: [],
       maxMembers: form.maxMembers ?? 8,
       isPublic: form.isPublic ?? true,
-      // ⬅️ removed course / courseCode to avoid modules insert path
+      createdBy: meId,
+      members: [{ userId: meId, role: 'admin', joinedAt: new Date().toISOString() }],
+      createdAt: new Date().toISOString(),
+      lastActivity: new Date().toISOString(),
+      group_type: 'study',
     });
 
-    if (created) {
-      const sg = toStudyGroup(created);
-      setJoinedByMe((prev) => ({ ...prev, [sg.group_id]: true }));
-      setGroups((prev) => [sg, ...prev]);
-      broadcastGroupCreated(sg);
-      await refreshGroups();
-      return;
-    }
-  } catch (err) {
-    console.error('Error creating group:', err);
-  }
-
-  // Optimistic fallback stays the same (no course fields)
-  const localId = Date.now();
-  const localGroup = toStudyGroup({
-    id: String(localId),
-    name: form.name,
-    description: form.description || '',
-    maxMembers: form.maxMembers ?? 8,
-    isPublic: form.isPublic ?? true,
-    createdBy: meId,
-    members: [{ userId: meId, role: 'admin', joinedAt: new Date().toISOString() }],
-    createdAt: new Date().toISOString(),
-    lastActivity: new Date().toISOString(),
-    group_type: 'study',
-  });
-
-  setJoinedByMe((prev) => ({ ...prev, [localGroup.group_id]: true }));
-  setGroups((prev) => [localGroup, ...prev]);
-  broadcastGroupCreated(localGroup);
-};
-
+    setJoinedByMe((prev) => ({ ...prev, [localGroup.group_id]: true }));
+    setGroups((prev) => [localGroup, ...prev]);
+    broadcastGroupCreated(localGroup);
+  };
 
   // --- schedule a session for a group ---
   const handleScheduleSession = async (
@@ -1304,7 +1300,9 @@ function InviteMembersModal({
           user_id: currentUserId,
           notification_type: 'group_invite',
           title: 'Group invites sent',
-          message: `You invited ${selectedIds.length} ${selectedIds.length === 1 ? 'person' : 'people'} to join your group.`,
+          message: `You invited ${selectedIds.length} ${
+            selectedIds.length === 1 ? 'person' : 'people'
+          } to join your group.`,
           metadata: { group_id: groupId, invitee_ids: selectedIds, direction: 'sent' },
         });
       }

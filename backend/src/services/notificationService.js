@@ -5,9 +5,33 @@ const { authenticateToken } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
-// Get database pool (assuming it's initialized in userService.js)
-const getPool = () => {
-  return sql.globalPool || require('./userService').pool;
+/**
+ * ---- Database pool (lazy init) ----
+ * Tries Azure config first, then env var DATABASE_CONNECTION_STRING.
+ * Always await getPool() before using pool.request().
+ */
+let pool;
+const getPool = async () => {
+  if (pool && pool.connected) return pool;
+  try {
+    try {
+      const { azureConfig } = require('../config/azureConfig');
+      const dbConfig = await azureConfig.getDatabaseConfig();
+      pool = await sql.connect(dbConfig);
+    } catch (azureError) {
+      console.warn('Azure config not available, using environment variables');
+      if (process.env.DATABASE_CONNECTION_STRING) {
+        pool = await sql.connect(process.env.DATABASE_CONNECTION_STRING);
+      } else {
+        throw new Error('DATABASE_CONNECTION_STRING not found in environment variables');
+      }
+    }
+    sql.globalPool = pool; // make available to other modules if they rely on globalPool
+    return pool;
+  } catch (error) {
+    console.error('❌ Database connection failed:', error);
+    throw error;
+  }
 };
 
 // ------------------------- Core helper -------------------------
@@ -20,7 +44,8 @@ const createNotification = async (
   scheduledFor = null
 ) => {
   try {
-    const request = getPool().request();
+    const pool = await getPool();
+    const request = pool.request();
     request.input('userId', sql.Int, userId);
     request.input('notificationType', sql.NVarChar(100), notificationType);
     request.input('title', sql.NVarChar(255), title);
@@ -42,10 +67,10 @@ const createNotification = async (
 };
 
 // ---------------------- Existing hourly reminder ----------------------
-// (kept as-is; 1-hour-before reminder logic)
 const sendSessionReminders = async () => {
   try {
-    const request = getPool().request();
+    const pool = await getPool();
+    const request = pool.request();
 
     const upcomingSessions = await request.query(`
       SELECT 
@@ -99,7 +124,8 @@ const sendSessionReminders = async () => {
 // ---------------------- NEW: 24-hour reminders ----------------------
 const schedule24hRemindersForSession = async (sessionId) => {
   try {
-    const request = getPool().request();
+    const pool = await getPool();
+    const request = pool.request();
     request.input('sessionId', sql.Int, sessionId);
 
     const result = await request.query(`
@@ -158,7 +184,8 @@ const schedule24hRemindersForSession = async (sessionId) => {
 // Batch scheduler (run via worker/cron): enqueue 24h-out reminders for sessions starting ~24–25h from now
 const scheduleDaily24hReminders = async () => {
   try {
-    const request = getPool().request();
+    const pool = await getPool();
+    const request = pool.request();
     const sessionsRes = await request.query(`
       SELECT ss.session_id
       FROM study_sessions ss
@@ -185,7 +212,8 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     const { unreadOnly = false, limit = 50, offset = 0, type } = req.query;
 
-    const request = getPool().request();
+    const pool = await getPool();
+    const request = pool.request();
     request.input('userId', sql.Int, req.user.id);
     request.input('limit', sql.Int, parseInt(limit));
     request.input('offset', sql.Int, parseInt(offset));
@@ -224,7 +252,8 @@ router.get('/', authenticateToken, async (req, res) => {
 // Get notification counts
 router.get('/counts', authenticateToken, async (req, res) => {
   try {
-    const request = getPool().request();
+    const pool = await getPool();
+    const request = pool.request();
     request.input('userId', sql.Int, req.user.id);
 
     const result = await request.query(`
@@ -248,7 +277,8 @@ router.get('/counts', authenticateToken, async (req, res) => {
 // Mark notification as read
 router.put('/:notificationId/read', authenticateToken, async (req, res) => {
   try {
-    const request = getPool().request();
+    const pool = await getPool();
+    const request = pool.request();
     request.input('userId', sql.Int, req.user.id);
     request.input('notificationId', sql.Int, req.params.notificationId);
 
@@ -276,7 +306,8 @@ router.put('/:notificationId/read', authenticateToken, async (req, res) => {
 // Mark all notifications as read
 router.put('/read-all', authenticateToken, async (req, res) => {
   try {
-    const request = getPool().request();
+    const pool = await getPool();
+    const request = pool.request();
     request.input('userId', sql.Int, req.user.id);
 
     const result = await request.query(`
@@ -295,7 +326,8 @@ router.put('/read-all', authenticateToken, async (req, res) => {
 // Delete notification
 router.delete('/:notificationId', authenticateToken, async (req, res) => {
   try {
-    const request = getPool().request();
+    const pool = await getPool();
+    const request = pool.request();
     request.input('userId', sql.Int, req.user.id);
     request.input('notificationId', sql.Int, req.params.notificationId);
 
@@ -368,7 +400,8 @@ router.post('/group/:groupId/notify', authenticateToken, async (req, res) => {
       });
     }
 
-    const request = getPool().request();
+    const pool = await getPool();
+    const request = pool.request();
     request.input('groupId', sql.Int, req.params.groupId);
     request.input('userId', sql.Int, req.user.id);
 
@@ -425,7 +458,8 @@ router.post('/group/:groupId/notify', authenticateToken, async (req, res) => {
 // Get pending notifications (scheduled but not sent)
 router.get('/pending', authenticateToken, async (req, res) => {
   try {
-    const request = getPool().request();
+    const pool = await getPool();
+    const request = pool.request();
 
     const result = await request.query(`
       SELECT *
@@ -457,9 +491,18 @@ router.put('/mark-sent', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'notification_ids array is required' });
     }
 
-    const request = getPool().request();
+    const pool = await getPool();
+    const request = pool.request();
 
-    const idList = notification_ids.map((id) => `(${parseInt(id)})`).join(',');
+    // flatten IDs for IN clause
+    const idList = notification_ids
+      .map((id) => parseInt(id, 10))
+      .filter((n) => !Number.isNaN(n))
+      .join(',');
+
+    if (!idList) {
+      return res.status(400).json({ error: 'No valid notification IDs provided' });
+    }
 
     const result = await request.query(`
       UPDATE notifications 

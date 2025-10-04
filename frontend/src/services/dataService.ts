@@ -1026,8 +1026,6 @@ export class DataService {
     description?: string;
     maxMembers?: number;
     isPublic?: boolean;
-    course?: string;
-    courseCode?: string;
     subjects?: string[];
     moduleId?: number | string; // <-- NEW
   }): Promise<any | null> {
@@ -1063,8 +1061,6 @@ export class DataService {
       description: payload.description ?? '',
       maxMembers: payload.maxMembers ?? 10,
       isPublic: payload.isPublic ?? true,
-      course: payload.course ?? undefined,
-      courseCode: payload.courseCode ?? undefined,
       moduleId: moduleId != null ? Number(moduleId) : undefined, // <-- send when known
       subjects: Array.isArray(payload.subjects) ? payload.subjects : [],
     };

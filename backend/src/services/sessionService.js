@@ -98,7 +98,6 @@ async function bumpStatuses() {
   }
 }
 
-
 /* ---------- GET / (list) ---------- */
 router.get('/', authenticateToken, async (req, res) => {
   try {

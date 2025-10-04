@@ -134,8 +134,6 @@ app.use('/api/v1/users/me/sessions', sessionService);
 app.use('/api/v1/users/me/notifications', notificationService); // alias for user-scoped path
 app.use('/api/v1/users/me/sessions', sessionService); // alias for user-scoped path
 
-
-
 // Error handling middleware
 app.use((error: any, req: Request, res: Response, next: NextFunction) => {
   console.error('Unhandled error:', error);

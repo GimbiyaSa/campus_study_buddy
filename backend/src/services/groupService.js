@@ -724,9 +724,9 @@ router.post('/:groupId/sessions', authenticateToken, async (req, res) => {
       title,
       description,
       startTime, // ISO string
-      endTime,   // ISO string
+      endTime, // ISO string
       location,
-      type,      // 'study' | 'review' | 'project' | 'exam_prep' | 'discussion'
+      type, // 'study' | 'review' | 'project' | 'exam_prep' | 'discussion'
     } = req.body;
 
     if (!title || !startTime || !endTime || !location) {
@@ -739,10 +739,7 @@ router.post('/:groupId/sessions', authenticateToken, async (req, res) => {
     }
 
     // verify group exists and fetch metadata we project on the response
-    const gq = await pool
-      .request()
-      .input('groupId', sql.Int, groupId)
-      .query(`
+    const gq = await pool.request().input('groupId', sql.Int, groupId).query(`
         SELECT 
           g.group_id AS id,
           ${schema.groupsCols.course ? 'g.course' : 'NULL'} AS course,
@@ -805,7 +802,9 @@ router.post('/:groupId/sessions', authenticateToken, async (req, res) => {
     if (schema.groupsCols.last_activity) {
       await new sql.Request(tx)
         .input('groupId', sql.Int, groupId)
-        .query(`UPDATE ${tbl('groups')} SET last_activity = SYSUTCDATETIME() WHERE group_id=@groupId`);
+        .query(
+          `UPDATE ${tbl('groups')} SET last_activity = SYSUTCDATETIME() WHERE group_id=@groupId`
+        );
     }
 
     await tx.commit();
@@ -813,8 +812,7 @@ router.post('/:groupId/sessions', authenticateToken, async (req, res) => {
     const flags = await pool
       .request()
       .input('groupId', sql.Int, created.groupId)
-      .input('userId', sql.NVarChar(255), req.user.id)
-      .query(`
+      .input('userId', sql.NVarChar(255), req.user.id).query(`
         SELECT 
           CASE
             WHEN EXISTS (
@@ -825,7 +823,7 @@ router.post('/:groupId/sessions', authenticateToken, async (req, res) => {
           END AS isGroupOwner
       `);
 
-    const isGroupOwner = !!(flags.recordset[0]?.isGroupOwner);
+    const isGroupOwner = !!flags.recordset[0]?.isGroupOwner;
 
     res.status(201).json({
       ...created,

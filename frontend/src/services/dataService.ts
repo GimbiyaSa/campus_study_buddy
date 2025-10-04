@@ -155,7 +155,6 @@ export type StudyGroup = {
   isMember?: boolean;
 };
 
-
 // ---- Notifications types (for Header, etc.) ----
 export type NotificationRow = {
   notification_id?: number;
@@ -647,8 +646,9 @@ export class DataService {
     // Participants: prefer attendees length if present
     const attendeesCount = Array.isArray(s?.attendees) ? s.attendees.length : undefined;
     const participants =
-      Number(s?.participants ?? s?.currentParticipants ?? s?.attendee_count ?? attendeesCount ?? 0) ||
-      0;
+      Number(
+        s?.participants ?? s?.currentParticipants ?? s?.attendee_count ?? attendeesCount ?? 0
+      ) || 0;
 
     // Map backend 'scheduled' -> UI 'upcoming'
     let status = s?.status ?? 'upcoming';
@@ -785,10 +785,7 @@ export class DataService {
 
   /** Create a standalone session (or group-linked if groupId provided). */
   static async createSession(
-    sessionData: Omit<
-      StudySession,
-      'id' | 'participants' | 'status' | 'isCreator' | 'isAttending'
-    >
+    sessionData: Omit<StudySession, 'id' | 'participants' | 'status' | 'isCreator' | 'isAttending'>
   ): Promise<StudySession | null> {
     // keep the group-scoped attempt as-is if you like; if it 404s we fall back
 
@@ -872,10 +869,7 @@ export class DataService {
 
   static async updateSession(
     sessionId: string,
-    sessionData: Omit<
-      StudySession,
-      'id' | 'participants' | 'status' | 'isCreator' | 'isAttending'
-    >
+    sessionData: Omit<StudySession, 'id' | 'participants' | 'status' | 'isCreator' | 'isAttending'>
   ): Promise<StudySession | null> {
     const payload: Record<string, any> = {
       title: sessionData.title,
@@ -908,7 +902,7 @@ export class DataService {
       const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}`, {
         method: 'DELETE',
       });
-    if (res.ok) {
+      if (res.ok) {
         const data = await this.safeJson<any>(res, null);
         return { ok: true, data };
       }
@@ -1042,9 +1036,12 @@ export class DataService {
     // If moduleId not provided, try to infer from latest enrolled course
     if (moduleId == null) {
       try {
-        const res = await this.request('/api/v1/courses?limit=1&sortBy=enrolled_at&sortOrder=DESC', {
-          method: 'GET',
-        });
+        const res = await this.request(
+          '/api/v1/courses?limit=1&sortBy=enrolled_at&sortOrder=DESC',
+          {
+            method: 'GET',
+          }
+        );
         if (res.ok) {
           const data = await this.safeJson<any>(res, []);
           const courses = Array.isArray(data?.courses)

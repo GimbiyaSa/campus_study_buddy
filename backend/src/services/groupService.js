@@ -42,7 +42,7 @@ const schema = {
   },
   membersCols: {
     role: false,
-    role_required: false,   // NEW: detect NOT NULL
+    role_required: false, // NEW: detect NOT NULL
     joined_at: false,
     created_at: false,
     idCol: null, // one of: member_id | id | group_member_id
@@ -255,22 +255,34 @@ async function ensureDefaultModuleId(tx) {
     uniToUse = uq.recordset[0]?.uni || 'General';
   }
 
-  const hasIsActive  = await modulesHasCol('is_active');
+  const hasIsActive = await modulesHasCol('is_active');
   const hasCreatedAt = await modulesHasCol('created_at');
   const hasUpdatedAt = await modulesHasCol('updated_at');
 
   const r = new sql.Request(tx);
-  r.input('code', sql.NVarChar(50),  defCode);
+  r.input('code', sql.NVarChar(50), defCode);
   r.input('name', sql.NVarChar(255), defName);
   r.input('desc', sql.NVarChar(sql.MAX), 'Default module');
   if (hasUni && uniToUse) r.input('uni', sql.NVarChar(255), uniToUse);
 
-  const cols = ['module_code','module_name','description'];
-  const vals = ['@code','@name','@desc'];
-  if (hasUni && uniToUse) { cols.push('university'); vals.push('@uni'); }
-  if (hasIsActive)        { cols.push('is_active');  vals.push('1'); }
-  if (hasCreatedAt)       { cols.push('created_at'); vals.push('SYSUTCDATETIME()'); }
-  if (hasUpdatedAt)       { cols.push('updated_at'); vals.push('SYSUTCDATETIME()'); }
+  const cols = ['module_code', 'module_name', 'description'];
+  const vals = ['@code', '@name', '@desc'];
+  if (hasUni && uniToUse) {
+    cols.push('university');
+    vals.push('@uni');
+  }
+  if (hasIsActive) {
+    cols.push('is_active');
+    vals.push('1');
+  }
+  if (hasCreatedAt) {
+    cols.push('created_at');
+    vals.push('SYSUTCDATETIME()');
+  }
+  if (hasUpdatedAt) {
+    cols.push('updated_at');
+    vals.push('SYSUTCDATETIME()');
+  }
 
   const ins = await r.query(`
     INSERT INTO dbo.modules (${cols.join(', ')})
@@ -355,13 +367,32 @@ async function resolveModuleIdForGroupCreate({
   const cols = [];
   const vals = [];
 
-  if (code) { cols.push('module_code'); vals.push('@code'); }
-  if (name) { cols.push('module_name'); vals.push('@name'); }
-  cols.push('description'); vals.push('@desc');
-  if (hasUni && uniToUse) { cols.push('university'); vals.push('@uni'); }
-  if (hasIsActive) { cols.push('is_active'); vals.push('1'); }
-  if (hasCreatedAt) { cols.push('created_at'); vals.push('SYSUTCDATETIME()'); }
-  if (hasUpdatedAt) { cols.push('updated_at'); vals.push('SYSUTCDATETIME()'); }
+  if (code) {
+    cols.push('module_code');
+    vals.push('@code');
+  }
+  if (name) {
+    cols.push('module_name');
+    vals.push('@name');
+  }
+  cols.push('description');
+  vals.push('@desc');
+  if (hasUni && uniToUse) {
+    cols.push('university');
+    vals.push('@uni');
+  }
+  if (hasIsActive) {
+    cols.push('is_active');
+    vals.push('1');
+  }
+  if (hasCreatedAt) {
+    cols.push('created_at');
+    vals.push('SYSUTCDATETIME()');
+  }
+  if (hasUpdatedAt) {
+    cols.push('updated_at');
+    vals.push('SYSUTCDATETIME()');
+  }
 
   const nonTrivial = cols.some((c) => c === 'module_code' || c === 'module_name');
   if (!nonTrivial) return null;
@@ -385,7 +416,7 @@ async function detectAllowedMemberRoles() {
     WHERE o.name = 'group_members'
   `;
   const { recordset } = await pool.request().query(q);
-  const defs = (recordset || []).map(r => String(r.defn || ''));
+  const defs = (recordset || []).map((r) => String(r.defn || ''));
 
   // Parse things like: ([role] IN ('member','admin','owner'))
   const roles = new Set();
@@ -394,9 +425,9 @@ async function detectAllowedMemberRoles() {
     if (m && m[1]) {
       m[1]
         .split(',')
-        .map(s => s.replace(/['"\s]/g, ''))
+        .map((s) => s.replace(/['"\s]/g, ''))
         .filter(Boolean)
-        .forEach(x => roles.add(x.toLowerCase()));
+        .forEach((x) => roles.add(x.toLowerCase()));
     }
   }
   return Array.from(roles);
@@ -602,14 +633,38 @@ router.post('/', authenticateToken, async (req, res) => {
     const cols = [gc.nameCol, 'created_at'];
     const vals = ['@name', 'SYSUTCDATETIME()'];
 
-    if (gc.descriptionCol) { cols.push(gc.descriptionCol); vals.push('@description'); }
-    if (gc.max_members) { cols.push('max_members'); vals.push('@maxMembers'); }
-    if (gc.is_public) { cols.push('is_public'); vals.push('@isPublic'); }
-    if (gc.course) { cols.push('course'); vals.push('@course'); }
-    if (gc.course_code) { cols.push('course_code'); vals.push('@courseCode'); }
-    if (gc.last_activity) { cols.push('last_activity'); vals.push('SYSUTCDATETIME()'); }
-    if (gc.creator_id) { cols.push('creator_id'); vals.push('@creatorId'); }
-    if (gc.module_id && finalModuleId != null) { cols.push('module_id'); vals.push('@moduleId'); }
+    if (gc.descriptionCol) {
+      cols.push(gc.descriptionCol);
+      vals.push('@description');
+    }
+    if (gc.max_members) {
+      cols.push('max_members');
+      vals.push('@maxMembers');
+    }
+    if (gc.is_public) {
+      cols.push('is_public');
+      vals.push('@isPublic');
+    }
+    if (gc.course) {
+      cols.push('course');
+      vals.push('@course');
+    }
+    if (gc.course_code) {
+      cols.push('course_code');
+      vals.push('@courseCode');
+    }
+    if (gc.last_activity) {
+      cols.push('last_activity');
+      vals.push('SYSUTCDATETIME()');
+    }
+    if (gc.creator_id) {
+      cols.push('creator_id');
+      vals.push('@creatorId');
+    }
+    if (gc.module_id && finalModuleId != null) {
+      cols.push('module_id');
+      vals.push('@moduleId');
+    }
 
     const r = new sql.Request(tx);
     r.input('name', sql.NVarChar(255), name.trim());
@@ -636,8 +691,13 @@ router.post('/', authenticateToken, async (req, res) => {
 
     const mmCols = ['group_id', 'user_id'];
     const mmVals = ['@groupId', '@userId'];
-    if (schema.membersCols.joined_at) { mmCols.push('joined_at'); mmVals.push('SYSUTCDATETIME()'); }
-    else if (schema.membersCols.created_at) { mmCols.push('created_at'); mmVals.push('SYSUTCDATETIME()'); }
+    if (schema.membersCols.joined_at) {
+      mmCols.push('joined_at');
+      mmVals.push('SYSUTCDATETIME()');
+    } else if (schema.membersCols.created_at) {
+      mmCols.push('created_at');
+      mmVals.push('SYSUTCDATETIME()');
+    }
 
     if (schema.membersCols.role) {
       const allowed = await detectAllowedMemberRoles();
@@ -665,7 +725,9 @@ router.post('/', authenticateToken, async (req, res) => {
     res.status(201).json({
       id: String(created.id),
       name,
-      description: schema.groupsCols.descriptionCol ? created[schema.groupsCols.descriptionCol] : description ?? null,
+      description: schema.groupsCols.descriptionCol
+        ? created[schema.groupsCols.descriptionCol]
+        : description ?? null,
       course: gc.course ? created.course : null,
       courseCode: gc.course_code ? created.course_code : null,
       maxMembers: gc.max_members ? created.max_members : null,
@@ -675,7 +737,9 @@ router.post('/', authenticateToken, async (req, res) => {
       lastActivity: gc.last_activity ? created.last_activity : created.created_at,
     });
   } catch (err) {
-    try { await tx.rollback(); } catch {}
+    try {
+      await tx.rollback();
+    } catch {}
     console.error('POST /groups error:', err);
     res.status(500).json({ error: 'Failed to create group' });
   }
@@ -729,7 +793,9 @@ router.delete('/:groupId', authenticateToken, async (req, res) => {
     await tx.commit();
     res.status(204).end();
   } catch (err) {
-    try { await tx.rollback(); } catch {}
+    try {
+      await tx.rollback();
+    } catch {}
     console.error('DELETE /groups/:groupId error:', err);
     res.status(500).json({ error: 'Failed to delete group' });
   }
@@ -768,8 +834,13 @@ router.post('/:groupId/join', authenticateToken, async (req, res) => {
 
     const mmCols = ['group_id', 'user_id'];
     const mmVals = ['@groupId', '@userId'];
-    if (schema.membersCols.joined_at) { mmCols.push('joined_at'); mmVals.push('SYSUTCDATETIME()'); }
-    else if (schema.membersCols.created_at) { mmCols.push('created_at'); mmVals.push('SYSUTCDATETIME()'); }
+    if (schema.membersCols.joined_at) {
+      mmCols.push('joined_at');
+      mmVals.push('SYSUTCDATETIME()');
+    } else if (schema.membersCols.created_at) {
+      mmCols.push('created_at');
+      mmVals.push('SYSUTCDATETIME()');
+    }
 
     await r.query(`
       IF NOT EXISTS (SELECT 1 FROM dbo.group_members WHERE group_id = @groupId AND user_id = @userId)
@@ -802,14 +873,7 @@ router.post('/:groupId/sessions', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Invalid group id' });
     }
 
-    const {
-      title,
-      description,
-      startTime,
-      endTime,
-      location,
-      type,
-    } = req.body;
+    const { title, description, startTime, endTime, location, type } = req.body;
 
     if (!title || !startTime || !endTime || !location) {
       return res
@@ -820,10 +884,7 @@ router.post('/:groupId/sessions', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'endTime must be after startTime' });
     }
 
-    const gq = await pool
-      .request()
-      .input('groupId', sql.Int, groupId)
-      .query(`
+    const gq = await pool.request().input('groupId', sql.Int, groupId).query(`
         SELECT 
           g.group_id AS id,
           ${schema.groupsCols.course ? 'g.course' : 'NULL'} AS course,
@@ -883,7 +944,9 @@ router.post('/:groupId/sessions', authenticateToken, async (req, res) => {
     if (schema.groupsCols.last_activity) {
       await new sql.Request(tx)
         .input('groupId', sql.Int, groupId)
-        .query(`UPDATE ${tbl('groups')} SET last_activity = SYSUTCDATETIME() WHERE group_id=@groupId`);
+        .query(
+          `UPDATE ${tbl('groups')} SET last_activity = SYSUTCDATETIME() WHERE group_id=@groupId`
+        );
     }
 
     await tx.commit();
@@ -891,8 +954,7 @@ router.post('/:groupId/sessions', authenticateToken, async (req, res) => {
     const flags = await pool
       .request()
       .input('groupId', sql.Int, created.groupId)
-      .input('userId', sql.NVarChar(255), req.user.id)
-      .query(`
+      .input('userId', sql.NVarChar(255), req.user.id).query(`
         SELECT 
           CASE
             WHEN EXISTS (
@@ -903,7 +965,7 @@ router.post('/:groupId/sessions', authenticateToken, async (req, res) => {
           END AS isGroupOwner
       `);
 
-    const isGroupOwner = !!(flags.recordset[0]?.isGroupOwner);
+    const isGroupOwner = !!flags.recordset[0]?.isGroupOwner;
 
     res.status(201).json({
       ...created,

@@ -1328,7 +1328,7 @@ function InviteMembersModal({
     }
   }
 
-  function authHeadersJSON(): Headers {
+ /* function authHeadersJSON(): Headers {
     const h = new Headers();
     h.set('Content-Type', 'application/json');
     const googleToken =
@@ -1348,8 +1348,7 @@ function InviteMembersModal({
       if (t) h.set('Authorization', `Bearer ${t}`);
     }
     return h;
-  }
-
+  } */
   return (
     <div className="fixed inset-0 z-[9999] grid place-items-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />

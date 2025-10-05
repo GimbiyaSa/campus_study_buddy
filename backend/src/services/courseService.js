@@ -94,37 +94,40 @@ async function getPool() {
 }
 
 // GET /courses - list user's enrolled modules/courses with pagination and search
-router.get(
-  '/',
-  authenticateToken, async (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 20,
+      search = '',
+      sortBy = 'enrolled_at',
+      sortOrder = 'DESC',
+    } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    try {
-      const { page = 1, limit = 20, search = '', sortBy = 'enrolled_at', sortOrder = 'DESC' } = req.query;
-      const offset = (parseInt(page) - 1) * parseInt(limit);
-      
-      // Debug logging
-      console.log('🔍 Course search params:', { search, sortBy, sortOrder, page, limit });
-      
-      const pool = await getPool();
-      const request = pool.request();
-      request.input('userId', sql.NVarChar(255), req.user.id);
-      request.input('offset', sql.Int, offset);
-      request.input('limit', sql.Int, parseInt(limit));
+    // Debug logging
+    console.log('🔍 Course search params:', { search, sortBy, sortOrder, page, limit });
 
-      // Build search conditions
-      let searchCondition = '';
-      if (search && search.trim() !== '') {
-        const searchTerm = `%${search.trim()}%`;
-        request.input('search', sql.NVarChar(255), searchTerm);
-        searchCondition = `
+    const pool = await getPool();
+    const request = pool.request();
+    request.input('userId', sql.NVarChar(255), req.user.id);
+    request.input('offset', sql.Int, offset);
+    request.input('limit', sql.Int, parseInt(limit));
+
+    // Build search conditions
+    let searchCondition = '';
+    if (search && search.trim() !== '') {
+      const searchTerm = `%${search.trim()}%`;
+      request.input('search', sql.NVarChar(255), searchTerm);
+      searchCondition = `
           AND (
             m.module_name LIKE @search 
             OR m.module_code LIKE @search 
             OR m.description LIKE @search
           )
         `;
-        console.log('🔍 Applied search condition for term:', search.trim());
-      }
+      console.log('🔍 Applied search condition for term:', search.trim());
+    }
 
     // Validate sort parameters
     const validSortFields = ['enrolled_at', 'module_name', 'progress'];
@@ -134,8 +137,8 @@ router.get(
       ? sortOrder.toUpperCase()
       : 'DESC';
 
-      // Enhanced query with comprehensive progress data
-      const baseQuery = `
+    // Enhanced query with comprehensive progress data
+    const baseQuery = `
         SELECT 
           m.module_id as id,
           m.module_code as code,
@@ -186,57 +189,58 @@ router.get(
         ${searchCondition}
       `;
 
-      // Add ordering and pagination
-      const getOrderByClause = (sortField) => {
-        switch (sortField) {
-          case 'progress':
-            return 'progress';
-          case 'module_name':
-            return 'm.module_name';
-          case 'enrolled_at':
-            return 'um.enrolled_at';
-          default:
-            return 'um.enrolled_at';
-        }
-      };
+    // Add ordering and pagination
+    const getOrderByClause = (sortField) => {
+      switch (sortField) {
+        case 'progress':
+          return 'progress';
+        case 'module_name':
+          return 'm.module_name';
+        case 'enrolled_at':
+          return 'um.enrolled_at';
+        default:
+          return 'um.enrolled_at';
+      }
+    };
 
-      const fullQuery = `
+    const fullQuery = `
         ${baseQuery}
         ORDER BY ${getOrderByClause(safeSortBy)} ${safeSortOrder}
         OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
       `;
 
-      console.log('📊 Executing enhanced courses query...');
-      const result = await request.query(fullQuery);
+    console.log('📊 Executing enhanced courses query...');
+    const result = await request.query(fullQuery);
 
-      // Transform data for frontend
-      const courses = result.recordset.map((row) => ({
-        id: row.id.toString(),
-        type: row.university === 'Custom' || row.code?.startsWith('CASUAL_') ? 'casual' : 'institution',
-        code: row.university === 'Custom' || row.code?.startsWith('CASUAL_') ? undefined : row.code,
-        title: row.title,
-        description: row.description,
-        university: row.university,
-        status: row.status,
-        enrollmentStatus: row.status,
-        progress: Math.round(row.progress),
-        totalHours: parseFloat(row.totalHours.toFixed(1)),
-        totalTopics: row.totalTopics,
-        completedTopics: row.completedTopics,
-        weeklyStudyDays: row.weeklyStudyDays,
-        lastStudiedAt: row.lastStudiedAt,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-      }));
+    // Transform data for frontend
+    const courses = result.recordset.map((row) => ({
+      id: row.id.toString(),
+      type:
+        row.university === 'Custom' || row.code?.startsWith('CASUAL_') ? 'casual' : 'institution',
+      code: row.university === 'Custom' || row.code?.startsWith('CASUAL_') ? undefined : row.code,
+      title: row.title,
+      description: row.description,
+      university: row.university,
+      status: row.status,
+      enrollmentStatus: row.status,
+      progress: Math.round(row.progress),
+      totalHours: parseFloat(row.totalHours.toFixed(1)),
+      totalTopics: row.totalTopics,
+      completedTopics: row.completedTopics,
+      weeklyStudyDays: row.weeklyStudyDays,
+      lastStudiedAt: row.lastStudiedAt,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    }));
 
-      // Get total count for pagination
-      const countRequest = pool.request();
-      countRequest.input('userId', sql.NVarChar(255), req.user.id);
-      if (search && search.trim() !== '') {
-        countRequest.input('search', sql.NVarChar(255), `%${search.trim()}%`);
-      }
-      
-      const countResult = await countRequest.query(`
+    // Get total count for pagination
+    const countRequest = pool.request();
+    countRequest.input('userId', sql.NVarChar(255), req.user.id);
+    if (search && search.trim() !== '') {
+      countRequest.input('search', sql.NVarChar(255), `%${search.trim()}%`);
+    }
+
+    const countResult = await countRequest.query(`
         SELECT COUNT(*) as total
         FROM dbo.modules m
         INNER JOIN dbo.user_modules um ON m.module_id = um.module_id
@@ -244,28 +248,26 @@ router.get(
         ${searchCondition}
       `);
 
-      const totalCount = countResult.recordset[0].total;
+    const totalCount = countResult.recordset[0].total;
 
-      console.log('✅ Enhanced courses loaded:', courses.length, 'courses');
+    console.log('✅ Enhanced courses loaded:', courses.length, 'courses');
 
-      res.json({
-        courses,
-        pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total: totalCount,
-          pages: Math.ceil(totalCount / limit),
-          hasNext: page * limit < totalCount,
-          hasPrev: page > 1,
-        }
-      });
-
-    } catch (err) {
-      console.error('GET /courses error:', err);
-      res.status(500).json({ error: 'Failed to fetch courses' });
-    }
+    res.json({
+      courses,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: totalCount,
+        pages: Math.ceil(totalCount / limit),
+        hasNext: page * limit < totalCount,
+        hasPrev: page > 1,
+      },
+    });
+  } catch (err) {
+    console.error('GET /courses error:', err);
+    res.status(500).json({ error: 'Failed to fetch courses' });
   }
-);
+});
 // POST /courses - enroll in existing module or create custom study group
 router.post('/', authenticateToken, async (req, res) => {
   try {
@@ -888,9 +890,9 @@ router.get('/:id/details', authenticateToken, async (req, res) => {
         description: course.description,
         university: course.university,
         status: course.status,
-        enrolledAt: course.enrolledAt
+        enrolledAt: course.enrolledAt,
       },
-      topics: topicsResult.recordset.map(topic => ({
+      topics: topicsResult.recordset.map((topic) => ({
         id: topic.id,
         name: topic.name,
         description: topic.description,
@@ -901,10 +903,9 @@ router.get('/:id/details', authenticateToken, async (req, res) => {
         totalHours: parseFloat(topic.totalHours.toFixed(1)),
         startedAt: topic.startedAt,
         completedAt: topic.completedAt,
-        notes: topic.notes
-      }))
+        notes: topic.notes,
+      })),
     });
-
   } catch (err) {
     console.error('GET /courses/:id/details error:', err);
     res.status(500).json({ error: 'Failed to fetch course details' });
@@ -923,7 +924,7 @@ router.post('/:id/log-hours', authenticateToken, async (req, res) => {
 
     const pool = await getPool();
     const transaction = new sql.Transaction(pool);
-    
+
     try {
       await transaction.begin();
 
@@ -965,15 +966,13 @@ router.post('/:id/log-hours', authenticateToken, async (req, res) => {
           hours: studyHour.hours_logged,
           description: studyHour.description,
           studyDate: studyHour.study_date,
-          loggedAt: studyHour.logged_at
-        }
+          loggedAt: studyHour.logged_at,
+        },
       });
-
     } catch (error) {
       await transaction.rollback();
       throw error;
     }
-
   } catch (error) {
     console.error('Error logging module hours:', error);
     res.status(500).json({ error: 'Failed to log study hours' });

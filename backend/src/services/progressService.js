@@ -734,10 +734,12 @@ router.put('/topics/:topicId/goal', authenticateToken, async (req, res) => {
     if (progressCheck.recordset.length > 0) {
       // Update existing progress with goal
       request.input('progressId', sql.Int, progressCheck.recordset[0].progress_id);
-      
-      const updatedNotes = personalNotes ? 
-        `GOAL: ${hoursGoal}h by ${targetCompletionDate || 'TBD'}\n${personalNotes}\n\n--- Previous Notes ---\n${progressCheck.recordset[0].notes || ''}` :
-        progressCheck.recordset[0].notes;
+
+      const updatedNotes = personalNotes
+        ? `GOAL: ${hoursGoal}h by ${
+            targetCompletionDate || 'TBD'
+          }\n${personalNotes}\n\n--- Previous Notes ---\n${progressCheck.recordset[0].notes || ''}`
+        : progressCheck.recordset[0].notes;
 
       request.input('updatedNotes', sql.NText, updatedNotes);
 
@@ -755,7 +757,9 @@ router.put('/topics/:topicId/goal', authenticateToken, async (req, res) => {
       `);
     } else {
       // Create new progress record with goal
-      const goalNotes = `GOAL: ${hoursGoal}h by ${targetCompletionDate || 'TBD'}\n${personalNotes || ''}`;
+      const goalNotes = `GOAL: ${hoursGoal}h by ${targetCompletionDate || 'TBD'}\n${
+        personalNotes || ''
+      }`;
       request.input('goalNotes', sql.NText, goalNotes);
 
       await request.query(`
@@ -783,9 +787,8 @@ router.put('/topics/:topicId/goal', authenticateToken, async (req, res) => {
       personalNotes: personalNotes,
       currentHours: progressData.hours_spent,
       completionStatus: progressData.completion_status,
-      createdAt: progressData.updated_at
+      createdAt: progressData.updated_at,
     });
-
   } catch (error) {
     console.error('Error setting topic goal:', error);
     res.status(500).json({ error: 'Failed to set topic goal' });
@@ -804,7 +807,7 @@ router.post('/topics/:topicId/log-hours', authenticateToken, async (req, res) =>
 
     const pool = await getPool();
     const transaction = new sql.Transaction(pool);
-    
+
     try {
       await transaction.begin();
 
@@ -852,11 +855,14 @@ router.post('/topics/:topicId/log-hours', authenticateToken, async (req, res) =>
         const current = progressCheck.recordset[0];
         const newHours = (current.hours_spent || 0) + hours;
         // Only change status from not_started to in_progress, don't auto-complete
-        const newStatus = current.completion_status === 'not_started' ? 'in_progress' : current.completion_status;
-        
-        const updatedNotes = reflections ? 
-          `${current.notes || ''}\n\n--- Study Log ${new Date(studyDate || Date.now()).toLocaleDateString()} ---\n${reflections}` :
-          current.notes;
+        const newStatus =
+          current.completion_status === 'not_started' ? 'in_progress' : current.completion_status;
+
+        const updatedNotes = reflections
+          ? `${current.notes || ''}\n\n--- Study Log ${new Date(
+              studyDate || Date.now()
+            ).toLocaleDateString()} ---\n${reflections}`
+          : current.notes;
 
         request.input('newHours', sql.Decimal(5, 2), newHours);
         request.input('newStatus', sql.NVarChar(50), newStatus);
@@ -880,13 +886,15 @@ router.post('/topics/:topicId/log-hours', authenticateToken, async (req, res) =>
         `);
       } else {
         // Create new progress record
-        const initialNotes = reflections ? 
-          `--- Study Log ${new Date(studyDate || Date.now()).toLocaleDateString()} ---\n${reflections}` :
-          '';
-        
+        const initialNotes = reflections
+          ? `--- Study Log ${new Date(
+              studyDate || Date.now()
+            ).toLocaleDateString()} ---\n${reflections}`
+          : '';
+
         // Always start as in_progress, let user manually complete
         const initialStatus = 'in_progress';
-        
+
         request.input('initialHours', sql.Decimal(5, 2), hours);
         request.input('initialNotes', sql.NText, initialNotes);
         request.input('initialStatus', sql.NVarChar(50), initialStatus);
@@ -916,16 +924,15 @@ router.post('/topics/:topicId/log-hours', authenticateToken, async (req, res) =>
           hours: hours,
           description: description || '',
           studyDate: studyDate || new Date(),
-          loggedAt: new Date()
+          loggedAt: new Date(),
         },
         progress: {
           topicName: topic.topic_name,
           totalHours: progress.hours_spent,
           completionStatus: progress.completion_status,
-          notes: progress.notes
-        }
+          notes: progress.notes,
+        },
       });
-
     } catch (transactionError) {
       try {
         await transaction.rollback();
@@ -934,7 +941,6 @@ router.post('/topics/:topicId/log-hours', authenticateToken, async (req, res) =>
       }
       throw transactionError;
     }
-
   } catch (error) {
     console.error('Error logging study hours:', error);
     res.status(500).json({ error: 'Failed to log study hours' });
@@ -1125,7 +1131,7 @@ router.get('/overview', authenticateToken, async (req, res) => {
         `;
 
         const topicsResult = await topicsRequest.query(topicsQuery);
-        
+
         return {
           id: module.id,
           code: module.code,
@@ -1135,7 +1141,7 @@ router.get('/overview', authenticateToken, async (req, res) => {
           enrolledAt: module.enrolledAt,
           progress: Math.round(module.progress),
           totalHours: parseFloat(module.totalHours.toFixed(1)),
-          topics: topicsResult.recordset.map(topic => ({
+          topics: topicsResult.recordset.map((topic) => ({
             id: topic.id,
             name: topic.name,
             description: topic.description,
@@ -1144,8 +1150,8 @@ router.get('/overview', authenticateToken, async (req, res) => {
             hoursSpent: parseFloat((topic.hoursSpent || 0).toFixed(1)),
             startedAt: topic.startedAt,
             completedAt: topic.completedAt,
-            notes: topic.notes
-          }))
+            notes: topic.notes,
+          })),
         };
       })
     );
@@ -1155,10 +1161,10 @@ router.get('/overview', authenticateToken, async (req, res) => {
         overall: {
           totalHours: parseFloat(stats.totalHours.toFixed(1)),
           completedTopics: stats.completedTopics,
-          totalSessions: stats.totalSessions
-        }
+          totalSessions: stats.totalSessions,
+        },
       },
-      modules: modulesWithTopics
+      modules: modulesWithTopics,
     };
 
     res.json(response);

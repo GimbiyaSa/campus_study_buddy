@@ -524,18 +524,17 @@ router.get('/my-groups', authenticateToken, async (req, res) => {
     const gc = schema.groupsCols;
 
     const selectPieces = [
-  'g.group_id AS id',
-    gc.nameCol ? `g.${gc.nameCol} AS name` : `NULL AS name`,
-    gc.descriptionCol ? `g.${gc.descriptionCol} AS description` : `NULL AS description`,
-    gc.course ? 'g.course' : 'NULL AS course',
-    gc.course_code ? 'g.course_code AS courseCode' : 'NULL AS courseCode',
-    gc.max_members ? 'g.max_members AS maxMembers' : 'NULL AS maxMembers',
-    gc.is_public ? 'g.is_public AS isPublic' : 'CAST(1 AS bit) AS isPublic',
-    'g.created_at AS createdAt',
-    gc.last_activity ? 'g.last_activity AS lastActivity' : 'g.created_at AS lastActivity',
-    gc.creator_id ? 'g.creator_id AS createdBy' : 'NULL AS createdBy',
-  ];
-
+      'g.group_id AS id',
+      gc.nameCol ? `g.${gc.nameCol} AS name` : `NULL AS name`,
+      gc.descriptionCol ? `g.${gc.descriptionCol} AS description` : `NULL AS description`,
+      gc.course ? 'g.course' : 'NULL AS course',
+      gc.course_code ? 'g.course_code AS courseCode' : 'NULL AS courseCode',
+      gc.max_members ? 'g.max_members AS maxMembers' : 'NULL AS maxMembers',
+      gc.is_public ? 'g.is_public AS isPublic' : 'CAST(1 AS bit) AS isPublic',
+      'g.created_at AS createdAt',
+      gc.last_activity ? 'g.last_activity AS lastActivity' : 'g.created_at AS lastActivity',
+      gc.creator_id ? 'g.creator_id AS createdBy' : 'NULL AS createdBy',
+    ];
 
     const q = `
       SELECT
@@ -548,19 +547,20 @@ router.get('/my-groups', authenticateToken, async (req, res) => {
 
     const { recordset } = await r.query(q);
 
-    res.json(recordset.map((x) => ({
-  id: String(x.id),
-  name: x.name,
-  description: x.description,
-  course: x.course ?? null,
-  courseCode: x.courseCode ?? null,
-  maxMembers: x.maxMembers ?? null,
-  isPublic: !!x.isPublic,
-  createdBy: x.createdBy ?? null,     // <-- add this
-  createdAt: x.createdAt,
-  lastActivity: x.lastActivity,
-  })));
-
+    res.json(
+      recordset.map((x) => ({
+        id: String(x.id),
+        name: x.name,
+        description: x.description,
+        course: x.course ?? null,
+        courseCode: x.courseCode ?? null,
+        maxMembers: x.maxMembers ?? null,
+        isPublic: !!x.isPublic,
+        createdBy: x.createdBy ?? null, // <-- add this
+        createdAt: x.createdAt,
+        lastActivity: x.lastActivity,
+      }))
+    );
   } catch (err) {
     console.error('GET /groups/my-groups error:', err);
     res.status(500).json({ error: 'Failed to fetch user groups' });
@@ -573,9 +573,7 @@ router.get('/:groupId/members', authenticateToken, async (req, res) => {
   const groupId = Number(req.params.groupId);
   if (Number.isNaN(groupId)) return res.status(400).json({ error: 'Invalid group id' });
 
-  const q = await pool.request()
-    .input('groupId', sql.Int, groupId)
-    .query(`
+  const q = await pool.request().input('groupId', sql.Int, groupId).query(`
       SELECT 
         gm.user_id AS userId,
         ${schema.membersCols.role ? 'gm.role' : 'NULL'} AS role,
@@ -588,7 +586,6 @@ router.get('/:groupId/members', authenticateToken, async (req, res) => {
 
   res.json(q.recordset);
 });
-
 
 // ---------- POST /groups (create) ----------
 router.post('/', authenticateToken, async (req, res) => {

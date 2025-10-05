@@ -501,16 +501,14 @@ describe('Session Service API', () => {
 
   test('PUT /sessions/:id updates and returns transformed payload', async () => {
     const app = bootApp({ isOrganizerForUpdate: true, updateStatus: 'scheduled' });
-    const res = await request(app)
-      .put('/sessions/7')
-      .send({
-        title: 'Updated',
-        location: 'Hall',
-        type: 'review',
-        date: '2025-03-03',
-        startTime: '12:00',
-        endTime: '13:00',
-      });
+    const res = await request(app).put('/sessions/7').send({
+      title: 'Updated',
+      location: 'Hall',
+      type: 'review',
+      date: '2025-03-03',
+      startTime: '12:00',
+      endTime: '13:00',
+    });
     expect(res.statusCode).toBe(200);
     expect(res.body).toHaveProperty('id', '300');
     expect(res.body.status).toBe('upcoming');

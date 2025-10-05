@@ -1,4 +1,3 @@
-
 const request = require('supertest');
 const express = require('express');
 
@@ -38,11 +37,7 @@ const mockNotifications = [
   },
 ];
 
-const mockGroupMembers = [
-  { user_id: 'user1' },
-  { user_id: 'user2' },
-  { user_id: 'test_user' },
-];
+const mockGroupMembers = [{ user_id: 'user1' }, { user_id: 'user2' }, { user_id: 'test_user' }];
 
 const mockStudySessions = [
   {
@@ -66,7 +61,7 @@ const mockRequest = {
       if (query.includes('is_read = 0')) {
         return { recordset: mockNotifications.filter((n) => n.is_read === 0) };
       }
-      if (query.includes("notification_type = @type")) {
+      if (query.includes('notification_type = @type')) {
         return { recordset: mockNotifications.filter((n) => n.notification_type === 'message') };
       }
       return { recordset: mockNotifications };

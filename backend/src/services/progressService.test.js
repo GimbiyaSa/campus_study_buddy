@@ -4,12 +4,12 @@ const express = require('express');
 // Mock auth middleware BEFORE requiring the router
 jest.mock('../middleware/authMiddleware', () => ({
   authenticateToken: (req, res, next) => {
-    req.user = { 
-      id: 'test_user', 
+    req.user = {
+      id: 'test_user',
       university: 'Test University',
       email: 'test@example.com',
       firstName: 'Test',
-      lastName: 'User'
+      lastName: 'User',
     };
     next();
   },
@@ -18,8 +18,8 @@ jest.mock('../middleware/authMiddleware', () => ({
 // Mock Azure configuration
 jest.mock('../config/azureConfig', () => ({
   azureConfig: {
-    getDatabaseConfig: jest.fn().mockRejectedValue(new Error('Azure config not available'))
-  }
+    getDatabaseConfig: jest.fn().mockRejectedValue(new Error('Azure config not available')),
+  },
 }));
 
 // Set required environment variable for testing
@@ -27,7 +27,9 @@ process.env.DATABASE_CONNECTION_STRING = 'mocked://connection/string';
 
 // Robust mssql mock with resettable handlers
 const mockQuery = jest.fn();
-const mockInput = jest.fn(function () { return this; });
+const mockInput = jest.fn(function () {
+  return this;
+});
 const mockRequest = { input: mockInput, query: mockQuery };
 const mockRequestFactory = jest.fn(() => mockRequest);
 const mockBegin = jest.fn().mockResolvedValue();
@@ -38,16 +40,16 @@ const mockTransaction = function () {
     begin: mockBegin,
     commit: mockCommit,
     rollback: mockRollback,
-    request: jest.fn(() => mockRequest)
+    request: jest.fn(() => mockRequest),
   };
 };
 const mockConnect = jest.fn().mockResolvedValue();
 const mockClose = jest.fn().mockResolvedValue();
-const mockConnectionPool = { 
-  request: mockRequestFactory, 
-  connected: true, 
-  connect: mockConnect, 
-  close: mockClose 
+const mockConnectionPool = {
+  request: mockRequestFactory,
+  connected: true,
+  connect: mockConnect,
+  close: mockClose,
 };
 
 jest.mock('mssql', () => ({
@@ -84,14 +86,17 @@ beforeEach(() => {
 });
 
 describe('Progress Service API', () => {
-  
   // POST /progress/sessions - Log study session
   describe('POST /progress/sessions', () => {
     test('should log study session successfully when enrolled', async () => {
       mockQuery
         .mockResolvedValueOnce({ recordset: [{ user_module_id: 1 }] }) // enrollment check
         .mockResolvedValueOnce({ recordset: [] }) // study hours insert
-        .mockResolvedValueOnce({ recordset: [{ hour_id: 1, study_date: new Date('2023-05-01'), logged_at: '2023-05-01T10:00:00Z' }] }) // get logged hour
+        .mockResolvedValueOnce({
+          recordset: [
+            { hour_id: 1, study_date: new Date('2023-05-01'), logged_at: '2023-05-01T10:00:00Z' },
+          ],
+        }) // get logged hour
         .mockResolvedValueOnce({ recordset: [] }) // check existing progress
         .mockResolvedValueOnce({ recordset: [] }); // create new progress
 
@@ -100,12 +105,10 @@ describe('Progress Service API', () => {
         topicIds: [101],
         duration: 120,
         notes: 'Studied algorithms',
-        description: 'Algorithm practice session'
+        description: 'Algorithm practice session',
       };
 
-      const res = await request(app)
-        .post('/progress/sessions')
-        .send(sessionData);
+      const res = await request(app).post('/progress/sessions').send(sessionData);
 
       expect([201, 500]).toContain(res.statusCode); // May fail due to mocking complexity
       if (res.statusCode === 201) {
@@ -116,9 +119,7 @@ describe('Progress Service API', () => {
     test('should validate duration is required and positive', async () => {
       const invalidData = { moduleId: 1, topicIds: [101] }; // missing duration
 
-      const res = await request(app)
-        .post('/progress/sessions')
-        .send(invalidData);
+      const res = await request(app).post('/progress/sessions').send(invalidData);
 
       expect(res.statusCode).toBe(400);
       expect(res.body).toHaveProperty('error', 'Duration must be greater than 0');
@@ -127,9 +128,7 @@ describe('Progress Service API', () => {
     test('should validate duration is positive', async () => {
       const invalidData = { moduleId: 1, topicIds: [101], duration: -30 };
 
-      const res = await request(app)
-        .post('/progress/sessions')
-        .send(invalidData);
+      const res = await request(app).post('/progress/sessions').send(invalidData);
 
       expect(res.statusCode).toBe(400);
       expect(res.body).toHaveProperty('error', 'Duration must be greater than 0');
@@ -140,9 +139,7 @@ describe('Progress Service API', () => {
 
       const sessionData = { moduleId: 1, topicIds: [101], duration: 60 };
 
-      const res = await request(app)
-        .post('/progress/sessions')
-        .send(sessionData);
+      const res = await request(app).post('/progress/sessions').send(sessionData);
 
       expect(res.statusCode).toBe(403);
       expect(res.body).toHaveProperty('error', 'Not enrolled in this module');
@@ -152,15 +149,17 @@ describe('Progress Service API', () => {
       mockQuery
         .mockResolvedValueOnce({ recordset: [{ user_module_id: 1 }] }) // enrollment check
         .mockResolvedValueOnce({ recordset: [] }) // study hours insert
-        .mockResolvedValueOnce({ recordset: [{ hour_id: 1, study_date: '2023-05-01', logged_at: '2023-05-01T10:00:00Z' }] }) // get logged hour
-        .mockResolvedValueOnce({ recordset: [{ progress_id: 1, completion_status: 'in_progress', hours_spent: 1.5 }] }) // existing progress
+        .mockResolvedValueOnce({
+          recordset: [{ hour_id: 1, study_date: '2023-05-01', logged_at: '2023-05-01T10:00:00Z' }],
+        }) // get logged hour
+        .mockResolvedValueOnce({
+          recordset: [{ progress_id: 1, completion_status: 'in_progress', hours_spent: 1.5 }],
+        }) // existing progress
         .mockResolvedValueOnce({ recordset: [] }); // update progress
 
       const sessionData = { moduleId: 1, topicIds: [101], duration: 90 };
 
-      const res = await request(app)
-        .post('/progress/sessions')
-        .send(sessionData);
+      const res = await request(app).post('/progress/sessions').send(sessionData);
 
       expect(res.statusCode).toBe(201);
       expect(res.body.progressUpdates).toHaveLength(1);
@@ -171,13 +170,15 @@ describe('Progress Service API', () => {
     test('should work without moduleId for general study sessions', async () => {
       mockQuery
         .mockResolvedValueOnce({ recordset: [] }) // study hours insert
-        .mockResolvedValueOnce({ recordset: [{ hour_id: 2, study_date: new Date('2023-05-01'), logged_at: '2023-05-01T10:00:00Z' }] }); // get logged hour
+        .mockResolvedValueOnce({
+          recordset: [
+            { hour_id: 2, study_date: new Date('2023-05-01'), logged_at: '2023-05-01T10:00:00Z' },
+          ],
+        }); // get logged hour
 
       const sessionData = { topicIds: [101], duration: 45, notes: 'General study' };
 
-      const res = await request(app)
-        .post('/progress/sessions')
-        .send(sessionData);
+      const res = await request(app).post('/progress/sessions').send(sessionData);
 
       expect([201, 500]).toContain(res.statusCode); // May fail due to complex transaction logic
       if (res.statusCode === 201) {
@@ -190,9 +191,7 @@ describe('Progress Service API', () => {
 
       const sessionData = { moduleId: 1, topicIds: [101], duration: 60 };
 
-      const res = await request(app)
-        .post('/progress/sessions')
-        .send(sessionData);
+      const res = await request(app).post('/progress/sessions').send(sessionData);
 
       expect(res.statusCode).toBe(500);
       expect(res.body).toHaveProperty('error', 'Failed to log study session');
@@ -205,9 +204,7 @@ describe('Progress Service API', () => {
 
       const sessionData = { moduleId: 1, topicIds: [101], duration: 60 };
 
-      const res = await request(app)
-        .post('/progress/sessions')
-        .send(sessionData);
+      const res = await request(app).post('/progress/sessions').send(sessionData);
 
       expect(res.statusCode).toBe(500);
       expect(mockRollback).toHaveBeenCalled();
@@ -219,14 +216,14 @@ describe('Progress Service API', () => {
     test('should return analytics with default timeframe', async () => {
       const mockStudyHours = {
         recordset: [
-          { 
-            study_date: new Date('2023-05-01'), 
-            hours_logged: 2.5, 
+          {
+            study_date: new Date('2023-05-01'),
+            hours_logged: 2.5,
             description: 'Studied math',
             module_name: 'Mathematics',
             module_code: 'MATH101',
             topic_name: 'Algebra',
-            logged_at: '2023-05-01T10:00:00Z'
+            logged_at: '2023-05-01T10:00:00Z',
           },
           {
             study_date: new Date('2023-05-02'),
@@ -235,9 +232,9 @@ describe('Progress Service API', () => {
             module_name: 'Physics',
             module_code: 'PHYS101',
             topic_name: 'Mechanics',
-            logged_at: '2023-05-02T10:00:00Z'
-          }
-        ]
+            logged_at: '2023-05-02T10:00:00Z',
+          },
+        ],
       };
 
       const mockProgress = {
@@ -249,9 +246,9 @@ describe('Progress Service API', () => {
             completed_at: new Date('2023-05-01T15:00:00Z'),
             topic_name: 'Algebra',
             module_name: 'Mathematics',
-            module_code: 'MATH101'
-          }
-        ]
+            module_code: 'MATH101',
+          },
+        ],
       };
 
       mockQuery
@@ -320,12 +317,14 @@ describe('Progress Service API', () => {
   describe('GET /progress/modules/:moduleId', () => {
     test('should return detailed module progress when enrolled', async () => {
       const mockEnrollmentCheck = {
-        recordset: [{
-          enrollment_status: 'active',
-          module_name: 'Computer Science',
-          module_code: 'CS101',
-          description: 'Introduction to Computer Science'
-        }]
+        recordset: [
+          {
+            enrollment_status: 'active',
+            module_name: 'Computer Science',
+            module_code: 'CS101',
+            description: 'Introduction to Computer Science',
+          },
+        ],
       };
 
       const mockTopics = {
@@ -342,7 +341,7 @@ describe('Progress Service API', () => {
             notes: 'Great topic',
             total_chapters: 3,
             completed_chapters: 3,
-            logged_hours: 6.0
+            logged_hours: 6.0,
           },
           {
             topic_id: 102,
@@ -356,9 +355,9 @@ describe('Progress Service API', () => {
             notes: 'Working on it',
             total_chapters: 4,
             completed_chapters: 1,
-            logged_hours: 3.0
-          }
-        ]
+            logged_hours: 3.0,
+          },
+        ],
       };
 
       const mockRecentSessions = {
@@ -368,9 +367,9 @@ describe('Progress Service API', () => {
             hours_logged: 2.0,
             description: 'Studied algorithms',
             topic_name: 'Algorithms',
-            logged_at: '2023-05-01T10:00:00Z'
-          }
-        ]
+            logged_at: '2023-05-01T10:00:00Z',
+          },
+        ],
       };
 
       mockQuery
@@ -413,14 +412,16 @@ describe('Progress Service API', () => {
   describe('PUT /progress/topics/:topicId/complete', () => {
     test('should mark topic as completed when user has access', async () => {
       const mockAccessCheck = {
-        recordset: [{
-          topic_name: 'Algorithms',
-          module_name: 'Computer Science'
-        }]
+        recordset: [
+          {
+            topic_name: 'Algorithms',
+            module_name: 'Computer Science',
+          },
+        ],
       };
 
       const mockExistingProgress = {
-        recordset: [{ progress_id: 1 }]
+        recordset: [{ progress_id: 1 }],
       };
 
       mockQuery
@@ -430,9 +431,7 @@ describe('Progress Service API', () => {
 
       const requestData = { notes: 'Completed all exercises' };
 
-      const res = await request(app)
-        .put('/progress/topics/101/complete')
-        .send(requestData);
+      const res = await request(app).put('/progress/topics/101/complete').send(requestData);
 
       expect(res.statusCode).toBe(200);
       expect(res.body).toHaveProperty('success', true);
@@ -443,10 +442,12 @@ describe('Progress Service API', () => {
 
     test('should create new progress record if none exists', async () => {
       const mockAccessCheck = {
-        recordset: [{
-          topic_name: 'Data Structures',
-          module_name: 'Computer Science'
-        }]
+        recordset: [
+          {
+            topic_name: 'Data Structures',
+            module_name: 'Computer Science',
+          },
+        ],
       };
 
       mockQuery
@@ -512,7 +513,7 @@ describe('Progress Service API', () => {
             total_hours: 25.5,
             study_days: 10,
             total_sessions: 15,
-            avg_session_length: 1.7
+            avg_session_length: 1.7,
           },
           {
             user_id: 'user2',
@@ -523,9 +524,9 @@ describe('Progress Service API', () => {
             total_hours: 22.0,
             study_days: 8,
             total_sessions: 12,
-            avg_session_length: 1.83
-          }
-        ]
+            avg_session_length: 1.83,
+          },
+        ],
       };
 
       mockQuery.mockResolvedValueOnce(mockLeaderboard);
@@ -574,22 +575,26 @@ describe('Progress Service API', () => {
   describe('GET /progress/goals', () => {
     test('should return study goals with progress statistics', async () => {
       const mockProgress = {
-        recordset: [{
-          hours_this_week: 8.5,
-          sessions_this_week: 4,
-          hours_this_month: 28.0,
-          sessions_this_month: 15,
-          total_hours: 120.5,
-          total_sessions: 60
-        }]
+        recordset: [
+          {
+            hours_this_week: 8.5,
+            sessions_this_week: 4,
+            hours_this_month: 28.0,
+            sessions_this_month: 15,
+            total_hours: 120.5,
+            total_sessions: 60,
+          },
+        ],
       };
 
       const mockTopicStats = {
-        recordset: [{
-          completed_topics: 12,
-          in_progress_topics: 3,
-          total_tracked_topics: 15
-        }]
+        recordset: [
+          {
+            completed_topics: 12,
+            in_progress_topics: 3,
+            total_tracked_topics: 15,
+          },
+        ],
       };
 
       mockQuery
@@ -622,31 +627,38 @@ describe('Progress Service API', () => {
   describe('PUT /progress/topics/:topicId/goal', () => {
     test('should set goal for topic with access', async () => {
       const mockTopicCheck = {
-        recordset: [{
-          topic_id: 101,
-          topic_name: 'Algorithms',
-          module_id: 1,
-          module_name: 'Computer Science'
-        }]
+        recordset: [
+          {
+            topic_id: 101,
+            topic_name: 'Algorithms',
+            module_id: 1,
+            module_name: 'Computer Science',
+          },
+        ],
       };
 
       const mockProgressCheck = {
-        recordset: [{
-          progress_id: 1,
-          completion_status: 'in_progress',
-          hours_spent: 2.0,
-          notes: 'Previous notes'
-        }]
+        recordset: [
+          {
+            progress_id: 1,
+            completion_status: 'in_progress',
+            hours_spent: 2.0,
+            notes: 'Previous notes',
+          },
+        ],
       };
 
       const mockResult = {
-        recordset: [{
-          progress_id: 1,
-          completion_status: 'in_progress',
-          hours_spent: 2.0,
-          notes: 'GOAL: 10h by 2023-06-01\nComplete by deadline\n\n--- Previous Notes ---\nPrevious notes',
-          updated_at: '2023-05-01T10:00:00Z'
-        }]
+        recordset: [
+          {
+            progress_id: 1,
+            completion_status: 'in_progress',
+            hours_spent: 2.0,
+            notes:
+              'GOAL: 10h by 2023-06-01\nComplete by deadline\n\n--- Previous Notes ---\nPrevious notes',
+            updated_at: '2023-05-01T10:00:00Z',
+          },
+        ],
       };
 
       mockQuery
@@ -658,12 +670,10 @@ describe('Progress Service API', () => {
       const goalData = {
         hoursGoal: 10,
         targetCompletionDate: '2023-06-01',
-        personalNotes: 'Complete by deadline'
+        personalNotes: 'Complete by deadline',
       };
 
-      const res = await request(app)
-        .put('/progress/topics/101/goal')
-        .send(goalData);
+      const res = await request(app).put('/progress/topics/101/goal').send(goalData);
 
       expect(res.statusCode).toBe(200);
       expect(res.body).toHaveProperty('topicId', 101);
@@ -674,9 +684,7 @@ describe('Progress Service API', () => {
     test('should validate required fields for goal setting', async () => {
       const invalidData = { targetCompletionDate: '2023-06-01' }; // missing hoursGoal
 
-      const res = await request(app)
-        .put('/progress/topics/101/goal')
-        .send(invalidData);
+      const res = await request(app).put('/progress/topics/101/goal').send(invalidData);
 
       expect(res.statusCode).toBe(400);
       expect(res.body).toHaveProperty('error', 'Hours goal must be greater than 0');
@@ -687,9 +695,7 @@ describe('Progress Service API', () => {
 
       const goalData = { hoursGoal: 5 };
 
-      const res = await request(app)
-        .put('/progress/topics/999/goal')
-        .send(goalData);
+      const res = await request(app).put('/progress/topics/999/goal').send(goalData);
 
       expect(res.statusCode).toBe(404);
       expect(res.body).toHaveProperty('error', 'Topic not found or access denied');
@@ -697,22 +703,26 @@ describe('Progress Service API', () => {
 
     test('should create new progress record for goal if none exists', async () => {
       const mockTopicCheck = {
-        recordset: [{
-          topic_id: 102,
-          topic_name: 'Data Structures',
-          module_id: 1,
-          module_name: 'Computer Science'
-        }]
+        recordset: [
+          {
+            topic_id: 102,
+            topic_name: 'Data Structures',
+            module_id: 1,
+            module_name: 'Computer Science',
+          },
+        ],
       };
 
       const mockResult = {
-        recordset: [{
-          progress_id: 2,
-          completion_status: 'not_started',
-          hours_spent: 0,
-          notes: 'GOAL: 8h by TBD\nNew goal set',
-          updated_at: '2023-05-01T10:00:00Z'
-        }]
+        recordset: [
+          {
+            progress_id: 2,
+            completion_status: 'not_started',
+            hours_spent: 0,
+            notes: 'GOAL: 8h by TBD\nNew goal set',
+            updated_at: '2023-05-01T10:00:00Z',
+          },
+        ],
       };
 
       mockQuery
@@ -723,9 +733,7 @@ describe('Progress Service API', () => {
 
       const goalData = { hoursGoal: 8, personalNotes: 'New goal set' };
 
-      const res = await request(app)
-        .put('/progress/topics/102/goal')
-        .send(goalData);
+      const res = await request(app).put('/progress/topics/102/goal').send(goalData);
 
       expect(res.statusCode).toBe(200);
       expect(res.body).toHaveProperty('completionStatus', 'not_started');
@@ -736,30 +744,36 @@ describe('Progress Service API', () => {
   describe('POST /progress/topics/:topicId/log-hours', () => {
     test('should log hours for topic successfully', async () => {
       const mockTopicCheck = {
-        recordset: [{
-          topic_id: 101,
-          topic_name: 'Algorithms',
-          module_id: 1,
-          module_name: 'Computer Science'
-        }]
+        recordset: [
+          {
+            topic_id: 101,
+            topic_name: 'Algorithms',
+            module_id: 1,
+            module_name: 'Computer Science',
+          },
+        ],
       };
 
       const mockProgressCheck = {
-        recordset: [{
-          progress_id: 1,
-          completion_status: 'in_progress',
-          hours_spent: 2.0,
-          notes: 'Previous notes'
-        }]
+        recordset: [
+          {
+            progress_id: 1,
+            completion_status: 'in_progress',
+            hours_spent: 2.0,
+            notes: 'Previous notes',
+          },
+        ],
       };
 
       const mockProgressResult = {
-        recordset: [{
-          progress_id: 1,
-          completion_status: 'in_progress',
-          hours_spent: 4.5,
-          notes: 'Previous notes\n\n--- Study Log 5/1/2023 ---\nGreat session today'
-        }]
+        recordset: [
+          {
+            progress_id: 1,
+            completion_status: 'in_progress',
+            hours_spent: 4.5,
+            notes: 'Previous notes\n\n--- Study Log 5/1/2023 ---\nGreat session today',
+          },
+        ],
       };
 
       mockQuery
@@ -773,12 +787,10 @@ describe('Progress Service API', () => {
         hours: 2.5,
         description: 'Algorithm practice',
         studyDate: '2023-05-01',
-        reflections: 'Great session today'
+        reflections: 'Great session today',
       };
 
-      const res = await request(app)
-        .post('/progress/topics/101/log-hours')
-        .send(logData);
+      const res = await request(app).post('/progress/topics/101/log-hours').send(logData);
 
       expect(res.statusCode).toBe(200);
       expect(res.body).toHaveProperty('success', true);
@@ -791,9 +803,7 @@ describe('Progress Service API', () => {
     test('should validate hours parameter', async () => {
       const invalidData = { description: 'Study session' }; // missing hours
 
-      const res = await request(app)
-        .post('/progress/topics/101/log-hours')
-        .send(invalidData);
+      const res = await request(app).post('/progress/topics/101/log-hours').send(invalidData);
 
       expect(res.statusCode).toBe(400);
       expect(res.body).toHaveProperty('error', 'Hours must be greater than 0');
@@ -801,21 +811,25 @@ describe('Progress Service API', () => {
 
     test('should create new progress record if none exists', async () => {
       const mockTopicCheck = {
-        recordset: [{
-          topic_id: 102,
-          topic_name: 'Data Structures',
-          module_id: 1,
-          module_name: 'Computer Science'
-        }]
+        recordset: [
+          {
+            topic_id: 102,
+            topic_name: 'Data Structures',
+            module_id: 1,
+            module_name: 'Computer Science',
+          },
+        ],
       };
 
       const mockProgressResult = {
-        recordset: [{
-          progress_id: 2,
-          completion_status: 'in_progress',
-          hours_spent: 1.5,
-          notes: '--- Study Log 5/1/2023 ---\nFirst study session'
-        }]
+        recordset: [
+          {
+            progress_id: 2,
+            completion_status: 'in_progress',
+            hours_spent: 1.5,
+            notes: '--- Study Log 5/1/2023 ---\nFirst study session',
+          },
+        ],
       };
 
       mockQuery
@@ -827,12 +841,10 @@ describe('Progress Service API', () => {
 
       const logData = {
         hours: 1.5,
-        reflections: 'First study session'
+        reflections: 'First study session',
       };
 
-      const res = await request(app)
-        .post('/progress/topics/102/log-hours')
-        .send(logData);
+      const res = await request(app).post('/progress/topics/102/log-hours').send(logData);
 
       expect(res.statusCode).toBe(200);
       expect(res.body.progress).toHaveProperty('completionStatus', 'in_progress');
@@ -845,9 +857,7 @@ describe('Progress Service API', () => {
 
       const logData = { hours: 2.0 };
 
-      const res = await request(app)
-        .post('/progress/topics/101/log-hours')
-        .send(logData);
+      const res = await request(app).post('/progress/topics/101/log-hours').send(logData);
 
       expect(res.statusCode).toBe(500);
       expect(mockRollback).toHaveBeenCalled();
@@ -858,11 +868,13 @@ describe('Progress Service API', () => {
   describe('GET /progress/overview', () => {
     test('should return comprehensive progress overview', async () => {
       const mockOverallStats = {
-        recordset: [{
-          totalHours: 45.5,
-          completedTopics: 8,
-          totalSessions: 25
-        }]
+        recordset: [
+          {
+            totalHours: 45.5,
+            completedTopics: 8,
+            totalSessions: 25,
+          },
+        ],
       };
 
       const mockModules = {
@@ -875,9 +887,9 @@ describe('Progress Service API', () => {
             enrollmentStatus: 'active',
             enrolledAt: '2023-01-01T00:00:00Z',
             progress: 75.0,
-            totalHours: 20.5
-          }
-        ]
+            totalHours: 20.5,
+          },
+        ],
       };
 
       const mockTopics = {
@@ -891,7 +903,7 @@ describe('Progress Service API', () => {
             hoursSpent: 10.0,
             startedAt: '2023-04-01T00:00:00Z',
             completedAt: '2023-05-01T00:00:00Z',
-            notes: 'Great topic'
+            notes: 'Great topic',
           },
           {
             id: 102,
@@ -902,9 +914,9 @@ describe('Progress Service API', () => {
             hoursSpent: 5.0,
             startedAt: '2023-05-01T00:00:00Z',
             completedAt: null,
-            notes: 'Working on it'
-          }
-        ]
+            notes: 'Working on it',
+          },
+        ],
       };
 
       mockQuery
@@ -925,7 +937,9 @@ describe('Progress Service API', () => {
 
     test('should handle empty overview data', async () => {
       mockQuery
-        .mockResolvedValueOnce({ recordset: [{ totalHours: 0, completedTopics: 0, totalSessions: 0 }] }) // overall stats
+        .mockResolvedValueOnce({
+          recordset: [{ totalHours: 0, completedTopics: 0, totalSessions: 0 }],
+        }) // overall stats
         .mockResolvedValueOnce({ recordset: [] }); // no modules
 
       const res = await request(app).get('/progress/overview');
@@ -960,14 +974,12 @@ describe('Progress Service API', () => {
       const sessionData = {
         moduleId: 1,
         topicIds: [101],
-        duration: 999999 // Very large duration
+        duration: 999999, // Very large duration
       };
 
       mockQuery.mockResolvedValueOnce({ recordset: [{ user_module_id: 1 }] }); // enrolled
 
-      const res = await request(app)
-        .post('/progress/sessions')
-        .send(sessionData);
+      const res = await request(app).post('/progress/sessions').send(sessionData);
 
       // Should handle gracefully (either accept or reject with validation)
       expect([201, 400, 422, 500]).toContain(res.statusCode);

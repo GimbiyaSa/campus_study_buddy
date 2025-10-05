@@ -1,27 +1,27 @@
 /**
  * Progress Service - Study Progress Tracking
- * 
+ *
  * This service handles study session logging and progress tracking with the following logic:
- * 
- * 1. STUDY SESSIONS: 
+ *
+ * 1. STUDY SESSIONS:
  *    - Log study time in `study_hours` table
  *    - Link to modules and topics for better tracking
  *    - Support both individual and group study sessions
- * 
+ *
  * 2. PROGRESS TRACKING:
  *    - Topic-level progress: user_progress.chapter_id IS NULL (tracks overall topic progress)
  *    - Chapter-level progress: user_progress.chapter_id IS NOT NULL (tracks specific chapter progress)
  *    - This service primarily focuses on TOPIC-LEVEL progress for consistency with course service
- * 
+ *
  * 3. INTEGRATION WITH COURSE SERVICE:
  *    - Progress calculations must match between progress and course services
  *    - Both services use topic-level completion for module progress percentage
  *    - Study hours from both study_hours table and user_progress.hours_spent are tracked
- * 
+ *
  * 4. AUTHENTICATION:
  *    - All endpoints require valid JWT token via authenticateToken middleware
  *    - User context is extracted from req.user (set by auth middleware)
- * 
+ *
  * 5. KEY ENDPOINTS:
  *    - POST /sessions: Log study session and update topic progress
  *    - GET /analytics: Comprehensive study analytics with time-based filtering
@@ -74,7 +74,6 @@ async function getPool() {
 
 // POST /progress/sessions - Log study session
 router.post('/sessions', authenticateToken, async (req, res) => {
-
   try {
     const { moduleId, topicIds, duration, notes, groupId, sessionId, description } = req.body;
 
@@ -227,7 +226,6 @@ router.post('/sessions', authenticateToken, async (req, res) => {
 
 // GET /progress/analytics - Get progress analytics
 router.get('/analytics', authenticateToken, async (req, res) => {
-
   try {
     const { timeframe = '30d', moduleId } = req.query;
     const daysBack = timeframe === '7d' ? 7 : timeframe === '30d' ? 30 : 90;
@@ -339,7 +337,6 @@ router.get('/analytics', authenticateToken, async (req, res) => {
 
 // GET /progress/modules/:moduleId - Get detailed progress for a specific module
 router.get('/modules/:moduleId', authenticateToken, async (req, res) => {
-
   try {
     const moduleId = parseInt(req.params.moduleId);
 
@@ -454,8 +451,10 @@ router.get('/modules/:moduleId', authenticateToken, async (req, res) => {
         totalHours: totalHours,
         averageHoursPerTopic: totalTopics > 0 ? totalHours / totalTopics : 0,
         totalSessions: recentSessions.length,
-        averageSessionLength: recentSessions.length > 0 ? 
-          recentSessions.reduce((sum, s) => sum + s.hours_logged, 0) / recentSessions.length : 0,
+        averageSessionLength:
+          recentSessions.length > 0
+            ? recentSessions.reduce((sum, s) => sum + s.hours_logged, 0) / recentSessions.length
+            : 0,
       },
 
       // Detailed topic progress
@@ -480,7 +479,6 @@ router.get('/modules/:moduleId', authenticateToken, async (req, res) => {
 
 // PUT /progress/topics/:topicId/complete - Mark topic as completed
 router.put('/topics/:topicId/complete', authenticateToken, async (req, res) => {
-
   try {
     const topicId = parseInt(req.params.topicId);
     const { notes } = req.body;
@@ -617,7 +615,6 @@ router.get('/leaderboard', authenticateToken, async (req, res) => {
 
 // GET /progress/goals - Get user study goals (new feature)
 router.get('/goals', authenticateToken, async (req, res) => {
-
   try {
     const pool = await getPool();
     const request = pool.request();
@@ -737,10 +734,12 @@ router.put('/topics/:topicId/goal', authenticateToken, async (req, res) => {
     if (progressCheck.recordset.length > 0) {
       // Update existing progress with goal
       request.input('progressId', sql.Int, progressCheck.recordset[0].progress_id);
-      
-      const updatedNotes = personalNotes ? 
-        `GOAL: ${hoursGoal}h by ${targetCompletionDate || 'TBD'}\n${personalNotes}\n\n--- Previous Notes ---\n${progressCheck.recordset[0].notes || ''}` :
-        progressCheck.recordset[0].notes;
+
+      const updatedNotes = personalNotes
+        ? `GOAL: ${hoursGoal}h by ${
+            targetCompletionDate || 'TBD'
+          }\n${personalNotes}\n\n--- Previous Notes ---\n${progressCheck.recordset[0].notes || ''}`
+        : progressCheck.recordset[0].notes;
 
       request.input('updatedNotes', sql.NText, updatedNotes);
 
@@ -758,7 +757,9 @@ router.put('/topics/:topicId/goal', authenticateToken, async (req, res) => {
       `);
     } else {
       // Create new progress record with goal
-      const goalNotes = `GOAL: ${hoursGoal}h by ${targetCompletionDate || 'TBD'}\n${personalNotes || ''}`;
+      const goalNotes = `GOAL: ${hoursGoal}h by ${targetCompletionDate || 'TBD'}\n${
+        personalNotes || ''
+      }`;
       request.input('goalNotes', sql.NText, goalNotes);
 
       await request.query(`
@@ -786,9 +787,8 @@ router.put('/topics/:topicId/goal', authenticateToken, async (req, res) => {
       personalNotes: personalNotes,
       currentHours: progressData.hours_spent,
       completionStatus: progressData.completion_status,
-      createdAt: progressData.updated_at
+      createdAt: progressData.updated_at,
     });
-
   } catch (error) {
     console.error('Error setting topic goal:', error);
     res.status(500).json({ error: 'Failed to set topic goal' });
@@ -807,7 +807,7 @@ router.post('/topics/:topicId/log-hours', authenticateToken, async (req, res) =>
 
     const pool = await getPool();
     const transaction = new sql.Transaction(pool);
-    
+
     try {
       await transaction.begin();
 
@@ -855,11 +855,14 @@ router.post('/topics/:topicId/log-hours', authenticateToken, async (req, res) =>
         const current = progressCheck.recordset[0];
         const newHours = (current.hours_spent || 0) + hours;
         // Only change status from not_started to in_progress, don't auto-complete
-        const newStatus = current.completion_status === 'not_started' ? 'in_progress' : current.completion_status;
-        
-        const updatedNotes = reflections ? 
-          `${current.notes || ''}\n\n--- Study Log ${new Date(studyDate || Date.now()).toLocaleDateString()} ---\n${reflections}` :
-          current.notes;
+        const newStatus =
+          current.completion_status === 'not_started' ? 'in_progress' : current.completion_status;
+
+        const updatedNotes = reflections
+          ? `${current.notes || ''}\n\n--- Study Log ${new Date(
+              studyDate || Date.now()
+            ).toLocaleDateString()} ---\n${reflections}`
+          : current.notes;
 
         request.input('newHours', sql.Decimal(5, 2), newHours);
         request.input('newStatus', sql.NVarChar(50), newStatus);
@@ -883,13 +886,15 @@ router.post('/topics/:topicId/log-hours', authenticateToken, async (req, res) =>
         `);
       } else {
         // Create new progress record
-        const initialNotes = reflections ? 
-          `--- Study Log ${new Date(studyDate || Date.now()).toLocaleDateString()} ---\n${reflections}` :
-          '';
-        
+        const initialNotes = reflections
+          ? `--- Study Log ${new Date(
+              studyDate || Date.now()
+            ).toLocaleDateString()} ---\n${reflections}`
+          : '';
+
         // Always start as in_progress, let user manually complete
         const initialStatus = 'in_progress';
-        
+
         request.input('initialHours', sql.Decimal(5, 2), hours);
         request.input('initialNotes', sql.NText, initialNotes);
         request.input('initialStatus', sql.NVarChar(50), initialStatus);
@@ -919,16 +924,15 @@ router.post('/topics/:topicId/log-hours', authenticateToken, async (req, res) =>
           hours: hours,
           description: description || '',
           studyDate: studyDate || new Date(),
-          loggedAt: new Date()
+          loggedAt: new Date(),
         },
         progress: {
           topicName: topic.topic_name,
           totalHours: progress.hours_spent,
           completionStatus: progress.completion_status,
-          notes: progress.notes
-        }
+          notes: progress.notes,
+        },
       });
-
     } catch (transactionError) {
       try {
         await transaction.rollback();
@@ -937,7 +941,6 @@ router.post('/topics/:topicId/log-hours', authenticateToken, async (req, res) =>
       }
       throw transactionError;
     }
-
   } catch (error) {
     console.error('Error logging study hours:', error);
     res.status(500).json({ error: 'Failed to log study hours' });
@@ -1008,7 +1011,10 @@ function generateProgressTrend(progressData) {
 // Error handling middleware for database connection issues
 router.use((err, req, res, next) => {
   if (err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT') {
-    console.warn('Database connection issue detected, will reconnect on next request:', err.message);
+    console.warn(
+      'Database connection issue detected, will reconnect on next request:',
+      err.message
+    );
     // Reset the pool to force reconnection on next request
     pool = null;
     res.status(503).json({ error: 'Service temporarily unavailable, please try again' });
@@ -1125,7 +1131,7 @@ router.get('/overview', authenticateToken, async (req, res) => {
         `;
 
         const topicsResult = await topicsRequest.query(topicsQuery);
-        
+
         return {
           id: module.id,
           code: module.code,
@@ -1135,7 +1141,7 @@ router.get('/overview', authenticateToken, async (req, res) => {
           enrolledAt: module.enrolledAt,
           progress: Math.round(module.progress),
           totalHours: parseFloat(module.totalHours.toFixed(1)),
-          topics: topicsResult.recordset.map(topic => ({
+          topics: topicsResult.recordset.map((topic) => ({
             id: topic.id,
             name: topic.name,
             description: topic.description,
@@ -1144,8 +1150,8 @@ router.get('/overview', authenticateToken, async (req, res) => {
             hoursSpent: parseFloat((topic.hoursSpent || 0).toFixed(1)),
             startedAt: topic.startedAt,
             completedAt: topic.completedAt,
-            notes: topic.notes
-          }))
+            notes: topic.notes,
+          })),
         };
       })
     );
@@ -1155,10 +1161,10 @@ router.get('/overview', authenticateToken, async (req, res) => {
         overall: {
           totalHours: parseFloat(stats.totalHours.toFixed(1)),
           completedTopics: stats.completedTopics,
-          totalSessions: stats.totalSessions
-        }
+          totalSessions: stats.totalSessions,
+        },
       },
-      modules: modulesWithTopics
+      modules: modulesWithTopics,
     };
 
     res.json(response);

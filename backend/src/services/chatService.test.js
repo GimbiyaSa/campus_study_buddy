@@ -15,8 +15,8 @@ jest.mock('../config/azureConfig', () => ({
     getWebPubSubClient: jest.fn().mockResolvedValue({
       getClientAccessToken: jest.fn().mockResolvedValue({ url: 'wss://fake', token: 'tok' }),
       sendToGroup: jest.fn().mockResolvedValue({}),
-    })
-  }
+    }),
+  },
 }));
 
 // Mock WebPubSub client
@@ -36,10 +36,17 @@ global.generateId = () => 'fixed-id';
 
 // Mock Azure SQL database for chat service
 const mockQuery = jest.fn();
-const mockInput = jest.fn(function () { return this; });
+const mockInput = jest.fn(function () {
+  return this;
+});
 const mockRequest = { input: mockInput, query: mockQuery };
 const mockRequestFactory = jest.fn(() => mockRequest);
-const mockConnectionPool = { request: mockRequestFactory, connected: true, connect: jest.fn(), close: jest.fn() };
+const mockConnectionPool = {
+  request: mockRequestFactory,
+  connected: true,
+  connect: jest.fn(),
+  close: jest.fn(),
+};
 
 jest.mock('mssql', () => ({
   ConnectionPool: jest.fn(() => mockConnectionPool),
@@ -66,18 +73,20 @@ beforeEach(() => {
   mockQuery.mockReset();
   mockInput.mockClear();
   mockRequestFactory.mockClear();
-  
+
   // Default mock behavior
   mockQuery.mockImplementation((query) => {
     if (shouldThrowDbError) {
       return Promise.reject(new Error('Database error'));
     }
-    
+
     if (query.includes('SELECT gm.group_id') && groupCount === 0) {
       return Promise.resolve({ recordset: [] });
     }
     if (query.includes('SELECT gm.group_id') && groupCount === 1) {
-      return Promise.resolve({ recordset: [{ group_id: 'g1', user_id: 'u1', role: 'member', status: 'active' }] });
+      return Promise.resolve({
+        recordset: [{ group_id: 'g1', user_id: 'u1', role: 'member', status: 'active' }],
+      });
     }
     return Promise.resolve({ recordset: [] });
   });
@@ -117,7 +126,9 @@ describe('Chat service', () => {
 
   describe('POST /api/v1/chat/groups/:groupId/messages', () => {
     test('sends and saves message', async () => {
-      const res = await request(app).post('/api/v1/chat/groups/g1/messages').send({ content: 'hi' });
+      const res = await request(app)
+        .post('/api/v1/chat/groups/g1/messages')
+        .send({ content: 'hi' });
       expect(res.statusCode).toBe(201);
       expect(res.body).toHaveProperty('content', 'hi');
       expect(res.body).toHaveProperty('userId', 'u1');
@@ -127,9 +138,9 @@ describe('Chat service', () => {
     });
 
     test('sends message with custom type', async () => {
-      const res = await request(app).post('/api/v1/chat/groups/g1/messages').send({ 
-        content: 'image.jpg', 
-        type: 'image' 
+      const res = await request(app).post('/api/v1/chat/groups/g1/messages').send({
+        content: 'image.jpg',
+        type: 'image',
       });
       expect(res.statusCode).toBe(201);
       expect(res.body).toHaveProperty('content', 'image.jpg');
@@ -145,20 +156,22 @@ describe('Chat service', () => {
     test('handles sendToGroup error gracefully', async () => {
       // Mock sendToGroup to fail but test should still succeed as it's fire-and-forget
       const mockServiceClient = {
-        sendToGroup: jest.fn().mockRejectedValue(new Error('Send error'))
+        sendToGroup: jest.fn().mockRejectedValue(new Error('Send error')),
       };
-      
+
       // Override the service client temporarily
       const chatService = require('./chatService');
       const originalSendToGroup = chatService.serviceClient?.sendToGroup;
       if (chatService.serviceClient) {
         chatService.serviceClient.sendToGroup = mockServiceClient.sendToGroup;
       }
-      
-      const res = await request(app).post('/api/v1/chat/groups/g1/messages').send({ content: 'hi' });
+
+      const res = await request(app)
+        .post('/api/v1/chat/groups/g1/messages')
+        .send({ content: 'hi' });
       expect(res.statusCode).toBe(201); // Should still succeed as broadcasting failure is not critical
       expect(res.body).toHaveProperty('content', 'hi');
-      
+
       // Restore original
       if (chatService.serviceClient && originalSendToGroup) {
         chatService.serviceClient.sendToGroup = originalSendToGroup;
@@ -170,8 +183,24 @@ describe('Chat service', () => {
     test('returns history in order', async () => {
       // Pre-populate messages for this group
       global.__testMessages = [
-        { id: 'm1', groupId: 'g1', userId: 'u1', userName: 'User One', content: 'hello', type: 'text', timestamp: '2020-01-01T00:00:00Z' },
-        { id: 'm2', groupId: 'g1', userId: 'u1', userName: 'User One', content: 'world', type: 'text', timestamp: '2020-01-01T00:01:00Z' },
+        {
+          id: 'm1',
+          groupId: 'g1',
+          userId: 'u1',
+          userName: 'User One',
+          content: 'hello',
+          type: 'text',
+          timestamp: '2020-01-01T00:00:00Z',
+        },
+        {
+          id: 'm2',
+          groupId: 'g1',
+          userId: 'u1',
+          userName: 'User One',
+          content: 'world',
+          type: 'text',
+          timestamp: '2020-01-01T00:01:00Z',
+        },
       ];
       const res = await request(app).get('/api/v1/chat/groups/g1/messages');
       expect(res.statusCode).toBe(200);
@@ -189,13 +218,11 @@ describe('Chat service', () => {
       const res = await request(app).get('/api/v1/chat/groups/g1/messages');
       expect(res.statusCode).toBe(200);
       expect(res.body).toHaveLength(2);
-      expect(res.body.every(msg => msg.groupId === 'g1')).toBe(true);
+      expect(res.body.every((msg) => msg.groupId === 'g1')).toBe(true);
     });
 
     test('returns empty array for group with no messages', async () => {
-      global.__testMessages = [
-        { id: 'm1', groupId: 'other-group', content: 'message' },
-      ];
+      global.__testMessages = [{ id: 'm1', groupId: 'other-group', content: 'message' }];
       const res = await request(app).get('/api/v1/chat/groups/g1/messages');
       expect(res.statusCode).toBe(200);
       expect(res.body).toHaveLength(0);
@@ -206,10 +233,12 @@ describe('Chat service', () => {
         id: `m${i}`,
         groupId: 'g1',
         content: `message ${i}`,
-        timestamp: new Date(Date.now() + i * 1000).toISOString()
+        timestamp: new Date(Date.now() + i * 1000).toISOString(),
       }));
-      
-      const res = await request(app).get('/api/v1/chat/groups/g1/messages?limit=10&before=2025-01-01T00:00:00Z');
+
+      const res = await request(app).get(
+        '/api/v1/chat/groups/g1/messages?limit=10&before=2025-01-01T00:00:00Z'
+      );
       expect(res.statusCode).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
     });
@@ -217,15 +246,15 @@ describe('Chat service', () => {
     test('handles error during message retrieval', async () => {
       // Mock an error by making __testMessages undefined and simulating production error
       delete global.__testMessages;
-      
+
       // Mock the messages container to throw an error
       const originalMessages = global.__testMessages;
       global.__testMessages = undefined;
-      
+
       const res = await request(app).get('/api/v1/chat/groups/g1/messages');
       expect(res.statusCode).toBe(500);
       expect(res.body).toHaveProperty('error', 'Failed to fetch messages');
-      
+
       // Restore
       global.__testMessages = originalMessages || [];
     });
@@ -233,10 +262,10 @@ describe('Chat service', () => {
 
   describe('verifyGroupAccess function', () => {
     test('returns true when user is active member', async () => {
-      mockQuery.mockResolvedValueOnce({ 
-        recordset: [{ group_id: 'g1', user_id: 'u1', role: 'member', status: 'active' }] 
+      mockQuery.mockResolvedValueOnce({
+        recordset: [{ group_id: 'g1', user_id: 'u1', role: 'member', status: 'active' }],
       });
-      
+
       const { verifyGroupAccess } = require('./chatService');
       const hasAccess = await verifyGroupAccess('u1', 'g1');
       expect(hasAccess).toBe(true);
@@ -244,7 +273,7 @@ describe('Chat service', () => {
 
     test('returns false when user is not a member', async () => {
       mockQuery.mockResolvedValueOnce({ recordset: [] });
-      
+
       const { verifyGroupAccess } = require('./chatService');
       const hasAccess = await verifyGroupAccess('u1', 'nonexistent-group');
       expect(hasAccess).toBe(false);
@@ -252,7 +281,7 @@ describe('Chat service', () => {
 
     test('returns false when database query fails', async () => {
       mockQuery.mockRejectedValueOnce(new Error('Database error'));
-      
+
       const { verifyGroupAccess } = require('./chatService');
       const hasAccess = await verifyGroupAccess('u1', 'g1');
       expect(hasAccess).toBe(false);
@@ -269,10 +298,10 @@ describe('Chat service', () => {
       // Mock environment variables
       process.env.WEB_PUBSUB_CONNECTION_STRING = 'test-connection-string';
       process.env.DATABASE_CONNECTION_STRING = 'test-db-connection';
-      
+
       // This would test the fallback path in production
       expect(require('./chatService')).toBeDefined();
-      
+
       // Clean up
       delete process.env.WEB_PUBSUB_CONNECTION_STRING;
       delete process.env.DATABASE_CONNECTION_STRING;
@@ -281,15 +310,15 @@ describe('Chat service', () => {
     test('negotiate endpoint with WebPubSub client error', async () => {
       // This test covers the catch block in negotiate endpoint
       groupCount = 1; // User is a member
-      
+
       // Mock the Azure config to throw an error
       jest.doMock('../config/azureConfig', () => ({
         azureConfig: {
           getDatabaseConfig: jest.fn(),
-          getWebPubSubClient: jest.fn().mockRejectedValue(new Error('WebPubSub error'))
-        }
+          getWebPubSubClient: jest.fn().mockRejectedValue(new Error('WebPubSub error')),
+        },
       }));
-      
+
       const res = await request(app).post('/api/v1/chat/negotiate').send({ groupId: 'g1' });
       expect([200, 500]).toContain(res.statusCode); // Might succeed with fallback or fail
     });
@@ -297,14 +326,18 @@ describe('Chat service', () => {
     test('handles message sending general error', async () => {
       // Mock a general error in message sending (not just broadcast error)
       const originalMessages = global.__testMessages;
-      
+
       // Mock to cause an error in the message sending process
       Object.defineProperty(global, '__testMessages', {
-        get: () => { throw new Error('Message store error'); },
-        configurable: true
+        get: () => {
+          throw new Error('Message store error');
+        },
+        configurable: true,
       });
 
-      const res = await request(app).post('/api/v1/chat/groups/g1/messages').send({ content: 'test' });
+      const res = await request(app)
+        .post('/api/v1/chat/groups/g1/messages')
+        .send({ content: 'test' });
       expect(res.statusCode).toBe(500);
       expect(res.body).toHaveProperty('error', 'Failed to send message');
 
@@ -312,7 +345,7 @@ describe('Chat service', () => {
       Object.defineProperty(global, '__testMessages', {
         value: originalMessages,
         configurable: true,
-        writable: true
+        writable: true,
       });
     });
 
@@ -320,11 +353,11 @@ describe('Chat service', () => {
       // Test the production code path by removing test messages
       const originalTestMessages = global.__testMessages;
       delete global.__testMessages;
-      
+
       const res = await request(app).get('/api/v1/chat/groups/g1/messages');
       expect(res.statusCode).toBe(500); // Should fail when message store is not available
       expect(res.body).toHaveProperty('error', 'Failed to fetch messages');
-      
+
       // Restore
       global.__testMessages = originalTestMessages;
     });

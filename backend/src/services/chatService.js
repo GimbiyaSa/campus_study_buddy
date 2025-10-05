@@ -154,7 +154,7 @@ router.get('/groups/:groupId/messages', authenticateToken, async (req, res) => {
 
     let messages = [];
     if (typeof global.__testMessages === 'object') {
-      messages = global.__testMessages.filter(m => m.groupId === groupId);
+      messages = global.__testMessages.filter((m) => m.groupId === groupId);
     } else {
       // In production, this would query Cosmos DB or similar
       // const { resources: messages } = await messagesContainer.items.query(querySpec).fetchAll();

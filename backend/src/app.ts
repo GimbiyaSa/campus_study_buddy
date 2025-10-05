@@ -28,11 +28,11 @@ app.use(
     // Use Azure config for CORS origins
     origin: (origin, callback) => {
       const allowed = azureConfig.getCorsOrigins();
-      
+
       // If no origin (same-origin or curl), allow it
       if (!origin) return callback(null, true);
       if (allowed.includes(origin)) return callback(null, true);
-      
+
       // In production, you may want to reject unknown origins.
       console.warn('Blocked CORS request from origin:', origin);
       callback(new Error('Not allowed by CORS'));
@@ -55,17 +55,17 @@ app.use(express.urlencoded({ extended: true }));
 app.get('/health', async (req: Request, res: Response) => {
   try {
     const azureHealth = await azureConfig.healthCheck();
-    
-    res.json({ 
-      status: 'healthy', 
+
+    res.json({
+      status: 'healthy',
       timestamp: new Date().toISOString(),
-      azure: azureHealth
+      azure: azureHealth,
     });
   } catch (error) {
     res.status(500).json({
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
-      error: 'Health check failed'
+      error: 'Health check failed',
     });
   }
 });
@@ -79,10 +79,21 @@ process.on('unhandledRejection', (reason, promise) => {
     // Initialize Azure services first
     console.log('🔄 Initializing Azure services...');
     // Check all connections first, then print logs in order
-    let dbOk = false, storageOk = false, pubsubOk = false;
-    try { await azureConfig.getDatabaseConfig(); dbOk = true; } catch {}
-    try { await azureConfig.getBlobServiceClient(); storageOk = true; } catch {}
-    try { await azureConfig.getWebPubSubClient(); pubsubOk = true; } catch {}
+    let dbOk = false,
+      storageOk = false,
+      pubsubOk = false;
+    try {
+      await azureConfig.getDatabaseConfig();
+      dbOk = true;
+    } catch {}
+    try {
+      await azureConfig.getBlobServiceClient();
+      storageOk = true;
+    } catch {}
+    try {
+      await azureConfig.getWebPubSubClient();
+      pubsubOk = true;
+    } catch {}
 
     // Print logs in order, only once each
     if (dbOk) console.log('✅ Connected to Azure SQL (via Azure Config)');

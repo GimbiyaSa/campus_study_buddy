@@ -2,32 +2,38 @@
 
 This directory contains the Terraform infrastructure code for the Campus Study Buddy platform, configured for Azure cloud deployment with Docker containerization and GitHub Actions CI/CD.
 
+
 ## 🏗️ Architecture Overview
 
-The infrastructure includes:
-
-- **Azure Container Registry** - For storing Docker images
-- **Azure Container Apps** - For running the backend API
-- **Azure App Service** - For hosting the frontend
-- **Azure SQL Database** - For data storage (serverless tier)
-- **Azure Storage Account** - For file storage (LRS for cost optimization)
-- **Azure Key Vault** - For secrets management
-- **Azure Web PubSub** - For real-time communication
-- **Virtual Network** - For network isolation
+The following Azure resources are provisioned for the Campus Study Buddy platform (see detailed list below):
 
 ## ✅ Infrastructure Status
 
 The infrastructure has been successfully provisioned to Azure subscription `cf028dfd-d156-4146-8706-6225f19a1cab` (University of Witwatersrand Azure for Students).
 
 ### Provisioned Resources:
-- ✅ Resource Group: `csb-prod-rg`
-- ✅ Terraform State Storage: `csbprodtfstate`
-- ✅ Azure Container Registry: `csbprodcrsanw0zgifbb.azurecr.io`
-- ✅ Azure Container Apps Environment: `csb-prod-cae-san-w0zgifbb`
-- ✅ Azure SQL Database (Serverless)
-- ✅ Azure Storage Account (LRS)
-- ✅ Azure Key Vault
-- ✅ Virtual Network: `csb-prod-vnet`
+- ✅ Resource Group
+- ✅ Virtual Network (VNet)
+- ✅ Subnets (Database, Container Apps, Storage)
+- ✅ Network Security Groups (Database, Container Apps, Storage)
+- ✅ NSG Associations (subnets)
+- ✅ Route Table (for Container Apps subnet)
+- ✅ Azure Key Vault (with secrets: DB connection, JWT, Storage, Web PubSub)
+- ✅ User Assigned Managed Identity (for Container Apps)
+- ✅ Azure Container Registry
+- ✅ Azure Container Apps Environment
+- ✅ API Container App (Backend)
+- ✅ Azure Linux App Service Plan (Frontend)
+- ✅ Azure Linux Web App (Frontend)
+- ✅ Azure SQL Server
+- ✅ Azure SQL Database
+- ✅ Azure Storage Account (with containers: user-files, study-materials, profile-images)
+- ✅ Azure Storage Queues (study-session-notifications, group-meeting-reminders, progress-notifications)
+- ✅ Azure Web PubSub (with chat hub)
+- ✅ Logic Apps (Reminder Scheduler, Email Notifications)
+- ✅ Logic App HTTP Triggers (reminder, email)
+- ✅ Logic App Custom Actions (delay, send notification, send email)
+- ✅ Terraform State Storage (Azure Storage Account + containers)
 
 ### Live Endpoints:
 - 🚀 **API Endpoint**: https://csb-prod-ca-api-w0zgifbb--dvhncmj.whiteriver-3b1efee3.southafricanorth.azurecontainerapps.io
@@ -95,26 +101,4 @@ Configured for Azure for Students subscription limits:
    - Ensure you're logged into Azure: `az login`
    - Check subscription access: `az account show`
 
-2. **Resource Provider Registration**
-   - Register required providers: `az provider register --namespace Microsoft.App`
-
-3. **Container App Deployment Fails**
-   - Verify image exists in ACR
-   - Check container app logs: `az containerapp logs show`
-
-4. **PIM Permission Issues**
-   - Activate your Owner role in Azure Portal PIM
-   - Wait 5-10 minutes for permissions to propagate
-
-## 📋 Next Steps
-
-1. **Configure GitHub Actions Secrets** (see workflows documentation)
-2. **Deploy Backend Application** to Container Apps
-3. **Deploy Frontend Application** to App Service
-4. **Set up monitoring and logging**
-5. **Configure custom domain and SSL**
-
 ---
-
-**Infrastructure provisioned successfully! 🎉**  
-Ready for application deployment and CI/CD setup.

@@ -130,37 +130,6 @@ module "communication" {
   depends_on = [module.core]
 }
 
-// Identity and security module (Azure AD app, SP, groups, secrets)
-// TEMPORARILY DISABLED: Requires Azure AD Application Administrator permissions
-// Service principal f187369a-7019-4e0e-a6e3-798a5f5e449b lacks directory-level permissions
-// Re-enable after assigning "Application Administrator" role to service principal
-/*
-module "identity" {
-  source = "./modules/identity"
-
-  resource_group_name = azurerm_resource_group.main.name
-  location            = azurerm_resource_group.main.location
-  environment         = var.environment
-  project_name        = var.project_name
-  naming_prefix       = local.naming_prefix
-  tags                = local.common_tags
-
-  # Key Vault reference
-  key_vault_id              = module.core.key_vault_id
-  key_vault_rbac_assignment = module.core.key_vault_rbac_assignment
-
-  # Application configuration
-  application_name  = "${local.naming_prefix}-app"
-  frontend_hostname = module.compute.frontend_app_service_default_hostname
-
-  # B2C Configuration
-  b2c_tenant_name   = var.b2c_tenant_name
-  b2c_signin_policy = var.b2c_signin_policy
-
-  depends_on = [module.core]
-}
-*/
-
 // Automation module (Logic Apps, Service Bus, automation monitoring)
 module "automation" {
   source = "./modules/automation"

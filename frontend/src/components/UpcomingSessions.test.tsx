@@ -106,7 +106,9 @@ describe('UpcomingSessions', () => {
   });
 
   test('session:created in-window inserts in sorted order; out-of-window ignored; duplicate id deduped', async () => {
-    fetchSessionsMock.mockResolvedValueOnce([mk({ id: 'a', title: 'A', date: '2025-10-03', startTime: '09:00' })]);
+    fetchSessionsMock.mockResolvedValueOnce([
+      mk({ id: 'a', title: 'A', date: '2025-10-03', startTime: '09:00' }),
+    ]);
     render(<UpcomingSessions />);
 
     await screen.findByText('A');
@@ -122,7 +124,9 @@ describe('UpcomingSessions', () => {
 
     // Duplicate id should not add again
     window.dispatchEvent(new CustomEvent('session:created', { detail: b }));
-    const bChips = screen.getAllByRole('heading', { level: 3 }).filter((h) => h.textContent === 'B');
+    const bChips = screen
+      .getAllByRole('heading', { level: 3 })
+      .filter((h) => h.textContent === 'B');
     expect(bChips).toHaveLength(1);
 
     // Out-of-window ignored
@@ -147,7 +151,14 @@ describe('UpcomingSessions', () => {
 
   test('Attend: optimistic +1 and pill; rolls back on 409/403/404; sends Authorization header from localStorage', async () => {
     fetchSessionsMock.mockResolvedValueOnce([
-      mk({ id: 'att', title: 'AttendMe', participants: 1, maxParticipants: 2, isCreator: false, isAttending: false }),
+      mk({
+        id: 'att',
+        title: 'AttendMe',
+        participants: 1,
+        maxParticipants: 2,
+        isCreator: false,
+        isAttending: false,
+      }),
     ]);
 
     // persist a quoted Bearer value; code should normalize to "Bearer abc123"
@@ -181,7 +192,14 @@ describe('UpcomingSessions', () => {
 
   test('Leave: optimistic -1 and remove pill; rolls back on 400/403/404', async () => {
     fetchSessionsMock.mockResolvedValueOnce([
-      mk({ id: 'lev', title: 'LeaveMe', participants: 2, maxParticipants: 5, isCreator: false, isAttending: true }),
+      mk({
+        id: 'lev',
+        title: 'LeaveMe',
+        participants: 2,
+        maxParticipants: 5,
+        isCreator: false,
+        isAttending: true,
+      }),
     ]);
 
     (global.fetch as any).mockResolvedValueOnce({ ok: false, status: 400 }); // leave -> rollback
@@ -206,7 +224,10 @@ describe('UpcomingSessions', () => {
 
   test('Cancel (organizer): optimistic removal, DELETE called, then sessions:invalidate dispatched and refetch applied', async () => {
     fetchSessionsMock
-      .mockResolvedValueOnce([mk({ id: 'org', title: 'OrganizerOne', isCreator: true }), mk({ id: 'other', title: 'Other' })])
+      .mockResolvedValueOnce([
+        mk({ id: 'org', title: 'OrganizerOne', isCreator: true }),
+        mk({ id: 'other', title: 'Other' }),
+      ])
       .mockResolvedValueOnce([mk({ id: 'other', title: 'Other' })]); // after invalidate
 
     (global.fetch as any).mockResolvedValueOnce({ ok: true, status: 200 });
@@ -302,7 +323,9 @@ describe('UpcomingSessions', () => {
     await screen.findByText('Exam');
 
     const tag = (title: string) =>
-      screen.getByRole('heading', { name: title }).parentElement!.querySelector('span:nth-of-type(1)') as HTMLElement;
+      screen
+        .getByRole('heading', { name: title })
+        .parentElement!.querySelector('span:nth-of-type(1)') as HTMLElement;
 
     expect(tag('Exam').className).toContain('bg-red-100');
     expect(tag('Proj').className).toContain('bg-blue-100');

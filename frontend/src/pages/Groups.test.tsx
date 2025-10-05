@@ -104,10 +104,30 @@ beforeEach(() => {
 
   // default: fetchMyGroups returns two "real" groups (one owned, one not) + one "demo" group (no cosmos id)
   ds.fetchMyGroups.mockResolvedValue([
-    mkSrvGroup({ name: ownerName, createdBy: '1', members: [{ userId: '1', role: 'owner' }], course: 'Data Structures', courseCode: 'CS201' }),
-    mkSrvGroup({ name: otherName, createdBy: '2', members: [{ userId: '2', role: 'owner' }], maxMembers: 10 }),
+    mkSrvGroup({
+      name: ownerName,
+      createdBy: '1',
+      members: [{ userId: '1', role: 'owner' }],
+      course: 'Data Structures',
+      courseCode: 'CS201',
+    }),
+    mkSrvGroup({
+      name: otherName,
+      createdBy: '2',
+      members: [{ userId: '2', role: 'owner' }],
+      maxMembers: 10,
+    }),
     // demo-like: no `id` field → no idMap entry; shows "fallback" join/leave behavior
-    { group_id: 777, group_name: 'Demo Local', max_members: 5, group_type: 'study', member_count: 1, creator_id: 3, module_name: 'GEN 101 - General', is_active: true },
+    {
+      group_id: 777,
+      group_name: 'Demo Local',
+      max_members: 5,
+      group_type: 'study',
+      member_count: 1,
+      creator_id: 3,
+      module_name: 'GEN 101 - General',
+      is_active: true,
+    },
   ]);
 
   // raw fallback not used unless fetchMyGroups throws
@@ -117,7 +137,7 @@ beforeEach(() => {
   ds.joinGroup.mockResolvedValue(true);
   ds.leaveGroup.mockResolvedValue(true);
   ds.deleteGroup.mockResolvedValue(true);
-  ds.createGroup.mockResolvedValue(null);       // force optimistic by default
+  ds.createGroup.mockResolvedValue(null); // force optimistic by default
   ds.createSession.mockResolvedValue({ id: 'sess-1', groupId: 'whatever' });
   ds.scheduleSession24hReminders.mockResolvedValue(undefined);
   ds.notifyGroup.mockResolvedValue(undefined);
@@ -217,7 +237,15 @@ describe('Groups page', () => {
     // Make "other" pretend already joined (by returning members including me)
     ds.fetchMyGroups.mockResolvedValueOnce([
       mkSrvGroup({ name: ownerName, createdBy: '1', members: [{ userId: '1', role: 'owner' }] }),
-      mkSrvGroup({ name: otherName, createdBy: '2', members: [{ userId: '2', role: 'owner' }, { userId: '1', role: 'member' }], maxMembers: 10 }),
+      mkSrvGroup({
+        name: otherName,
+        createdBy: '2',
+        members: [
+          { userId: '2', role: 'owner' },
+          { userId: '1', role: 'member' },
+        ],
+        maxMembers: 10,
+      }),
     ]);
 
     ds.leaveGroup.mockResolvedValueOnce(false); // force rollback
@@ -262,7 +290,11 @@ describe('Groups page', () => {
   });
 
   test('create group: success path adds server group, then refresh merges & owner badge present', async () => {
-    const serverCreated = mkSrvGroup({ name: 'Server Group', createdBy: '1', members: [{ userId: '1', role: 'owner' }] });
+    const serverCreated = mkSrvGroup({
+      name: 'Server Group',
+      createdBy: '1',
+      members: [{ userId: '1', role: 'owner' }],
+    });
     ds.createGroup.mockResolvedValueOnce(serverCreated);
 
     render(<Groups />);

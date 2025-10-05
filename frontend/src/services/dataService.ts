@@ -441,14 +441,20 @@ export class DataService {
         if (response.ok) return response;
 
         if (response.status >= 400 && response.status < 500) {
-          throw Object.assign(new Error(`Client error: ${response.status} ${response.statusText}`), {
-            status: response.status,
-          });
+          throw Object.assign(
+            new Error(`Client error: ${response.status} ${response.statusText}`),
+            {
+              status: response.status,
+            }
+          );
         }
         if (i === retries - 1) {
-          throw Object.assign(new Error(`Server error: ${response.status} ${response.statusText}`), {
-            status: response.status,
-          });
+          throw Object.assign(
+            new Error(`Server error: ${response.status} ${response.statusText}`),
+            {
+              status: response.status,
+            }
+          );
         }
       } catch (error: any) {
         if (error instanceof Error && error.name === 'AbortError') {
@@ -1499,10 +1505,13 @@ export class DataService {
     goal: { hoursGoal: number; targetCompletionDate?: string; personalNotes?: string }
   ): Promise<any> {
     try {
-      const res = await this.fetchWithRetry(buildApiUrl(`/api/v1/progress/topics/${topicId}/goal`), {
-        method: 'PUT',
-        body: JSON.stringify(goal),
-      });
+      const res = await this.fetchWithRetry(
+        buildApiUrl(`/api/v1/progress/topics/${topicId}/goal`),
+        {
+          method: 'PUT',
+          body: JSON.stringify(goal),
+        }
+      );
       const data = await res.json();
       console.log('🎯 Study goal set:', data);
       return data;

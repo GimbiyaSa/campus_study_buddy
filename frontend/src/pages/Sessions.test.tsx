@@ -67,10 +67,38 @@ beforeEach(() => {
 
   // default dataset: creator session, joinable session, attended session, cancelled
   ds.fetchSessions.mockResolvedValue([
-    mkSession({ id: 'c1', title: 'Creator', isCreator: true, isAttending: true, status: 'upcoming', participants: 2 }),
-    mkSession({ id: 'j1', title: 'Joinable', isCreator: false, isAttending: false, participants: 1, maxParticipants: 2, status: 'upcoming' }),
-    mkSession({ id: 'a1', title: 'Attending', isCreator: false, isAttending: true, status: 'upcoming', groupId: '42' }),
-    mkSession({ id: 'x1', title: 'Cancelled', status: 'cancelled', isCreator: false, isAttending: false }),
+    mkSession({
+      id: 'c1',
+      title: 'Creator',
+      isCreator: true,
+      isAttending: true,
+      status: 'upcoming',
+      participants: 2,
+    }),
+    mkSession({
+      id: 'j1',
+      title: 'Joinable',
+      isCreator: false,
+      isAttending: false,
+      participants: 1,
+      maxParticipants: 2,
+      status: 'upcoming',
+    }),
+    mkSession({
+      id: 'a1',
+      title: 'Attending',
+      isCreator: false,
+      isAttending: true,
+      status: 'upcoming',
+      groupId: '42',
+    }),
+    mkSession({
+      id: 'x1',
+      title: 'Cancelled',
+      status: 'cancelled',
+      isCreator: false,
+      isAttending: false,
+    }),
   ]);
 
   // sensible defaults for actions (tests override when needed)
@@ -306,7 +334,9 @@ describe('Sessions page', () => {
     const btn = within(card).getByRole('button', { name: /Open chat/i });
     await userEvent.click(btn);
 
-    expect((window.location as any).href).toBe('/groups/42/chat?session=' + (card.querySelector('h3')?.textContent ? 'a1' : 'a1'));
+    expect((window.location as any).href).toBe(
+      '/groups/42/chat?session=' + (card.querySelector('h3')?.textContent ? 'a1' : 'a1')
+    );
 
     // restore
     Object.defineProperty(window, 'location', { value: origLoc });

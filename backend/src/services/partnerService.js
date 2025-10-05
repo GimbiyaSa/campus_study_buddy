@@ -5,8 +5,10 @@ const { authenticateToken } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
-// Initialize Azure SQL connection pool
+// Initialize Azure SQL connection pool and Web PubSub client
 let pool;
+let webPubSubClient;
+
 const initializeDatabase = async () => {
   try {
     // Try to use Azure configuration first
@@ -14,6 +16,9 @@ const initializeDatabase = async () => {
       const { azureConfig } = require('../config/azureConfig');
       const dbConfig = await azureConfig.getDatabaseConfig();
       pool = await sql.connect(dbConfig);
+      // Initialize Web PubSub client
+      webPubSubClient = await azureConfig.getWebPubSubClient();
+      console.log('✅ Connected to Azure Web PubSub for partner notifications');
     } catch (azureError) {
       console.warn('Azure config not available, using environment variables');
       // Fallback to connection string
@@ -21,6 +26,13 @@ const initializeDatabase = async () => {
         pool = await sql.connect(process.env.DATABASE_CONNECTION_STRING);
       } else {
         throw new Error('DATABASE_CONNECTION_STRING not found in environment variables');
+      }
+      
+      // Try to initialize Web PubSub with env vars
+      if (process.env.WEB_PUBSUB_CONNECTION_STRING) {
+        const { WebPubSubServiceClient } = require('@azure/web-pubsub');
+        webPubSubClient = new WebPubSubServiceClient(process.env.WEB_PUBSUB_CONNECTION_STRING, 'studybuddy');
+        console.log('✅ Connected to Azure Web PubSub (via env vars)');
       }
     }
   } catch (error) {
@@ -116,19 +128,32 @@ router.get('/search', authenticateToken, async (req, res) => {
     const { subjects, studyStyle, groupSize, availability, university, search } = req.query;
     const currentUserId = req.user.id;
 
-    console.log('🔍 Partner search params:', {
-      subjects,
-      studyStyle,
-      groupSize,
-      availability,
-      university,
-      search,
-    });
+    console.log('🔍 Partner search params:', { subjects, studyStyle, groupSize, availability, university, search });
+
+    // Get current user's info for better compatibility scoring
+    const currentUserRequest = pool.request();
+    currentUserRequest.input('userId', sql.NVarChar(255), currentUserId);
+    const currentUserResult = await currentUserRequest.query(`
+      SELECT university, course, year_of_study, study_preferences
+      FROM users WHERE user_id = @userId
+    `);
+
+    const currentUser = currentUserResult.recordset[0] || {};
+    let currentUserPreferences = {};
+    try {
+      if (currentUser.study_preferences) {
+        currentUserPreferences = typeof currentUser.study_preferences === 'string' 
+          ? JSON.parse(currentUser.study_preferences) 
+          : currentUser.study_preferences;
+      }
+    } catch (e) {
+      console.warn('Failed to parse current user study preferences');
+    }
 
     const request = pool.request();
     request.input('currentUserId', sql.NVarChar(255), currentUserId);
 
-    // Base query to find potential partners with shared courses
+    // Base query to find potential partners with shared courses and connection status
     let query = `
       SELECT 
         u.user_id as id,
@@ -154,8 +179,16 @@ router.get('/search', authenticateToken, async (req, res) => {
             WHERE um2.user_id = @currentUserId
           )
           FOR XML PATH('')
-        ), 1, 2, '') as sharedCourses
+        ), 1, 2, '') as sharedCourses,
+        -- Check connection status with current user
+        pm.match_status as connectionStatus,
+        pm.match_id as connectionId,
+        pm.requester_id as connectionRequesterId
       FROM users u
+      LEFT JOIN partner_matches pm ON (
+        (pm.requester_id = @currentUserId AND pm.matched_user_id = u.user_id) OR
+        (pm.requester_id = u.user_id AND pm.matched_user_id = @currentUserId)
+      )
       WHERE u.user_id != @currentUserId
       AND u.is_active = 1
     `;
@@ -181,8 +214,8 @@ router.get('/search', authenticateToken, async (req, res) => {
 
     console.log(`📊 Found ${partners.length} potential partners`);
 
-    // Format the response
-    const formattedPartners = partners.map((partner) => {
+    // Format the response with enhanced compatibility scoring
+    const formattedPartners = partners.map(partner => {
       let studyPreferences = {};
       try {
         if (partner.study_preferences) {
@@ -195,12 +228,45 @@ router.get('/search', authenticateToken, async (req, res) => {
         console.warn('Failed to parse study preferences for user:', partner.id);
       }
 
+      const partnerData = {
+        name: [partner.first_name, partner.last_name].filter(Boolean).join(' ') || partner.email || 'Unknown',
+        university: partner.university,
+        course: partner.course,
+        yearOfStudy: partner.year_of_study
+      };
+
+      const searchCriteria = {
+        subjects: subjects?.split(',') || [],
+        studyStyle: studyStyle || currentUserPreferences.studyStyle,
+        groupSize: groupSize || currentUserPreferences.groupSize,
+        availability: availability || currentUserPreferences.availability,
+        university: university || currentUser.university,
+        course: currentUser.course,
+        yearOfStudy: currentUser.year_of_study
+      };
+
+      const sharedCoursesCount = partner.sharedCourses ? partner.sharedCourses.split(', ').filter(Boolean).length : 0;
+
+      // Determine connection status
+      let connectionStatus = 'none'; // none, pending, accepted, declined
+      let connectionId = null;
+      let isPendingReceived = false;
+      let isPendingSent = false;
+
+      if (partner.connectionStatus) {
+        connectionStatus = partner.connectionStatus;
+        connectionId = partner.connectionId;
+        
+        if (connectionStatus === 'pending') {
+          // Check if current user sent the request or received it
+          isPendingSent = partner.connectionRequesterId === currentUserId;
+          isPendingReceived = partner.connectionRequesterId !== currentUserId;
+        }
+      }
+
       return {
         id: partner.id,
-        name:
-          [partner.first_name, partner.last_name].filter(Boolean).join(' ') ||
-          partner.email ||
-          'Unknown',
+        name: partnerData.name,
         email: partner.email,
         university: partner.university,
         course: partner.course,
@@ -213,7 +279,13 @@ router.get('/search', authenticateToken, async (req, res) => {
           ? partner.sharedCourses.split(', ').filter(Boolean)
           : [],
         sharedTopics: [], // Could be enhanced with topic-level data
-
+        
+        // Connection status information
+        connectionStatus,
+        connectionId,
+        isPendingSent,
+        isPendingReceived,
+        
         profile: {
           subjects: partner.sharedCourses ? partner.sharedCourses.split(', ').filter(Boolean) : [],
           studyStyle: studyPreferences.studyStyle || null,
@@ -225,15 +297,11 @@ router.get('/search', authenticateToken, async (req, res) => {
           completedStudies: 0,
         },
         compatibilityScore: calculateEnhancedCompatibilityScore(
-          studyPreferences,
-          {
-            subjects: subjects?.split(',') || [],
-            studyStyle,
-            groupSize,
-            availability,
-          },
-          partner.sharedCourses ? partner.sharedCourses.split(', ').filter(Boolean).length : 0
-        ),
+          studyPreferences, 
+          searchCriteria, 
+          sharedCoursesCount, 
+          partnerData
+        )
       };
     });
 
@@ -242,6 +310,14 @@ router.get('/search', authenticateToken, async (req, res) => {
       .sort((a, b) => b.compatibilityScore - a.compatibilityScore)
       .slice(0, 20); // Return top 20 matches
 
+    console.log(`🎯 Top matches with scores:`, sortedPartners.slice(0, 3).map(p => ({
+      name: p.name, 
+      score: p.compatibilityScore, 
+      university: p.university,
+      course: p.course,
+      sharedCourses: p.sharedCourses.length
+    })));
+
     res.json(sortedPartners);
   } catch (error) {
     console.error('❌ Error searching partners:', error);
@@ -249,25 +325,113 @@ router.get('/search', authenticateToken, async (req, res) => {
   }
 });
 
-function calculateEnhancedCompatibilityScore(partnerPreferences, criteria, sharedCoursesCount = 0) {
+function calculateEnhancedCompatibilityScore(partnerPreferences, criteria, sharedCoursesCount = 0, partnerData = {}) {
   let score = 0;
+  const debugging = [];
 
-  // Shared courses (40% weight) - most important for study partners
-  if (sharedCoursesCount > 0) {
-    score += Math.min(sharedCoursesCount * 20, 40); // 20 points per shared course, max 40
+  // 1. University/Location compatibility (20% weight)
+  if (partnerData.university && criteria.university) {
+    if (partnerData.university === criteria.university) {
+      score += 20;
+      debugging.push('University match: +20');
+    } else {
+      // Partial score for nearby universities or same city
+      score += 5;
+      debugging.push('Different university: +5');
+    }
   }
 
-  // Study style match (25% weight)
-  if (partnerPreferences.studyStyle && partnerPreferences.studyStyle === criteria.studyStyle) {
-    score += 25;
+  // 2. Course field similarity (15% weight)
+  if (partnerData.course && criteria.course) {
+    const partnerCourse = partnerData.course.toLowerCase();
+    const criteraCourse = criteria.course.toLowerCase();
+    
+    // Exact match
+    if (partnerCourse === criteraCourse) {
+      score += 15;
+      debugging.push('Exact course match: +15');
+    } else {
+      // Field similarity (CS, Software Engineering, Data Science, etc.)
+      const techFields = ['computer', 'software', 'data', 'information', 'technology', 'engineering'];
+      const mathFields = ['mathematics', 'statistics', 'physics', 'engineering'];
+      const businessFields = ['business', 'management', 'economics', 'finance'];
+      
+      const isPartnerTech = techFields.some(field => partnerCourse.includes(field));
+      const isCriteriaTech = techFields.some(field => criteraCourse.includes(field));
+      const isPartnerMath = mathFields.some(field => partnerCourse.includes(field));
+      const isCriteriaMath = mathFields.some(field => criteraCourse.includes(field));
+      const isPartnerBusiness = businessFields.some(field => partnerCourse.includes(field));
+      const isCriteriaBusiness = businessFields.some(field => criteraCourse.includes(field));
+      
+      if ((isPartnerTech && isCriteriaTech) || 
+          (isPartnerMath && isCriteriaMath) || 
+          (isPartnerBusiness && isCriteriaBusiness)) {
+        score += 10;
+        debugging.push('Similar field: +10');
+      } else {
+        score += 3;
+        debugging.push('Different field: +3');
+      }
+    }
   }
 
-  // Group size preference (20% weight)
-  if (partnerPreferences.groupSize && partnerPreferences.groupSize === criteria.groupSize) {
-    score += 20;
+  // 3. Year of study compatibility (15% weight)
+  if (partnerData.yearOfStudy && criteria.yearOfStudy) {
+    const yearDiff = Math.abs(partnerData.yearOfStudy - criteria.yearOfStudy);
+    if (yearDiff === 0) {
+      score += 15;
+      debugging.push('Same year: +15');
+    } else if (yearDiff === 1) {
+      score += 10;
+      debugging.push('1 year difference: +10');
+    } else if (yearDiff === 2) {
+      score += 5;
+      debugging.push('2 year difference: +5');
+    } else {
+      score += 2;
+      debugging.push('3+ year difference: +2');
+    }
   }
 
-  // Availability overlap (10% weight)
+  // 4. Study preferences alignment (20% weight total)
+  // Study style match (10% weight)
+  if (partnerPreferences.studyStyle && criteria.studyStyle) {
+    if (partnerPreferences.studyStyle === criteria.studyStyle) {
+      score += 10;
+      debugging.push('Study style match: +10');
+    } else {
+      // Partial compatibility for complementary styles
+      const visualAuditory = ['visual', 'auditory'];
+      const collaborativeKinesthetic = ['collaborative', 'kinesthetic'];
+      
+      if ((visualAuditory.includes(partnerPreferences.studyStyle) && visualAuditory.includes(criteria.studyStyle)) ||
+          (collaborativeKinesthetic.includes(partnerPreferences.studyStyle) && collaborativeKinesthetic.includes(criteria.studyStyle))) {
+        score += 5;
+        debugging.push('Compatible study style: +5');
+      }
+    }
+  }
+
+  // Group size preference (10% weight)
+  if (partnerPreferences.groupSize && criteria.groupSize) {
+    if (partnerPreferences.groupSize === criteria.groupSize) {
+      score += 10;
+      debugging.push('Group size match: +10');
+    } else {
+      // Flexible matching (small-medium, medium-large can work together)
+      const flexible = {
+        'small': ['medium'],
+        'medium': ['small', 'large'],
+        'large': ['medium']
+      };
+      if (flexible[partnerPreferences.groupSize]?.includes(criteria.groupSize)) {
+        score += 5;
+        debugging.push('Flexible group size: +5');
+      }
+    }
+  }
+
+  // 5. Availability overlap (15% weight)
   if (partnerPreferences.availability && criteria.availability) {
     try {
       const partnerAvail = Array.isArray(partnerPreferences.availability)
@@ -279,15 +443,34 @@ function calculateEnhancedCompatibilityScore(partnerPreferences, criteria, share
 
       const overlap = partnerAvail.filter((time) => criteriaAvail.includes(time)).length;
       if (overlap > 0) {
-        score += (overlap / Math.max(partnerAvail.length, criteriaAvail.length)) * 10;
+        const overlapScore = (overlap / Math.max(partnerAvail.length, criteriaAvail.length)) * 15;
+        score += overlapScore;
+        debugging.push(`Availability overlap (${overlap}/${Math.max(partnerAvail.length, criteriaAvail.length)}): +${overlapScore.toFixed(1)}`);
       }
     } catch (e) {
-      // Ignore availability comparison if parsing fails
+      debugging.push('Availability parsing failed');
     }
   }
 
-  // Base activity score (5% weight) - everyone gets some base score for being active
-  score += 5;
+  // 6. Shared courses bonus (10% weight) - bonus, not requirement
+  if (sharedCoursesCount > 0) {
+    const sharedScore = Math.min(sharedCoursesCount * 3, 10); // 3 points per shared course, max 10
+    score += sharedScore;
+    debugging.push(`Shared courses (${sharedCoursesCount}): +${sharedScore}`);
+  }
+
+  // 7. Bio/interest matching (5% weight) - future enhancement
+  // This could analyze keywords in bio for common interests
+  score += 5; // Base engagement score for having a profile
+
+  // Log debugging info occasionally
+  if (Math.random() < 0.1) { // 10% chance to debug log
+    console.log('🤖 Compatibility calculation:', {
+      partner: partnerData.name || 'Unknown',
+      score: Math.round(score),
+      breakdown: debugging
+    });
+  }
 
   return Math.round(score);
 }
@@ -360,25 +543,25 @@ function calculateCompatibilityScore(partner, criteria) {
   return Math.round(score);
 }
 
-// Send a buddy request
-router.post('/request', authenticateToken, async (req, res) => {
+// Send a buddy request (alternative endpoint for frontend compatibility)
+router.post('/match', authenticateToken, async (req, res) => {
   try {
-    const { recipientId, message } = req.body;
+    const { matched_user_id, module_id, message } = req.body;
     const requesterId = req.user.id;
 
-    if (!recipientId) {
-      return res.status(400).json({ error: 'Recipient ID is required' });
+    if (!matched_user_id) {
+      return res.status(400).json({ error: 'Matched user ID is required' });
     }
 
-    if (recipientId === requesterId) {
+    if (matched_user_id === requesterId) {
       return res.status(400).json({ error: 'Cannot send buddy request to yourself' });
     }
 
-    console.log('🤝 Processing buddy request:', { requesterId, recipientId, message });
+    console.log('🤝 Processing partner match request:', { requesterId, matched_user_id, module_id, message });
 
     const request = pool.request();
     request.input('requesterId', sql.NVarChar(255), requesterId);
-    request.input('recipientId', sql.NVarChar(255), recipientId);
+    request.input('recipientId', sql.NVarChar(255), matched_user_id);
     request.input('message', sql.NVarChar(500), message || '');
 
     // Check if there's already a connection between these users
@@ -395,20 +578,31 @@ router.post('/request', authenticateToken, async (req, res) => {
       });
     }
 
-    // Insert new buddy request - need a module_id, let's get the first shared module or use 1 as default
-    const moduleRequest = pool.request();
+    // Get requester's info for the notification
+    const requesterRequest = pool.request();
+    requesterRequest.input('requesterId', sql.NVarChar(255), requesterId);
+    const requesterResult = await requesterRequest.query(`
+      SELECT first_name, last_name, email, university, course 
+      FROM users WHERE user_id = @requesterId
+    `);
 
-    // Get first available module ID as default (in real app, this should be based on shared interests)
-    const moduleResult = await moduleRequest.query(
-      `SELECT TOP 1 module_id FROM dbo.modules WHERE is_active = 1`
-    );
-    const defaultModuleId =
-      moduleResult.recordset.length > 0 ? moduleResult.recordset[0].module_id : 1;
+    const requesterInfo = requesterResult.recordset[0];
+    const requesterName = requesterInfo ? 
+      [requesterInfo.first_name, requesterInfo.last_name].filter(Boolean).join(' ') || requesterInfo.email : 
+      'Unknown User';
+
+    // Use provided module_id or get default
+    let targetModuleId = module_id;
+    if (!targetModuleId) {
+      const moduleRequest = pool.request();
+      const moduleResult = await moduleRequest.query(`SELECT TOP 1 module_id FROM dbo.modules WHERE is_active = 1`);
+      targetModuleId = moduleResult.recordset.length > 0 ? moduleResult.recordset[0].module_id : 1;
+    }
 
     const finalInsertRequest = pool.request();
     finalInsertRequest.input('requesterId', sql.NVarChar(255), requesterId);
-    finalInsertRequest.input('recipientId', sql.NVarChar(255), recipientId);
-    finalInsertRequest.input('moduleId', sql.Int, defaultModuleId);
+    finalInsertRequest.input('recipientId', sql.NVarChar(255), matched_user_id);
+    finalInsertRequest.input('moduleId', sql.Int, targetModuleId);
 
     const result = await finalInsertRequest.query(`
       INSERT INTO partner_matches (requester_id, matched_user_id, module_id, match_status, created_at, updated_at)
@@ -417,17 +611,336 @@ router.post('/request', authenticateToken, async (req, res) => {
     `);
 
     const newRequest = result.recordset[0];
-    console.log('✅ Buddy request sent successfully:', newRequest);
+
+    // Send Web PubSub notification to recipient
+    if (webPubSubClient) {
+      try {
+        await webPubSubClient.sendToUser(matched_user_id, {
+          type: 'partner_request',
+          payload: {
+            requestId: newRequest.match_id,
+            requesterId: requesterId,
+            requesterName: requesterName,
+            requesterUniversity: requesterInfo?.university,
+            requesterCourse: requesterInfo?.course,
+            message: message || '',
+            timestamp: newRequest.created_at
+          }
+        });
+        console.log('✅ Web PubSub notification sent to user:', matched_user_id);
+      } catch (pubsubError) {
+        console.warn('⚠️ Failed to send Web PubSub notification:', pubsubError);
+        // Don't fail the request if notification fails
+      }
+    } else {
+      console.warn('⚠️ Web PubSub client not available, skipping notification');
+    }
+
+    console.log('✅ Partner match request sent successfully:', newRequest);
+
+    res.status(201).json({
+      id: newRequest.match_id,
+      status: 'pending',
+      message: 'Partner match request sent successfully',
+      createdAt: newRequest.created_at
+    });
+
+  } catch (error) {
+    console.error('❌ Error sending partner match request:', error);
+    res.status(500).json({ error: 'Failed to send partner match request' });
+  }
+});
+
+// Test endpoint to verify basic functionality
+router.post('/test', authenticateToken, async (req, res) => {
+  try {
+    console.log('🧪 Test endpoint hit:', {
+      body: req.body,
+      user: req.user,
+      headers: req.headers
+    });
+    
+    res.json({
+      message: 'Test endpoint working',
+      user: req.user,
+      body: req.body,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Test endpoint error:', error);
+    res.status(500).json({ error: 'Test endpoint failed' });
+  }
+});
+
+// Send a buddy request
+router.post('/request', authenticateToken, async (req, res) => {
+  try {
+    const { recipientId, message } = req.body;
+    const requesterId = req.user.id;
+
+    console.log('🤝 Processing buddy request:', { 
+      requesterId, 
+      recipientId, 
+      message: message || 'No message',
+      requestBody: req.body,
+      userInfo: { id: req.user.id, email: req.user.email }
+    });
+
+    // Validate required fields
+    if (!recipientId) {
+      console.log('❌ Missing recipientId');
+      return res.status(400).json({ error: 'Recipient ID is required' });
+    }
+
+    if (recipientId === requesterId) {
+      console.log('❌ Self-request attempt');
+      return res.status(400).json({ error: 'Cannot send buddy request to yourself' });
+    }
+
+    // Check database connection
+    if (!pool) {
+      console.log('❌ Database pool not available');
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
+
+    console.log('📋 Checking for existing connections...');
+    const request = pool.request();
+    request.input('requesterId', sql.NVarChar(255), requesterId);
+    request.input('recipientId', sql.NVarChar(255), recipientId);
+
+    // Check if there's already a connection between these users
+    const existingConnection = await request.query(`
+      SELECT match_id, match_status FROM partner_matches 
+      WHERE (requester_id = @requesterId AND matched_user_id = @recipientId) 
+      OR (requester_id = @recipientId AND matched_user_id = @requesterId)
+    `);
+
+    if (existingConnection.recordset.length > 0) {
+      const status = existingConnection.recordset[0].match_status;
+      console.log(`❌ Existing connection found with status: ${status}`);
+      return res.status(400).json({ 
+        error: `A ${status} connection already exists between these users` 
+      });
+    }
+
+    // Simplified approach: Just ensure we have a default module and insert the request
+    console.log('📚 Ensuring default module exists...');
+    let targetModuleId = 1; // Default fallback
+
+    try {
+      // Check if any modules exist
+      const moduleCheckRequest = pool.request();
+      const moduleCheckResult = await moduleCheckRequest.query(`
+        SELECT TOP 1 module_id FROM dbo.modules WHERE is_active = 1
+      `);
+
+      if (moduleCheckResult.recordset.length > 0) {
+        targetModuleId = moduleCheckResult.recordset[0].module_id;
+        console.log('📚 Using existing module ID:', targetModuleId);
+      } else {
+        // Create a simple default module
+        console.log('📚 Creating default General Studies module...');
+        const createModuleRequest = pool.request();
+        createModuleRequest.input('code', sql.NVarChar(50), 'GEN001');
+        createModuleRequest.input('name', sql.NVarChar(255), 'General Studies');
+        createModuleRequest.input('university', sql.NVarChar(255), 'General');
+        createModuleRequest.input('description', sql.NText, 'General study topics');
+
+        const createResult = await createModuleRequest.query(`
+          INSERT INTO dbo.modules (module_code, module_name, university, description, is_active, created_at)
+          OUTPUT INSERTED.module_id
+          VALUES (@code, @name, @university, @description, 1, GETDATE())
+        `);
+        
+        targetModuleId = createResult.recordset[0].module_id;
+        console.log('📚 Created default module with ID:', targetModuleId);
+      }
+    } catch (moduleError) {
+      console.warn('⚠️ Module setup failed, using fallback ID 1:', moduleError.message);
+      targetModuleId = 1;
+    }
+
+    console.log('💾 Inserting buddy request into database...');
+    const insertRequest = pool.request();
+    insertRequest.input('requesterId', sql.NVarChar(255), requesterId);
+    insertRequest.input('recipientId', sql.NVarChar(255), recipientId);
+    insertRequest.input('moduleId', sql.Int, targetModuleId);
+
+    const result = await insertRequest.query(`
+      INSERT INTO partner_matches (requester_id, matched_user_id, module_id, match_status, created_at, updated_at)
+      OUTPUT INSERTED.match_id, INSERTED.created_at
+      VALUES (@requesterId, @recipientId, @moduleId, 'pending', GETDATE(), GETDATE())
+    `);
+
+    const newRequest = result.recordset[0];
+    console.log('✅ Buddy request inserted with ID:', newRequest.match_id);
+
+    // Skip WebPubSub for now to isolate the issue
+    console.log('⚠️ Skipping WebPubSub notification for debugging');
+
+    console.log('✅ Buddy request sent successfully');
 
     res.status(201).json({
       id: newRequest.match_id,
       status: 'pending',
       message: 'Buddy request sent successfully',
-      createdAt: newRequest.created_at,
+      createdAt: newRequest.created_at
     });
+
   } catch (error) {
     console.error('❌ Error sending buddy request:', error);
-    res.status(500).json({ error: 'Failed to send buddy request' });
+    console.error('❌ Error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      state: error.state,
+      number: error.number
+    });
+    
+    res.status(500).json({ 
+      error: 'Failed to send buddy request',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Accept a buddy request
+router.post('/accept/:requestId', authenticateToken, async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const userId = req.user.id;
+
+    console.log('👍 Processing accept request:', { requestId, userId });
+
+    const request = pool.request();
+    request.input('requestId', sql.Int, requestId);
+    request.input('userId', sql.NVarChar(255), userId);
+
+    // Check if request exists and user is the recipient
+    const checkRequest = await request.query(`
+      SELECT pm.*, u.first_name, u.last_name, u.email 
+      FROM partner_matches pm
+      LEFT JOIN users u ON pm.requester_id = u.user_id
+      WHERE pm.match_id = @requestId 
+      AND pm.matched_user_id = @userId 
+      AND pm.match_status = 'pending'
+    `);
+
+    if (checkRequest.recordset.length === 0) {
+      return res.status(404).json({ error: 'Partner request not found or already processed' });
+    }
+
+    const requestInfo = checkRequest.recordset[0];
+
+    // Update request status to accepted
+    const updateRequest = pool.request();
+    updateRequest.input('requestId', sql.Int, requestId);
+    
+    await updateRequest.query(`
+      UPDATE partner_matches 
+      SET match_status = 'accepted', updated_at = GETDATE()
+      WHERE match_id = @requestId
+    `);
+
+    // Send Web PubSub notification to requester
+    if (webPubSubClient) {
+      try {
+        await webPubSubClient.sendToUser(requestInfo.requester_id, {
+          type: 'partner_request_accepted',
+          payload: {
+            requestId: requestId,
+            acceptedBy: userId,
+            acceptedByName: req.user.name || 'Unknown User',
+            timestamp: new Date().toISOString()
+          }
+        });
+        console.log('✅ Acceptance notification sent to user:', requestInfo.requester_id);
+      } catch (pubsubError) {
+        console.warn('⚠️ Failed to send acceptance notification:', pubsubError);
+      }
+    }
+
+    console.log('✅ Partner request accepted successfully');
+
+    res.json({
+      message: 'Partner request accepted successfully',
+      requestId: requestId,
+      status: 'accepted'
+    });
+
+  } catch (error) {
+    console.error('❌ Error accepting partner request:', error);
+    res.status(500).json({ error: 'Failed to accept partner request' });
+  }
+});
+
+// Reject a buddy request
+router.post('/reject/:requestId', authenticateToken, async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const userId = req.user.id;
+
+    console.log('👎 Processing reject request:', { requestId, userId });
+
+    const request = pool.request();
+    request.input('requestId', sql.Int, requestId);
+    request.input('userId', sql.NVarChar(255), userId);
+
+    // Check if request exists and user is the recipient
+    const checkRequest = await request.query(`
+      SELECT pm.*, u.first_name, u.last_name, u.email 
+      FROM partner_matches pm
+      LEFT JOIN users u ON pm.requester_id = u.user_id
+      WHERE pm.match_id = @requestId 
+      AND pm.matched_user_id = @userId 
+      AND pm.match_status = 'pending'
+    `);
+
+    if (checkRequest.recordset.length === 0) {
+      return res.status(404).json({ error: 'Partner request not found or already processed' });
+    }
+
+    const requestInfo = checkRequest.recordset[0];
+
+    // Update request status to declined
+    const updateRequest = pool.request();
+    updateRequest.input('requestId', sql.Int, requestId);
+    
+    await updateRequest.query(`
+      UPDATE partner_matches 
+      SET match_status = 'declined', updated_at = GETDATE()
+      WHERE match_id = @requestId
+    `);
+
+    // Send Web PubSub notification to requester
+    if (webPubSubClient) {
+      try {
+        await webPubSubClient.sendToUser(requestInfo.requester_id, {
+          type: 'partner_request_rejected',
+          payload: {
+            requestId: requestId,
+            rejectedBy: userId,
+            rejectedByName: req.user.name || 'Unknown User',
+            timestamp: new Date().toISOString()
+          }
+        });
+        console.log('✅ Rejection notification sent to user:', requestInfo.requester_id);
+      } catch (pubsubError) {
+        console.warn('⚠️ Failed to send rejection notification:', pubsubError);
+      }
+    }
+
+    console.log('✅ Partner request rejected successfully');
+
+    res.json({
+      message: 'Partner request rejected successfully',
+      requestId: requestId,
+      status: 'declined'
+    });
+
+  } catch (error) {
+    console.error('❌ Error rejecting partner request:', error);
+    res.status(500).json({ error: 'Failed to reject partner request' });
   }
 });
 

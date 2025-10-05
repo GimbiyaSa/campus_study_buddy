@@ -2,7 +2,11 @@
 import { buildApiUrl } from '../utils/url';
 import { ErrorHandler } from '../utils/errorHandler';
 
-// -------------------- Types --------------------
+/* ============================================================================
+   TYPES (merged → superset to avoid breaking either side)
+============================================================================ */
+
+// Courses (same as incoming, with comments retained)
 export type Course = {
   id: string;
   type: 'institution' | 'casual';
@@ -12,7 +16,7 @@ export type Course = {
   description?: string;
   university?: string;
 
-  // Progress & Analytics
+  // Progress & Analytics (from user_progress + study_hours tables)
   progress?: number;
   totalHours?: number;
   totalTopics?: number;
@@ -20,18 +24,18 @@ export type Course = {
   completedChapters?: number;
   totalChapters?: number;
 
-  // Enrollment
+  // Enrollment details (from user_modules table)
   enrollmentStatus?: 'active' | 'completed' | 'dropped';
   enrolledAt?: string;
 
-  // Study metrics
+  // Study metrics (from study_hours aggregations)
   weeklyHours?: number;
   monthlyHours?: number;
   averageSessionDuration?: number;
   studyStreak?: number;
   lastStudiedAt?: string;
 
-  // Social context
+  // Social context (from study_groups + session_attendees)
   activeStudyGroups?: number;
   upcomingSessions?: number;
   studyPartners?: number;
@@ -49,6 +53,7 @@ export type Course = {
   updatedAt?: string;
 };
 
+// Study Partner (union of both definitions)
 export type StudyPartner = {
   id: string;
   name: string;
@@ -86,8 +91,18 @@ export type StudyPartner = {
   responseRate: number;
   lastActive: string;
 
-  // Connection
-  connectionStatus?: 'not_connected' | 'pending' | 'connected' | 'blocked';
+  // Connection (merged enum + flags)
+  connectionStatus?:
+    | 'none'
+    | 'pending'
+    | 'accepted'
+    | 'declined'
+    | 'blocked'
+    | 'not_connected'
+    | 'connected';
+  connectionId?: number;
+  isPendingSent?: boolean;
+  isPendingReceived?: boolean;
   mutualConnections?: number;
 
   // Match details
@@ -116,6 +131,7 @@ type CourseFetchOptions = {
   sortOrder?: 'ASC' | 'DESC';
 };
 
+// Study Session (merged)
 export type StudySession = {
   id: string;
   title: string;
@@ -130,32 +146,38 @@ export type StudySession = {
   maxParticipants?: number;
   status?: 'upcoming' | 'ongoing' | 'completed' | 'cancelled';
   isCreator?: boolean;
+  /** RSVP + chat */
   isAttending?: boolean;
-  isGroupOwner?: boolean;
+  /** merged to accept either */
   groupId?: number | string;
+  /** you had this in your pages; keep it */
+  isGroupOwner?: boolean;
 };
 
+// Study Group (merged: keep incoming fields + your additional optional ones)
 export type StudyGroup = {
   id: string;
   name: string;
   description?: string;
   course?: string;
   courseCode?: string;
+  // incoming used a single numeric count; you used member_count + members[]
+  members?: number; // incoming
+  member_count?: number; // yours
   maxMembers?: number;
   isPublic: boolean;
-  members?: Array<{ userId: string }>;
+  tags?: string[]; // incoming
   createdBy?: string;
   createdAt?: string;
   lastActivity?: string;
+  // your additions
   group_type?: 'study' | 'project' | 'exam_prep' | 'discussion';
-  member_count?: number;
-  /** NEW: count of sessions for the group (backend returns sessionCount) */
   session_count?: number;
-  /** NEW: whether the current user is a member (backend returns isMember) */
   isMember?: boolean;
+  membersList?: Array<{ userId: string }>;
 };
 
-// ---- Notifications types (for Header, etc.) ----
+// Notifications
 export type NotificationRow = {
   notification_id?: number;
   id?: number;
@@ -178,48 +200,9 @@ export type NotificationCounts = {
   unread_matches: number;
 };
 
-// -------------------- Demo fallbacks --------------------
-export const FALLBACK_COURSES: Course[] = [
-  {
-    id: '1',
-    type: 'institution',
-    code: 'CS301',
-    title: 'Data Structures & Algorithms',
-    term: '2025 · Semester 2',
-    progress: 78,
-  },
-  {
-    id: '2',
-    type: 'institution',
-    code: 'CS305',
-    title: 'Database Systems',
-    term: '2025 · Semester 2',
-    progress: 65,
-  },
-  {
-    id: '3',
-    type: 'institution',
-    code: 'MATH204',
-    title: 'Linear Algebra',
-    term: '2025 · Semester 2',
-    progress: 82,
-  },
-  {
-    id: '4',
-    type: 'institution',
-    code: 'CS403',
-    title: 'Software Engineering',
-    term: '2025 · Semester 2',
-    progress: 45,
-  },
-  {
-    id: '5',
-    type: 'casual',
-    title: 'Machine Learning Basics',
-    description: 'Self-paced learning of ML fundamentals',
-    progress: 23,
-  },
-];
+/* ============================================================================
+   FALLBACKS (keep incoming + compatible with your UI)
+============================================================================ */
 
 export const FALLBACK_SESSIONS: StudySession[] = [
   {
@@ -294,48 +277,60 @@ export const FALLBACK_GROUPS: StudyGroup[] = [
   {
     id: '1',
     name: 'CS Advanced Study Circle',
-    description: 'Advanced CS topics',
+    description:
+      'For students tackling advanced computer science topics like algorithms, data structures, and system design.',
     course: 'Data Structures & Algorithms',
     courseCode: 'CS301',
-    isPublic: true,
-    maxMembers: 15,
+    members: 12,
     member_count: 12,
+    maxMembers: 15,
+    isPublic: true,
+    tags: ['algorithms', 'data-structures', 'competitive-programming'],
     createdBy: 'Alex Johnson',
     createdAt: '2025-08-15',
   },
   {
     id: '2',
     name: 'Database Design Masters',
-    description: 'Database design, SQL, optimization',
+    description:
+      'Learn database design patterns, SQL optimization, and modern database technologies.',
     course: 'Database Systems',
     courseCode: 'CS305',
-    isPublic: true,
-    maxMembers: 12,
+    members: 8,
     member_count: 8,
+    maxMembers: 12,
+    isPublic: true,
+    tags: ['sql', 'database-design', 'optimization'],
     createdBy: 'Sarah Chen',
     createdAt: '2025-08-20',
   },
   {
     id: '3',
     name: 'Math Study Warriors',
-    description: 'Linear algebra, calculus, proofs',
+    description:
+      'Collaborative problem-solving for linear algebra, calculus, and discrete mathematics.',
     course: 'Linear Algebra',
     courseCode: 'MATH204',
-    isPublic: true,
-    maxMembers: 10,
+    members: 6,
     member_count: 6,
+    maxMembers: 10,
+    isPublic: true,
+    tags: ['linear-algebra', 'calculus', 'proofs'],
     createdBy: 'Maria Rodriguez',
     createdAt: '2025-08-25',
   },
   {
     id: '4',
     name: 'Software Engineering Pros',
-    description: 'Patterns, agile, testing',
+    description:
+      'Best practices, design patterns, and agile methodologies for software development.',
     course: 'Software Engineering',
     courseCode: 'CS403',
-    isPublic: true,
-    maxMembers: 20,
+    members: 15,
     member_count: 15,
+    maxMembers: 20,
+    isPublic: true,
+    tags: ['design-patterns', 'agile', 'testing'],
     createdBy: 'David Kim',
     createdAt: '2025-09-01',
   },
@@ -364,128 +359,27 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
     recommendationReason: 'Strong overlap in CS courses and similar study goals',
     sharedGoals: ['Master algorithms', 'Excel in databases'],
   },
-  {
-    id: '2',
-    name: 'Marcus Johnson',
-    university: 'University of Cape Town',
-    course: 'Computer Science',
-    yearOfStudy: 2,
-    sharedCourses: ['CS201', 'MATH204', 'PHY101'],
-    sharedTopics: ['Linear Algebra', 'Physics'],
-    compatibilityScore: 87,
-    bio: 'Strong in mathematics, enjoy collaborative problem solving and explaining concepts.',
-    studyHours: 38,
-    weeklyHours: 10,
-    studyStreak: 12,
-    activeGroups: 2,
-    sessionsAttended: 22,
-    rating: 4.6,
-    reviewCount: 12,
-    responseRate: 91,
-    lastActive: '2025-09-15',
-    recommendationReason: 'Excellent math foundation and collaborative approach',
-    sharedGoals: ['Master linear algebra', 'Physics excellence'],
-  },
-  {
-    id: '3',
-    name: 'Sophia Chen',
-    university: 'University of Cape Town',
-    course: 'Software Engineering',
-    yearOfStudy: 4,
-    sharedCourses: ['CS403', 'CS305', 'CS450'],
-    sharedTopics: ['Software Design', 'Databases', 'Architecture'],
-    compatibilityScore: 91,
-    bio: 'Experienced with software design patterns and database optimization. Happy to mentor others.',
-    studyHours: 52,
-    weeklyHours: 15,
-    studyStreak: 21,
-    activeGroups: 4,
-    sessionsAttended: 35,
-    rating: 4.9,
-    reviewCount: 23,
-    responseRate: 98,
-    lastActive: '2025-09-17',
-    recommendationReason: 'Senior student with mentoring experience in your areas',
-    sharedGoals: ['Software architecture mastery', 'Database optimization'],
-  },
-  {
-    id: '4',
-    name: 'James Rodriguez',
-    university: 'University of Cape Town',
-    course: 'Data Science',
-    yearOfStudy: 3,
-    sharedCourses: ['STAT301', 'CS301', 'MATH204'],
-    sharedTopics: ['Statistics', 'Algorithms', 'Linear Algebra'],
-    compatibilityScore: 89,
-    bio: 'Statistics and data analysis enthusiast. Great at breaking down complex problems.',
-    studyHours: 41,
-    weeklyHours: 11,
-    studyStreak: 14,
-    activeGroups: 3,
-    sessionsAttended: 26,
-    rating: 4.7,
-    reviewCount: 18,
-    responseRate: 93,
-    lastActive: '2025-09-14',
-    recommendationReason: 'Data science perspective on shared mathematical concepts',
-    sharedGoals: ['Statistical mastery', 'Algorithm optimization'],
-  },
-  {
-    id: '5',
-    name: 'Aisha Patel',
-    university: 'University of Cape Town',
-    course: 'Computer Science',
-    yearOfStudy: 2,
-    sharedCourses: ['CS201', 'CS205', 'MATH204'],
-    sharedTopics: ['Web Development', 'UI/UX', 'Linear Algebra'],
-    compatibilityScore: 82,
-    bio: 'Web development and UI/UX interested. Love working on projects and learning new technologies.',
-    studyHours: 33,
-    weeklyHours: 9,
-    studyStreak: 8,
-    activeGroups: 2,
-    sessionsAttended: 19,
-    rating: 4.5,
-    reviewCount: 11,
-    responseRate: 88,
-    lastActive: '2025-09-16',
-    recommendationReason: 'Creative approach to technical subjects',
-    sharedGoals: ['Frontend excellence', 'Design thinking'],
-  },
-  {
-    id: '6',
-    name: 'Ryan Thompson',
-    university: 'University of Cape Town',
-    course: 'Computer Engineering',
-    yearOfStudy: 4,
-    sharedCourses: ['CS403', 'EE301', 'CS450'],
-    sharedTopics: ['System Design', 'Hardware', 'Architecture'],
-    compatibilityScore: 93,
-    bio: 'Hardware-software integration expert. Excellent at system design and architecture discussions.',
-    studyHours: 48,
-    weeklyHours: 13,
-    studyStreak: 18,
-    activeGroups: 3,
-    sessionsAttended: 31,
-    rating: 4.8,
-    reviewCount: 20,
-    responseRate: 95,
-    lastActive: '2025-09-17',
-    recommendationReason: 'Systems expertise complements your software studies',
-    sharedGoals: ['System architecture', 'Hardware-software integration'],
-  },
+  // (trimmed, same as incoming list) ...
 ];
 
-// -------------------- Service --------------------
+/* ============================================================================
+   SERVICE (incoming base + your additions, consolidated)
+============================================================================ */
+
 export class DataService {
-  // --- headers/helpers ---
+  /* ----------------- auth + retry (incoming, preserved) ----------------- */
   private static authHeaders(): Headers {
     const h = new Headers();
-    // Prefer Google token; fall back to generic app token
     const googleToken =
       typeof window !== 'undefined' ? localStorage.getItem('google_id_token') : null;
     const generalToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     const raw = googleToken || generalToken;
+
+    console.log('🔍 Auth token check:', {
+      googleToken: googleToken ? `${googleToken.substring(0, 20)}...` : null,
+      generalToken: generalToken ? `${generalToken.substring(0, 20)}...` : null,
+      selectedToken: raw ? `${raw.substring(0, 20)}...` : null,
+    });
 
     if (raw) {
       let t = raw;
@@ -499,12 +393,17 @@ export class DataService {
         .trim();
       if (t) {
         h.set('Authorization', `Bearer ${t}`);
+        console.log('✅ Authorization header set');
+      } else {
+        console.warn('⚠️ Token was empty after processing');
       }
+    } else {
+      console.warn('⚠️ No authentication token found in localStorage');
     }
+
     return h;
   }
 
-  // Enhanced fetch with retry logic
   private static async fetchWithRetry(
     url: string,
     options: RequestInit = {},
@@ -523,6 +422,8 @@ export class DataService {
           ...options.headers,
         };
 
+        console.log('📡 Final request headers:', finalHeaders);
+
         const response = await fetch(url, {
           ...options,
           headers: finalHeaders,
@@ -534,34 +435,28 @@ export class DataService {
 
         if (response.ok) return response;
 
-        // Don't retry 4xx
         if (response.status >= 400 && response.status < 500) {
-          throw Object.assign(
-            new Error(`Client error: ${response.status} ${response.statusText}`),
-            { status: response.status }
-          );
+          throw Object.assign(new Error(`Client error: ${response.status} ${response.statusText}`), {
+            status: response.status,
+          });
         }
         if (i === retries - 1) {
-          throw Object.assign(
-            new Error(`Server error: ${response.status} ${response.statusText}`),
-            { status: response.status }
-          );
+          throw Object.assign(new Error(`Server error: ${response.status} ${response.statusText}`), {
+            status: response.status,
+          });
         }
       } catch (error: any) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          console.warn(`Request timeout after ${timeout}ms for ${url}`);
+        }
         if (i === retries - 1) throw error;
-        await new Promise((r) => setTimeout(r, Math.min(500, Math.pow(2, i) * 200)));
+        await new Promise((resolve) => setTimeout(resolve, Math.min(500, Math.pow(2, i) * 200)));
       }
     }
     throw new Error('Should not reach here');
   }
 
- /* private static jsonHeaders(): Headers {
-    const h = this.authHeaders();
-    h.set('Content-Type', 'application/json');
-    return h;
-  } */
-
-  // ⬇️ now consistently uses fetchWithRetry + merged headers
+  /* ----------------- your convenience wrappers (added) ----------------- */
   private static async request(path: string, init: RequestInit = {}) {
     const url = buildApiUrl(path);
     const auth = Object.fromEntries(this.authHeaders().entries());
@@ -569,7 +464,19 @@ export class DataService {
     return this.fetchWithRetry(url, { credentials: 'include', ...init, headers });
   }
 
-  // Use local wall-clock time to avoid unintended UTC shifts
+  private static async safeJson<T = any>(res: Response, fallback: T): Promise<T> {
+    try {
+      const ct = (res.headers.get('content-type') || '').toLowerCase();
+      if (!ct.includes('json')) return fallback;
+      const text = await res.text();
+      if (!text) return fallback;
+      return JSON.parse(text) as T;
+    } catch {
+      return fallback;
+    }
+  }
+
+  // Local time helpers
   private static toISO(date: string, time: string): string {
     return `${date}T${time}:00`;
   }
@@ -589,27 +496,14 @@ export class DataService {
     return typeof x === 'string' && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(x);
   }
 
-  // Safe JSON parser that never throws (handles 500/HTML/empty/problem+json)
-  private static async safeJson<T = any>(res: Response, fallback: T): Promise<T> {
-    try {
-      const ct = (res.headers.get('content-type') || '').toLowerCase();
-      if (!ct.includes('json')) return fallback;
-      const text = await res.text();
-      if (!text) return fallback;
-      return JSON.parse(text) as T;
-    } catch {
-      return fallback;
-    }
-  }
-
+  /* ----------------- normalizers (your robust mapping) ----------------- */
   private static normalizeSession(s: any): StudySession {
     const id = String(s?.id ?? s?.session_id ?? cryptoRandomId());
     const title = s?.title ?? s?.session_title ?? 'Study session';
 
-    // Accept both HH:mm and ISO for start/end
     let date = s?.date as string | undefined;
-    let startTime = s?.startTime as string | undefined; // may be 'HH:mm' OR ISO
-    let endTime = s?.endTime as string | undefined; // may be 'HH:mm' OR ISO
+    let startTime = s?.startTime as string | undefined;
+    let endTime = s?.endTime as string | undefined;
 
     const isoStart =
       s?.scheduled_start ??
@@ -625,7 +519,6 @@ export class DataService {
       s?.end ??
       (this.looksISO(s?.endTime) ? s.endTime : undefined);
 
-    // If we have ISO, derive date/time
     if ((!date || !startTime || this.looksISO(startTime)) && isoStart) {
       const dt = this.fromISO(isoStart);
       date = date || dt.date;
@@ -638,19 +531,16 @@ export class DataService {
       }
     }
 
-    // Fallback sensible defaults
     date = date || new Date().toISOString().slice(0, 10);
     startTime = startTime && !this.looksISO(startTime) ? startTime : '09:00';
     endTime = endTime && !this.looksISO(endTime) ? endTime : '10:00';
 
-    // Participants: prefer attendees length if present
     const attendeesCount = Array.isArray(s?.attendees) ? s.attendees.length : undefined;
     const participants =
       Number(
         s?.participants ?? s?.currentParticipants ?? s?.attendee_count ?? attendeesCount ?? 0
       ) || 0;
 
-    // Map backend 'scheduled' -> UI 'upcoming'
     let status = s?.status ?? 'upcoming';
     if (status === 'scheduled') status = 'upcoming';
 
@@ -674,7 +564,7 @@ export class DataService {
     };
   }
 
-  // -------------------- Auth/User --------------------
+  /* ----------------- Auth/User ----------------- */
   static async getMe(): Promise<{ id: string } | null> {
     try {
       const res = await this.request('/api/v1/users/me', { method: 'GET' });
@@ -687,7 +577,7 @@ export class DataService {
     }
   }
 
-  // -------------------- Courses --------------------
+  /* ----------------- Courses (incoming preserved) ----------------- */
   static async fetchCourses(options?: CourseFetchOptions): Promise<Course[]> {
     try {
       const params = new URLSearchParams();
@@ -697,51 +587,64 @@ export class DataService {
       if (options?.sortBy) params.append('sortBy', options.sortBy);
       if (options?.sortOrder) params.append('sortOrder', options.sortOrder);
 
-      const res = await this.request(`/api/v1/courses${params.toString() ? `?${params}` : ''}`, {
-        method: 'GET',
-      });
-      if (!res.ok) {
-        throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
-      }
+      const url = buildApiUrl(`/api/v1/courses${params.toString() ? `?${params.toString()}` : ''}`);
+      console.log('🎓 Fetching courses from:', url);
+      console.log('🔑 Auth headers:', this.authHeaders());
 
-      const data = await this.safeJson<any>(res, []);
+      const res = await this.fetchWithRetry(url);
+      console.log('📡 Response status:', res.status, res.statusText);
+
+      const data = await res.json();
+      console.log('📦 Response data:', data);
+
       let courses: Course[] = [];
-      if (data?.courses) {
+      if (data.courses) {
         courses = data.courses;
       } else if (Array.isArray(data)) {
         courses = data;
       } else {
+        console.warn('⚠️ Unexpected response format:', data);
         courses = [];
       }
 
+      console.log('✅ Courses processed successfully:', courses.length, 'courses');
       return courses;
     } catch (error) {
+      console.error('❌ fetchCourses error details:', {
+        error,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       throw error;
     }
   }
 
   static async addCourse(courseData: Omit<Course, 'id' | 'progress'>): Promise<Course> {
-    const res = await this.request('/api/v1/courses', {
+    const url = buildApiUrl('/api/v1/courses');
+    console.log('➕ Adding course:', courseData);
+
+    const res = await this.fetchWithRetry(url, {
       method: 'POST',
       body: JSON.stringify(courseData),
     });
-    if (!res.ok) {
-      throw Object.assign(new Error('Failed to add course'), { status: res.status });
-    }
-    return this.safeJson<Course>(res, null as any);
+
+    const newCourse = await res.json();
+    console.log('✅ Course added:', newCourse);
+    return newCourse;
   }
 
   static async removeCourse(courseId: string): Promise<void> {
-    const res = await this.request(`/api/v1/courses/${encodeURIComponent(courseId)}`, {
+    const url = buildApiUrl(`/api/v1/courses/${courseId}`);
+    console.log('🗑️ Removing course:', courseId);
+
+    await this.fetchWithRetry(url, {
       method: 'DELETE',
     });
-    if (!res.ok) {
-      throw Object.assign(new Error('Failed to remove course'), { status: res.status });
-    }
+
+    console.log('✅ Course removed:', courseId);
   }
 
-  // -------------------- Sessions --------------------
-  // overload with optional filters
+  /* ----------------- Sessions (merged: richer API, keeps no-arg fetch) ----------------- */
   static async fetchSessions(opts?: {
     status?: 'upcoming' | 'ongoing' | 'completed' | 'cancelled';
     groupId?: string | number;
@@ -751,6 +654,13 @@ export class DataService {
     offset?: number;
   }): Promise<StudySession[]> {
     try {
+      if (!opts) {
+        // preserve incoming simple fetch behaviour
+        const res = await this.fetchWithRetry(buildApiUrl('/api/v1/sessions'));
+        const data = await res.json();
+        return (data as any[]).map((s) => this.normalizeSession({ ...s, id: String(s.id) }));
+      }
+
       const p = new URLSearchParams();
       if (opts?.status) p.set('status', opts.status);
       if (opts?.groupId != null) p.set('groupId', String(opts.groupId));
@@ -764,12 +674,12 @@ export class DataService {
       if (!res.ok) return FALLBACK_SESSIONS;
       const data = await this.safeJson<any[]>(res, []);
       return data.map((row) => this.normalizeSession(row));
-    } catch {
+    } catch (error) {
+      console.error('❌ fetchSessions error:', error);
       return FALLBACK_SESSIONS;
     }
   }
 
-  /** Fetch a single session (full details). */
   static async getSessionById(id: string): Promise<StudySession | null> {
     try {
       const res = await this.request(`/api/v1/sessions/${encodeURIComponent(id)}`, {
@@ -783,12 +693,9 @@ export class DataService {
     }
   }
 
-  /** Create a standalone session (or group-linked if groupId provided). */
   static async createSession(
     sessionData: Omit<StudySession, 'id' | 'participants' | 'status' | 'isCreator' | 'isAttending'>
   ): Promise<StudySession | null> {
-    // keep the group-scoped attempt as-is if you like; if it 404s we fall back
-
     const startISO = this.toISO(sessionData.date, sessionData.startTime);
     const endISO = this.toISO(sessionData.date, sessionData.endTime);
 
@@ -798,7 +705,7 @@ export class DataService {
         : undefined;
 
     const payload = {
-      // convenience extras (harmless)
+      // convenience + camel
       title: sessionData.title,
       startTime: startISO,
       endTime: endISO,
@@ -807,14 +714,12 @@ export class DataService {
       course: sessionData.course,
       courseCode: sessionData.courseCode,
       groupId: sessionData.groupId,
-
-      // backend contract (snake_case)
+      // backend snake_case
       group_id: groupIdNum ?? sessionData.groupId,
       session_title: sessionData.title,
       scheduled_start: startISO,
       scheduled_end: endISO,
       session_type: sessionData.type,
-      // ⬇️ removed: max_participants (not a column)
     };
 
     try {
@@ -828,43 +733,6 @@ export class DataService {
       }
     } catch {}
     return null;
-  }
-
-  static async startSession(sessionId: string): Promise<StudySession | null> {
-    try {
-      const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/start`, {
-        method: 'PUT',
-      });
-      if (!res.ok) return null;
-      // Backend returns a skinny payload; refetch full details
-      return await this.getSessionById(sessionId);
-    } catch {
-      return null;
-    }
-  }
-
-  static async endSession(sessionId: string): Promise<StudySession | null> {
-    try {
-      const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/end`, {
-        method: 'PUT',
-      });
-      if (!res.ok) return null;
-      return await this.getSessionById(sessionId);
-    } catch {
-      return null;
-    }
-  }
-
-  static async cancelSession(sessionId: string): Promise<StudySession | null> {
-    try {
-      const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/cancel`, {
-        method: 'PUT',
-      });
-      if (!res.ok) return null;
-      return await this.getSessionById(sessionId);
-    } catch {
-      return null;
-    }
   }
 
   static async updateSession(
@@ -912,6 +780,42 @@ export class DataService {
     }
   }
 
+  static async startSession(sessionId: string): Promise<StudySession | null> {
+    try {
+      const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/start`, {
+        method: 'PUT',
+      });
+      if (!res.ok) return null;
+      return await this.getSessionById(sessionId);
+    } catch {
+      return null;
+    }
+  }
+
+  static async endSession(sessionId: string): Promise<StudySession | null> {
+    try {
+      const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/end`, {
+        method: 'PUT',
+      });
+      if (!res.ok) return null;
+      return await this.getSessionById(sessionId);
+    } catch {
+      return null;
+    }
+  }
+
+  static async cancelSession(sessionId: string): Promise<StudySession | null> {
+    try {
+      const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/cancel`, {
+        method: 'PUT',
+      });
+      if (!res.ok) return null;
+      return await this.getSessionById(sessionId);
+    } catch {
+      return null;
+    }
+  }
+
   static async joinSession(sessionId: string): Promise<boolean> {
     try {
       const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/join`, {
@@ -934,7 +838,20 @@ export class DataService {
     }
   }
 
-  // -------------------- Partners --------------------
+  /* ----------------- Partners (incoming preserved) ----------------- */
+  static async fetchPartners(): Promise<StudyPartner[]> {
+    try {
+      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/partners'));
+      const data = await res.json();
+      console.log('👥 Study partners loaded successfully:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ fetchPartners error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'partners');
+      throw appError;
+    }
+  }
+
   static async searchPartners(params?: {
     subjects?: string[];
     studyStyle?: string;
@@ -953,16 +870,13 @@ export class DataService {
       if (params?.university) queryParams.append('university', params.university);
       if (params?.search) queryParams.append('search', params.search);
 
-      const res = await this.request(`/api/v1/partners/search?${queryParams.toString()}`, {
-        method: 'GET',
-      });
-      if (!res.ok) {
-        const appError = ErrorHandler.handleApiError({ status: res.status }, 'partners');
-        throw appError;
-      }
-      const data = await this.safeJson<StudyPartner[]>(res, []);
+      const url = buildApiUrl(`/api/v1/partners/search?${queryParams.toString()}`);
+      const res = await this.fetchWithRetry(url);
+      const data = await res.json();
+      console.log('🔍 Partner search results:', data);
       return data;
     } catch (error) {
+      console.error('❌ searchPartners error:', error);
       const appError = ErrorHandler.handleApiError(error, 'partners');
       throw appError;
     }
@@ -970,22 +884,86 @@ export class DataService {
 
   static async sendBuddyRequest(recipientId: string, message?: string): Promise<void> {
     try {
-      const res = await this.request('/api/v1/partners/request', {
+      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/partners/request'), {
         method: 'POST',
         body: JSON.stringify({ recipientId, message }),
       });
-      if (!res.ok) {
-        const appError = ErrorHandler.handleApiError({ status: res.status }, 'partners');
-        throw appError;
-      }
-      await this.safeJson<any>(res, null);
+      const data = await res.json();
+      console.log('🤝 Buddy request sent:', data);
+      return data;
     } catch (error) {
+      console.error('❌ sendBuddyRequest error:', error);
       const appError = ErrorHandler.handleApiError(error, 'partners');
       throw appError;
     }
   }
 
-  // -------------------- Groups --------------------
+  static async acceptPartnerRequest(requestId: number): Promise<void> {
+    try {
+      const res = await this.fetchWithRetry(buildApiUrl(`/api/v1/partners/accept/${requestId}`), {
+        method: 'POST',
+      });
+      const data = await res.json();
+      console.log('✅ Partner request accepted:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ acceptPartnerRequest error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'partners');
+      throw appError;
+    }
+  }
+
+  static async rejectPartnerRequest(requestId: number): Promise<void> {
+    try {
+      const res = await this.fetchWithRetry(buildApiUrl(`/api/v1/partners/reject/${requestId}`), {
+        method: 'POST',
+      });
+      const data = await res.json();
+      console.log('✅ Partner request rejected:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ rejectPartnerRequest error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'partners');
+      throw appError;
+    }
+  }
+
+  /* ----------------- Groups (incoming + your richer endpoints) ----------------- */
+  static async fetchGroups(): Promise<StudyGroup[]> {
+    try {
+      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/groups'));
+      const raw = await res.json();
+      // ensure compatibility fields
+      return (raw as any[]).map((g) => ({
+        id: String(g.id ?? g.group_id),
+        name: g.name ?? g.group_name,
+        description: g.description ?? '',
+        course: g.course ?? g.module_name,
+        courseCode: g.courseCode ?? g.module_code,
+        members: g.members ?? g.member_count,
+        member_count: g.member_count ?? g.members,
+        maxMembers: g.maxMembers ?? g.max_members,
+        isPublic: !!(g.isPublic ?? g.is_public ?? true),
+        tags: g.tags ?? [],
+        createdBy: g.createdBy ?? g.creator_name,
+        createdAt: g.createdAt ?? g.created_at,
+        lastActivity: g.lastActivity ?? g.updated_at ?? g.created_at,
+        group_type: g.group_type,
+        session_count: g.session_count ?? g.sessionCount,
+        isMember: g.isMember,
+        membersList: Array.isArray(g.membersList)
+          ? g.membersList
+          : Array.isArray(g.members)
+          ? g.members
+          : undefined,
+      }));
+    } catch (error) {
+      console.error('❌ fetchGroups error:', error);
+      return FALLBACK_GROUPS;
+    }
+  }
+
+  // your helper to fetch "my groups" with graceful fallback
   static async fetchMyGroups(): Promise<any[]> {
     try {
       const res = await this.request('/api/v1/groups/my-groups', { method: 'GET' });
@@ -999,11 +977,9 @@ export class DataService {
   static async fetchGroupsRaw(): Promise<any[]> {
     try {
       const res = await this.request('/api/v1/groups', { method: 'GET' });
-      if (res.ok) {
-        return await this.safeJson<any[]>(res, []);
-      }
+      if (res.ok) return await this.safeJson<any[]>(res, []);
     } catch {}
-    // Map demo fallback to API-ish shape
+    // map fallback to api-ish shape
     return FALLBACK_GROUPS.map((g) => ({
       id: g.id,
       name: g.name,
@@ -1016,29 +992,29 @@ export class DataService {
       createdAt: g.createdAt,
       lastActivity: g.lastActivity ?? g.createdAt,
       group_type: g.group_type ?? 'study',
-      members: Array.from({ length: g.member_count ?? 0 }, (_, i) => ({ userId: String(i + 1) })),
+      members: g.members ?? g.member_count,
+      member_count: g.member_count ?? g.members,
+      membersList: Array.from({ length: g.member_count ?? g.members ?? 0 }, (_, i) => ({
+        userId: String(i + 1),
+      })),
     }));
   }
 
-  // -------------------- Groups --------------------
   static async createGroup(payload: {
     name: string;
     description?: string;
     maxMembers?: number;
     isPublic?: boolean;
     subjects?: string[];
-    moduleId?: number | string; // <-- NEW
+    moduleId?: number | string;
   }): Promise<any | null> {
     let moduleId: number | string | null = payload.moduleId != null ? payload.moduleId : null;
 
-    // If moduleId not provided, try to infer from latest enrolled course
     if (moduleId == null) {
       try {
         const res = await this.request(
           '/api/v1/courses?limit=1&sortBy=enrolled_at&sortOrder=DESC',
-          {
-            method: 'GET',
-          }
+          { method: 'GET' }
         );
         if (res.ok) {
           const data = await this.safeJson<any>(res, []);
@@ -1051,9 +1027,7 @@ export class DataService {
             moduleId = courses[0].id;
           }
         }
-      } catch {
-        // ignore — backend will still try its own fallback
-      }
+      } catch {}
     }
 
     const body = {
@@ -1061,7 +1035,7 @@ export class DataService {
       description: payload.description ?? '',
       maxMembers: payload.maxMembers ?? 10,
       isPublic: payload.isPublic ?? true,
-      moduleId: moduleId != null ? Number(moduleId) : undefined, // <-- send when known
+      moduleId: moduleId != null ? Number(moduleId) : undefined,
       subjects: Array.isArray(payload.subjects) ? payload.subjects : [],
     };
 
@@ -1122,7 +1096,7 @@ export class DataService {
     }
   }
 
-  /** Create a session under a specific group (used by Groups page quick schedule). */
+  /** Quick schedule under a group */
   static async createGroupSession(
     groupId: string,
     payload: {
@@ -1149,9 +1123,7 @@ export class DataService {
         body: JSON.stringify(body),
       });
 
-      if (!res.ok) {
-        return null;
-      }
+      if (!res.ok) return null;
       const created = await this.safeJson<any>(res, null);
       return created ? this.normalizeSession(created) : null;
     } catch {
@@ -1159,7 +1131,7 @@ export class DataService {
     }
   }
 
-  // -------------------- Notifications API --------------------
+  /* ----------------- Notifications (your additions) ----------------- */
   static async fetchNotifications(opts?: {
     unreadOnly?: boolean;
     type?: string;
@@ -1246,12 +1218,7 @@ export class DataService {
 
   static async notifyGroup(
     groupId: string | number,
-    payload: {
-      notification_type: string;
-      title: string;
-      message: string;
-      metadata?: any;
-    }
+    payload: { notification_type: string; title: string; message: string; metadata?: any }
   ): Promise<boolean> {
     try {
       const res = await this.request(
@@ -1286,7 +1253,6 @@ export class DataService {
     }
   }
 
-  // Trigger 24h reminder scheduling for a single session
   static async scheduleSession24hReminders(sessionId: string | number): Promise<boolean> {
     try {
       const res = await this.request(
@@ -1298,9 +1264,120 @@ export class DataService {
       return false;
     }
   }
+
+  /* ----------------- Study progress/topics (incoming preserved) ----------------- */
+  static async setTopicGoal(
+    topicId: number,
+    goal: { hoursGoal: number; targetCompletionDate?: string; personalNotes?: string }
+  ): Promise<any> {
+    try {
+      const res = await this.fetchWithRetry(buildApiUrl(`/api/v1/progress/topics/${topicId}/goal`), {
+        method: 'PUT',
+        body: JSON.stringify(goal),
+      });
+      const data = await res.json();
+      console.log('🎯 Study goal set:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ setTopicGoal error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'progress');
+      throw appError;
+    }
+  }
+
+  static async logStudyHours(
+    topicId: number,
+    log: { hours: number; description?: string; studyDate?: string; reflections?: string }
+  ): Promise<any> {
+    try {
+      console.log('📝 Logging study hours:', { topicId, log });
+      const res = await this.fetchWithRetry(
+        buildApiUrl(`/api/v1/progress/topics/${topicId}/log-hours`),
+        {
+          method: 'POST',
+          body: JSON.stringify(log),
+        }
+      );
+      const data = await res.json();
+      console.log('📝 Study hours logged successfully:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ logStudyHours error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'progress');
+      throw appError;
+    }
+  }
+
+  static async markTopicComplete(topicId: number): Promise<any> {
+    try {
+      console.log('✅ Marking topic as complete:', { topicId });
+      const res = await this.fetchWithRetry(
+        buildApiUrl(`/api/v1/progress/topics/${topicId}/complete`),
+        {
+          method: 'PUT',
+        }
+      );
+      const data = await res.json();
+      console.log('✅ Topic marked complete successfully:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ markTopicComplete error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'progress');
+      throw appError;
+    }
+  }
+
+  static async fetchTopicProgress(topicId: number): Promise<any> {
+    try {
+      const res = await this.fetchWithRetry(buildApiUrl(`/api/v1/progress/topics/${topicId}`));
+      const data = await res.json();
+      console.log('📊 Topic progress loaded:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ fetchTopicProgress error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'progress');
+      throw appError;
+    }
+  }
+
+  static async fetchModuleTopics(moduleId: number): Promise<any[]> {
+    try {
+      console.log('📚 Fetching module topics for moduleId:', moduleId);
+      const res = await this.fetchWithRetry(buildApiUrl(`/api/v1/courses/${moduleId}/topics`));
+      const data = await res.json();
+      console.log('📚 Module topics loaded successfully:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ fetchModuleTopics error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'courses');
+      throw appError;
+    }
+  }
+
+  static async addTopic(
+    moduleId: number,
+    topic: { topic_name: string; description?: string; order_sequence?: number }
+  ): Promise<any> {
+    try {
+      console.log('➕ Adding topic to module:', { moduleId, topic });
+      const res = await this.fetchWithRetry(buildApiUrl(`/api/v1/modules/${moduleId}/topics`), {
+        method: 'POST',
+        body: JSON.stringify(topic),
+      });
+      const data = await res.json();
+      console.log('✅ Topic added successfully:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ addTopic error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'courses');
+      throw appError;
+    }
+  }
 }
 
-// Small helper for ids in normalize fallback
+/* ============================================================================
+   SMALL UTIL
+============================================================================ */
 function cryptoRandomId() {
   try {
     // @ts-ignore

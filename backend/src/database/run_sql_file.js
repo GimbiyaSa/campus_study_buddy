@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 const fs = require('fs');
 const path = require('path');
 const sql = require('mssql');
@@ -6,7 +6,7 @@ const sql = require('mssql');
 async function runSqlFile(sqlFilePath) {
   let dbConfig;
   try {
-    const { azureConfig } = require('../config/azureConfig');
+    const { azureConfig } = require('../../dist/config/azureConfig');
     dbConfig = await azureConfig.getLegacyDatabaseConfig();
     console.log('✅ Using Azure configuration for SQL execution');
   } catch (error) {

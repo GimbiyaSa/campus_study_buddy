@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { buildApiUrl } from '../utils/url';
+import azureIntegrationService from '../services/azureIntegrationService';
 
 type User = {
   user_id: number;
@@ -17,13 +18,13 @@ type User = {
 type UserContextType = {
   currentUser: User | null;
   loading: boolean;
-  login: (user: User) => void;
+  login: (user: User) => Promise<void>;
   logout: () => void;
   updateUser: (updatedData: Partial<User>) => void;
   refreshUser: () => Promise<void>;
 };
 
-const UserContext = createContext<UserContextType | undefined>(undefined);
+export const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -78,23 +79,18 @@ export function UserProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         const userData = await res.json();
         setCurrentUser(userData);
-      } else if (res.status === 401) {
-        // only clear token on auth failure
+        // Initialize Azure Web PubSub connection when user is authenticated
+        await azureIntegrationService.setAuth(userData);
+      } else {
         setCurrentUser(null);
         localStorage.removeItem('google_id_token');
-        localStorage.removeItem('last_google_id_token');
-        localStorage.removeItem('token');
-      } else {
-        // log the server-side problem but don't throw away the token on 5xx
-        console.error(
-          'users/me failed:',
-          res.status,
-          res.statusText,
-          await res.text().catch(() => '')
-        );
-        setCurrentUser(null);
+        // Clear Azure connection when not authenticated
+        azureIntegrationService.clearAuth();
       }
     } catch (err) {
+      setCurrentUser(null);
+      localStorage.removeItem('google_id_token');
+      azureIntegrationService.clearAuth();
       console.error('Error fetching user:', err);
       setCurrentUser(null);
     } finally {
@@ -106,13 +102,17 @@ export function UserProvider({ children }: { children: ReactNode }) {
     fetchUser();
   }, []);
 
-  const login = (user: User) => {
+  const login = async (user: User) => {
     setCurrentUser(user);
+    // Initialize Azure Web PubSub connection when user logs in
+    await azureIntegrationService.setAuth(user);
   };
 
   const logout = () => {
     setCurrentUser(null);
     localStorage.removeItem('google_id_token');
+    // Clear Azure connection when logging out
+    azureIntegrationService.clearAuth();
   };
 
   const updateUser = (updatedData: Partial<User>) => {

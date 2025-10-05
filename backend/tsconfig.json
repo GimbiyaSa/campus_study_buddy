@@ -10,13 +10,12 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "declaration": true,
-    "declarationMap": true,
+    "declaration": false,
     "sourceMap": true,
     "allowJs": true,
     "checkJs": false,
     "incremental": false
   },
-  "include": ["src/**/*.ts", "src/**/*.js"],
-  "exclude": ["node_modules", "dist/**/*", "**/*.test.js", "**/*.spec.js"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.test.*", "**/*.spec.*"]
 }

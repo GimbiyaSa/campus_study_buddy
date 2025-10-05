@@ -26,7 +26,7 @@ enable_sql_database     = true
 # ==============================================================================
 # COMPUTE CONFIGURATION (FREE TIER OPTIMIZED)
 # ==============================================================================
-api_container_image         = "node:18-alpine" # Placeholder - replace via CI/CD
+api_container_image         = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" # Temporary placeholder
 container_apps_cpu_limit    = "0.25"           # Free tier: 0.25 CPU
 container_apps_memory_limit = "0.5Gi"          # Free tier: 0.5 GB memory
 container_apps_min_replicas = 0                # Scale to zero for cost optimization

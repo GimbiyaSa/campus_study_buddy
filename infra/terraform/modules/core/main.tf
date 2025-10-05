@@ -32,10 +32,16 @@ resource "azurerm_storage_account" "main" {
   account_tier             = var.storage_account_tier             # Standard
   account_replication_type = var.storage_account_replication_type # LRS
 
-  # Security hardening
-  allow_nested_items_to_be_public = false
+  # Security hardening - relaxed for local development
+  allow_nested_items_to_be_public = true  # Allow public access for easier local dev
   shared_access_key_enabled       = true
   public_network_access_enabled   = true
+
+  # Enable CORS for local development
+  network_rules {
+    default_action = "Allow"
+    bypass         = ["AzureServices"]
+  }
 
   # Blob properties for security
   blob_properties {
@@ -89,13 +95,19 @@ resource "azurerm_key_vault" "main" {
   # Standard SKU for free tier
   sku_name = "standard"
 
-  # Security configuration
+  # Security configuration - relaxed for local development
   soft_delete_retention_days = var.key_vault_soft_delete_retention_days
-  purge_protection_enabled   = false # Set to true for production
-  enable_rbac_authorization  = true
+  purge_protection_enabled   = false # Disabled for easier cleanup in dev
+  enable_rbac_authorization  = true  # Keep RBAC for managed identities
 
-  # Network access (public for free tier, private endpoints cost extra)
+  # Network access (public for easier local access)
   public_network_access_enabled = true
+  
+  # Allow all Azure services to bypass network rules
+  network_acls {
+    default_action = "Allow"
+    bypass         = "AzureServices"
+  }
 
   tags = var.common_tags
 }
@@ -125,10 +137,16 @@ resource "azurerm_mssql_server" "main" {
   administrator_login          = var.database_admin_username
   administrator_login_password = var.database_admin_password
 
-  # Security configuration
+  # Security configuration - relaxed for local development
   version                       = "12.0"
   minimum_tls_version           = "1.2"
   public_network_access_enabled = true
+
+  # Allow Azure services to access the server
+  azuread_administrator {
+    login_username = data.azurerm_client_config.current.object_id
+    object_id      = data.azurerm_client_config.current.object_id
+  }
 
   tags = var.common_tags
 }
@@ -149,6 +167,26 @@ resource "azurerm_mssql_database" "main" {
   auto_pause_delay_in_minutes = 60            # Auto-pause after 1 hour
 
   tags = var.common_tags
+}
+
+# Allow Azure services to access the SQL server
+resource "azurerm_mssql_firewall_rule" "azure_services" {
+  count = var.create_managed_db ? 1 : 0
+
+  name             = "AllowAzureServices"
+  server_id        = azurerm_mssql_server.main[0].id
+  start_ip_address = "0.0.0.0"
+  end_ip_address   = "0.0.0.0"
+}
+
+# Allow all IP addresses for local development (remove in production)
+resource "azurerm_mssql_firewall_rule" "allow_all" {
+  count = var.create_managed_db ? 1 : 0
+
+  name             = "AllowAll"
+  server_id        = azurerm_mssql_server.main[0].id
+  start_ip_address = "0.0.0.0"
+  end_ip_address   = "255.255.255.255"
 }
 
 # ==============================================================================

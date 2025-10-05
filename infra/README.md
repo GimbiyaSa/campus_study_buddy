@@ -1,203 +1,120 @@
-# Campus Study Buddy - Infrastructure
+# Campus Study Buddy Infrastructure
 
-🏗️ **Infrastructure as Code** for the Campus Study Buddy platform using Terraform and Azure.
+This directory contains the Terraform infrastructure code for the Campus Study Buddy platform, configured for Azure cloud deployment with Docker containerization and GitHub Actions CI/CD.
 
-## 🚀 Quick Start
+## 🏗️ Architecture Overview
 
-This repository contains the complete Azure infrastructure setup for the Campus Study Buddy platform.
+The infrastructure includes:
 
-### Architecture
+- **Azure Container Registry** - For storing Docker images
+- **Azure Container Apps** - For running the backend API
+- **Azure App Service** - For hosting the frontend
+- **Azure SQL Database** - For data storage (serverless tier)
+- **Azure Storage Account** - For file storage (LRS for cost optimization)
+- **Azure Key Vault** - For secrets management
+- **Azure Web PubSub** - For real-time communication
+- **Virtual Network** - For network isolation
 
-- **Azure Container Apps** - API backend hosting (Node.js Express)
-- **Azure App Service** - Frontend hosting (React application)
-- **Azure SQL Database** - Data storage (Serverless, free tier optimized)
-- **Azure Web PubSub** - Real-time chat and communication
-- **Azure Key Vault** - Secrets management and secure configuration
-- **Azure Storage Account** - File storage and blob containers
-- **Azure Virtual Network** - Network isolation and security
+## ✅ Infrastructure Status
 
-## 📋 Prerequisites
+The infrastructure has been successfully provisioned to Azure subscription `cf028dfd-d156-4146-8706-6225f19a1cab` (University of Witwatersrand Azure for Students).
 
-- Azure CLI installed and authenticated
-- Terraform >= 1.5.0
-- Azure subscription with Contributor access
-- GitHub repository with production environment configured
-- GitHub branch protection rules enabled on `master` branch
+### Provisioned Resources:
+- ✅ Resource Group: `csb-prod-rg`
+- ✅ Terraform State Storage: `csbprodtfstate`
+- ✅ Azure Container Registry: `csbprodcrsanw0zgifbb.azurecr.io`
+- ✅ Azure Container Apps Environment: `csb-prod-cae-san-w0zgifbb`
+- ✅ Azure SQL Database (Serverless)
+- ✅ Azure Storage Account (LRS)
+- ✅ Azure Key Vault
+- ✅ Virtual Network: `csb-prod-vnet`
 
-## 🔧 Local Development
+### Live Endpoints:
+- 🚀 **API Endpoint**: https://csb-prod-ca-api-w0zgifbb--dvhncmj.whiteriver-3b1efee3.southafricanorth.azurecontainerapps.io
+- 🌐 **Frontend URL**: https://csb-prod-app-frontend-w0zgifbb.azurewebsites.net
 
-```bash
-# Navigate to terraform directory
-cd infra/terraform
+## 🔐 Security Configuration
 
-# Initialize Terraform
-terraform init -backend-config="environments/prod/-backend-config"
+The infrastructure is configured with development-friendly security settings:
 
-# Format code (fix any formatting issues)
-terraform fmt -recursive
+- **Storage Account**: Public access enabled for easier local development
+- **Key Vault**: Public network access enabled
+- **SQL Database**: Firewall allows all IPs (⚠️ **Tighten for production**)
+- **Container Registry**: Admin access enabled for CI/CD
 
-# Validate configuration
-terraform validate
+### ⚠️ Production Security Hardening
 
-# Plan deployment (validation only)
-terraform plan -var-file="environments/prod/terraform.tfvars"
-```
+For production deployment, consider:
 
-## 🎯 Production Deployment
+1. Enable private endpoints for Storage and Key Vault
+2. Restrict SQL Database firewall rules
+3. Implement network security groups
+4. Enable audit logging
+5. Configure backup and disaster recovery
 
-**Production deployments happen via GitHub Actions only with branch protection!**
+## 💰 Cost Optimization
 
-### Decoupled CI/CD Workflow:
+Configured for Azure for Students subscription limits:
 
-1. **Create feature branch** from `main`
+- **SQL Database**: Serverless tier with auto-pause (free tier)
+- **Storage Account**: LRS (Locally Redundant Storage)
+- **Container Apps**: Scale to zero capability
+- **App Service**: Free tier (F1)
+- **Web PubSub**: Free tier
+- **Key Vault**: Standard tier
+
+## 🛠️ Development Workflow
+
+### For Infrastructure Changes:
+
+1. **Create feature branch:**
    ```bash
    git checkout -b feature/infrastructure-update
    ```
 
-2. **Make infrastructure changes** and commit
+2. **Make changes and test locally:**
    ```bash
-   git add .
-   git commit -m "feat: update infrastructure configuration"
+   terraform plan -var-file="environments/prod/terraform.tfvars"
    ```
 
-3. **Push branch** → Triggers `terraform-plan.yml` workflow ✅
+3. **Commit and push:**
    ```bash
+   git add .
+   git commit -m "feat: description of changes"
    git push origin feature/infrastructure-update
    ```
 
-4. **Verify plan passes** in GitHub Actions
-   - Check **Actions** → **Terraform Plan** workflow
-   - Ensure terraform formatting check succeeds (`terraform fmt -check -recursive`)
-   - Ensure terraform validation succeeds (`terraform validate`)
-   - Review planned infrastructure changes
+4. **Create PR** - This triggers `terraform-plan.yml` workflow
+5. **Review and merge** - This triggers `terraform-apply.yml` workflow
 
-5. **Create Pull Request** to `main`
-   ```bash
-   gh pr create --title "Infrastructure update" --body "Description of changes"
-   ```
+## 🔍 Troubleshooting
 
-6. **Get team review** and approval on PR
-   - Code review process
-   - Team reviews infrastructure changes
-   - All checks must pass
+### Common Issues
 
-7. **Merge PR** → Triggers `terraform-apply.yml` workflow with **manual approval**
-   ```bash
-   gh pr merge --merge
-   ```
+1. **Terraform Init Fails**
+   - Ensure you're logged into Azure: `az login`
+   - Check subscription access: `az account show`
 
-### Workflow Architecture:
-- 🔄 **terraform-plan.yml** - Validation on feature branch push
-- 🚀 **terraform-apply.yml** - Deployment on PR merge
+2. **Resource Provider Registration**
+   - Register required providers: `az provider register --namespace Microsoft.App`
 
-### Key Features:
-- ✅ **Branch protection** - No direct pushes to master allowed
-- ✅ **Decoupled workflows** - Each workflow has single responsibility
-- ✅ **PR merge trigger** - Apply only runs when PR is merged to master
-- ✅ **Environment secrets** - All credentials in production environment
+3. **Container App Deployment Fails**
+   - Verify image exists in ACR
+   - Check container app logs: `az containerapp logs show`
 
-## 📁 Structure
+4. **PIM Permission Issues**
+   - Activate your Owner role in Azure Portal PIM
+   - Wait 5-10 minutes for permissions to propagate
 
-```
-infra/
-├── terraform/
-│   ├── environments/
-│   │   └── prod/
-│   │       ├── terraform.tfvars     # Production configuration values
-│   │       └── -backend-config      # Terraform backend settings
-│   ├── modules/
-│   │   ├── core/          # Storage, Azure SQL Database, Key Vault
-│   │   ├── compute/       # Container Apps, App Service (React frontend)
-│   │   ├── network/       # VNet, Subnets, NSGs, Route Tables
-│   │   ├── communication/ # Web PubSub, Notification Services
-│   │   ├── identity/      # Azure AD, Service Principals, RBAC
-│   │   └── automation/    # Logic Apps, Service Bus, Monitoring
-│   ├── main.tf            # Main Terraform configuration
-│   ├── variables.tf       # Input variables with validation
-│   ├── locals.tf          # Local values and naming conventions
-│   ├── outputs.tf         # Output values
-│   ├── data.tf            # Data sources
-│   └── provider.tf        # Azure provider configuration
-└── .github/
-    └── workflows/
-        ├── terraform-plan.yml      # Validation workflow (all branches except master)
-        └── terraform-apply.yml     # Deployment workflow (PR merge to master)
-```
+## 📋 Next Steps
 
-## 🤝 Contributing
+1. **Configure GitHub Actions Secrets** (see workflows documentation)
+2. **Deploy Backend Application** to Container Apps
+3. **Deploy Frontend Application** to App Service
+4. **Set up monitoring and logging**
+5. **Configure custom domain and SSL**
 
-### Standard Development Flow:
+---
 
-1. **Create feature branch** from `main`
-2. **Make infrastructure changes** 
-3. **Push branch** → **terraform-plan.yml** validates changes
-4. **Verify plan succeeds** ✅ in GitHub Actions
-5. **Create Pull Request** for team review
-6. **Team approves PR** and merges to main
-8. **Auto-Approve deployment** → Infrastructure deployed to Azure
-
-## 🔐 Security & Environment Setup
-
-### GitHub Environment Configuration:
-All secrets are stored in the **production environment**:
-
-**Required Secrets:**
-- `AZURE_CLIENT_ID` - Service Principal Client ID
-- `AZURE_CLIENT_SECRET` - Service Principal Secret
-- `AZURE_SUBSCRIPTION_ID` - Azure Subscription ID
-- `AZURE_TENANT_ID` - Azure Tenant ID
-- `TF_VAR_database_admin_password` - Database admin password
-
-**Environment Protection:**
-- **Required reviewers** - Manual approval for deployments
-- **Branch protection** - Master branch protected from direct pushes
-- **Environment-only secrets** - No repository-level secrets
-
-### Branch Protection Rules:
-- ✅ **Require pull request reviews** before merging
-- ✅ **Require status checks** to pass (terraform-plan)
-- ✅ **Require branches to be up to date** before merging
-- ✅ **Restrict pushes** to master branch
-
-## 🔍 Workflow Details
-
-### terraform-plan.yml
-- **Trigger**: Push to any branch except `master`
-- **Purpose**: Validate terraform configuration and formatting
-- **Steps**: 
-  - `terraform init` with backend config
-  - `terraform fmt -check -recursive` (formatting validation)
-  - `terraform validate` (syntax validation)  
-  - `terraform plan` (infrastructure planning)
-- **Environment**: Uses production environment secrets
-- **Approval**: None required (validation only)
-
-### terraform-apply.yml
-- **Trigger**: Pull request merged to `master`
-- **Purpose**: Deploy infrastructure to Azure
-- **Steps**:
-  - `terraform init` with backend config
-  - `terraform plan` (show planned changes)
-  - `terraform apply -auto-approve` (deploy infrastructure)
-- **Environment**: Uses production environment secrets
-- **Approval**: Automatic after PR merge (uses environment protection rules)
-
-## 🚨 Important Notes
-
-### DO NOT:
-- ❌ Deploy production infrastructure locally
-- ❌ Store secrets at repository level (use environment only)
-- ❌ Bypass the GitHub Actions workflows
-- ❌ Push directly to `master` branch (protected)
-- ❌ Skip the code review process
-- ❌ Ignore Terraform formatting requirements
-
-### DO:
-- ✅ Use separate workflows for different operations
-- ✅ Test infrastructure changes in feature branches
-- ✅ Create PRs for all infrastructure changes
-- ✅ Review plan output before approving deployment
-- ✅ Use production environment for all secrets
-- ✅ Follow branch protection and approval processes
-- ✅ Run `terraform fmt` locally before committing
-- ✅ Validate configuration with `terraform validate`
+**Infrastructure provisioned successfully! 🎉**  
+Ready for application deployment and CI/CD setup.

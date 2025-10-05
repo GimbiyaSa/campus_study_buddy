@@ -175,6 +175,11 @@ export type StudyGroup = {
   session_count?: number;
   isMember?: boolean;
   membersList?: Array<{ userId: string }>;
+
+  /** explicit owner clarity for robust UI checks */
+  createdById?: string;
+  createdByName?: string;
+  isOwner?: boolean;
 };
 
 // Notifications
@@ -461,7 +466,8 @@ export class DataService {
     const url = buildApiUrl(path);
     const auth = Object.fromEntries(this.authHeaders().entries());
     const headers = { 'Content-Type': 'application/json', ...auth, ...(init.headers || {}) };
-    return this.fetchWithRetry(url, { credentials: 'include', ...init, headers });
+    // IMPORTANT: avoid 304 empty bodies; always fetch fresh
+    return this.fetchWithRetry(url, { credentials: 'include', cache: 'no-store', ...init, headers });
   }
 
   private static async safeJson<T = any>(res: Response, fallback: T): Promise<T> {
@@ -494,6 +500,123 @@ export class DataService {
   }
   private static looksISO(x: unknown): x is string {
     return typeof x === 'string' && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(x);
+  }
+
+  /* ----------------- OWNER LOGIC HELPERS (NEW) ----------------- */
+
+  /** cache of groups you own (persists across refresh) */
+  private static readonly OWNER_CACHE_KEY = 'sb_owner_group_ids';
+  private static loadOwnerCache(): Record<string, true> {
+    try {
+      const raw = localStorage.getItem(this.OWNER_CACHE_KEY);
+      if (!raw) return {};
+      const obj = JSON.parse(raw);
+      return obj && typeof obj === 'object' ? obj : {};
+    } catch {
+      return {};
+    }
+  }
+  private static saveOwnerCache(map: Record<string, true>) {
+    try {
+      localStorage.setItem(this.OWNER_CACHE_KEY, JSON.stringify(map));
+    } catch {}
+  }
+  private static rememberGroupOwner(groupId: string | number) {
+    const key = String(groupId);
+    const map = this.loadOwnerCache();
+    if (!map[key]) {
+      map[key] = true as const;
+      this.saveOwnerCache(map);
+    }
+  }
+  private static forgetGroupOwner(groupId: string | number) {
+    const key = String(groupId);
+    const map = this.loadOwnerCache();
+    if (map[key]) {
+      delete map[key];
+      this.saveOwnerCache(map);
+    }
+  }
+
+  /** NEW: cache current user id so we can compute isOwner on the client */
+  private static _meId: string | null | undefined; // undefined = not fetched yet
+  private static async getMeIdCached(): Promise<string | null> {
+    if (this._meId !== undefined) return this._meId;
+    const me = await this.getMe();
+    this._meId = me?.id ?? null;
+    return this._meId;
+  }
+
+  private static isLikelyId(x: any): boolean {
+    if (x == null) return false;
+    const s = String(x);
+    return /^\d+$/.test(s) || /^[0-9a-fA-F-]{8,}$/.test(s); // digits or uuid-ish
+  }
+  private static extractOwner(g: any): { ownerId?: string; ownerName?: string } {
+    const ownerId =
+      g?.createdById ??
+      g?.created_by ??
+      g?.creator_id ??
+      g?.owner_id ??
+      g?.ownerId ??
+      (this.isLikelyId(g?.createdBy) ? g.createdBy : undefined);
+
+    const ownerName =
+      g?.creator_name ??
+      g?.createdByName ??
+      g?.owner_name ??
+      (!this.isLikelyId(g?.createdBy) ? g?.createdBy : undefined);
+
+    return {
+      ownerId: ownerId != null ? String(ownerId) : undefined,
+      ownerName: ownerName != null ? String(ownerName) : undefined,
+    };
+  }
+
+  private static computeIsOwner(
+    g: any,
+    meId: string | null
+  ): { isOwner: boolean; createdById?: string; createdByName?: string } {
+    if (typeof g?.isOwner === 'boolean') {
+      const extracted = this.extractOwner(g);
+      return { isOwner: g.isOwner, createdById: extracted.ownerId, createdByName: extracted.ownerName };
+    }
+
+    const { ownerId, ownerName } = this.extractOwner(g);
+    if (meId && ownerId && String(ownerId) === String(meId)) {
+      return { isOwner: true, createdById: ownerId, createdByName: ownerName };
+    }
+
+    const ms: any[] =
+      (Array.isArray(g?.membersList) && g.membersList) ||
+      (Array.isArray(g?.members) && g.members) ||
+      [];
+
+    if (meId && ms.length) {
+      const mine = ms.find(
+        (m) =>
+          String(m?.userId ?? m?.id ?? m?.user_id ?? '') === String(meId)
+      );
+      if (mine) {
+        const role = String(mine.role ?? mine.member_role ?? '').toLowerCase();
+        if (role === 'owner') return { isOwner: true, createdById: ownerId, createdByName: ownerName };
+      }
+    }
+
+    return { isOwner: false, createdById: ownerId, createdByName: ownerName };
+  }
+
+  /** NEW: combine compute + owner cache */
+  private static annotateOwnership(g: any, meId: string | null): any {
+    const { isOwner, createdById, createdByName } = this.computeIsOwner(g, meId);
+    const cache = this.loadOwnerCache();
+    const id = String(g?.id ?? g?.group_id ?? '');
+    const cachedOwner = !!(id && cache[id]);
+
+    const finalIsOwner = isOwner || cachedOwner;
+    if (finalIsOwner && id) this.rememberGroupOwner(id); // keep cache warm
+
+    return { ...g, isOwner: finalIsOwner, createdById, createdByName };
   }
 
   /* ----------------- normalizers (your robust mapping) ----------------- */
@@ -931,53 +1054,70 @@ export class DataService {
   /* ----------------- Groups (incoming + your richer endpoints) ----------------- */
   static async fetchGroups(): Promise<StudyGroup[]> {
     try {
-      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/groups'));
+      const meId = await this.getMeIdCached();
+      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/groups'), { cache: 'no-store' });
       const raw = await res.json();
-      // ensure compatibility fields
-      return (raw as any[]).map((g) => ({
-        id: String(g.id ?? g.group_id),
-        name: g.name ?? g.group_name,
-        description: g.description ?? '',
-        course: g.course ?? g.module_name,
-        courseCode: g.courseCode ?? g.module_code,
-        members: g.members ?? g.member_count,
-        member_count: g.member_count ?? g.members,
-        maxMembers: g.maxMembers ?? g.max_members,
-        isPublic: !!(g.isPublic ?? g.is_public ?? true),
-        tags: g.tags ?? [],
-        createdBy: g.createdBy ?? g.creator_name,
-        createdAt: g.createdAt ?? g.created_at,
-        lastActivity: g.lastActivity ?? g.updated_at ?? g.created_at,
-        group_type: g.group_type,
-        session_count: g.session_count ?? g.sessionCount,
-        isMember: g.isMember,
-        membersList: Array.isArray(g.membersList)
-          ? g.membersList
-          : Array.isArray(g.members)
-          ? g.members
-          : undefined,
-      }));
+
+      const mapped = (raw as any[]).map((g) => {
+        const enriched = this.annotateOwnership(g, meId);
+        const { createdById, createdByName } = enriched;
+        return {
+          id: String(g.id ?? g.group_id),
+          name: g.name ?? g.group_name,
+          description: g.description ?? '',
+          course: g.course ?? g.module_name,
+          courseCode: g.courseCode ?? g.module_code,
+          members: g.members ?? g.member_count,
+          member_count: g.member_count ?? g.members,
+          maxMembers: g.maxMembers ?? g.max_members,
+          isPublic: !!(g.isPublic ?? g.is_public ?? true),
+          tags: g.tags ?? [],
+          createdBy: createdById ?? (g.createdBy ?? g.creator_name),
+          createdById,
+          createdByName,
+          createdAt: g.createdAt ?? g.created_at,
+          lastActivity: g.lastActivity ?? g.updated_at ?? g.created_at,
+          group_type: g.group_type,
+          session_count: g.session_count ?? g.sessionCount,
+          isMember: g.isMember,
+          membersList: Array.isArray(g.membersList)
+            ? g.membersList
+            : Array.isArray(g.members)
+            ? g.members
+            : undefined,
+          isOwner: !!enriched.isOwner,
+        } as StudyGroup;
+      });
+
+      return mapped;
     } catch (error) {
       console.error('❌ fetchGroups error:', error);
-      return FALLBACK_GROUPS;
+      return FALLBACK_GROUPS.map((g) => ({ ...g, isOwner: false }));
     }
   }
 
   // your helper to fetch "my groups" with graceful fallback
   static async fetchMyGroups(): Promise<any[]> {
     try {
+      const meId = await this.getMeIdCached();
       const res = await this.request('/api/v1/groups/my-groups', { method: 'GET' });
-      if (!res.ok) return await this.fetchGroupsRaw();
-      return await this.safeJson<any[]>(res, []);
+      const rows = res.ok ? await this.safeJson<any[]>(res, []) : await this.fetchGroupsRaw();
+      // Annotate with owner flag from server hints + cache
+      return (rows || []).map((g) => this.annotateOwnership(g, meId));
     } catch {
-      return await this.fetchGroupsRaw();
+      const fallback = await this.fetchGroupsRaw();
+      return fallback;
     }
   }
 
   static async fetchGroupsRaw(): Promise<any[]> {
     try {
+      const meId = await this.getMeIdCached();
       const res = await this.request('/api/v1/groups', { method: 'GET' });
-      if (res.ok) return await this.safeJson<any[]>(res, []);
+      if (res.ok) {
+        const data = await this.safeJson<any[]>(res, []);
+        return (data || []).map((g) => this.annotateOwnership(g, meId));
+      }
     } catch {}
     // map fallback to api-ish shape
     return FALLBACK_GROUPS.map((g) => ({
@@ -997,6 +1137,9 @@ export class DataService {
       membersList: Array.from({ length: g.member_count ?? g.members ?? 0 }, (_, i) => ({
         userId: String(i + 1),
       })),
+      isOwner: false,
+      createdById: undefined,
+      createdByName: g.createdBy,
     }));
   }
 
@@ -1045,7 +1188,14 @@ export class DataService {
         body: JSON.stringify(body),
       });
       if (!res.ok) return null;
-      return await this.safeJson<any>(res, null);
+      const created = await this.safeJson<any>(res, null);
+
+      // mark ownership in cache so refresh still shows Owner
+      if (created?.id != null) this.rememberGroupOwner(String(created.id));
+
+      const meId = await this.getMeIdCached();
+      const enriched = this.annotateOwnership(created, meId);
+      return { ...enriched, isOwner: true };
     } catch {
       return null;
     }
@@ -1056,6 +1206,7 @@ export class DataService {
       const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}`, {
         method: 'DELETE',
       });
+      if (res.ok) this.forgetGroupOwner(groupId);
       return res.ok;
     } catch {
       return false;
@@ -1067,6 +1218,7 @@ export class DataService {
       const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}/join`, {
         method: 'POST',
       });
+      // joining doesn't imply ownership
       return res.ok;
     } catch {
       return false;
@@ -1078,6 +1230,7 @@ export class DataService {
       const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}/leave`, {
         method: 'POST', // backend uses POST /:groupId/leave
       });
+      if (res.ok) this.forgetGroupOwner(groupId); // if you leave, you’re not the owner in UI
       return res.ok;
     } catch {
       return false;
@@ -1126,6 +1279,81 @@ export class DataService {
       if (!res.ok) return null;
       const created = await this.safeJson<any>(res, null);
       return created ? this.normalizeSession(created) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /* ---------- richer group details & editing (owner-only on server) ---------- */
+
+  static async getGroup(groupId: string): Promise<any | null> {
+    try {
+      const meId = await this.getMeIdCached();
+      const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}`, {
+        method: 'GET',
+      });
+      if (!res.ok) return null;
+      const data = await this.safeJson<any>(res, null);
+      if (!data) return null;
+
+      const enriched = this.annotateOwnership(data, meId);
+      return enriched;
+    } catch {
+      return null;
+    }
+  }
+
+  static async getGroupMembers(
+    groupId: string
+  ): Promise<Array<{ userId: string; name?: string; role?: string }> | []> {
+    try {
+      const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}/members`, {
+        method: 'GET',
+      });
+      if (!res.ok) return [];
+      const raw = await this.safeJson<any>(res, []);
+      // normalize to { userId, name?, role? }
+      const rows = Array.isArray(raw?.members) ? raw.members : Array.isArray(raw) ? raw : [];
+      return rows.map((m: any) => ({
+        userId: String(m?.userId ?? m?.id ?? m?.user_id ?? ''),
+        name: m?.name ?? m?.display_name ?? m?.full_name,
+        role: m?.role ?? m?.member_role,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  static async updateGroup(
+    groupId: string,
+    updates: Partial<{ name: string; description: string; maxMembers: number; isPublic: boolean }>
+  ): Promise<any | null> {
+    // Map both camelCase and snake_case to be tolerant with backend
+    const body: Record<string, any> = {};
+    if (updates.name != null) body.name = updates.name;
+    if (updates.description != null) body.description = updates.description;
+    if (updates.maxMembers != null) {
+      body.maxMembers = updates.maxMembers;
+      body.max_members = updates.maxMembers;
+    }
+    if (typeof updates.isPublic === 'boolean') {
+      body.isPublic = updates.isPublic;
+      body.is_public = updates.isPublic;
+    }
+
+    try {
+      const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}`, {
+        method: 'PATCH', // use PATCH for partial updates; switch to PUT if your API requires
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) return null;
+
+      const updated = await this.safeJson<any>(res, null);
+      if (!updated) return null;
+
+      const meId = await this.getMeIdCached();
+      const enriched = this.annotateOwnership(updated, meId);
+      return enriched;
     } catch {
       return null;
     }

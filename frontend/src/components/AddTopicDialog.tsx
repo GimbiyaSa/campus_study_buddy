@@ -8,7 +8,12 @@ interface AddTopicDialogProps {
   courseName: string;
 }
 
-export default function AddTopicDialog({ isOpen, onClose, onSubmit, courseName }: AddTopicDialogProps) {
+export default function AddTopicDialog({
+  isOpen,
+  onClose,
+  onSubmit,
+  courseName,
+}: AddTopicDialogProps) {
   const [topicName, setTopicName] = useState<string>('');
   const [description, setDescription] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);

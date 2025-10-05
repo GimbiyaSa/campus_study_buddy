@@ -21,35 +21,35 @@ export class ErrorHandler {
       message: 'Unable to connect to our servers. Please check your internet connection.',
       action: 'Try again',
       type: 'network' as const,
-      retryable: true
+      retryable: true,
     },
-    
+
     TIMEOUT: {
-      code: 'NETWORK_002', 
+      code: 'NETWORK_002',
       title: 'Request Timeout',
       message: 'The request is taking longer than expected. This might be due to network issues.',
       action: 'Retry now',
       type: 'network' as const,
-      retryable: true
+      retryable: true,
     },
 
     // Authentication Errors
     UNAUTHORIZED: {
       code: 'AUTH_001',
-      title: 'Session Expired', 
+      title: 'Session Expired',
       message: 'Your session has expired. Please sign in again to continue.',
       action: 'Sign in',
       type: 'auth' as const,
-      retryable: false
+      retryable: false,
     },
 
     FORBIDDEN: {
       code: 'AUTH_002',
       title: 'Access Denied',
-      message: 'You don\'t have permission to access this resource.',
+      message: "You don't have permission to access this resource.",
       action: 'Contact support',
       type: 'permission' as const,
-      retryable: false
+      retryable: false,
     },
 
     // Feature-Specific Errors
@@ -59,38 +59,41 @@ export class ErrorHandler {
       message: 'Unable to load your enrolled courses at the moment.',
       action: 'Refresh',
       type: 'server' as const,
-      retryable: true
+      retryable: true,
     },
 
     PROGRESS_LOAD_FAILED: {
-      code: 'PROGRESS_001', 
+      code: 'PROGRESS_001',
       title: 'Progress Data Unavailable',
       message: 'Unable to load your study progress and analytics.',
       action: 'Refresh',
       type: 'server' as const,
-      retryable: true
+      retryable: true,
     },
 
     PARTNERS_LOAD_FAILED: {
       code: 'PARTNERS_001',
-      title: 'Study Partners Unavailable', 
+      title: 'Study Partners Unavailable',
       message: 'Unable to load study partner recommendations.',
       action: 'Refresh',
       type: 'server' as const,
-      retryable: true
+      retryable: true,
     },
 
     DASHBOARD_LOAD_FAILED: {
       code: 'DASHBOARD_001',
       title: 'Dashboard Unavailable',
       message: 'Unable to load your study dashboard and overview.',
-      action: 'Refresh', 
+      action: 'Refresh',
       type: 'server' as const,
-      retryable: true
-    }
+      retryable: true,
+    },
   };
 
-  static handleApiError(error: any, context: 'courses' | 'progress' | 'partners' | 'dashboard'): AppError {
+  static handleApiError(
+    error: any,
+    context: 'courses' | 'progress' | 'partners' | 'dashboard'
+  ): AppError {
     // Network errors
     if (!navigator.onLine) {
       return this.ERROR_PATTERNS.NETWORK_UNAVAILABLE;

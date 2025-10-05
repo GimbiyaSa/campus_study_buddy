@@ -1,4 +1,3 @@
-
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import Partners from './Partners';
 import { expect, test, vi } from 'vitest';
@@ -102,7 +101,9 @@ test('shows empty state when no partners match search', async () => {
   const input = screen.getByPlaceholderText(/Search by name, course, or tag/i);
   fireEvent.change(input, { target: { value: 'ZZZ' } });
   // There may be multiple elements with similar text, so use getAllByText
-  expect(screen.getAllByText((text) => text.includes('No partners found')).length).toBeGreaterThan(0);
+  expect(screen.getAllByText((text) => text.includes('No partners found')).length).toBeGreaterThan(
+    0
+  );
 });
 
 // Commenting out error test for now - the component shows the correct error UI
@@ -110,21 +111,21 @@ test('shows empty state when no partners match search', async () => {
 // test('handles API error gracefully', async () => {
 //   // Save the original fetch and our mock
 //   const originalFetch = global.fetch;
-//   
+//
 //   // Override global fetch to simulate network error
 //   global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
-//   
+//
 //   render(<Partners />);
-//   
+//
 //   // Wait for the error state to be rendered
 //   await waitFor(() => {
 //     // Look for the error title "Study Partners Unavailable"
 //     expect(screen.getByText('Study Partners Unavailable')).toBeInTheDocument();
 //   });
-//   
+//
 //   // Also check for the error message
 //   expect(screen.getByText('Unable to load study partner recommendations.')).toBeInTheDocument();
-//   
+//
 //   // Restore the original fetch
 //   global.fetch = originalFetch;
 // });
@@ -135,7 +136,7 @@ test('can open and send invite to a partner', async () => {
   // Find the card for Alice Smith and click the first 'Connect' button
   const aliceCards = screen.getAllByText('Alice Smith');
   // Find the parent card element (li) for Alice
-  const aliceCard = aliceCards.find(el => el.closest('li'))?.closest('li');
+  const aliceCard = aliceCards.find((el) => el.closest('li'))?.closest('li');
   expect(aliceCard).toBeTruthy();
   // Find the connect/invite button within Alice's card
   const connectButton = aliceCard ? aliceCard.querySelector('button') : null;
@@ -145,7 +146,9 @@ test('can open and send invite to a partner', async () => {
   // There are multiple headings, so filter by class or by text content and tag
   const modalHeadings = await screen.findAllByRole('heading', { name: 'Alice Smith' });
   // Find the modal heading by tag and class (text-2xl font-bold)
-  const modalHeading = modalHeadings.find(h => h.className.includes('text-2xl') && h.className.includes('font-bold'));
+  const modalHeading = modalHeadings.find(
+    (h) => h.className.includes('text-2xl') && h.className.includes('font-bold')
+  );
   expect(modalHeading).toBeInTheDocument();
   // Click send invite (button with 'Send invite' or 'Send Invite')
   const sendButton = screen.getByRole('button', { name: /Send invite/i });

@@ -16,7 +16,7 @@ export default function BuddySearch() {
   const [suggestions, setSuggestions] = useState<StudyPartner[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<AppError | null>(null);
-  
+
   // Track pending invites by partner ID
   const [pendingInvites, setPendingInvites] = useState<Set<string>>(new Set());
 
@@ -35,13 +35,13 @@ export default function BuddySearch() {
         setLoading(false);
       }
     }
-    
+
     fetchSuggestions();
 
     // Listen for partner request status updates
     const handlePartnerAccepted = (data: any) => {
       console.log('Partner request accepted:', data);
-      setPendingInvites(prev => {
+      setPendingInvites((prev) => {
         const newSet = new Set(prev);
         // Find and remove the partner ID that was accepted
         newSet.delete(data.acceptedBy);
@@ -53,7 +53,7 @@ export default function BuddySearch() {
 
     const handlePartnerRejected = (data: any) => {
       console.log('Partner request rejected:', data);
-      setPendingInvites(prev => {
+      setPendingInvites((prev) => {
         const newSet = new Set(prev);
         // Find and remove the partner ID that was rejected
         newSet.delete(data.rejectedBy);
@@ -66,9 +66,15 @@ export default function BuddySearch() {
       fetchSuggestions();
     };
 
-    const unsubscribeAccepted = azureIntegrationService.onConnectionEvent('partner_accepted', handlePartnerAccepted);
-    const unsubscribeRejected = azureIntegrationService.onConnectionEvent('partner_rejected', handlePartnerRejected);
-    
+    const unsubscribeAccepted = azureIntegrationService.onConnectionEvent(
+      'partner_accepted',
+      handlePartnerAccepted
+    );
+    const unsubscribeRejected = azureIntegrationService.onConnectionEvent(
+      'partner_rejected',
+      handlePartnerRejected
+    );
+
     window.addEventListener('buddies:invalidate', handleBuddiesInvalidate);
 
     return () => {
@@ -86,7 +92,6 @@ export default function BuddySearch() {
 
   const closeModal = () => setOpen(false);
 
-
   const sendInvite = async () => {
     if (!selected?.id) return;
     setError(null);
@@ -100,21 +105,20 @@ export default function BuddySearch() {
         // Log but don't block UI if notification fails
         console.warn('Notification send failed:', notifyErr);
       }
-      
+
       // 3. Update pending invites state
-      setPendingInvites(prev => new Set(prev).add(selected.id));
-      
+      setPendingInvites((prev) => new Set(prev).add(selected.id));
+
       // 4. Dispatch event for local state update (optional)
       window.dispatchEvent(new CustomEvent('buddy:connected', { detail: selected }));
       setInvited(true);
-      
+
       // 5. Close modal immediately after successful invite
       setTimeout(() => {
         closeModal();
         // Reset state for next time
         setInvited(false);
       }, 1000); // Show "Invite sent" for 1 second, then close
-      
     } catch (err) {
       const appError = ErrorHandler.handleApiError(err, 'partners');
       setError(appError);
@@ -189,15 +193,15 @@ export default function BuddySearch() {
         <div className="flex-1">
           <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {suggestions.map((s) => (
-              <EnhancedSuggestionCard 
-                key={s.id} 
-                suggestion={s} 
+              <EnhancedSuggestionCard
+                key={s.id}
+                suggestion={s}
                 onConnect={() => openModal(s)}
                 isPending={pendingInvites.has(s.id)}
               />
             ))}
           </ul>
-          
+
           {/* Enhanced Bottom Action */}
           <div className="mt-6 pt-6 border-t border-slate-200">
             <div className="flex items-center justify-between">
@@ -230,7 +234,15 @@ export default function BuddySearch() {
 
 /* ---------- Enhanced Components ---------- */
 
-function EnhancedSuggestionCard({ suggestion, onConnect, isPending = false }: { suggestion: StudyPartner; onConnect: () => void; isPending?: boolean }) {
+function EnhancedSuggestionCard({
+  suggestion,
+  onConnect,
+  isPending = false,
+}: {
+  suggestion: StudyPartner;
+  onConnect: () => void;
+  isPending?: boolean;
+}) {
   const initials = suggestion.name
     .split(' ')
     .map((n) => n[0])
@@ -248,7 +260,9 @@ function EnhancedSuggestionCard({ suggestion, onConnect, isPending = false }: { 
           <h3 className="font-bold text-slate-900 group-hover:text-emerald-700 transition-colors mb-1">
             {suggestion.name}
           </h3>
-          <p className="text-sm text-slate-600 mb-2">{suggestion.course || suggestion.university}</p>
+          <p className="text-sm text-slate-600 mb-2">
+            {suggestion.course || suggestion.university}
+          </p>
           <div className="flex flex-wrap gap-1.5">
             <span className="text-xs px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 font-medium">
               {suggestion.compatibilityScore.toFixed(0)}% match
@@ -259,7 +273,7 @@ function EnhancedSuggestionCard({ suggestion, onConnect, isPending = false }: { 
           </div>
         </div>
       </div>
-      
+
       {/* Study metrics */}
       <div className="flex items-center justify-between mb-4 text-xs text-slate-500">
         <span className="flex items-center gap-1">
@@ -271,13 +285,17 @@ function EnhancedSuggestionCard({ suggestion, onConnect, isPending = false }: { 
           {suggestion.rating} rating
         </span>
       </div>
-      
+
       <button
         onClick={onConnect}
-        disabled={isPending || suggestion.connectionStatus === 'pending' || suggestion.connectionStatus === 'accepted'}
+        disabled={
+          isPending ||
+          suggestion.connectionStatus === 'pending' ||
+          suggestion.connectionStatus === 'accepted'
+        }
         className={`w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold shadow-md hover:shadow-lg focus-visible:outline focus-visible:outline-2 transition-all duration-200 ${
           isPending || suggestion.connectionStatus === 'pending'
-            ? 'bg-yellow-100 text-yellow-800 cursor-not-allowed' 
+            ? 'bg-yellow-100 text-yellow-800 cursor-not-allowed'
             : suggestion.connectionStatus === 'accepted'
             ? 'bg-green-100 text-green-800 cursor-not-allowed'
             : 'bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:outline-emerald-600'
@@ -285,13 +303,12 @@ function EnhancedSuggestionCard({ suggestion, onConnect, isPending = false }: { 
       >
         <Users className="h-4 w-4" />
         {isPending || suggestion.connectionStatus === 'pending'
-          ? suggestion.isPendingSent 
-            ? 'Pending acceptance' 
+          ? suggestion.isPendingSent
+            ? 'Pending acceptance'
             : 'Pending response'
           : suggestion.connectionStatus === 'accepted'
           ? 'Study buddies'
-          : 'Connect'
-        }
+          : 'Connect'}
       </button>
     </li>
   );
@@ -305,7 +322,8 @@ function EnhancedEmptyState() {
       </div>
       <h3 className="text-xl font-bold text-slate-900 mb-3">No study partners yet</h3>
       <p className="text-slate-600 mb-6 max-w-md mx-auto">
-        We're still finding the perfect study matches for you. Check back soon or explore all available partners.
+        We're still finding the perfect study matches for you. Check back soon or explore all
+        available partners.
       </p>
       <button
         onClick={() => navigate('/partners')}
@@ -384,7 +402,11 @@ function EnhancedProfileModal({
 
   return createPortal(
     <>
-      <div className="fixed inset-0 z-[9998] bg-black/50 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      <div
+        className="fixed inset-0 z-[9998] bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden="true"
+      />
       <div
         role="dialog"
         aria-modal="true"
@@ -421,7 +443,8 @@ function EnhancedProfileModal({
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
               <h4 className="font-semibold text-slate-900 mb-2">About this study partner</h4>
               <p className="text-sm text-slate-700 leading-relaxed">
-                {person.bio || person.recommendationReason || 
+                {person.bio ||
+                  person.recommendationReason ||
                   'Active study partner with strong academic performance. Looking for consistent study sessions and collaborative learning.'}
               </p>
             </div>

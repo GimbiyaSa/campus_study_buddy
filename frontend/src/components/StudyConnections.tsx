@@ -24,7 +24,7 @@ export default function StudyConnections() {
         setLoading(false);
       }
     }
-    
+
     fetchConnections();
 
     // Listen for updates when new connections are made
@@ -33,7 +33,7 @@ export default function StudyConnections() {
     };
 
     window.addEventListener('buddies:invalidate', handleUpdate);
-    
+
     return () => {
       window.removeEventListener('buddies:invalidate', handleUpdate);
     };
@@ -108,7 +108,7 @@ export default function StudyConnections() {
               <ConnectionCard key={connection.id} connection={connection} />
             ))}
           </div>
-          
+
           {/* Bottom Action */}
           <div className="mt-6 pt-6 border-t border-slate-200">
             <div className="flex items-center justify-between">
@@ -148,17 +148,19 @@ function ConnectionCard({ connection }: { connection: StudyPartner }) {
           <h3 className="font-semibold text-slate-900 group-hover:text-emerald-700 transition-colors truncate">
             {connection.name}
           </h3>
-          <p className="text-xs text-slate-600 truncate">{connection.course || connection.university}</p>
+          <p className="text-xs text-slate-600 truncate">
+            {connection.course || connection.university}
+          </p>
         </div>
       </div>
-      
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-medium">
             Study buddy
           </span>
         </div>
-        
+
         <div className="flex items-center gap-1">
           <button
             onClick={() => navigate('/chat')}

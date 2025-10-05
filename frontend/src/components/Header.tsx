@@ -66,8 +66,7 @@ export default function Header() {
   if (!currentUser && !loading) {
     return (
       <header className="bg-white border-b border-gray-200 h-16 px-6 flex items-center">
-        <div className="flex items-center justify-between">
-        </div>
+        <div className="flex items-center justify-between"></div>
       </header>
     );
   }

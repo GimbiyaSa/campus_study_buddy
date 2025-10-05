@@ -1,6 +1,18 @@
 // src/pages/Partners.tsx
 import { useMemo, useState, useLayoutEffect, useRef, useEffect } from 'react';
-import { Search, Filter, X, Mail, Check, Loader2, AlertCircle, Users, Heart, RefreshCw, Clock } from 'lucide-react';
+import {
+  Search,
+  Filter,
+  X,
+  Mail,
+  Check,
+  Loader2,
+  AlertCircle,
+  Users,
+  Heart,
+  RefreshCw,
+  Clock,
+} from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { type StudyPartner, DataService } from '../services/dataService';
 import azureIntegrationService from '../services/azureIntegrationService';
@@ -10,13 +22,13 @@ export default function Partners() {
   const [query, setQuery] = useState('');
   const [activeTags, setActiveTags] = useState<string[]>([]);
   const [minMutual, setMinMutual] = useState<number>(0);
-  
+
   // Enhanced state management - unified with database
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<AppError | null>(null);
   const [partnersLoading, setPartnersLoading] = useState(true);
   const [partnersError, setPartnersError] = useState<AppError | null>(null);
-  
+
   // Database-driven data
   const [suggestions, setSuggestions] = useState<StudyPartner[]>([]);
   const [allPartners, setAllPartners] = useState<StudyPartner[]>([]);
@@ -26,7 +38,7 @@ export default function Partners() {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<StudyPartner | null>(null);
   const [invited, setInvited] = useState(false);
-  
+
   // Track pending invites by partner ID
   const [pendingInvites, setPendingInvites] = useState<Set<string>>(new Set());
 
@@ -42,25 +54,29 @@ export default function Partners() {
         partner.bio || '',
         ...(partner.sharedCourses || []),
         ...(partner.studyPreferences?.preferredTimes || []),
-        partner.studyPreferences?.environment || ''
-      ].join(' ').toLowerCase();
-      
+        partner.studyPreferences?.environment || '',
+      ]
+        .join(' ')
+        .toLowerCase();
+
       const matchText = q === '' || textFields.includes(q);
-      
+
       // Tag filtering (study preferences)
       const partnerTags = [
         ...(partner.studyPreferences?.preferredTimes || []),
         partner.studyPreferences?.environment || '',
-        partner.studyPreferences?.studyStyle || ''
+        partner.studyPreferences?.studyStyle || '',
       ];
-      const matchTags = activeTags.length === 0 || activeTags.every(tag => 
-        partnerTags.some(partnerTag => partnerTag.toLowerCase().includes(tag.toLowerCase()))
-      );
-      
+      const matchTags =
+        activeTags.length === 0 ||
+        activeTags.every((tag) =>
+          partnerTags.some((partnerTag) => partnerTag.toLowerCase().includes(tag.toLowerCase()))
+        );
+
       // Mutual courses filter
       const sharedCount = partner.sharedCourses?.length || 0;
       const matchMutual = sharedCount >= minMutual;
-      
+
       return matchText && matchTags && matchMutual;
     });
   }, [query, activeTags, minMutual, allPartners]);
@@ -68,8 +84,8 @@ export default function Partners() {
   // Available tags from actual data
   const availableTags = useMemo(() => {
     const tagSet = new Set<string>();
-    allPartners.forEach(partner => {
-      (partner.studyPreferences?.preferredTimes || []).forEach(time => tagSet.add(time));
+    allPartners.forEach((partner) => {
+      (partner.studyPreferences?.preferredTimes || []).forEach((time) => tagSet.add(time));
       if (partner.studyPreferences?.environment) tagSet.add(partner.studyPreferences.environment);
       if (partner.studyPreferences?.studyStyle) tagSet.add(partner.studyPreferences.studyStyle);
     });
@@ -79,13 +95,13 @@ export default function Partners() {
   function toggleTag(tag: string) {
     setActiveTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
   }
-  
+
   function clearFilters() {
     setQuery('');
     setActiveTags([]);
     setMinMutual(0);
   }
-  
+
   function openModal(partner: StudyPartner) {
     setSelected(partner);
     setInvited(false);
@@ -95,7 +111,7 @@ export default function Partners() {
   // Enhanced data fetching with unified error handling
   useEffect(() => {
     let mounted = true;
-    
+
     async function fetchSuggestions() {
       setLoading(true);
       setError(null);
@@ -149,7 +165,7 @@ export default function Partners() {
       const b = detail as StudyPartner;
       setBuddies((prev) => (prev.some((x) => String(x.id) === String(b.id)) ? prev : [b, ...prev]));
     };
-    
+
     const onInvalidate = () => {
       fetchSuggestions();
       fetchBuddies();
@@ -172,12 +188,18 @@ export default function Partners() {
     };
 
     // Set up Azure Web PubSub listeners
-    const unsubscribeAccepted = azureIntegrationService.onConnectionEvent('partner_request_accepted', handlePartnerAccepted);
-    const unsubscribeRejected = azureIntegrationService.onConnectionEvent('partner_request_rejected', handlePartnerRejected);
+    const unsubscribeAccepted = azureIntegrationService.onConnectionEvent(
+      'partner_request_accepted',
+      handlePartnerAccepted
+    );
+    const unsubscribeRejected = azureIntegrationService.onConnectionEvent(
+      'partner_request_rejected',
+      handlePartnerRejected
+    );
 
     window.addEventListener('buddy:connected', onAdded as EventListener);
     window.addEventListener('buddies:invalidate', onInvalidate);
-    
+
     return () => {
       mounted = false;
       unsubscribeAccepted();
@@ -200,7 +222,8 @@ export default function Partners() {
       <div className="text-center">
         <h1 className="text-4xl font-bold text-slate-900 mb-3">Find study partners</h1>
         <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-          Connect with classmates who share your courses and study preferences. Build meaningful study relationships.
+          Connect with classmates who share your courses and study preferences. Build meaningful
+          study relationships.
         </p>
       </div>
 
@@ -210,12 +233,8 @@ export default function Partners() {
           <div className="flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
-              <h4 className="font-semibold text-red-900 mb-1">
-                {(error || partnersError)?.title}
-              </h4>
-              <p className="text-sm text-red-700 mb-3">
-                {(error || partnersError)?.message}
-              </p>
+              <h4 className="font-semibold text-red-900 mb-1">{(error || partnersError)?.title}</h4>
+              <p className="text-sm text-red-700 mb-3">{(error || partnersError)?.message}</p>
               <div className="flex flex-wrap gap-3">
                 {(error || partnersError)?.retryable && (
                   <button
@@ -244,13 +263,18 @@ export default function Partners() {
       {/* Enhanced Layout: 2 left cards + right column spanning both */}
       <div className="grid grid-cols-1 lg:grid-cols-3 lg:auto-rows-min gap-8">
         {/* Enhanced Suggested Partners Section */}
-        <section className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 p-8 shadow-lg hover:shadow-xl transition-shadow duration-300" aria-labelledby="suggestions-title">
+        <section
+          className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 p-8 shadow-lg hover:shadow-xl transition-shadow duration-300"
+          aria-labelledby="suggestions-title"
+        >
           <div className="mb-6 flex items-center justify-between">
             <div>
               <h2 id="suggestions-title" className="text-2xl font-bold text-slate-900 mb-2">
                 Suggested for you
               </h2>
-              <p className="text-slate-600">Perfect matches based on your courses and preferences</p>
+              <p className="text-slate-600">
+                Perfect matches based on your courses and preferences
+              </p>
             </div>
             <div className="bg-emerald-100 text-emerald-800 px-4 py-2 rounded-full font-semibold text-sm">
               {suggestions.length} matches
@@ -261,16 +285,18 @@ export default function Partners() {
             <div className="flex items-center justify-center py-12">
               <div className="text-center">
                 <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-slate-900 mb-2">Loading study partners</h3>
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                  Loading study partners
+                </h3>
                 <p className="text-slate-600">Getting your perfect matches...</p>
               </div>
             </div>
           ) : (
             <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {suggestions.map((suggestion, i) => (
-                <EnhancedSuggestionCard 
-                  key={i} 
-                  suggestion={suggestion} 
+                <EnhancedSuggestionCard
+                  key={i}
+                  suggestion={suggestion}
                   onConnect={() => openModal(suggestion)}
                   isPending={pendingInvites.has(suggestion.id)}
                 />
@@ -313,7 +339,10 @@ export default function Partners() {
         </aside>
 
         {/* Enhanced Search & Filter Section */}
-        <section className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 p-8 shadow-lg" aria-labelledby="search-title">
+        <section
+          className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 p-8 shadow-lg"
+          aria-labelledby="search-title"
+        >
           <div className="mb-6 flex items-center justify-between gap-3">
             <div>
               <h2 id="search-title" className="text-2xl font-bold text-slate-900 mb-2">
@@ -406,9 +435,7 @@ export default function Partners() {
                 {results.length} {results.length === 1 ? 'partner found' : 'partners found'}
               </div>
               {results.length > 0 && (
-                <div className="text-xs text-slate-500">
-                  Sorted by compatibility
-                </div>
+                <div className="text-xs text-slate-500">Sorted by compatibility</div>
               )}
             </div>
 
@@ -417,9 +444,9 @@ export default function Partners() {
             ) : (
               <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {results.map((partner, i) => (
-                  <EnhancedPartnerCard 
-                    key={`r-${i}`} 
-                    partner={partner} 
+                  <EnhancedPartnerCard
+                    key={`r-${i}`}
+                    partner={partner}
                     onConnect={() => openModal(partner)}
                     isPending={pendingInvites.has(partner.id)}
                   />
@@ -448,17 +475,17 @@ export default function Partners() {
               // Log but don't block UI if notification fails
               console.warn('Notification send failed:', notifyErr);
             }
-            
+
             // Update pending invites state
-            setPendingInvites(prev => new Set(prev).add(selected.id));
+            setPendingInvites((prev) => new Set(prev).add(selected.id));
             setInvited(true);
-            
+
             // Close modal after showing success
             setTimeout(() => {
               setOpen(false);
               setInvited(false);
             }, 1000);
-            
+
             window.dispatchEvent(new Event('buddies:invalidate'));
             // Optionally, initiate chat here in the future
           } catch (err) {
@@ -474,13 +501,23 @@ export default function Partners() {
 }
 /* ---------- Enhanced Components ---------- */
 
-function EnhancedSuggestionCard({ suggestion, onConnect, isPending = false }: { suggestion: StudyPartner; onConnect: () => void; isPending?: boolean }) {
+function EnhancedSuggestionCard({
+  suggestion,
+  onConnect,
+  isPending = false,
+}: {
+  suggestion: StudyPartner;
+  onConnect: () => void;
+  isPending?: boolean;
+}) {
   const initials = initialsFrom(suggestion.name || '—');
-  const sharedCoursesText = suggestion.sharedCourses?.length 
-    ? `${suggestion.sharedCourses.length} shared course${suggestion.sharedCourses.length !== 1 ? 's' : ''}`
+  const sharedCoursesText = suggestion.sharedCourses?.length
+    ? `${suggestion.sharedCourses.length} shared course${
+        suggestion.sharedCourses.length !== 1 ? 's' : ''
+      }`
     : 'No shared courses';
   const preferredTimes = suggestion.studyPreferences?.preferredTimes || [];
-  
+
   return (
     <li className="group relative rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-lg hover:border-emerald-200 transition-all duration-300">
       <div className="flex items-start justify-between gap-4 mb-4">
@@ -517,10 +554,14 @@ function EnhancedSuggestionCard({ suggestion, onConnect, isPending = false }: { 
       </div>
       <button
         onClick={onConnect}
-        disabled={isPending || suggestion.connectionStatus === 'pending' || suggestion.connectionStatus === 'accepted'}
+        disabled={
+          isPending ||
+          suggestion.connectionStatus === 'pending' ||
+          suggestion.connectionStatus === 'accepted'
+        }
         className={`w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold shadow-md hover:shadow-lg focus-visible:outline focus-visible:outline-2 transition-all duration-200 ${
           isPending || suggestion.connectionStatus === 'pending'
-            ? 'bg-yellow-100 text-yellow-800 cursor-not-allowed' 
+            ? 'bg-yellow-100 text-yellow-800 cursor-not-allowed'
             : suggestion.connectionStatus === 'accepted'
             ? 'bg-green-100 text-green-800 cursor-not-allowed'
             : 'bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:outline-emerald-600'
@@ -528,13 +569,12 @@ function EnhancedSuggestionCard({ suggestion, onConnect, isPending = false }: { 
       >
         <Users className="h-4 w-4" />
         {isPending || suggestion.connectionStatus === 'pending'
-          ? suggestion.isPendingSent 
-            ? 'Pending acceptance' 
+          ? suggestion.isPendingSent
+            ? 'Pending acceptance'
             : 'Pending response'
           : suggestion.connectionStatus === 'accepted'
           ? 'Study buddies'
-          : 'Connect'
-        }
+          : 'Connect'}
       </button>
     </li>
   );
@@ -542,7 +582,7 @@ function EnhancedSuggestionCard({ suggestion, onConnect, isPending = false }: { 
 
 function EnhancedBuddyCard({ buddy }: { buddy: StudyPartner }) {
   const initials = initialsFrom(buddy.name || '—');
-  
+
   return (
     <li className="flex items-center gap-4 p-4 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white hover:border-emerald-200 transition-all duration-200">
       <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 text-blue-700 grid place-items-center text-sm font-bold flex-shrink-0">
@@ -550,13 +590,13 @@ function EnhancedBuddyCard({ buddy }: { buddy: StudyPartner }) {
       </div>
       <div className="min-w-0 flex-1">
         <p className="font-semibold text-slate-900 mb-1">{buddy.name}</p>
-        <p className="text-xs text-slate-600">
-          {buddy.bio || buddy.lastActive || 'Study partner'}
-        </p>
+        <p className="text-xs text-slate-600">{buddy.bio || buddy.lastActive || 'Study partner'}</p>
         {buddy.studyHours > 0 && (
           <div className="mt-2 flex items-center gap-1">
             <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-            <span className="text-xs text-emerald-600 font-medium">{buddy.studyHours}h studied together</span>
+            <span className="text-xs text-emerald-600 font-medium">
+              {buddy.studyHours}h studied together
+            </span>
           </div>
         )}
       </div>
@@ -568,13 +608,23 @@ function EnhancedBuddyCard({ buddy }: { buddy: StudyPartner }) {
   );
 }
 
-function EnhancedPartnerCard({ partner, onConnect, isPending = false }: { partner: StudyPartner; onConnect: () => void; isPending?: boolean }) {
+function EnhancedPartnerCard({
+  partner,
+  onConnect,
+  isPending = false,
+}: {
+  partner: StudyPartner;
+  onConnect: () => void;
+  isPending?: boolean;
+}) {
   const initials = initialsFrom(partner.name || '—');
-  const sharedCoursesText = partner.sharedCourses?.length 
-    ? `${partner.sharedCourses.length} shared course${partner.sharedCourses.length !== 1 ? 's' : ''}`
+  const sharedCoursesText = partner.sharedCourses?.length
+    ? `${partner.sharedCourses.length} shared course${
+        partner.sharedCourses.length !== 1 ? 's' : ''
+      }`
     : 'No shared courses';
   const preferredTimes = partner.studyPreferences?.preferredTimes || [];
-    
+
   return (
     <li className="group relative rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md hover:border-emerald-200 transition-all duration-200">
       <div className="flex items-center gap-3 mb-3">
@@ -589,38 +639,38 @@ function EnhancedPartnerCard({ partner, onConnect, isPending = false }: { partne
           <p className="text-xs text-slate-500">{partner.university}</p>
         </div>
       </div>
-      
+
       <div className="flex flex-wrap gap-1 mb-3">
         <span className="text-[10px] px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-medium">
           {sharedCoursesText}
         </span>
         {preferredTimes.slice(0, 2).map((time) => (
-          <span
-            key={time}
-            className="text-[10px] px-2 py-1 rounded-full bg-blue-50 text-blue-700"
-          >
+          <span key={time} className="text-[10px] px-2 py-1 rounded-full bg-blue-50 text-blue-700">
             {time}
           </span>
         ))}
       </div>
-      
+
       <button
         onClick={onConnect}
-        disabled={isPending || partner.connectionStatus === 'pending' || partner.connectionStatus === 'accepted'}
+        disabled={
+          isPending ||
+          partner.connectionStatus === 'pending' ||
+          partner.connectionStatus === 'accepted'
+        }
         className={`w-full inline-flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 ${
           isPending || partner.connectionStatus === 'pending'
-            ? 'bg-yellow-100 text-yellow-800 border border-yellow-200 cursor-not-allowed' 
+            ? 'bg-yellow-100 text-yellow-800 border border-yellow-200 cursor-not-allowed'
             : partner.connectionStatus === 'accepted'
             ? 'bg-green-100 text-green-800 border border-green-200 cursor-not-allowed'
             : 'bg-white border border-slate-200 text-slate-700 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700'
         }`}
       >
         {isPending || partner.connectionStatus === 'pending'
-          ? 'Pending' 
+          ? 'Pending'
           : partner.connectionStatus === 'accepted'
           ? 'Buddies'
-          : 'Connect'
-        }
+          : 'Connect'}
       </button>
     </li>
   );
@@ -729,7 +779,11 @@ function EnhancedProfileModal({
 
   return createPortal(
     <>
-      <div className="fixed inset-0 z-[9998] bg-black/50 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      <div
+        className="fixed inset-0 z-[9998] bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden="true"
+      />
       <div
         role="dialog"
         aria-modal="true"
@@ -781,7 +835,11 @@ function EnhancedProfileModal({
             </button>
             <button
               onClick={onInvite}
-              disabled={invited || person.connectionStatus === 'pending' || person.connectionStatus === 'accepted'}
+              disabled={
+                invited ||
+                person.connectionStatus === 'pending' ||
+                person.connectionStatus === 'accepted'
+              }
               className={`flex-1 px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all duration-200 ${
                 invited || person.connectionStatus === 'pending'
                   ? 'bg-yellow-100 text-yellow-800 border border-yellow-200 cursor-default'

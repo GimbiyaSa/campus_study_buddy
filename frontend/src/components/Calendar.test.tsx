@@ -38,20 +38,27 @@ vi.mock('../services/dataService', () => ({
 }));
 
 /* Helper: get day cell from a chip node */
-const cellFromChip = (chip: HTMLElement) =>
-  chip.parentElement?.parentElement as HTMLElement | null;
+const cellFromChip = (chip: HTMLElement) => chip.parentElement?.parentElement as HTMLElement | null;
 
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(FIXED_NOW);
 
   // Default payload: three on "today" (to trigger "+more") + one on another day
-  fetchSessionsMock.mockReset().mockResolvedValue([
-    mk({ id: 's1', title: 'Algorithms Study Group', startTime: '10:00' }),
-    mk({ id: 's2', title: 'Database Design Workshop', startTime: '12:00' }),
-    mk({ id: 's3', title: 'Extra Session', startTime: '15:00' }),
-    mk({ id: 'w1', title: 'Weekend Review', date: '2025-10-05', startTime: '09:30', location: 'Hall A' }),
-  ]);
+  fetchSessionsMock
+    .mockReset()
+    .mockResolvedValue([
+      mk({ id: 's1', title: 'Algorithms Study Group', startTime: '10:00' }),
+      mk({ id: 's2', title: 'Database Design Workshop', startTime: '12:00' }),
+      mk({ id: 's3', title: 'Extra Session', startTime: '15:00' }),
+      mk({
+        id: 'w1',
+        title: 'Weekend Review',
+        date: '2025-10-05',
+        startTime: '09:30',
+        location: 'Hall A',
+      }),
+    ]);
 });
 
 afterEach(() => {
@@ -122,7 +129,9 @@ describe('Calendar', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     await waitFor(() =>
-      expect(screen.queryByRole('heading', { name: /Schedule Study Session/ })).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('heading', { name: /Schedule Study Session/ })
+      ).not.toBeInTheDocument()
     );
   });
 
@@ -131,15 +140,21 @@ describe('Calendar', () => {
     await screen.findByRole('heading', { name: /October 2025/ });
 
     await userEvent.click(screen.getByRole('button', { name: /New session/i }));
-    expect(await screen.findByRole('heading', { name: /Schedule Study Session/i })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: /Schedule Study Session/i })
+    ).toBeInTheDocument();
     expect(document.body.style.overflow).toBe('hidden');
 
     // Backdrop is the first of two fixed layers; click anywhere outside form by clicking the overlay via pointer-events:
     const allDivs = document.querySelectorAll('div');
-    const backdrop = Array.from(allDivs).find((d) => d.className.includes('bg-black/40')) as HTMLDivElement;
+    const backdrop = Array.from(allDivs).find((d) =>
+      d.className.includes('bg-black/40')
+    ) as HTMLDivElement;
     await userEvent.click(backdrop);
     await waitFor(() =>
-      expect(screen.queryByRole('heading', { name: /Schedule Study Session/ })).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('heading', { name: /Schedule Study Session/ })
+      ).not.toBeInTheDocument()
     );
     expect(document.body.style.overflow).toBe('');
 
@@ -148,7 +163,9 @@ describe('Calendar', () => {
     await screen.findByRole('heading', { name: /Schedule Study Session/i });
     await userEvent.keyboard('{Escape}');
     await waitFor(() =>
-      expect(screen.queryByRole('heading', { name: /Schedule Study Session/ })).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('heading', { name: /Schedule Study Session/ })
+      ).not.toBeInTheDocument()
     );
   });
 
@@ -175,7 +192,9 @@ describe('Calendar', () => {
 
     // New chip appears and modal closes
     expect(await screen.findByText('2:00 PM New Session Modal')).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: /Schedule Study Session/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: /Schedule Study Session/ })
+    ).not.toBeInTheDocument();
     expect(document.body.style.overflow).toBe('');
 
     // event fired

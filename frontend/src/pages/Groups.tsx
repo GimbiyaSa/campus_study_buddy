@@ -1328,7 +1328,7 @@ function InviteMembersModal({
     }
   }
 
- /* function authHeadersJSON(): Headers {
+  /* function authHeadersJSON(): Headers {
     const h = new Headers();
     h.set('Content-Type', 'application/json');
     const googleToken =

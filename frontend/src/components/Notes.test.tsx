@@ -16,80 +16,81 @@ vi.mock('../utils/url', () => ({ buildApiUrl: (p: string) => `http://api.test${p
 const okJson = (data: any) => ({ ok: true, status: 200, json: async () => data });
 const fail = () => ({ ok: false, status: 500, json: async () => ({}) });
 
-const FALLBACK_TITLES = [
-  'Binary Tree Traversal Methods',
-  'Matrix Operations',
-  'Fallback Note',
-];
+const FALLBACK_TITLES = ['Binary Tree Traversal Methods', 'Matrix Operations', 'Fallback Note'];
 
 beforeEach(() => {
   vi.useFakeTimers(); // not strictly needed but consistent with other suites
   // default: success fetch; tests override as needed
-  global.fetch = vi.fn()
+  global.fetch = vi
+    .fn()
     // modules
-    .mockResolvedValueOnce(okJson([
-      { module_id: 1, module_code: 'CS201', module_name: 'Data Structures', university: 'U' },
-      { module_id: 2, module_code: 'MATH204', module_name: 'Linear Algebra', university: 'U' },
-    ]))
+    .mockResolvedValueOnce(
+      okJson([
+        { module_id: 1, module_code: 'CS201', module_name: 'Data Structures', university: 'U' },
+        { module_id: 2, module_code: 'MATH204', module_name: 'Linear Algebra', university: 'U' },
+      ])
+    )
     // notes
-    .mockResolvedValueOnce(okJson([
-      {
-        note_id: 10,
-        group_id: 1,
-        author_id: 1,
-        topic_id: 1,
-        note_title: 'Binary Tree Traversal Methods',
-        note_content: 'In-order, pre-order, and post-order...',
-        visibility: 'public',
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        author_name: 'John Doe',
-        group_name: 'CS Advanced',
-        topic_name: 'Data Structures',
-      },
-      {
-        note_id: 11,
-        group_id: 2,
-        author_id: 2,
-        topic_id: 2,
-        note_title: 'Matrix Operations',
-        note_content: 'Fundamental matrix operations including addition...',
-        visibility: 'group',
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        author_name: 'Jane Smith',
-        group_name: 'Math Warriors',
-        topic_name: 'Linear Algebra',
-      },
-      // should be ignored by filter: inactive
-      {
-        note_id: 12,
-        group_id: 9,
-        author_id: 9,
-        topic_id: 1,
-        note_title: 'Inactive Note',
-        note_content: 'This should be filtered out',
-        visibility: 'private',
-        is_active: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      // should be ignored by filter: missing title
-      {
-        note_id: 13,
-        group_id: 9,
-        author_id: 9,
-        topic_id: 1,
-        note_title: '',
-        note_content: 'Missing title so filtered out',
-        visibility: 'public',
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-    ])) as any;
+    .mockResolvedValueOnce(
+      okJson([
+        {
+          note_id: 10,
+          group_id: 1,
+          author_id: 1,
+          topic_id: 1,
+          note_title: 'Binary Tree Traversal Methods',
+          note_content: 'In-order, pre-order, and post-order...',
+          visibility: 'public',
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          author_name: 'John Doe',
+          group_name: 'CS Advanced',
+          topic_name: 'Data Structures',
+        },
+        {
+          note_id: 11,
+          group_id: 2,
+          author_id: 2,
+          topic_id: 2,
+          note_title: 'Matrix Operations',
+          note_content: 'Fundamental matrix operations including addition...',
+          visibility: 'group',
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          author_name: 'Jane Smith',
+          group_name: 'Math Warriors',
+          topic_name: 'Linear Algebra',
+        },
+        // should be ignored by filter: inactive
+        {
+          note_id: 12,
+          group_id: 9,
+          author_id: 9,
+          topic_id: 1,
+          note_title: 'Inactive Note',
+          note_content: 'This should be filtered out',
+          visibility: 'private',
+          is_active: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        // should be ignored by filter: missing title
+        {
+          note_id: 13,
+          group_id: 9,
+          author_id: 9,
+          topic_id: 1,
+          note_title: '',
+          note_content: 'Missing title so filtered out',
+          visibility: 'public',
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ])
+    ) as any;
 });
 
 afterEach(() => {
@@ -115,9 +116,7 @@ describe('Notes', () => {
 
     // Icons: visibility and group
     const matrixCard = screen.getByText('Matrix Operations').closest('div')!;
-    expect(
-      (matrixCard.parentElement as HTMLElement).querySelector('.text-blue-500')
-    ).toBeTruthy(); // group -> Users blue
+    expect((matrixCard.parentElement as HTMLElement).querySelector('.text-blue-500')).toBeTruthy(); // group -> Users blue
 
     // Author / group / topic metadata
     expect(screen.getByText(/By: John Doe/i)).toBeInTheDocument();
@@ -138,10 +137,7 @@ describe('Notes', () => {
 
   test('fallback path: when fetch fails, fallback notes appear (no crash)', async () => {
     // Next render: make both endpoints fail -> component uses fallback arrays
-    (global.fetch as any)
-      .mockReset()
-      .mockResolvedValueOnce(fail())
-      .mockResolvedValueOnce(fail());
+    (global.fetch as any).mockReset().mockResolvedValueOnce(fail()).mockResolvedValueOnce(fail());
 
     render(<Notes />);
 
@@ -209,22 +205,25 @@ describe('Notes', () => {
 
   test('content is truncated to 150 chars in card, but modal shows full text; modal closes by X and backdrop', async () => {
     // Provide a long content to hit truncation
-    (global.fetch as any).mockReset()
+    (global.fetch as any)
+      .mockReset()
       .mockResolvedValueOnce(okJson([])) // modules (we won't use dropdown here)
-      .mockResolvedValueOnce(okJson([
-        {
-          note_id: 21,
-          group_id: 1,
-          author_id: 1,
-          topic_id: 1,
-          note_title: 'Very Long Note',
-          note_content: 'A'.repeat(200),
-          visibility: 'private',
-          is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      ]));
+      .mockResolvedValueOnce(
+        okJson([
+          {
+            note_id: 21,
+            group_id: 1,
+            author_id: 1,
+            topic_id: 1,
+            note_title: 'Very Long Note',
+            note_content: 'A'.repeat(200),
+            visibility: 'private',
+            is_active: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+        ])
+      );
 
     render(<Notes />);
     await screen.findByText('Very Long Note');

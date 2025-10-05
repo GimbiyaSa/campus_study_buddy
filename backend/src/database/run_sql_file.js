@@ -1,4 +1,4 @@
-require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
+require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const sql = require('mssql');
@@ -6,7 +6,7 @@ const sql = require('mssql');
 async function runSqlFile(sqlFilePath) {
   let dbConfig;
   try {
-    const { azureConfig } = require('../../dist/config/azureConfig');
+    const { azureConfig } = require('../config/azureConfig');
     dbConfig = await azureConfig.getLegacyDatabaseConfig();
     console.log('✅ Using Azure configuration for SQL execution');
   } catch (error) {
@@ -51,7 +51,7 @@ async function runSqlFile(sqlFilePath) {
 
 if (require.main === module) {
   // Default to azure_sql_script.sql in the same folder
-  const sqlFile = path.join(__dirname, 'azure_sql_script.sql');
+  const sqlFile = path.join(__dirname, '../../src/database/azure_sql_script.sql');
   runSqlFile(sqlFile);
 }
 

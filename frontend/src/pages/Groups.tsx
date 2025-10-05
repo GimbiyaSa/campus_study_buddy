@@ -1,9 +1,9 @@
 // frontend/src/pages/Groups.tsx
 import { useState, useEffect, useId, useLayoutEffect, useRef, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { Users, Plus, MessageSquare, Calendar, Trash2, X } from 'lucide-react';
+import { Users, Plus, MessageSquare, Calendar, Trash2, X, Pencil } from 'lucide-react';
 import { buildApiUrl } from '../utils/url';
-import { DataService, type StudyPartner, FALLBACK_PARTNERS } from '../services/dataService';
+import { DataService, FALLBACK_PARTNERS, type StudyPartner } from '../services/dataService';
 
 type StudyGroup = {
   group_id: number;
@@ -623,9 +623,9 @@ export default function Groups() {
       startTime: form.startTime,
       endTime: form.endTime,
       location: form.location,
-      type: 'study',
+      type: 'study' as const,
       participants: 1,
-      status: 'upcoming',
+      status: 'upcoming' as const,
       isCreator: true,
       isAttending: true,
       groupId: groupCtx.groupId,
@@ -706,7 +706,7 @@ export default function Groups() {
   // helper: derive course + code from module_name like "CS 201 - Data Structures"
   function splitModuleName(mod?: string): { courseCode?: string; course?: string } {
     if (!mod) return {};
-    const parts = String(mod).split(' - ');
+    const parts: string[] = String(mod).split(' - ');
     if (parts.length >= 2) {
       return { courseCode: parts[0], course: parts.slice(1).join(' - ') };
     }
@@ -727,14 +727,14 @@ export default function Groups() {
     const initials = String(name)
       .trim()
       .split(/\s+/)
-      .map((n) => n[0])
+      .map((n: string) => n[0])
       .join('')
       .slice(0, 2)
       .toUpperCase();
 
     return (
       <div
-        key={(m?.id ?? m?.userId ?? name) + ':' + idx}
+        key={`${(m?.id ?? m?.userId ?? name) as string}:${idx}`}
         className="inline-flex items-center gap-2 rounded-full bg-slate-100 text-slate-700 px-2 py-1 text-xs"
         title={name}
       >
@@ -920,7 +920,7 @@ export default function Groups() {
                           className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
                           title="Edit group"
                         >
-                          <MessageSquare className="w-4 h-4" />
+                          <Pencil className="w-4 h-4" />
                         </button>
                       )}
 
@@ -1553,27 +1553,6 @@ function InviteMembersModal({
     }
   }
 
-  /* function authHeadersJSON(): Headers {
-    const h = new Headers();
-    h.set('Content-Type', 'application/json');
-    const googleToken =
-      typeof window !== 'undefined' ? localStorage.getItem('google_id_token') : null;
-    const generalToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    const raw = googleToken || generalToken;
-    if (raw) {
-      let t = raw;
-      try {
-        const p = JSON.parse(raw);
-        if (typeof p === 'string') t = p;
-      } catch {}
-      t = t
-        .replace(/^["']|["']$/g, '')
-        .replace(/^Bearer\s+/i, '')
-        .trim();
-      if (t) h.set('Authorization', `Bearer ${t}`);
-    }
-    return h;
-  } */
   return (
     <div className="fixed inset-0 z-[9999] grid place-items-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />

@@ -1,52 +1,41 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, BookOpen, Users, Lock, Globe, Plus, X } from 'lucide-react';
-import { buildApiUrl } from '../utils/url';
+import {
+  Search,
+  Users,
+  Lock,
+  Globe,
+  Plus,
+  X,
+  BookOpen,
+  StickyNote,
+} from 'lucide-react';
+import { DataService } from '../services/dataService';
+import type { SharedNote, StudyGroup } from '../services/dataService';
 
-type SharedNote = {
-  note_id: number;
-  group_id: number;
-  author_id: number;
-  topic_id?: number;
-  note_title: string;
-  note_content: string;
-  visibility: 'group' | 'public' | 'private';
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-  author_name?: string;
-  group_name?: string;
-  topic_name?: string;
-};
-
-type Module = {
-  module_id: number;
-  module_code: string;
-  module_name: string;
-  description?: string;
-  university: string;
-};
 
 export default function Notes() {
   const [notes, setNotes] = useState<SharedNote[]>([]);
-  const [modules, setModules] = useState<Module[]>([]);
+  const [groups, setGroups] = useState<StudyGroup[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedModule, setSelectedModule] = useState<string>('');
-  const [visibilityFilter, setVisibilityFilter] = useState<string>('');
+  const [selectedGroup, setSelectedGroup] = useState<string>(''); // group_id
+  const [visibilityFilter, setVisibilityFilter] = useState<string>(''); // group|public|private
   const [openNote, setOpenNote] = useState<SharedNote | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
 
-  // Fallback data
+  // demo fallback when API unavailable
   const fallbackNotes: SharedNote[] = [
     {
       note_id: 1,
       group_id: 1,
-      author_id: 1,
+      author_id: '1',
       topic_id: 1,
       note_title: 'Binary Tree Traversal Methods',
       note_content:
         'In-order, pre-order, and post-order traversal techniques for binary trees. Key concepts include recursive approaches and iterative implementations using stacks.',
+      attachments: null,
       visibility: 'public',
       is_active: true,
       created_at: new Date().toISOString(),
@@ -58,11 +47,12 @@ export default function Notes() {
     {
       note_id: 2,
       group_id: 2,
-      author_id: 2,
+      author_id: '2',
       topic_id: 2,
       note_title: 'Matrix Operations',
       note_content:
         'Fundamental matrix operations including addition, multiplication, and determinant calculation. Important for linear algebra applications.',
+      attachments: null,
       visibility: 'group',
       is_active: true,
       created_at: new Date().toISOString(),
@@ -71,14 +61,14 @@ export default function Notes() {
       group_name: 'Math Warriors',
       topic_name: 'Linear Algebra',
     },
-    // Add a fallback with all required fields to prevent undefined errors
     {
       note_id: 3,
       group_id: 3,
-      author_id: 3,
+      author_id: '3',
       topic_id: 3,
       note_title: 'Fallback Note',
       note_content: 'This is a fallback note for testing.',
+      attachments: null,
       visibility: 'private',
       is_active: true,
       created_at: new Date().toISOString(),
@@ -89,60 +79,93 @@ export default function Notes() {
     },
   ];
 
-  const fallbackModules: Module[] = [
-    {
-      module_id: 1,
-      module_code: 'CS201',
-      module_name: 'Data Structures',
-      university: 'University',
-    },
-    {
-      module_id: 2,
-      module_code: 'MATH204',
-      module_name: 'Linear Algebra',
-      university: 'University',
-    },
-  ];
-
   useEffect(() => {
-    async function fetchData() {
+    async function load() {
       setLoading(true);
-      setError(null);
+      setErr(null);
       try {
-        const [modulesRes, notesRes] = await Promise.all([
-          fetch(buildApiUrl('/api/v1/modules')),
-          fetch(buildApiUrl('/api/v1/groups/notes')),
-        ]);
+        // Load groups first (for filter + create modal)
+        const myGroups = await DataService.fetchMyGroups();
+        const mapped: StudyGroup[] = myGroups.map((g: any) => ({
+          id: String(g.group_id ?? g.id),
+          name: g.group_name ?? g.name,
+          description: g.description,
+          course: g.module_name ?? g.course,
+          courseCode: g.module_code ?? g.courseCode,
+          members: g.member_count ?? g.members,
+          member_count: g.member_count ?? g.members,
+          maxMembers: g.max_members ?? g.maxMembers,
+          isPublic: !!(g.is_public ?? g.isPublic ?? true),
+          tags: Array.isArray(g.tags) ? g.tags : undefined,
+          createdBy: g.creator_name ?? g.createdBy,
+          createdById: String(g.creator_id ?? g.createdById ?? ''),
+          createdByName: g.creator_name ?? g.createdByName,
+          createdAt: g.created_at ?? g.createdAt,
+          lastActivity: g.updated_at ?? g.lastActivity,
+          group_type: g.group_type,
+          session_count: g.session_count ?? g.sessionCount,
+          isMember: g.isMember ?? true,
+          membersList: Array.isArray(g.membersList) ? g.membersList : undefined,
+          isOwner: !!g.isOwner,
+        }));
+        setGroups(mapped);
 
-        if (!modulesRes.ok || !notesRes.ok) {
-          throw new Error('Failed to fetch data');
+        // Load notes (all) to allow search + client-side group filter
+        const allNotes = await DataService.fetchNotes();
+        if (allNotes.length === 0) {
+          setNotes(fallbackNotes);
+        } else {
+          setNotes(allNotes);
         }
-
-        const [modulesData, notesData] = await Promise.all([modulesRes.json(), notesRes.json()]);
-
-        setModules(modulesData);
-        setNotes(notesData);
-      } catch (err) {
-        // setError('Failed to load notes and modules');
-        setModules(fallbackModules);
+      } catch {
+        setErr('Using demo data for preview');
+        setGroups([
+          {
+            id: '1',
+            name: 'CS Advanced Study Circle',
+            isPublic: true,
+            member_count: 12,
+            members: 12,
+            maxMembers: 15,
+            createdBy: 'Alex Johnson',
+            createdAt: new Date().toISOString(),
+            lastActivity: new Date().toISOString(),
+          },
+          {
+            id: '2',
+            name: 'Math Warriors',
+            isPublic: true,
+            member_count: 8,
+            members: 8,
+            maxMembers: 10,
+            createdBy: 'Jane Smith',
+            createdAt: new Date().toISOString(),
+            lastActivity: new Date().toISOString(),
+          },
+        ] as StudyGroup[]);
         setNotes(fallbackNotes);
       } finally {
         setLoading(false);
       }
     }
-    fetchData();
+    load();
   }, []);
 
-  const filteredNotes = notes.filter((note) => {
-    if (!note || !note.note_title || !note.note_content) return false;
-    const matchesSearch =
-      note.note_title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      note.note_content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      note.author_name?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesModule = !selectedModule || note.topic_id?.toString() === selectedModule;
-    const matchesVisibility = !visibilityFilter || note.visibility === visibilityFilter;
-    return matchesSearch && matchesModule && matchesVisibility && note.is_active;
-  });
+  const filteredNotes = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    return notes.filter((note) => {
+      if (!note || !note.note_title || !note.note_content) return false;
+      const matchesSearch =
+        !term ||
+        note.note_title.toLowerCase().includes(term) ||
+        note.note_content.toLowerCase().includes(term) ||
+        (note.author_name ?? '').toLowerCase().includes(term) ||
+        (note.group_name ?? '').toLowerCase().includes(term);
+      const matchesGroup = !selectedGroup || String(note.group_id) === selectedGroup;
+      const matchesVisibility = !visibilityFilter || note.visibility === visibilityFilter;
+      return matchesSearch && matchesGroup && matchesVisibility && note.is_active;
+    });
+  }, [notes, searchTerm, selectedGroup, visibilityFilter]);
 
   const getVisibilityIcon = (visibility: string) => {
     switch (visibility) {
@@ -161,8 +184,14 @@ export default function Notes() {
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold text-gray-900">Study Notes</h2>
-        <button className="flex items-center gap-2 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition">
+        <div className="flex items-center gap-2">
+          <StickyNote className="w-5 h-5 text-brand-600" />
+          <h2 className="text-xl font-semibold text-gray-900">Study Notes</h2>
+        </div>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition"
+        >
           <Plus className="w-4 h-4" />
           Create Note
         </button>
@@ -182,14 +211,14 @@ export default function Notes() {
         </div>
 
         <select
-          value={selectedModule}
-          onChange={(e) => setSelectedModule(e.target.value)}
+          value={selectedGroup}
+          onChange={(e) => setSelectedGroup(e.target.value)}
           className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500"
         >
-          <option value="">All Modules</option>
-          {modules.map((module) => (
-            <option key={module.module_id} value={module.module_id.toString()}>
-              {module.module_code} - {module.module_name}
+          <option value="">All Groups</option>
+          {groups.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.name}
             </option>
           ))}
         </select>
@@ -207,9 +236,9 @@ export default function Notes() {
       </div>
 
       {/* Error message */}
-      {error && (
+      {err && (
         <div className="rounded-lg bg-blue-50 text-blue-800 px-4 py-2 mb-4">
-          Using demo data for preview
+          {err}
         </div>
       )}
 
@@ -267,10 +296,19 @@ export default function Notes() {
       )}
 
       {filteredNotes.length === 0 && !loading && (
-        <div className="text-center text-gray-500 py-8">No notes found matching your criteria</div>
+        <div className="text-center text-gray-500 py-8">
+          No notes found matching your criteria
+        </div>
       )}
 
       <NoteModal note={openNote} onClose={() => setOpenNote(null)} />
+      <CreateNoteModal
+        open={showCreate}
+        groups={groups}
+        onClose={() => setShowCreate(false)}
+        onCreated={(n) => setNotes((prev) => [n, ...prev])}
+        defaultGroupId={selectedGroup || (groups[0]?.id ?? '')}
+      />
     </div>
   );
 }
@@ -289,6 +327,155 @@ function NoteModal({ note, onClose }: { note: SharedNote | null; onClose: () => 
             </button>
           </div>
           <div className="text-sm text-gray-600 whitespace-pre-wrap">{note.note_content}</div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function CreateNoteModal({
+  open,
+  groups,
+  defaultGroupId,
+  onClose,
+  onCreated,
+}: {
+  open: boolean;
+  groups: StudyGroup[];
+  defaultGroupId?: string;
+  onClose: () => void;
+  onCreated: (n: SharedNote) => void;
+}) {
+  const [groupId, setGroupId] = useState<string>(defaultGroupId ?? '');
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [visibility, setVisibility] = useState<'group' | 'public' | 'private'>('group');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    setGroupId(defaultGroupId ?? '');
+  }, [defaultGroupId]);
+
+  if (!open) return null;
+
+  const canSave = groupId && title.trim() && content.trim();
+
+  async function handleCreate() {
+    if (!canSave || saving) return;
+    setSaving(true);
+    setErr(null);
+    try {
+      const created = await DataService.createNote(groupId, {
+        note_title: title.trim(),
+        note_content: content.trim(),
+        visibility,
+      });
+      if (!created) {
+        setErr('Failed to create note');
+      } else {
+        onCreated(created);
+        onClose();
+        // reset
+        setTitle('');
+        setContent('');
+        setVisibility('group');
+      }
+    } catch {
+      setErr('Failed to create note');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-[10000]">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="absolute inset-0 grid place-items-center p-4">
+        {/* Same modal styling as group creation */}
+        <div className="w-full max-w-2xl rounded-2xl bg-white shadow-card border border-gray-100">
+          <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <StickyNote className="w-5 h-5 text-brand-600" />
+              <h3 className="text-lg font-semibold text-gray-900">Create Note</h3>
+            </div>
+            <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-50">
+              <X className="w-5 h-5 text-gray-500" />
+            </button>
+          </div>
+
+          <div className="p-6 space-y-4">
+            {err && <div className="rounded-lg bg-red-50 text-red-700 px-3 py-2">{err}</div>}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Group</label>
+                <select
+                  value={groupId}
+                  onChange={(e) => setGroupId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500"
+                >
+                  <option value="">Select a group…</option>
+                  {groups.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Visibility</label>
+                <select
+                  value={visibility}
+                  onChange={(e) => setVisibility(e.target.value as any)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500"
+                >
+                  <option value="group">Group</option>
+                  <option value="public">Public</option>
+                  <option value="private">Private</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-700 mb-1">Title</label>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g. Binary Tree Traversal"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-700 mb-1">Content</label>
+              <textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder="Write your study notes…"
+                rows={8}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+          </div>
+
+          <div className="p-6 border-t border-gray-100 flex items-center justify-end gap-2">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleCreate}
+              disabled={!canSave || saving}
+              className="px-4 py-2 rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-60"
+            >
+              {saving ? 'Saving…' : 'Create'}
+            </button>
+          </div>
         </div>
       </div>
     </div>,

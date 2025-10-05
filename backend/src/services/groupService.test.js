@@ -160,7 +160,10 @@ function bootAppWithPreset(preset) {
       const mid = lastInputs?.mid;
       return { recordset: mid === 1 ? [{ module_id: 1 }] : [] };
     }
-    if (sqlText.includes('SELECT TOP 1 m.module_id AS id') && sqlText.includes('FROM dbo.modules m')) {
+    if (
+      sqlText.includes('SELECT TOP 1 m.module_id AS id') &&
+      sqlText.includes('FROM dbo.modules m')
+    ) {
       // resolve by name/code
       const byCode = !!lastInputs?.code;
       const byName = !!lastInputs?.name;
@@ -173,7 +176,10 @@ function bootAppWithPreset(preset) {
     ) {
       return { recordset: [{ id: 3 }] };
     }
-    if (sqlText.includes('SELECT TOP 1 university AS uni') && sqlText.includes('FROM dbo.modules')) {
+    if (
+      sqlText.includes('SELECT TOP 1 university AS uni') &&
+      sqlText.includes('FROM dbo.modules')
+    ) {
       return { recordset: [{ uni: 'General' }] };
     }
 
@@ -187,7 +193,11 @@ function bootAppWithPreset(preset) {
     }
 
     // ---- GET /groups and /my-groups main SELECTs ----
-    if (sqlText.includes('FROM dbo.') && sqlText.includes('SELECT') && sqlText.includes('FROM dbo.' + SCH.groupsTable)) {
+    if (
+      sqlText.includes('FROM dbo.') &&
+      sqlText.includes('SELECT') &&
+      sqlText.includes('FROM dbo.' + SCH.groupsTable)
+    ) {
       // Return one group row; sub-selects are embedded
       return {
         recordset: [
@@ -272,7 +282,11 @@ function bootAppWithPreset(preset) {
     }
 
     // ---- /leave owner + count ----
-    if (sqlText.includes('SELECT') && sqlText.includes('FROM dbo.' + SCH.groupsTable) && sqlText.includes('memberCount')) {
+    if (
+      sqlText.includes('SELECT') &&
+      sqlText.includes('FROM dbo.' + SCH.groupsTable) &&
+      sqlText.includes('memberCount')
+    ) {
       // Determine owner + members > 1
       const memberCount = preset.leaveMembers ?? 2;
       const isOwner = preset.leaveIsOwner !== false ? 1 : 0;
@@ -283,7 +297,11 @@ function bootAppWithPreset(preset) {
     }
 
     // ---- group-scoped /sessions ----
-    if (sqlText.includes('FROM dbo.') && sqlText.includes('WHERE g.group_id = @groupId') && sqlText.includes('AS maxMembers')) {
+    if (
+      sqlText.includes('FROM dbo.') &&
+      sqlText.includes('WHERE g.group_id = @groupId') &&
+      sqlText.includes('AS maxMembers')
+    ) {
       // fetch group before creating a session
       if (preset.sessionGroupNotFound) return { recordset: [] };
       return {
@@ -318,7 +336,11 @@ function bootAppWithPreset(preset) {
     if (sqlText.includes('INSERT INTO dbo.session_attendees')) {
       return { recordset: [] };
     }
-    if (sqlText.includes('SELECT') && sqlText.includes('FROM dbo.group_members gm') && sqlText.includes('isGroupOwner')) {
+    if (
+      sqlText.includes('SELECT') &&
+      sqlText.includes('FROM dbo.group_members gm') &&
+      sqlText.includes('isGroupOwner')
+    ) {
       return { recordset: [{ isGroupOwner: 1 }] };
     }
 
@@ -554,29 +576,25 @@ describe('Group Service API', () => {
       const bad1 = await request(app).post('/groups/10/sessions').send({});
       expect(bad1.statusCode).toBe(400);
 
-      const bad2 = await request(app)
-        .post('/groups/10/sessions')
-        .send({
-          title: 'T',
-          startTime: '2025-01-10T11:00:00Z',
-          endTime: '2025-01-10T10:00:00Z',
-          location: 'L',
-        });
+      const bad2 = await request(app).post('/groups/10/sessions').send({
+        title: 'T',
+        startTime: '2025-01-10T11:00:00Z',
+        endTime: '2025-01-10T10:00:00Z',
+        location: 'L',
+      });
       expect(bad2.statusCode).toBe(400);
       expect(bad2.body.error).toMatch(/endTime must be after startTime/i);
     });
 
     test('POST /groups/:id/sessions 404 when group not found', async () => {
       const app = bootAppWithPreset({ sessionGroupNotFound: true });
-      const res = await request(app)
-        .post('/groups/999/sessions')
-        .send({
-          title: 'Study',
-          description: 'd',
-          startTime: '2025-01-10T10:00:00Z',
-          endTime: '2025-01-10T11:00:00Z',
-          location: 'Library',
-        });
+      const res = await request(app).post('/groups/999/sessions').send({
+        title: 'Study',
+        description: 'd',
+        startTime: '2025-01-10T10:00:00Z',
+        endTime: '2025-01-10T11:00:00Z',
+        location: 'Library',
+      });
       expect(res.statusCode).toBe(404);
       expect(res.body.error).toMatch(/Group not found/i);
     });
@@ -588,16 +606,14 @@ describe('Group Service API', () => {
         course_code: true,
       });
 
-      const res = await request(app)
-        .post('/groups/10/sessions')
-        .send({
-          title: 'Study',
-          description: 'd',
-          startTime: '2025-01-10T10:00:00Z',
-          endTime: '2025-01-10T11:00:00Z',
-          location: 'Library',
-          type: 'study',
-        });
+      const res = await request(app).post('/groups/10/sessions').send({
+        title: 'Study',
+        description: 'd',
+        startTime: '2025-01-10T10:00:00Z',
+        endTime: '2025-01-10T11:00:00Z',
+        location: 'Library',
+        type: 'study',
+      });
 
       expect([201, 500]).toContain(res.statusCode);
       if (res.statusCode === 201) {

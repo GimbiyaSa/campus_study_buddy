@@ -181,16 +181,14 @@ function bootApp(preset = {}) {
     ) {
       // Upsert RSVP for create/join
       if (sqlText.includes('SELECT attendance_id')) {
-        return P.joinExistingAttendance
-          ? { recordset: [{ attendance_id: 9 }] }
-          : { recordset: [] };
+        return P.joinExistingAttendance ? { recordset: [{ attendance_id: 9 }] } : { recordset: [] };
       }
       return { recordset: [] };
     }
     if (sqlText.includes('SELECT max_members AS maxParticipants FROM study_groups')) {
       return { recordset: [{ maxParticipants: P.createdMaxMembers }] };
     }
-    if (sqlText.includes('SELECT 1 AS ok') && sqlText.includes('role IN (\'admin\',\'moderator\')')) {
+    if (sqlText.includes('SELECT 1 AS ok') && sqlText.includes("role IN ('admin','moderator')")) {
       // owner/admin check after create
       return P.ownerCheck ? { recordset: [{ ok: 1 }] } : { recordset: [] };
     }
@@ -221,7 +219,10 @@ function bootApp(preset = {}) {
       if (!P.isOrganizerForUpdate) return { recordset: [] };
       return { recordset: [{ organizer_id: 'test_user', status: P.updateStatus, group_id: 5 }] };
     }
-    if (sqlText.includes('UPDATE study_sessions') && sqlText.includes('OUTPUT inserted.session_id')) {
+    if (
+      sqlText.includes('UPDATE study_sessions') &&
+      sqlText.includes('OUTPUT inserted.session_id')
+    ) {
       // update output row
       return {
         recordset: [
@@ -256,7 +257,9 @@ function bootApp(preset = {}) {
       }
       if (sqlText.includes('end')) {
         if (!P.isOrganizerForEnd) return { recordset: [] };
-        return { recordset: [{ organizer_id: 'test_user', status: P.endCurrentStatus, group_id: 5 }] };
+        return {
+          recordset: [{ organizer_id: 'test_user', status: P.endCurrentStatus, group_id: 5 }],
+        };
       }
       // cancel/delete use a slightly different SELECT with group_id, handled below
     }
@@ -275,7 +278,9 @@ function bootApp(preset = {}) {
       // cancel/delete organizer check
       if (sqlText.includes('/cancel')) {
         if (!P.isOrganizerForCancel) return { recordset: [] };
-        return { recordset: [{ organizer_id: 'test_user', status: P.cancelCurrentStatus, group_id: 5 }] };
+        return {
+          recordset: [{ organizer_id: 'test_user', status: P.cancelCurrentStatus, group_id: 5 }],
+        };
       }
       if (sqlText.includes('WHERE session_id=@sessionId')) {
         if (!P.isOrganizerForDelete) return { recordset: [] };
@@ -373,29 +378,25 @@ describe('Session Service API', () => {
     const r1 = await request(app).post('/sessions').send({});
     expect(r1.statusCode).toBe(400);
 
-    const r2 = await request(app)
-      .post('/sessions')
-      .send({
-        session_title: 'T',
-        scheduled_start: '2025-01-01T11:00:00Z',
-        scheduled_end: '2025-01-01T10:00:00Z',
-      });
+    const r2 = await request(app).post('/sessions').send({
+      session_title: 'T',
+      scheduled_start: '2025-01-01T11:00:00Z',
+      scheduled_end: '2025-01-01T10:00:00Z',
+    });
     expect(r2.statusCode).toBe(400);
     expect(r2.body.error).toMatch(/after/i);
   });
 
   test('POST /sessions creates with explicit group_id and returns enriched payload', async () => {
     const app = bootApp({ groupIdProvided: true, createdMaxMembers: 12, ownerCheck: true });
-    const res = await request(app)
-      .post('/sessions')
-      .send({
-        group_id: 5,
-        session_title: 'Planning',
-        scheduled_start: '2025-01-01T10:00:00Z',
-        scheduled_end: '2025-01-01T11:00:00Z',
-        location: 'Room 1',
-        session_type: 'study',
-      });
+    const res = await request(app).post('/sessions').send({
+      group_id: 5,
+      session_title: 'Planning',
+      scheduled_start: '2025-01-01T10:00:00Z',
+      scheduled_end: '2025-01-01T11:00:00Z',
+      location: 'Room 1',
+      session_type: 'study',
+    });
     expect([201, 500]).toContain(res.statusCode);
     if (res.statusCode === 201) {
       expect(res.body).toHaveProperty('id', '200');
@@ -407,13 +408,11 @@ describe('Session Service API', () => {
 
   test('POST /sessions without group_id uses latest active group for user; 400 if none', async () => {
     const app = bootApp({ groupIdProvided: false, activeGroupFoundForUser: false });
-    const res = await request(app)
-      .post('/sessions')
-      .send({
-        session_title: 'Adhoc',
-        scheduled_start: '2025-01-01T10:00:00Z',
-        scheduled_end: '2025-01-01T11:00:00Z',
-      });
+    const res = await request(app).post('/sessions').send({
+      session_title: 'Adhoc',
+      scheduled_start: '2025-01-01T10:00:00Z',
+      scheduled_end: '2025-01-01T11:00:00Z',
+    });
     expect(res.statusCode).toBe(400);
     expect(res.body.error).toMatch(/Provide group_id/i);
   });
@@ -421,14 +420,12 @@ describe('Session Service API', () => {
   test('POST /sessions handles DB error', async () => {
     const app = bootApp();
     mockQuery.mockRejectedValueOnce(new Error('Insert fail'));
-    const res = await request(app)
-      .post('/sessions')
-      .send({
-        group_id: 5,
-        session_title: 'X',
-        scheduled_start: '2025-01-01T10:00:00Z',
-        scheduled_end: '2025-01-01T11:00:00Z',
-      });
+    const res = await request(app).post('/sessions').send({
+      group_id: 5,
+      session_title: 'X',
+      scheduled_start: '2025-01-01T10:00:00Z',
+      scheduled_end: '2025-01-01T11:00:00Z',
+    });
     expect(res.statusCode).toBe(500);
   });
 
@@ -446,11 +443,19 @@ describe('Session Service API', () => {
   });
 
   test('POST /sessions/:id/join upserts attendance (new and existing)', async () => {
-    const app = bootApp({ joinSessionExists: true, joinSessionStatus: 'scheduled', joinExistingAttendance: false });
+    const app = bootApp({
+      joinSessionExists: true,
+      joinSessionStatus: 'scheduled',
+      joinExistingAttendance: false,
+    });
     const r1 = await request(app).post('/sessions/1/join');
     expect(r1.statusCode).toBe(200);
 
-    const app2 = bootApp({ joinSessionExists: true, joinSessionStatus: 'scheduled', joinExistingAttendance: true });
+    const app2 = bootApp({
+      joinSessionExists: true,
+      joinSessionStatus: 'scheduled',
+      joinExistingAttendance: true,
+    });
     const r2 = await request(app2).post('/sessions/2/join');
     expect(r2.statusCode).toBe(200);
   });
@@ -498,7 +503,14 @@ describe('Session Service API', () => {
     const app = bootApp({ isOrganizerForUpdate: true, updateStatus: 'scheduled' });
     const res = await request(app)
       .put('/sessions/7')
-      .send({ title: 'Updated', location: 'Hall', type: 'review', date: '2025-03-03', startTime: '12:00', endTime: '13:00' });
+      .send({
+        title: 'Updated',
+        location: 'Hall',
+        type: 'review',
+        date: '2025-03-03',
+        startTime: '12:00',
+        endTime: '13:00',
+      });
     expect(res.statusCode).toBe(200);
     expect(res.body).toHaveProperty('id', '300');
     expect(res.body.status).toBe('upcoming');

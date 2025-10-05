@@ -1,4 +1,4 @@
-// services/notificationService.js
+// backend/src/services/notificationService.js
 const express = require('express');
 const sql = require('mssql');
 const { authenticateToken } = require('../middleware/authMiddleware');
@@ -46,7 +46,9 @@ const createNotification = async (
   try {
     const pool = await getPool();
     const request = pool.request();
-    request.input('userId', sql.Int, userId);
+
+    // user_id is NVARCHAR(255) in the DB — coerce to string & bind as NVARCHAR
+    request.input('userIdVarchar', sql.NVarChar(255), String(userId));
     request.input('notificationType', sql.NVarChar(100), notificationType);
     request.input('title', sql.NVarChar(255), title);
     request.input('message', sql.NText, message);
@@ -56,7 +58,7 @@ const createNotification = async (
     const result = await request.query(`
       INSERT INTO notifications (user_id, notification_type, title, message, metadata, scheduled_for)
       OUTPUT inserted.*
-      VALUES (@userId, @notificationType, @title, @message, @metadata, @scheduledFor)
+      VALUES (@userIdVarchar, @notificationType, @title, @message, @metadata, @scheduledFor)
     `);
 
     return result.recordset[0];
@@ -90,7 +92,7 @@ const sendSessionReminders = async () => {
           SELECT 1 FROM notifications n 
           WHERE n.user_id = sa.user_id 
             AND n.notification_type = 'session_reminder'
-            AND JSON_VALUE(n.metadata, '$.session_id') = CAST(ss.session_id AS NVARCHAR)
+            AND JSON_VALUE(n.metadata, '$.session_id') = CAST(ss.session_id AS NVARCHAR(255))
             AND n.created_at > DATEADD(day, -1, GETUTCDATE())
         )
     `);
@@ -104,7 +106,7 @@ const sendSessionReminders = async () => {
       };
 
       await createNotification(
-        session.user_id,
+        String(session.user_id),
         'session_reminder',
         'Study Session Reminder',
         `Your study session "${session.session_title}" in ${
@@ -153,7 +155,7 @@ const schedule24hRemindersForSession = async (sessionId) => {
     for (const row of result.recordset) {
       try {
         await createNotification(
-          row.user_id,
+          String(row.user_id),
           'session_reminder',
           'Study Session Reminder',
           `Reminder: "${row.session_title}" in ${
@@ -181,7 +183,7 @@ const schedule24hRemindersForSession = async (sessionId) => {
   }
 };
 
-// Batch scheduler (run via worker/cron): enqueue 24h-out reminders for sessions starting ~24–25h from now
+// Batch scheduler (run via worker/cron)
 const scheduleDaily24hReminders = async () => {
   try {
     const pool = await getPool();
@@ -214,9 +216,9 @@ router.get('/', authenticateToken, async (req, res) => {
 
     const pool = await getPool();
     const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
-    request.input('limit', sql.Int, parseInt(limit));
-    request.input('offset', sql.Int, parseInt(offset));
+    request.input('userId', sql.NVarChar(255), String(req.user.id));
+    request.input('limit', sql.Int, parseInt(limit, 10));
+    request.input('offset', sql.Int, parseInt(offset, 10));
 
     let whereClause = 'WHERE n.user_id = @userId';
 
@@ -254,7 +256,7 @@ router.get('/counts', authenticateToken, async (req, res) => {
   try {
     const pool = await getPool();
     const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
+    request.input('userId', sql.NVarChar(255), String(req.user.id));
 
     const result = await request.query(`
       SELECT 
@@ -279,8 +281,8 @@ router.put('/:notificationId/read', authenticateToken, async (req, res) => {
   try {
     const pool = await getPool();
     const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
-    request.input('notificationId', sql.Int, req.params.notificationId);
+    request.input('userId', sql.NVarChar(255), String(req.user.id));
+    request.input('notificationId', sql.Int, parseInt(req.params.notificationId, 10));
 
     const result = await request.query(`
       UPDATE notifications 
@@ -308,7 +310,7 @@ router.put('/read-all', authenticateToken, async (req, res) => {
   try {
     const pool = await getPool();
     const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
+    request.input('userId', sql.NVarChar(255), String(req.user.id));
 
     const result = await request.query(`
       UPDATE notifications 
@@ -328,8 +330,8 @@ router.delete('/:notificationId', authenticateToken, async (req, res) => {
   try {
     const pool = await getPool();
     const request = pool.request();
-    request.input('userId', sql.Int, req.user.id);
-    request.input('notificationId', sql.Int, req.params.notificationId);
+    request.input('userId', sql.NVarChar(255), String(req.user.id));
+    request.input('notificationId', sql.Int, parseInt(req.params.notificationId, 10));
 
     const result = await request.query(`
       DELETE FROM notifications 
@@ -358,8 +360,8 @@ router.post('/', authenticateToken, async (req, res) => {
       });
     }
 
+    // Must match DB constraint
     const validTypes = [
-      'session_created',
       'session_reminder',
       'group_invite',
       'progress_update',
@@ -372,7 +374,7 @@ router.post('/', authenticateToken, async (req, res) => {
     }
 
     const notification = await createNotification(
-      user_id,
+      String(user_id),
       notification_type,
       title,
       message,
@@ -402,8 +404,8 @@ router.post('/group/:groupId/notify', authenticateToken, async (req, res) => {
 
     const pool = await getPool();
     const request = pool.request();
-    request.input('groupId', sql.Int, req.params.groupId);
-    request.input('userId', sql.Int, req.user.id);
+    request.input('groupId', sql.Int, parseInt(req.params.groupId, 10));
+    request.input('userId', sql.NVarChar(255), String(req.user.id));
 
     // Creators/admins only
     const permissionCheck = await request.query(`
@@ -433,7 +435,7 @@ router.post('/group/:groupId/notify', authenticateToken, async (req, res) => {
     for (const member of membersResult.recordset) {
       try {
         const notification = await createNotification(
-          member.user_id,
+          String(member.user_id),
           notification_type,
           title,
           message,

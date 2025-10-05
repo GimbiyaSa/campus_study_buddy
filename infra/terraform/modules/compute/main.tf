@@ -92,7 +92,7 @@ resource "azurerm_container_app" "api" {
 
     container {
       name   = "api"
-      image  = var.api_container_image # Use variable for flexible image source
+      image  = var.api_container_image         # Use variable for flexible image source
       cpu    = var.container_apps_cpu_limit    # 0.25 for free tier
       memory = var.container_apps_memory_limit # 0.5Gi for free tier
 
@@ -175,8 +175,8 @@ resource "azurerm_container_app" "api" {
 
   # Container registry configuration
   registry {
-    server   = azurerm_container_registry.main.login_server
-    username = azurerm_container_registry.main.admin_username
+    server               = azurerm_container_registry.main.login_server
+    username             = azurerm_container_registry.main.admin_username
     password_secret_name = "registry-password"
   }
 

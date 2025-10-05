@@ -77,7 +77,7 @@ module "compute" {
   app_service_plan_sku = var.app_service_plan_sku
 
   # CORS configuration
-  cors_origin = "https://*"  # Allow all origins for now, restrict later
+  cors_origin = "https://*" # Allow all origins for now, restrict later
 
   # Key Vault secret IDs (depends on core and communication modules)
   database_connection_secret_id   = module.core.database_connection_secret_id

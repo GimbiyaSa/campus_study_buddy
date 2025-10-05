@@ -33,7 +33,7 @@ resource "azurerm_storage_account" "main" {
   account_replication_type = var.storage_account_replication_type # LRS
 
   # Security hardening - relaxed for local development
-  allow_nested_items_to_be_public = true  # Allow public access for easier local dev
+  allow_nested_items_to_be_public = true # Allow public access for easier local dev
   shared_access_key_enabled       = true
   public_network_access_enabled   = true
 
@@ -102,7 +102,7 @@ resource "azurerm_key_vault" "main" {
 
   # Network access (public for easier local access)
   public_network_access_enabled = true
-  
+
   # Allow all Azure services to bypass network rules
   network_acls {
     default_action = "Allow"

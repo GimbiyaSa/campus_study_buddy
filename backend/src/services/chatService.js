@@ -54,6 +54,24 @@ const initializeDatabase = async () => {
 // Initialize both services
 Promise.all([initializeWebPubSub(), initializeDatabase()]).catch(console.error);
 
+// Mock messages container for testing - in production this would be Cosmos DB
+const messagesContainer = {
+  items: {
+    create: async (message) => {
+      // For now, just log the message - in production save to Cosmos DB
+      console.log('Message saved:', message);
+      return { resource: message };
+    },
+    query: (querySpec) => ({
+      fetchAll: async () => {
+        // For now, return empty messages - in production query from Cosmos DB
+        console.log('Fetching messages for query:', querySpec);
+        return { resources: [] };
+      },
+    }),
+  },
+};
+
 // Get chat connection
 router.post('/negotiate', authenticateToken, async (req, res) => {
   try {
@@ -149,7 +167,7 @@ async function verifyGroupAccess(userId, groupId) {
   // Implementation to verify user is member of the group using Azure SQL
   try {
     const request = pool.request();
-    request.input('userId', sql.NVarChar, userId);
+    request.input('userId', sql.NVarChar(255), userId);
     request.input('groupId', sql.Int, groupId);
 
     const result = await request.query(`

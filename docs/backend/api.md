@@ -111,4 +111,7 @@
 | GET | `/pending` | Get pending notifications |
 | PUT | `/mark-sent` | Mark notifications as sent |
 
-> Swagger APIs: [Study Buddy API Documentation](https://gimbiyasa.github.io/campus_study_buddy/docs/swagger/index.html)
+> **API Documentation:**
+> - 🚀 [Interactive Swagger UI](https://gimbiyasa.github.io/campus_study_buddy/docs/swagger/index.html)
+> - 📄 [Raw API Specification](https://gimbiyasa.github.io/campus_study_buddy/docs/swagger/api-spec.yaml)
+> - 🏠 [Documentation Hub](https://gimbiyasa.github.io/campus_study_buddy/docs/swagger/docs.html)

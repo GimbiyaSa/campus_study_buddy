@@ -1,18 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  Search,
-  Users,
-  Lock,
-  Globe,
-  Plus,
-  X,
-  BookOpen,
-  StickyNote,
-} from 'lucide-react';
+import { Search, Users, Lock, Globe, Plus, X, BookOpen, StickyNote } from 'lucide-react';
 import { DataService } from '../services/dataService';
 import type { SharedNote, StudyGroup } from '../services/dataService';
-
 
 export default function Notes() {
   const [notes, setNotes] = useState<SharedNote[]>([]);
@@ -236,11 +226,7 @@ export default function Notes() {
       </div>
 
       {/* Error message */}
-      {err && (
-        <div className="rounded-lg bg-blue-50 text-blue-800 px-4 py-2 mb-4">
-          {err}
-        </div>
-      )}
+      {err && <div className="rounded-lg bg-blue-50 text-blue-800 px-4 py-2 mb-4">{err}</div>}
 
       {/* Notes List */}
       {loading ? (
@@ -296,9 +282,7 @@ export default function Notes() {
       )}
 
       {filteredNotes.length === 0 && !loading && (
-        <div className="text-center text-gray-500 py-8">
-          No notes found matching your criteria
-        </div>
+        <div className="text-center text-gray-500 py-8">No notes found matching your criteria</div>
       )}
 
       <NoteModal note={openNote} onClose={() => setOpenNote(null)} />

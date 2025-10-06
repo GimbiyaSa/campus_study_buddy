@@ -111,6 +111,4 @@
 | GET | `/pending` | Get pending notifications |
 | PUT | `/mark-sent` | Mark notifications as sent |
 
-> Update when endpoints grow beyond the demo set.
-
 > Swagger APIs: https://gimbiyasa.github.io/campus_study_buddy/docs/swagger/index.html

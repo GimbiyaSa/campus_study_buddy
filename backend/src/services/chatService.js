@@ -67,9 +67,9 @@ const messagesContainer = {
         // For now, return empty messages - in production query from Cosmos DB
         console.log('Fetching messages for query:', querySpec);
         return { resources: [] };
-      }
-    })
-  }
+      },
+    }),
+  },
 };
 
 // Get chat connection

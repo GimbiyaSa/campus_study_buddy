@@ -395,7 +395,7 @@ jest.mock('mssql', () => {
           },
           {
             group_id: 'g1',
-            user_id: 'u2', 
+            user_id: 'u2',
             role: 'admin',
             status: 'active',
             joined_at: new Date('2024-01-01T00:00:00.000Z'),

@@ -492,7 +492,12 @@ export class DataService {
     const auth = Object.fromEntries(this.authHeaders().entries());
     const headers = { 'Content-Type': 'application/json', ...auth, ...(init.headers || {}) };
     // IMPORTANT: avoid 304 empty bodies; always fetch fresh
-    return this.fetchWithRetry(url, { credentials: 'include', cache: 'no-store', ...init, headers });
+    return this.fetchWithRetry(url, {
+      credentials: 'include',
+      cache: 'no-store',
+      ...init,
+      headers,
+    });
   }
 
   private static async safeJson<T = any>(res: Response, fallback: T): Promise<T> {
@@ -604,7 +609,11 @@ export class DataService {
   ): { isOwner: boolean; createdById?: string; createdByName?: string } {
     if (typeof g?.isOwner === 'boolean') {
       const extracted = this.extractOwner(g);
-      return { isOwner: g.isOwner, createdById: extracted.ownerId, createdByName: extracted.ownerName };
+      return {
+        isOwner: g.isOwner,
+        createdById: extracted.ownerId,
+        createdByName: extracted.ownerName,
+      };
     }
 
     // prefer server-provided creator id/name; DB uses creator_id
@@ -629,19 +638,24 @@ export class DataService {
       [];
 
     if (meId && ms.length) {
-      const mine = ms.find(
-        (m) =>
-          String(m?.userId ?? m?.id ?? m?.user_id ?? '') === String(meId)
-      );
+      const mine = ms.find((m) => String(m?.userId ?? m?.id ?? m?.user_id ?? '') === String(meId));
       if (mine) {
         const role = String(mine.role ?? mine.member_role ?? '').toLowerCase();
         if (role === 'admin') {
-          return { isOwner: false, createdById: ownerId ? String(ownerId) : undefined, createdByName: ownerName };
+          return {
+            isOwner: false,
+            createdById: ownerId ? String(ownerId) : undefined,
+            createdByName: ownerName,
+          };
         }
       }
     }
 
-    return { isOwner: false, createdById: ownerId ? String(ownerId) : undefined, createdByName: ownerName };
+    return {
+      isOwner: false,
+      createdById: ownerId ? String(ownerId) : undefined,
+      createdByName: ownerName,
+    };
   }
 
   /** NEW: combine compute + owner cache */
@@ -756,7 +770,9 @@ export class DataService {
       let res = await this.fetchWithRetry(url);
       // fallback to /modules if /courses missing
       if (!res.ok) {
-        const modulesUrl = buildApiUrl(`/api/v1/modules${params.toString() ? `?${params.toString()}` : ''}`);
+        const modulesUrl = buildApiUrl(
+          `/api/v1/modules${params.toString() ? `?${params.toString()}` : ''}`
+        );
         res = await this.fetchWithRetry(modulesUrl);
       }
 
@@ -1201,10 +1217,9 @@ export class DataService {
     if (moduleId == null) {
       try {
         // try courses first
-        let res = await this.request(
-          '/api/v1/courses?limit=1&sortBy=enrolled_at&sortOrder=DESC',
-          { method: 'GET' }
-        );
+        let res = await this.request('/api/v1/courses?limit=1&sortBy=enrolled_at&sortOrder=DESC', {
+          method: 'GET',
+        });
         if (!res.ok) {
           // fallback to modules
           res = await this.request('/api/v1/modules?limit=1', { method: 'GET' });
@@ -1457,12 +1472,17 @@ export class DataService {
         if (opts.offset != null) p.set('offset', String(opts.offset));
 
         let res = await this.request(
-          `/api/v1/groups/${encodeURIComponent(String(opts.groupId))}/notes${p.toString() ? `?${p.toString()}` : ''}`,
+          `/api/v1/groups/${encodeURIComponent(String(opts.groupId))}/notes${
+            p.toString() ? `?${p.toString()}` : ''
+          }`,
           { method: 'GET' }
         );
         if (!res.ok) {
           // fallback to flat endpoint with groupId
-          res = await this.request(`/api/v1/notes?groupId=${encodeURIComponent(String(opts.groupId))}`, { method: 'GET' });
+          res = await this.request(
+            `/api/v1/notes?groupId=${encodeURIComponent(String(opts.groupId))}`,
+            { method: 'GET' }
+          );
         }
         if (!res.ok) return [];
         const rows = await this.safeJson<SharedNote[]>(res, []);

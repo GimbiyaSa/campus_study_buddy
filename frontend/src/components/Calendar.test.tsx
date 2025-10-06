@@ -45,20 +45,18 @@ beforeEach(() => {
   vi.setSystemTime(FIXED_NOW);
 
   // Default payload: three on "today" (to trigger "+more") + one on another day
-  fetchSessionsMock
-    .mockReset()
-    .mockResolvedValue([
-      mk({ id: 's1', title: 'Algorithms Study Group', startTime: '10:00' }),
-      mk({ id: 's2', title: 'Database Design Workshop', startTime: '12:00' }),
-      mk({ id: 's3', title: 'Extra Session', startTime: '15:00' }),
-      mk({
-        id: 'w1',
-        title: 'Weekend Review',
-        date: '2025-10-05',
-        startTime: '09:30',
-        location: 'Hall A',
-      }),
-    ]);
+  fetchSessionsMock.mockReset().mockResolvedValue([
+    mk({ id: 's1', title: 'Algorithms Study Group', startTime: '10:00' }),
+    mk({ id: 's2', title: 'Database Design Workshop', startTime: '12:00' }),
+    mk({ id: 's3', title: 'Extra Session', startTime: '15:00' }),
+    mk({
+      id: 'w1',
+      title: 'Weekend Review',
+      date: '2025-10-05',
+      startTime: '09:30',
+      location: 'Hall A',
+    }),
+  ]);
 });
 
 afterEach(() => {

@@ -550,12 +550,6 @@ export class DataService {
     throw new Error('Should not reach here');
   }
 
-  private static jsonHeaders(): Headers {
-    const h = this.authHeaders();
-    h.set('Content-Type', 'application/json');
-    return h;
-  }
-
   // ⬇️ now consistently uses fetchWithRetry + merged headers
   private static async request(path: string, init: RequestInit = {}) {
     const url = buildApiUrl(path);

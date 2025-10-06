@@ -1303,28 +1303,6 @@ function InviteMembersModal({
     }
   }
 
-  function authHeadersJSON(): Headers {
-    const h = new Headers();
-    h.set('Content-Type', 'application/json');
-    const googleToken =
-      typeof window !== 'undefined' ? localStorage.getItem('google_id_token') : null;
-    const generalToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    const raw = googleToken || generalToken;
-    if (raw) {
-      let t = raw;
-      try {
-        const p = JSON.parse(raw);
-        if (typeof p === 'string') t = p;
-      } catch {}
-      t = t
-        .replace(/^["']|["']$/g, '')
-        .replace(/^Bearer\s+/i, '')
-        .trim();
-      if (t) h.set('Authorization', `Bearer ${t}`);
-    }
-    return h;
-  }
-
   return (
     <div className="fixed inset-0 z-[9999] grid place-items-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />

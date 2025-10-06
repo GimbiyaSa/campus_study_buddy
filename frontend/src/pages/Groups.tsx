@@ -34,6 +34,15 @@ export default function Groups() {
   const [openInvite, setOpenInvite] = useState<{ open: boolean; groupId?: string }>({
     open: false,
   });
+
+  // NEW: edit modal state
+  const [openEdit, setOpenEdit] = useState<{
+    open: boolean;
+    backendId?: string; // /api id for this group
+    groupLocalId?: number;
+    defaults?: Partial<{ name: string; description: string; maxMembers: number; isPublic: boolean }>;
+  }>({ open: false });
+
   const [connections, setConnections] = useState<StudyPartner[]>([]);
   const [connLoading, setConnLoading] = useState(false);
 
@@ -272,7 +281,7 @@ export default function Groups() {
     if (typeof g?.isOwner === 'boolean') base.isOwner = !!g.isOwner;
     if (Array.isArray(g?.members)) base.members = g.members;
 
-    // If I'm the creator, reflect membership immediately (even if server didn't supply a count yet)
+    // If I'm the creator, reflect membership immediately
     if (meId && String(createdBy || '') === String(meId)) {
       base.member_count = Math.max(1, Number(base.member_count || 0));
       setJoinedByMe((prev) =>
@@ -690,6 +699,51 @@ export default function Groups() {
     }
   };
 
+  // --- update group (API-first; optimistic update; notify; refresh) ---
+  const handleUpdateGroup = async (
+    ctx: { backendId: string; groupLocalId: number; originalName: string },
+    form: { name: string; description?: string; maxMembers?: number; isPublic?: boolean }
+  ) => {
+    // Optimistic update in the grid
+    setGroups((prev) =>
+      prev.map((g) =>
+        g.group_id === ctx.groupLocalId
+          ? {
+              ...g,
+              group_name: form.name,
+              description: form.description ?? g.description,
+              max_members:
+                typeof form.maxMembers === 'number' ? form.maxMembers : g.max_members,
+            }
+          : g
+      )
+    );
+
+    try {
+      const payload: any = { name: form.name };
+      if ('description' in form) payload.description = form.description ?? '';
+      if ('maxMembers' in form) payload.maxMembers = form.maxMembers;
+      if ('isPublic' in form) payload.isPublic = form.isPublic;
+
+      await (DataService as any).updateGroup(ctx.backendId, payload);
+
+      await notifyGroupSafe(ctx.backendId, {
+        title: 'Group updated',
+        message:
+          ctx.originalName !== form.name
+            ? `“${ctx.originalName}” was renamed to “${form.name}”.`
+            : `“${form.name}” details were updated.`,
+        metadata: { group_id: ctx.backendId },
+      });
+
+      await refreshGroups();
+    } catch (e) {
+      console.error('Update group failed', e);
+      alert('Could not update the group.');
+      await refreshGroups(); // restore authoritative state
+    }
+  };
+
   const getGroupTypeColor = (type: string) => {
     switch (type) {
       case 'exam_prep':
@@ -727,7 +781,7 @@ export default function Groups() {
     const initials = String(name)
       .trim()
       .split(/\s+/)
-      .map((n: string) => n[0])
+      .map((n) => n[0])
       .join('')
       .slice(0, 2)
       .toUpperCase();
@@ -882,40 +936,21 @@ export default function Groups() {
                         <Users className="w-4 h-4" />
                       </button>
 
-                      {/* Edit (feature-detected) */}
+                      {/* Edit (now opens the full edit modal) */}
                       {canEditGroup && (
                         <button
                           onClick={() => {
-                            const newName = window
-                              .prompt('Update group name:', group.group_name)
-                              ?.trim();
-                            if (newName && newName !== group.group_name) {
-                              (async () => {
-                                try {
-                                  await (DataService as any).updateGroup(realId, {
-                                    name: newName,
-                                    description: group.description ?? '',
-                                  });
-                                  // optimistic local update
-                                  setGroups((prev) =>
-                                    prev.map((g) =>
-                                      g.group_id === group.group_id
-                                        ? { ...g, group_name: newName }
-                                        : g
-                                    )
-                                  );
-                                  await notifyGroupSafe(realId, {
-                                    title: 'Group updated',
-                                    message: `“${group.group_name}” was renamed to “${newName}”.`,
-                                    metadata: { group_id: realId, field: 'name' },
-                                  });
-                                  await refreshGroups();
-                                } catch (e) {
-                                  console.error('Update group failed', e);
-                                  alert('Could not update the group.');
-                                }
-                              })();
-                            }
+                            setOpenEdit({
+                              open: true,
+                              backendId: realId,
+                              groupLocalId: group.group_id,
+                              defaults: {
+                                name: group.group_name,
+                                description: group.description || '',
+                                maxMembers: group.max_members ?? 8,
+                                isPublic: true, // fallback if server doesn't surface it on list
+                              },
+                            });
                           }}
                           className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
                           title="Edit group"
@@ -1034,6 +1069,25 @@ export default function Groups() {
         onSubmit={handleCreateGroup}
       />
 
+      {/* Edit Group Modal */}
+      <GroupModal
+        open={openEdit.open}
+        onClose={() => setOpenEdit({ open: false })}
+        mode="edit"
+        onSubmit={(form) => {
+          if (!openEdit.backendId || !openEdit.groupLocalId) return;
+          handleUpdateGroup(
+            {
+              backendId: openEdit.backendId,
+              groupLocalId: openEdit.groupLocalId,
+              originalName: openEdit.defaults?.name || '',
+            },
+            form
+          );
+        }}
+        defaults={openEdit.defaults}
+      />
+
       {/* Schedule Session Modal */}
       <ScheduleSessionModal
         open={openSchedule.open}
@@ -1081,6 +1135,7 @@ function GroupModal({
   onClose,
   onSubmit,
   defaults,
+  mode = 'create',
 }: {
   open: boolean;
   onClose: () => void;
@@ -1096,6 +1151,7 @@ function GroupModal({
     maxMembers: number;
     isPublic: boolean;
   }>;
+  mode?: 'create' | 'edit';
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
@@ -1168,9 +1224,13 @@ function GroupModal({
           <div className="flex items-start justify-between mb-6">
             <div>
               <h2 id={titleId} className="text-lg font-semibold text-slate-900">
-                Create new group
+                {mode === 'edit' ? 'Edit group' : 'Create new group'}
               </h2>
-              <p className="text-sm text-slate-600">Organize a study group with your peers</p>
+              <p className="text-sm text-slate-600">
+                {mode === 'edit'
+                  ? 'Update details for your study group'
+                  : 'Organize a study group with your peers'}
+              </p>
             </div>
             <button
               ref={closeBtnRef}
@@ -1252,7 +1312,7 @@ function GroupModal({
                 type="submit"
                 className="rounded-xl bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
               >
-                Create group
+                {mode === 'edit' ? 'Save changes' : 'Create group'}
               </button>
             </div>
           </form>

@@ -646,14 +646,38 @@ router.post('/', authenticateToken, async (req, res) => {
     const cols = [gc.nameCol, 'created_at'];
     const vals = ['@name', 'SYSUTCDATETIME()'];
 
-    if (gc.descriptionCol) { cols.push(gc.descriptionCol); vals.push('@description'); }
-    if (gc.max_members)   { cols.push('max_members');      vals.push('@maxMembers'); }
-    if (gc.is_public)     { cols.push('is_public');        vals.push('@isPublic'); }
-    if (gc.course)        { cols.push('course');           vals.push('@course'); }
-    if (gc.course_code)   { cols.push('course_code');      vals.push('@courseCode'); }
-    if (gc.last_activity) { cols.push('last_activity');    vals.push('SYSUTCDATETIME()'); }
-    if (gc.creator_id)    { cols.push('creator_id');       vals.push('@creatorId'); }
-    if (gc.module_id && finalModuleId != null) { cols.push('module_id'); vals.push('@moduleId'); }
+    if (gc.descriptionCol) {
+      cols.push(gc.descriptionCol);
+      vals.push('@description');
+    }
+    if (gc.max_members) {
+      cols.push('max_members');
+      vals.push('@maxMembers');
+    }
+    if (gc.is_public) {
+      cols.push('is_public');
+      vals.push('@isPublic');
+    }
+    if (gc.course) {
+      cols.push('course');
+      vals.push('@course');
+    }
+    if (gc.course_code) {
+      cols.push('course_code');
+      vals.push('@courseCode');
+    }
+    if (gc.last_activity) {
+      cols.push('last_activity');
+      vals.push('SYSUTCDATETIME()');
+    }
+    if (gc.creator_id) {
+      cols.push('creator_id');
+      vals.push('@creatorId');
+    }
+    if (gc.module_id && finalModuleId != null) {
+      cols.push('module_id');
+      vals.push('@moduleId');
+    }
 
     const r = new sql.Request(tx);
     r.input('name', sql.NVarChar(255), name.trim());
@@ -679,8 +703,13 @@ router.post('/', authenticateToken, async (req, res) => {
 
     const mmCols = ['group_id', 'user_id'];
     const mmVals = ['@groupId', '@userId'];
-    if (schema.membersCols.joined_at) { mmCols.push('joined_at'); mmVals.push('SYSUTCDATETIME()'); }
-    else if (schema.membersCols.created_at) { mmCols.push('created_at'); mmVals.push('SYSUTCDATETIME()'); }
+    if (schema.membersCols.joined_at) {
+      mmCols.push('joined_at');
+      mmVals.push('SYSUTCDATETIME()');
+    } else if (schema.membersCols.created_at) {
+      mmCols.push('created_at');
+      mmVals.push('SYSUTCDATETIME()');
+    }
 
     if (schema.membersCols.role) {
       const allowed = await detectAllowedMemberRoles();
@@ -718,7 +747,9 @@ router.post('/', authenticateToken, async (req, res) => {
       lastActivity: gc.last_activity ? created.last_activity : created.created_at,
     });
   } catch (err) {
-    try { await tx.rollback(); } catch {}
+    try {
+      await tx.rollback();
+    } catch {}
     console.error('POST /groups error:', err);
     res.status(500).json({ error: 'Failed to create group' });
   }
@@ -772,7 +803,9 @@ router.delete('/:groupId', authenticateToken, async (req, res) => {
     await tx.commit();
     res.status(204).end();
   } catch (err) {
-    try { await tx.rollback(); } catch {}
+    try {
+      await tx.rollback();
+    } catch {}
     console.error('DELETE /groups/:groupId error:', err);
     res.status(500).json({ error: 'Failed to delete group' });
   }
@@ -812,9 +845,11 @@ router.post('/:groupId/join', authenticateToken, async (req, res) => {
     const mmCols = ['group_id', 'user_id'];
     const mmVals = ['@groupId', '@userId'];
     if (schema.membersCols.joined_at) {
-      mmCols.push('joined_at'); mmVals.push('SYSUTCDATETIME()');
+      mmCols.push('joined_at');
+      mmVals.push('SYSUTCDATETIME()');
     } else if (schema.membersCols.created_at) {
-      mmCols.push('created_at'); mmVals.push('SYSUTCDATETIME()');
+      mmCols.push('created_at');
+      mmVals.push('SYSUTCDATETIME()');
     }
 
     await r.query(`
@@ -1002,7 +1037,9 @@ router.post('/:groupId/leave', authenticateToken, async (req, res) => {
       DELETE FROM dbo.group_members WHERE group_id = @groupId AND user_id = @userId;
       ${
         schema.groupsCols.last_activity
-          ? `UPDATE ${tbl('groups')} SET last_activity = SYSUTCDATETIME() WHERE group_id = @groupId;`
+          ? `UPDATE ${tbl(
+              'groups'
+            )} SET last_activity = SYSUTCDATETIME() WHERE group_id = @groupId;`
           : ''
       }
     `);

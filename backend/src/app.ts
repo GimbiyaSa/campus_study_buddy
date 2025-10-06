@@ -128,9 +128,9 @@ app.use('/api/v1/chat', chatService);
 app.use('/api/v1/courses', courseService);
 app.use('/api/v1/modules', moduleService);
 app.use('/api/v1/sessions', sessionService);
-app.use('/api/v1/notes', notesService);     // flat CRUD
+app.use('/api/v1/notes', notesService); // flat CRUD
 app.use('/api/v1/shared-notes', notesService); // alias for frontend fallback
-app.use('/api/v1/groups', notesService);    // group-scoped /:groupId/notes
+app.use('/api/v1/groups', notesService); // group-scoped /:groupId/notes
 
 // Aliases (router-level logic determines "me" semantics)
 app.use('/api/v1/users/me/notifications', notificationService);

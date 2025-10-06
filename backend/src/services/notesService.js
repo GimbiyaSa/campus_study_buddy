@@ -165,7 +165,11 @@ router.get('/', authenticateToken, async (req, res) => {
         n.note_title,
         n.note_content,
         ${schema.notesCols.attachments ? 'n.attachments' : 'NULL AS attachments'},
-        ${schema.notesCols.visibility ? 'n.visibility' : "CAST('group' AS NVARCHAR(50)) AS visibility"},
+        ${
+          schema.notesCols.visibility
+            ? 'n.visibility'
+            : "CAST('group' AS NVARCHAR(50)) AS visibility"
+        },
         ${schema.notesCols.is_active ? 'n.is_active' : 'CAST(1 AS bit) AS is_active'},
         n.created_at,
         n.updated_at,
@@ -219,7 +223,8 @@ router.post('/', authenticateToken, async (req, res) => {
     let { visibility = 'group', topic_id = null, attachments = null } = req.body;
 
     const groupIdNum = Number(group_id);
-    if (Number.isNaN(groupIdNum)) return res.status(400).json({ error: 'Valid group_id is required' });
+    if (Number.isNaN(groupIdNum))
+      return res.status(400).json({ error: 'Valid group_id is required' });
     if (!note_title || !note_content) {
       return res.status(400).json({ error: 'note_title and note_content are required' });
     }
@@ -239,14 +244,44 @@ router.post('/', authenticateToken, async (req, res) => {
     if (schema.notesCols.topic_id)
       r.input('topic', sql.Int, topic_id == null ? null : Number(topic_id));
     if (schema.notesCols.attachments)
-      r.input('att', sql.NVarChar(sql.MAX), attachments == null ? null : JSON.stringify(attachments));
+      r.input(
+        'att',
+        sql.NVarChar(sql.MAX),
+        attachments == null ? null : JSON.stringify(attachments)
+      );
 
-    const cols = ['group_id', 'author_id', 'note_title', 'note_content', 'created_at', 'updated_at'];
-    const vals = ['@groupId', '@authorId', '@title', '@content', 'SYSUTCDATETIME()', 'SYSUTCDATETIME()'];
-    if (schema.notesCols.visibility) { cols.push('visibility'); vals.push('@vis'); }
-    if (schema.notesCols.topic_id)   { cols.push('topic_id');  vals.push('@topic'); }
-    if (schema.notesCols.attachments){ cols.push('attachments'); vals.push('@att'); }
-    if (schema.notesCols.is_active)  { cols.push('is_active');  vals.push('1'); }
+    const cols = [
+      'group_id',
+      'author_id',
+      'note_title',
+      'note_content',
+      'created_at',
+      'updated_at',
+    ];
+    const vals = [
+      '@groupId',
+      '@authorId',
+      '@title',
+      '@content',
+      'SYSUTCDATETIME()',
+      'SYSUTCDATETIME()',
+    ];
+    if (schema.notesCols.visibility) {
+      cols.push('visibility');
+      vals.push('@vis');
+    }
+    if (schema.notesCols.topic_id) {
+      cols.push('topic_id');
+      vals.push('@topic');
+    }
+    if (schema.notesCols.attachments) {
+      cols.push('attachments');
+      vals.push('@att');
+    }
+    if (schema.notesCols.is_active) {
+      cols.push('is_active');
+      vals.push('1');
+    }
 
     const ins = await r.query(`
       INSERT INTO ${tbl('notes')} (${cols.join(', ')})
@@ -258,7 +293,11 @@ router.post('/', authenticateToken, async (req, res) => {
         inserted.note_title,
         inserted.note_content,
         ${schema.notesCols.attachments ? 'inserted.attachments' : 'NULL AS attachments'},
-        ${schema.notesCols.visibility ? 'inserted.visibility' : "CAST('group' AS NVARCHAR(50)) AS visibility"},
+        ${
+          schema.notesCols.visibility
+            ? 'inserted.visibility'
+            : "CAST('group' AS NVARCHAR(50)) AS visibility"
+        },
         ${schema.notesCols.is_active ? 'inserted.is_active' : 'CAST(1 AS bit) AS is_active'},
         inserted.created_at,
         inserted.updated_at
@@ -329,7 +368,11 @@ router.patch('/:noteId', authenticateToken, async (req, res) => {
     }
     if (schema.notesCols.attachments && attachments !== undefined) {
       sets.push('attachments = @att');
-      r.input('att', sql.NVarChar(sql.MAX), attachments == null ? null : JSON.stringify(attachments));
+      r.input(
+        'att',
+        sql.NVarChar(sql.MAX),
+        attachments == null ? null : JSON.stringify(attachments)
+      );
     }
     if (schema.notesCols.is_active && is_active !== undefined) {
       sets.push('is_active = @active');
@@ -353,7 +396,11 @@ router.patch('/:noteId', authenticateToken, async (req, res) => {
         n.note_title,
         n.note_content,
         ${schema.notesCols.attachments ? 'n.attachments' : 'NULL AS attachments'},
-        ${schema.notesCols.visibility ? 'n.visibility' : "CAST('group' AS NVARCHAR(50)) AS visibility"},
+        ${
+          schema.notesCols.visibility
+            ? 'n.visibility'
+            : "CAST('group' AS NVARCHAR(50)) AS visibility"
+        },
         ${schema.notesCols.is_active ? 'n.is_active' : 'CAST(1 AS bit) AS is_active'},
         n.created_at,
         n.updated_at,
@@ -440,13 +487,16 @@ router.get('/:groupId/notes', authenticateToken, async (req, res) => {
     const lim = Number(limit) > 0 ? Math.min(Number(limit), 100) : 50;
     const off = Number(offset) > 0 ? Number(offset) : 0;
 
-    const gq = await pool.request().input('gid', sql.Int, groupId)
+    const gq = await pool
+      .request()
+      .input('gid', sql.Int, groupId)
       .query(`SELECT 1 FROM ${tbl('groups')} WHERE group_id = @gid`);
     if (!gq.recordset.length) return res.status(404).json({ error: 'Group not found' });
 
     const r = pool.request();
     r.input('groupId', sql.Int, groupId);
-    if (visibility && schema.notesCols.visibility) r.input('vis', sql.NVarChar(50), String(visibility));
+    if (visibility && schema.notesCols.visibility)
+      r.input('vis', sql.NVarChar(50), String(visibility));
     if (search) r.input('q', sql.NVarChar(4000), `%${String(search).toLowerCase()}%`);
     r.input('lim', sql.Int, lim);
     r.input('off', sql.Int, off);
@@ -471,7 +521,11 @@ router.get('/:groupId/notes', authenticateToken, async (req, res) => {
         n.note_title,
         n.note_content,
         ${schema.notesCols.attachments ? 'n.attachments' : 'NULL AS attachments'},
-        ${schema.notesCols.visibility ? 'n.visibility' : "CAST('group' AS NVARCHAR(50)) AS visibility"},
+        ${
+          schema.notesCols.visibility
+            ? 'n.visibility'
+            : "CAST('group' AS NVARCHAR(50)) AS visibility"
+        },
         ${schema.notesCols.is_active ? 'n.is_active' : 'CAST(1 AS bit) AS is_active'},
         n.created_at,
         n.updated_at,
@@ -488,22 +542,24 @@ router.get('/:groupId/notes', authenticateToken, async (req, res) => {
     `;
 
     const { recordset } = await r.query(q);
-    res.json(recordset.map((row) => ({
-      note_id: row.note_id,
-      group_id: row.group_id,
-      author_id: row.author_id,
-      topic_id: row.topic_id,
-      note_title: row.note_title,
-      note_content: row.note_content,
-      attachments: row.attachments,
-      visibility: row.visibility,
-      is_active: !!row.is_active,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-      author_name: row.author_name || null,
-      group_name: row.group_name || null,
-      topic_name: row.topic_name || null,
-    })));
+    res.json(
+      recordset.map((row) => ({
+        note_id: row.note_id,
+        group_id: row.group_id,
+        author_id: row.author_id,
+        topic_id: row.topic_id,
+        note_title: row.note_title,
+        note_content: row.note_content,
+        attachments: row.attachments,
+        visibility: row.visibility,
+        is_active: !!row.is_active,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        author_name: row.author_name || null,
+        group_name: row.group_name || null,
+        topic_name: row.topic_name || null,
+      }))
+    );
   } catch (err) {
     console.error('GET /groups/:groupId/notes (via notesService) error:', err);
     res.status(500).json({ error: 'Failed to fetch notes' });
@@ -528,7 +584,9 @@ router.post('/:groupId/notes', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'note_title and note_content are required' });
     }
 
-    const gq = await pool.request().input('gid', sql.Int, groupId)
+    const gq = await pool
+      .request()
+      .input('gid', sql.Int, groupId)
       .query(`SELECT 1 FROM ${tbl('groups')} WHERE group_id = @gid`);
     if (!gq.recordset.length) return res.status(404).json({ error: 'Group not found' });
 
@@ -537,16 +595,48 @@ router.post('/:groupId/notes', authenticateToken, async (req, res) => {
     r.input('authorId', sql.NVarChar(255), req.user.id);
     r.input('title', sql.NVarChar(255), String(note_title).trim());
     r.input('content', sql.NVarChar(sql.MAX), String(note_content));
-    if (schema.notesCols.visibility)  r.input('vis', sql.NVarChar(50), String(visibility));
-    if (schema.notesCols.topic_id)    r.input('topic', sql.Int, topic_id == null ? null : Number(topic_id));
-    if (schema.notesCols.attachments) r.input('att', sql.NVarChar(sql.MAX), attachments == null ? null : JSON.stringify(attachments));
+    if (schema.notesCols.visibility) r.input('vis', sql.NVarChar(50), String(visibility));
+    if (schema.notesCols.topic_id)
+      r.input('topic', sql.Int, topic_id == null ? null : Number(topic_id));
+    if (schema.notesCols.attachments)
+      r.input(
+        'att',
+        sql.NVarChar(sql.MAX),
+        attachments == null ? null : JSON.stringify(attachments)
+      );
 
-    const cols = ['group_id', 'author_id', 'note_title', 'note_content', 'created_at', 'updated_at'];
-    const vals = ['@groupId', '@authorId', '@title', '@content', 'SYSUTCDATETIME()', 'SYSUTCDATETIME()'];
-    if (schema.notesCols.visibility)  { cols.push('visibility');  vals.push('@vis'); }
-    if (schema.notesCols.topic_id)    { cols.push('topic_id');    vals.push('@topic'); }
-    if (schema.notesCols.attachments) { cols.push('attachments'); vals.push('@att');  }
-    if (schema.notesCols.is_active)   { cols.push('is_active');   vals.push('1');     }
+    const cols = [
+      'group_id',
+      'author_id',
+      'note_title',
+      'note_content',
+      'created_at',
+      'updated_at',
+    ];
+    const vals = [
+      '@groupId',
+      '@authorId',
+      '@title',
+      '@content',
+      'SYSUTCDATETIME()',
+      'SYSUTCDATETIME()',
+    ];
+    if (schema.notesCols.visibility) {
+      cols.push('visibility');
+      vals.push('@vis');
+    }
+    if (schema.notesCols.topic_id) {
+      cols.push('topic_id');
+      vals.push('@topic');
+    }
+    if (schema.notesCols.attachments) {
+      cols.push('attachments');
+      vals.push('@att');
+    }
+    if (schema.notesCols.is_active) {
+      cols.push('is_active');
+      vals.push('1');
+    }
 
     const ins = await r.query(`
       INSERT INTO ${tbl('notes')} (${cols.join(', ')})
@@ -558,8 +648,12 @@ router.post('/:groupId/notes', authenticateToken, async (req, res) => {
         inserted.note_title,
         inserted.note_content,
         ${schema.notesCols.attachments ? 'inserted.attachments' : 'NULL AS attachments'},
-        ${schema.notesCols.visibility  ? 'inserted.visibility'  : "CAST('group' AS NVARCHAR(50)) AS visibility"},
-        ${schema.notesCols.is_active   ? 'inserted.is_active'   : 'CAST(1 AS bit) AS is_active'},
+        ${
+          schema.notesCols.visibility
+            ? 'inserted.visibility'
+            : "CAST('group' AS NVARCHAR(50)) AS visibility"
+        },
+        ${schema.notesCols.is_active ? 'inserted.is_active' : 'CAST(1 AS bit) AS is_active'},
         inserted.created_at,
         inserted.updated_at
       VALUES (${vals.join(', ')});  
@@ -567,10 +661,10 @@ router.post('/:groupId/notes', authenticateToken, async (req, res) => {
 
     const row = ins.recordset[0];
 
-    const meta = await pool.request()
+    const meta = await pool
+      .request()
       .input('aid', sql.NVarChar(255), row.author_id)
-      .input('gid', sql.Int, row.group_id)
-      .query(`
+      .input('gid', sql.Int, row.group_id).query(`
         SELECT
           COALESCE(u.first_name + ' ' + u.last_name, u.email) AS author_name,
           ${schema.groupCols.nameCol ? `g.${schema.groupCols.nameCol}` : 'NULL'} AS group_name
@@ -579,7 +673,7 @@ router.post('/:groupId/notes', authenticateToken, async (req, res) => {
       `);
 
     const author_name = meta.recordset[0]?.author_name || null;
-    const group_name  = meta.recordset[0]?.group_name  || null;
+    const group_name = meta.recordset[0]?.group_name || null;
 
     res.status(201).json({
       ...row,

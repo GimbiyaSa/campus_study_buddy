@@ -289,18 +289,16 @@ describe('Module Service API', () => {
     });
 
     test('creates module without description', async () => {
-      mockQuery
-        .mockResolvedValueOnce({ recordset: [] })
-        .mockResolvedValueOnce({
-          recordset: [
-            {
-              module_id: 1,
-              module_code: 'CS102',
-              module_name: 'Module 2',
-              university: 'Test University',
-            },
-          ],
-        });
+      mockQuery.mockResolvedValueOnce({ recordset: [] }).mockResolvedValueOnce({
+        recordset: [
+          {
+            module_id: 1,
+            module_code: 'CS102',
+            module_name: 'Module 2',
+            university: 'Test University',
+          },
+        ],
+      });
 
       const res = await request(app)
         .post('/modules')
@@ -367,19 +365,17 @@ describe('Module Service API', () => {
 
   describe('POST /modules/:moduleId/topics', () => {
     test('creates new topic successfully', async () => {
-      mockQuery
-        .mockResolvedValueOnce({ recordset: [] })
-        .mockResolvedValueOnce({
-          recordset: [
-            {
-              topic_id: 1,
-              module_id: 1,
-              topic_name: 'New Topic',
-              description: 'Topic description',
-              order_sequence: 1,
-            },
-          ],
-        });
+      mockQuery.mockResolvedValueOnce({ recordset: [] }).mockResolvedValueOnce({
+        recordset: [
+          {
+            topic_id: 1,
+            module_id: 1,
+            topic_name: 'New Topic',
+            description: 'Topic description',
+            order_sequence: 1,
+          },
+        ],
+      });
 
       const res = await request(app)
         .post('/modules/1/topics')
@@ -403,11 +399,9 @@ describe('Module Service API', () => {
     });
 
     test('creates topic with minimal data', async () => {
-      mockQuery
-        .mockResolvedValueOnce({ recordset: [] })
-        .mockResolvedValueOnce({
-          recordset: [{ topic_id: 1, module_id: 1, topic_name: 'Minimal Topic' }],
-        });
+      mockQuery.mockResolvedValueOnce({ recordset: [] }).mockResolvedValueOnce({
+        recordset: [{ topic_id: 1, module_id: 1, topic_name: 'Minimal Topic' }],
+      });
 
       const res = await request(app)
         .post('/modules/1/topics')
@@ -450,20 +444,18 @@ describe('Module Service API', () => {
 
   describe('POST /modules/topics/:topicId/chapters', () => {
     test('creates new chapter successfully', async () => {
-      mockQuery
-        .mockResolvedValueOnce({ recordset: [] })
-        .mockResolvedValueOnce({
-          recordset: [
-            {
-              chapter_id: 1,
-              topic_id: 1,
-              chapter_name: 'New Chapter',
-              description: 'Chapter description',
-              order_sequence: 1,
-              content_summary: 'Summary',
-            },
-          ],
-        });
+      mockQuery.mockResolvedValueOnce({ recordset: [] }).mockResolvedValueOnce({
+        recordset: [
+          {
+            chapter_id: 1,
+            topic_id: 1,
+            chapter_name: 'New Chapter',
+            description: 'Chapter description',
+            order_sequence: 1,
+            content_summary: 'Summary',
+          },
+        ],
+      });
 
       const res = await request(app)
         .post('/modules/topics/1/chapters')
@@ -489,11 +481,9 @@ describe('Module Service API', () => {
     });
 
     test('creates chapter with minimal data', async () => {
-      mockQuery
-        .mockResolvedValueOnce({ recordset: [] })
-        .mockResolvedValueOnce({
-          recordset: [{ chapter_id: 1, topic_id: 1, chapter_name: 'Minimal Chapter' }],
-        });
+      mockQuery.mockResolvedValueOnce({ recordset: [] }).mockResolvedValueOnce({
+        recordset: [{ chapter_id: 1, topic_id: 1, chapter_name: 'Minimal Chapter' }],
+      });
 
       const res = await request(app)
         .post('/modules/topics/1/chapters')

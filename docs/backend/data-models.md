@@ -1,6 +1,6 @@
 # Data Models
 
-### User (example)
+### ERD
 ```
 <div style="text-align: center; margin: 20px 0;">
   <svg id="export-svg" width="100%" xmlns="http://www.w3.org/2000/svg" class="erDiagram" style="max-width: 3797.75390625px;" viewBox="0 0 3797.75390625 2425.75" role="graphics-document document" aria-roledescription="er"><style xmlns="http://www.w3.org/1999/xhtml">/* Google Inc.

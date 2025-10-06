@@ -29,7 +29,7 @@
     <script>
         window.onload = function() {
             const ui = SwaggerUIBundle({
-                url: './api-spec.yaml',
+                url: 'https://gimbiyasa.github.io/campus_study_buddy/swagger/api-spec.yaml',
                 dom_id: '#swagger-ui',
                 deepLinking: true,
                 presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
@@ -43,7 +43,7 @@
                         '<div style="padding: 2rem; text-align: center;">' +
                         '<h2>⚠️ API Documentation Loading Error</h2>' +
                         '<p>Unable to load the API specification. Please check the console for details.</p>' +
-                        '<p><strong>Fallback:</strong> <a href="./api-spec.yaml" target="_blank">View Raw API Spec</a></p>' +
+                        '<p><strong>Fallback:</strong> <a href="https://gimbiyasa.github.io/campus_study_buddy/swagger/api-spec.yaml" target="_blank">View Raw API Spec</a></p>' +
                         '</div>';
                 }
             });

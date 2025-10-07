@@ -94,7 +94,7 @@ jobs:
               az webapp config set \
                 --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
                 --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-                --startup-file "pm2 serve /home/site/wwwroot 5173 --spa"
+                --startup-file "pm2 serve /home/site/wwwroot 5173 --spa --no-daemon"
               az webapp config appsettings set \
                 --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
                 --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \

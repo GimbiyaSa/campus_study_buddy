@@ -180,6 +180,44 @@ function groupsOrderBy(alias = 'g') {
   return `ORDER BY ${alias}.created_at DESC`;
 }
 
+// helper: build a consistent SELECT projection for group rows (id, name, description, etc.)
+function buildGroupSelectPieces(gc, alias = 'g') {
+  return [
+    `${alias}.group_id AS id`,
+    gc.nameCol ? `${alias}.${gc.nameCol} AS name` : `NULL AS name`,
+    gc.descriptionCol ? `${alias}.${gc.descriptionCol} AS description` : `NULL AS description`,
+    gc.course ? `${alias}.course` : 'NULL AS course',
+    gc.course_code ? `${alias}.course_code AS courseCode` : 'NULL AS courseCode',
+    gc.max_members ? `${alias}.max_members AS maxMembers` : 'NULL AS maxMembers',
+    gc.is_public ? `${alias}.is_public AS isPublic` : 'CAST(1 AS bit) AS isPublic',
+    `${alias}.created_at AS createdAt`,
+    gc.last_activity ? `${alias}.last_activity AS lastActivity` : `${alias}.created_at AS lastActivity`,
+    gc.creator_id ? `${alias}.creator_id AS createdBy` : 'NULL AS createdBy',
+    `(SELECT COUNT(*) FROM dbo.group_members gm WHERE gm.group_id = ${alias}.group_id) AS memberCount`,
+  ];
+}
+
+// helper: permission check for editing a group (owner or elevated member)
+async function canEditGroup(groupId, userId) {
+  const g = schema.tables.groups;
+  const q = await pool
+    .request()
+    .input('groupId', sql.Int, groupId)
+    .input('userId', sql.NVarChar(255), userId)
+    .query(`
+      SELECT TOP 1 1 AS ok
+      FROM dbo.${g} gx
+      WHERE gx.group_id=@groupId ${schema.groupsCols.creator_id ? 'AND gx.creator_id=@userId' : 'AND 1=0'}
+      UNION ALL
+      SELECT TOP 1 1
+      FROM dbo.group_members gm
+      WHERE gm.group_id=@groupId
+        ${schema.membersCols.role ? "AND gm.role IN ('owner','admin','moderator')" : ''}
+        AND gm.user_id=@userId
+    `);
+  return !!q.recordset.length;
+}
+
 // Utility: pick a fallback module_id from existing rows if needed
 async function pickFallbackModuleId() {
   const g = schema.tables.groups;
@@ -520,7 +558,7 @@ router.get('/my-groups', authenticateToken, async (req, res) => {
       gc.nameCol ? `g.${gc.nameCol} AS name` : `NULL AS name`,
       gc.descriptionCol ? `g.${gc.descriptionCol} AS description` : `NULL AS description`,
       gc.course ? 'g.course' : 'NULL AS course',
-      gc.course_code ? 'g.course_code' : 'NULL AS courseCode',
+      gc.course_code ? 'g.course_code AS courseCode' : 'NULL AS courseCode',
       gc.max_members ? 'g.max_members AS maxMembers' : 'NULL AS maxMembers',
       gc.is_public ? 'g.is_public AS isPublic' : 'CAST(1 AS bit) AS isPublic',
       'g.created_at AS createdAt',
@@ -577,6 +615,47 @@ router.get('/:groupId/members', authenticateToken, async (req, res) => {
     `);
 
   res.json(q.recordset);
+});
+
+// ---------- (NEW) GET /groups/:groupId ----------
+router.get('/:groupId', authenticateToken, async (req, res) => {
+  try {
+    await getPool();
+    const groupId = Number(req.params.groupId);
+    if (Number.isNaN(groupId)) return res.status(400).json({ error: 'Invalid group id' });
+
+    const g = schema.tables.groups;
+    const gc = schema.groupsCols;
+
+    const { recordset } = await pool
+      .request()
+      .input('groupId', sql.Int, groupId)
+      .query(`
+        SELECT ${buildGroupSelectPieces(gc, 'g').join(', ')}
+        FROM dbo.${g} g
+        WHERE g.group_id=@groupId
+      `);
+
+    if (!recordset.length) return res.status(404).json({ error: 'Group not found' });
+
+    const x = recordset[0];
+    res.json({
+      id: String(x.id),
+      name: x.name,
+      description: x.description,
+      course: x.course ?? null,
+      courseCode: x.courseCode ?? null,
+      maxMembers: x.maxMembers ?? null,
+      isPublic: !!x.isPublic,
+      createdBy: x.createdBy ?? null,
+      createdAt: x.createdAt,
+      lastActivity: x.lastActivity,
+      member_count: x.memberCount,
+    });
+  } catch (err) {
+    console.error('GET /groups/:groupId error:', err);
+    res.status(500).json({ error: 'Failed to fetch group' });
+  }
 });
 
 // ---------- POST /groups (create) ----------
@@ -755,6 +834,79 @@ router.post('/', authenticateToken, async (req, res) => {
   }
 });
 
+// ---------- (NEW) PATCH/PUT /groups/:groupId ----------
+async function updateGroupHandler(req, res) {
+  try {
+    await getPool();
+    const groupId = Number(req.params.groupId);
+    if (Number.isNaN(groupId)) return res.status(400).json({ error: 'Invalid group id' });
+
+    const allowed = await canEditGroup(groupId, req.user.id);
+    if (!allowed) {
+      return res.status(403).json({ error: 'Only the owner/admin can update this group' });
+    }
+
+    const g = schema.tables.groups;
+    const gc = schema.groupsCols;
+
+    const r = pool.request().input('groupId', sql.Int, groupId);
+
+    const sets = [];
+    const { name, description } = req.body;
+    const maxMembers = req.body.maxMembers ?? req.body.max_members;
+
+    if (gc.nameCol && typeof name === 'string') {
+      r.input('name', sql.NVarChar(255), name.trim());
+      sets.push(`g.${gc.nameCol}=@name`);
+    }
+    if (gc.descriptionCol && (description === null || typeof description === 'string')) {
+      r.input('description', sql.NVarChar(sql.MAX), description ?? null);
+      sets.push(`g.${gc.descriptionCol}=@description`);
+    }
+    if (gc.max_members && Number.isFinite(Number(maxMembers))) {
+      r.input('maxMembers', sql.Int, Number(maxMembers));
+      sets.push(`g.max_members=@maxMembers`);
+    }
+
+    if (!sets.length) return res.status(400).json({ error: 'No updatable fields provided' });
+    if (gc.last_activity) sets.push(`g.last_activity = SYSUTCDATETIME()`);
+
+    const upd = await r.query(`
+      UPDATE g
+      SET ${sets.join(', ')}
+      FROM dbo.${g} AS g
+      WHERE g.group_id=@groupId;
+
+      SELECT ${buildGroupSelectPieces(gc, 'g').join(', ')}
+      FROM dbo.${g} AS g
+      WHERE g.group_id=@groupId;
+    `);
+
+    const row = upd.recordset[0];
+    if (!row) return res.status(404).json({ error: 'Group not found' });
+
+    res.json({
+      id: String(row.id),
+      name: row.name,
+      description: row.description,
+      course: row.course ?? null,
+      courseCode: row.courseCode ?? null,
+      maxMembers: row.maxMembers ?? null,
+      isPublic: !!row.isPublic,
+      createdBy: row.createdBy ?? null,
+      createdAt: row.createdAt,
+      lastActivity: row.lastActivity,
+      member_count: row.memberCount,
+    });
+  } catch (err) {
+    console.error('PATCH/PUT /groups/:groupId error:', err);
+    res.status(500).json({ error: 'Failed to update group' });
+  }
+}
+
+router.patch('/:groupId', authenticateToken, updateGroupHandler);
+router.put('/:groupId', authenticateToken, updateGroupHandler);
+
 // ---------- DELETE /groups/:groupId ----------
 router.delete('/:groupId', authenticateToken, async (req, res) => {
   const groupId = Number(req.params.groupId);
@@ -908,21 +1060,27 @@ async function handleInvite(req, res) {
       return res.status(404).json({ error: 'Group not found' });
     }
 
-    // Must be owner/admin/moderator
-    const authReq = pool.request();
-    authReq.input('groupId', sql.Int, groupId);
-    authReq.input('userId', sql.NVarChar(255), req.user.id);
+      // Must be owner/admin/moderator OR the actual creator (if creator_id exists)
+  const authReq = pool.request();
+  authReq.input('groupId', sql.Int, groupId);
+  authReq.input('userId', sql.NVarChar(255), req.user.id);
 
-    const roleCheck = await authReq.query(`
-      SELECT TOP 1 1 AS ok
-      FROM dbo.group_members gm
-      WHERE gm.group_id=@groupId
-        AND gm.user_id=@userId
-        ${schema.membersCols.role ? `AND gm.role IN ('owner','admin','moderator')` : ''}
-    `);
-    if (!roleCheck.recordset.length) {
-      return res.status(403).json({ error: 'Only owners/admins can invite members' });
-    }
+  const roleCheck = await authReq.query(`
+    SELECT TOP 1 1 AS ok
+    FROM dbo.group_members gm
+    LEFT JOIN ${tbl('groups')} gg ON gg.group_id = gm.group_id
+    WHERE gm.group_id=@groupId
+      AND gm.user_id=@userId
+      AND (
+        ${schema.membersCols.role ? `gm.role IN ('owner','admin','moderator')` : '1=1'}
+        ${schema.groupsCols.creator_id ? 'OR gg.creator_id = @userId' : ''}
+      )
+  `);
+
+  if (!roleCheck.recordset.length) {
+    return res.status(403).json({ error: 'Only owners/admins can invite members' });
+  }
+
 
     // Prefer a dedicated invitations table if present
     const hasInvTable = await hasTable('group_invitations');

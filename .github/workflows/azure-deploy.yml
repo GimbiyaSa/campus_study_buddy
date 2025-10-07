@@ -29,13 +29,12 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Deploy Container App
-        uses: Azure/container-apps-deploy-action@v0
+        uses: Azure/container-apps-deploy-action@v2
         with:
           acrName: ${{ secrets.AZURE_ACR_NAME }}
           resourceGroup: ${{ secrets.AZURE_RESOURCE_GROUP }}
           containerAppName: ${{ secrets.AZURE_CONTAINER_APP_NAME }}
           imageToBuild: ${{ secrets.AZURE_ACR_LOGIN_SERVER }}/campus-study-buddy-api:${{ github.sha }}
-          dockerfilePath: Dockerfile
           appSourcePath: backend
 
   deploy-frontend:

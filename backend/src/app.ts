@@ -34,8 +34,12 @@ app.use(
   cors({
     origin: (origin, callback) => {
       const allowed = azureConfig.getCorsOrigins();
+
+      // If no origin (same-origin or curl), allow it
       if (!origin) return callback(null, true);
       if (allowed.includes(origin)) return callback(null, true);
+
+      // In production, you may want to reject unknown origins.
       console.warn('Blocked CORS request from origin:', origin);
       callback(new Error('Not allowed by CORS'));
     },
@@ -80,6 +84,7 @@ process.on('unhandledRejection', (reason, promise) => {
 (async () => {
   try {
     console.log('🔄 Initializing Azure services...');
+    // Check all connections first, then print logs in order
     let dbOk = false,
       storageOk = false,
       pubsubOk = false;

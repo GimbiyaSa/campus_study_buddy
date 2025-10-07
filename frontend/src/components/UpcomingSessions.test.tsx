@@ -28,7 +28,10 @@ vi.mock('../utils/url', () => {
 const FIXED_NOW_ISO = '2025-10-02T12:00:00.000Z';
 
 beforeEach(() => {
-  vi.useFakeTimers();
+  // Use real timers for these async component tests
+  vi.useRealTimers();
+
+  // Mock Date to be consistent for filtering tests
   vi.setSystemTime(new Date(FIXED_NOW_ISO));
 
   fetchSessionsMock.mockReset();

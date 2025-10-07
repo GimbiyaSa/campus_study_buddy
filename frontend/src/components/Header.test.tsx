@@ -81,6 +81,7 @@ vi.mock('../contexts/UserContext', () => {
       loading: mockState.loading,
       logout: mockLogout,
     }),
+    UserProvider: ({ children }: { children: React.ReactNode }) => children,
   };
 });
 

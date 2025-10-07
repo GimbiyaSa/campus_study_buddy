@@ -4,12 +4,23 @@ import { Plus, BookOpen, GraduationCap, Loader2, AlertCircle, TrendingUp } from 
 import { navigate } from '../router';
 import { DataService, type Course } from '../services/dataService';
 import { ErrorHandler, type AppError } from '../utils/errorHandler';
+import EnhancedCourseCard from './EnhancedCourseCard';
 
 export default function Courses() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<AppError | null>(null);
+  const [showQuickLogDialog, setShowQuickLogDialog] = useState(false);
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Add logging whenever courses state changes
+  useEffect(() => {
+    console.log('🎓 Courses state updated:', courses);
+    console.log('🎓 Courses count:', courses.length);
+    console.log('🎓 Loading state:', loading);
+    console.log('🎓 Error state:', error);
+  }, [courses, loading, error]);
 
   async function fetchCourses() {
     abortRef.current?.abort();
@@ -19,9 +30,17 @@ export default function Courses() {
     setLoading(true);
     setError(null);
     try {
+      console.log('🎓 Fetching courses...');
       const data = await DataService.fetchCourses();
-      if (!ctrl.signal.aborted) setCourses(data);
+      console.log('🎓 Courses fetched successfully:', data);
+      console.log('🎓 Courses array length:', data?.length);
+      console.log('🎓 First course:', data?.[0]);
+      if (!ctrl.signal.aborted) {
+        console.log('🎓 Setting courses state with:', data);
+        setCourses(data);
+      }
     } catch (err) {
+      console.error('❌ Failed to fetch courses:', err);
       if (!ctrl.signal.aborted) {
         const appError = ErrorHandler.handleApiError(err, 'courses');
         setError(appError);
@@ -40,6 +59,7 @@ export default function Courses() {
   const clamp = (n: number) => Math.max(0, Math.min(100, n));
 
   const stats = useMemo(() => {
+    console.log('📊 Calculating stats for courses:', courses);
     if (!courses.length) return { avg: 0, completed: 0, inProgress: 0, totalHours: 0 };
 
     const completed = courses.filter((c) => (c.progress ?? 0) >= 100).length;
@@ -50,12 +70,23 @@ export default function Courses() {
     const total = courses.reduce((s, c) => s + clamp(c.progress ?? 0), 0);
     const avg = Math.round((total / courses.length) * 10) / 10;
 
-    return { avg, completed, inProgress, totalHours };
+    const result = { avg, completed, inProgress, totalHours };
+    console.log('📊 Stats calculated:', result);
+    return result;
   }, [courses]);
 
   const handleRetry = () => {
     setError(null);
     fetchCourses();
+  };
+
+  const handleQuickLog = (courseId: string) => {
+    setSelectedCourseId(courseId);
+    setShowQuickLogDialog(true);
+  };
+
+  const handleViewProgress = (courseId: string) => {
+    navigate(`/courses/${courseId}`);
   };
 
   // Enhanced donut chart calculations
@@ -112,23 +143,42 @@ export default function Courses() {
       )}
 
       {/* Enhanced Course List */}
-      {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <div className="text-center">
-            <Loader2 className="h-10 w-10 animate-spin text-emerald-600 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">Loading courses</h3>
-            <p className="text-slate-600">Getting your latest course data...</p>
-          </div>
-        </div>
-      ) : courses.length === 0 ? (
-        <EnhancedEmptyState />
-      ) : (
-        <ul className="space-y-4 mb-6">
-          {courses.slice(0, 3).map((course) => (
-            <EnhancedCourseCard key={course.id} course={course} />
-          ))}
-        </ul>
-      )}
+      {(() => {
+        console.log('🎨 Rendering decision - Loading:', loading, 'Courses length:', courses.length);
+        if (loading) {
+          console.log('🎨 Rendering loading state');
+          return (
+            <div className="flex items-center justify-center py-16">
+              <div className="text-center">
+                <Loader2 className="h-10 w-10 animate-spin text-emerald-600 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">Loading courses</h3>
+                <p className="text-slate-600">Getting your latest course data...</p>
+              </div>
+            </div>
+          );
+        } else if (courses.length === 0) {
+          console.log('🎨 Rendering empty state');
+          return <EnhancedEmptyState />;
+        } else {
+          console.log('🎨 Rendering courses list with', courses.length, 'courses');
+          console.log('🎨 First 3 courses to render:', courses.slice(0, 3));
+          return (
+            <div className="space-y-4 mb-6">
+              {courses.slice(0, 3).map((course) => {
+                console.log('🎨 Rendering course card for:', course.id, course.title);
+                return (
+                  <EnhancedCourseCard
+                    key={course.id}
+                    course={course}
+                    onQuickLog={handleQuickLog}
+                    onViewProgress={handleViewProgress}
+                  />
+                );
+              })}
+            </div>
+          );
+        }
+      })()}
 
       {/* Enhanced Summary + Quick Actions */}
       {!loading && courses.length > 0 && (
@@ -221,79 +271,122 @@ export default function Courses() {
           </div>
         </div>
       )}
+
+      {/* Quick Log Dialog */}
+      {showQuickLogDialog && selectedCourseId && (
+        <QuickLogDialog
+          courseId={selectedCourseId}
+          onClose={() => setShowQuickLogDialog(false)}
+          onSuccess={() => {
+            setShowQuickLogDialog(false);
+            fetchCourses(); // Refresh courses
+          }}
+        />
+      )}
     </div>
   );
 }
 
 /* ---------- Enhanced Components ---------- */
 
-function EnhancedCourseCard({ course }: { course: Course }) {
-  const isInstitution = course.type === 'institution';
-  const pct = Math.max(0, Math.min(100, course.progress ?? 0));
+function QuickLogDialog({
+  courseId,
+  onClose,
+  onSuccess,
+}: {
+  courseId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [hours, setHours] = useState<string>('');
+  const [description, setDescription] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const hoursNum = parseFloat(hours);
+    if (hoursNum > 0) {
+      setLoading(true);
+      setError(null);
+      try {
+        await DataService.logCourseStudyHours(courseId, {
+          hours: hoursNum,
+          description: description || undefined,
+          studyDate: new Date().toISOString().split('T')[0],
+        });
+        onSuccess();
+      } catch (error) {
+        console.error('Failed to log hours:', error);
+        setError('Failed to log study hours. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
 
   return (
-    <li className="group relative rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md hover:border-emerald-200 transition-all duration-200">
-      <div className="flex items-center gap-4">
-        <div
-          className={`w-12 h-12 rounded-xl grid place-items-center font-bold text-sm flex-shrink-0 transition-colors ${
-            isInstitution
-              ? 'bg-emerald-100 text-emerald-700 group-hover:bg-emerald-200'
-              : 'bg-blue-100 text-blue-700 group-hover:bg-blue-200'
-          }`}
-        >
-          {isInstitution ? <GraduationCap className="h-6 w-6" /> : <BookOpen className="h-6 w-6" />}
-        </div>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl max-w-md w-full p-6">
+        <h3 className="text-lg font-semibold text-slate-900 mb-4">Quick Log Study Hours</h3>
 
-        <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-slate-900 group-hover:text-emerald-700 transition-colors">
-            {course.code && (
-              <span className="text-slate-500 text-sm font-medium mr-2">{course.code}</span>
-            )}
-            {course.title}
-          </h3>
-          <p className="text-xs text-slate-500 mb-2">
-            {course.type === 'institution' ? course.term || 'Institution Course' : 'Personal Topic'}
-          </p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="rounded-lg bg-red-50 border border-red-200 text-red-800 px-3 py-2">
+              <p className="text-sm">{error}</p>
+            </div>
+          )}
 
-          {/* Enhanced Progress Bar */}
-          <div className="space-y-1">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-600">Progress</span>
-              <div className="flex items-center gap-2">
-                <span
-                  className={`font-semibold ${pct > 0 ? 'text-emerald-600' : 'text-slate-400'}`}
-                >
-                  {Math.round(pct)}%
-                </span>
-                {course.totalHours && course.totalHours > 0 && (
-                  <span className="text-slate-500">{course.totalHours}h</span>
-                )}
-              </div>
-            </div>
-            <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
-              <div
-                className={`h-2 rounded-full transition-all duration-500 ease-out ${
-                  pct >= 100
-                    ? 'bg-gradient-to-r from-emerald-500 to-emerald-600'
-                    : pct > 0
-                    ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
-                    : 'bg-slate-300'
-                }`}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Hours Studied</label>
+            <input
+              type="number"
+              step="0.5"
+              min="0.5"
+              max="24"
+              value={hours}
+              onChange={(e) => setHours(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              placeholder="e.g., 2.5"
+              required
+              disabled={loading}
+            />
           </div>
-        </div>
 
-        <button
-          onClick={() => navigate('/courses')}
-          className="px-3 py-1.5 rounded-lg text-sm font-medium bg-white border border-slate-200 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700 transition-all duration-200 flex-shrink-0"
-          aria-label={`View ${course.title}`}
-        >
-          View
-        </button>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Description (optional)
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              rows={3}
+              placeholder="What did you study?"
+              disabled={loading}
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+              disabled={loading}
+            >
+              {loading ? 'Logging...' : 'Log Hours'}
+            </button>
+          </div>
+        </form>
       </div>
-    </li>
+    </div>
   );
 }
 

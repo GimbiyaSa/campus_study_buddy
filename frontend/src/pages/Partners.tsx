@@ -11,9 +11,11 @@ import {
   Users,
   Heart,
   RefreshCw,
+  Clock,
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { type StudyPartner, DataService } from '../services/dataService';
+import azureIntegrationService from '../services/azureIntegrationService';
 import { ErrorHandler, type AppError } from '../utils/errorHandler';
 
 export default function Partners() {
@@ -36,6 +38,9 @@ export default function Partners() {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<StudyPartner | null>(null);
   const [invited, setInvited] = useState(false);
+
+  // Track pending invites by partner ID
+  const [pendingInvites, setPendingInvites] = useState<Set<string>>(new Set());
 
   // Database-driven filtering and results
   const results = useMemo(() => {
@@ -166,11 +171,39 @@ export default function Partners() {
       fetchBuddies();
     };
 
+    // Listen for real-time partner request acceptance/rejection
+    const handlePartnerAccepted = (event: any) => {
+      console.log('🎉 Partner request accepted!', event);
+      // Refresh both suggestions and buddies lists
+      fetchSuggestions();
+      fetchBuddies();
+      // Show success notification
+      // You could add a toast notification here
+    };
+
+    const handlePartnerRejected = (event: any) => {
+      console.log('😔 Partner request rejected', event);
+      // Refresh suggestions to update button states
+      fetchSuggestions();
+    };
+
+    // Set up Azure Web PubSub listeners
+    const unsubscribeAccepted = azureIntegrationService.onConnectionEvent(
+      'partner_request_accepted',
+      handlePartnerAccepted
+    );
+    const unsubscribeRejected = azureIntegrationService.onConnectionEvent(
+      'partner_request_rejected',
+      handlePartnerRejected
+    );
+
     window.addEventListener('buddy:connected', onAdded as EventListener);
     window.addEventListener('buddies:invalidate', onInvalidate);
 
     return () => {
       mounted = false;
+      unsubscribeAccepted();
+      unsubscribeRejected();
       window.removeEventListener('buddy:connected', onAdded as EventListener);
       window.removeEventListener('buddies:invalidate', onInvalidate);
     };
@@ -265,6 +298,7 @@ export default function Partners() {
                   key={i}
                   suggestion={suggestion}
                   onConnect={() => openModal(suggestion)}
+                  isPending={pendingInvites.has(suggestion.id)}
                 />
               ))}
             </ul>
@@ -414,6 +448,7 @@ export default function Partners() {
                     key={`r-${i}`}
                     partner={partner}
                     onConnect={() => openModal(partner)}
+                    isPending={pendingInvites.has(partner.id)}
                   />
                 ))}
               </ul>
@@ -427,9 +462,37 @@ export default function Partners() {
         open={open}
         person={selected}
         invited={invited}
-        onInvite={() => {
-          setInvited(true);
-          window.dispatchEvent(new Event('buddies:invalidate'));
+        onInvite={async () => {
+          if (!selected?.id) return;
+          setInvited(false);
+          try {
+            // Send buddy request to backend
+            await DataService.sendBuddyRequest(selected.id);
+            // Optionally, send real-time notification
+            try {
+              await azureIntegrationService.sendPartnerRequest(Number(selected.id));
+            } catch (notifyErr) {
+              // Log but don't block UI if notification fails
+              console.warn('Notification send failed:', notifyErr);
+            }
+
+            // Update pending invites state
+            setPendingInvites((prev) => new Set(prev).add(selected.id));
+            setInvited(true);
+
+            // Close modal after showing success
+            setTimeout(() => {
+              setOpen(false);
+              setInvited(false);
+            }, 1000);
+
+            window.dispatchEvent(new Event('buddies:invalidate'));
+            // Optionally, initiate chat here in the future
+          } catch (err) {
+            // Optionally, show error to user
+            setInvited(false);
+            alert('Failed to send invite. Please try again.');
+          }
         }}
         onClose={() => setOpen(false)}
       />
@@ -441,9 +504,11 @@ export default function Partners() {
 function EnhancedSuggestionCard({
   suggestion,
   onConnect,
+  isPending = false,
 }: {
   suggestion: StudyPartner;
   onConnect: () => void;
+  isPending?: boolean;
 }) {
   const initials = initialsFrom(suggestion.name || '—');
   const sharedCoursesText = suggestion.sharedCourses?.length
@@ -465,6 +530,7 @@ function EnhancedSuggestionCard({
               {suggestion.name}
             </h3>
             <p className="text-sm text-slate-600 mb-2">{suggestion.course}</p>
+            <p className="text-xs text-slate-500">{suggestion.university}</p>
             <div className="flex flex-wrap gap-1.5">
               <span className="text-xs px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 font-medium">
                 {sharedCoursesText}
@@ -488,10 +554,27 @@ function EnhancedSuggestionCard({
       </div>
       <button
         onClick={onConnect}
-        className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white shadow-md hover:bg-emerald-700 hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600 transition-all duration-200"
+        disabled={
+          isPending ||
+          suggestion.connectionStatus === 'pending' ||
+          suggestion.connectionStatus === 'accepted'
+        }
+        className={`w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold shadow-md hover:shadow-lg focus-visible:outline focus-visible:outline-2 transition-all duration-200 ${
+          isPending || suggestion.connectionStatus === 'pending'
+            ? 'bg-yellow-100 text-yellow-800 cursor-not-allowed'
+            : suggestion.connectionStatus === 'accepted'
+            ? 'bg-green-100 text-green-800 cursor-not-allowed'
+            : 'bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:outline-emerald-600'
+        }`}
       >
         <Users className="h-4 w-4" />
-        Connect
+        {isPending || suggestion.connectionStatus === 'pending'
+          ? suggestion.isPendingSent
+            ? 'Pending acceptance'
+            : 'Pending response'
+          : suggestion.connectionStatus === 'accepted'
+          ? 'Study buddies'
+          : 'Connect'}
       </button>
     </li>
   );
@@ -528,9 +611,11 @@ function EnhancedBuddyCard({ buddy }: { buddy: StudyPartner }) {
 function EnhancedPartnerCard({
   partner,
   onConnect,
+  isPending = false,
 }: {
   partner: StudyPartner;
   onConnect: () => void;
+  isPending?: boolean;
 }) {
   const initials = initialsFrom(partner.name || '—');
   const sharedCoursesText = partner.sharedCourses?.length
@@ -551,6 +636,7 @@ function EnhancedPartnerCard({
             {partner.name}
           </h3>
           <p className="text-xs text-slate-600">{partner.course}</p>
+          <p className="text-xs text-slate-500">{partner.university}</p>
         </div>
       </div>
 
@@ -567,9 +653,24 @@ function EnhancedPartnerCard({
 
       <button
         onClick={onConnect}
-        className="w-full inline-flex items-center justify-center gap-1 rounded-lg bg-white border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700 transition-all duration-200"
+        disabled={
+          isPending ||
+          partner.connectionStatus === 'pending' ||
+          partner.connectionStatus === 'accepted'
+        }
+        className={`w-full inline-flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 ${
+          isPending || partner.connectionStatus === 'pending'
+            ? 'bg-yellow-100 text-yellow-800 border border-yellow-200 cursor-not-allowed'
+            : partner.connectionStatus === 'accepted'
+            ? 'bg-green-100 text-green-800 border border-green-200 cursor-not-allowed'
+            : 'bg-white border border-slate-200 text-slate-700 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700'
+        }`}
       >
-        Connect
+        {isPending || partner.connectionStatus === 'pending'
+          ? 'Pending'
+          : partner.connectionStatus === 'accepted'
+          ? 'Buddies'
+          : 'Connect'}
       </button>
     </li>
   );
@@ -675,10 +776,6 @@ function EnhancedProfileModal({
   if (!open || !person) return null;
 
   const initials = initialsFrom(person.name || '—');
-  const preferredTimes = person.studyPreferences?.preferredTimes || [];
-  const sharedCoursesText = person.sharedCourses?.length
-    ? `${person.sharedCourses.length} shared course${person.sharedCourses.length !== 1 ? 's' : ''}`
-    : 'No shared courses';
 
   return createPortal(
     <>
@@ -720,45 +817,12 @@ function EnhancedProfileModal({
           </div>
 
           <div className="space-y-4 mb-6">
-            <div className="flex flex-wrap gap-2">
-              <span className="text-sm px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 font-semibold">
-                {sharedCoursesText}
-              </span>
-              {preferredTimes.map((time) => (
-                <span
-                  key={time}
-                  className="text-sm px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200"
-                >
-                  {time}
-                </span>
-              ))}
-            </div>
-
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
               <h4 className="font-semibold text-slate-900 mb-2">About this study partner</h4>
               <p className="text-sm text-slate-700 leading-relaxed">
                 {person.bio ||
-                  `${
-                    person.name
-                  } is looking for study partners who share similar courses and study preferences. They prefer ${
-                    preferredTimes.join(', ') || 'flexible'
-                  } study sessions.`}
+                  `${person.name} is looking for study partners who share similar courses and study preferences.`}
               </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200">
-                <div className="text-2xl font-bold text-emerald-700 mb-1">
-                  {Math.round(person.compatibilityScore || 85)}%
-                </div>
-                <div className="text-xs text-emerald-600 font-medium">Compatibility</div>
-              </div>
-              <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-                <div className="text-2xl font-bold text-blue-700 mb-1">
-                  {(person.rating || 4.8).toFixed(1)}
-                </div>
-                <div className="text-xs text-blue-600 font-medium">Study rating</div>
-              </div>
             </div>
           </div>
 
@@ -771,16 +835,36 @@ function EnhancedProfileModal({
             </button>
             <button
               onClick={onInvite}
-              disabled={invited}
+              disabled={
+                invited ||
+                person.connectionStatus === 'pending' ||
+                person.connectionStatus === 'accepted'
+              }
               className={`flex-1 px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all duration-200 ${
-                invited
+                invited || person.connectionStatus === 'pending'
+                  ? 'bg-yellow-100 text-yellow-800 border border-yellow-200 cursor-default'
+                  : person.connectionStatus === 'accepted'
                   ? 'bg-green-100 text-green-800 border border-green-200 cursor-default'
                   : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg hover:shadow-xl'
               }`}
             >
               {invited ? (
                 <>
-                  <Check className="w-5 h-5" /> Invite sent
+                  <Clock className="w-5 h-5" /> Invite sent
+                </>
+              ) : person.connectionStatus === 'pending' ? (
+                person.isPendingSent ? (
+                  <>
+                    <Clock className="w-5 h-5" /> Pending acceptance
+                  </>
+                ) : (
+                  <>
+                    <Clock className="w-5 h-5" /> Pending response
+                  </>
+                )
+              ) : person.connectionStatus === 'accepted' ? (
+                <>
+                  <Check className="w-5 h-5" /> Study buddies
                 </>
               ) : (
                 <>

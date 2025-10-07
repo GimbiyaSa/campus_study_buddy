@@ -10,7 +10,7 @@ class AzureIntegrationService {
 
   private constructor() {
     // Use environment variable or fallback to local development
-    this.baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+    this.baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
     this.initializeAuth();
   }
 
@@ -153,6 +153,22 @@ class AzureIntegrationService {
           type: 'partner_request',
           data: payload,
         });
+        break;
+      case 'partner_request_accepted':
+        this.handleConnectionEvent('notification', {
+          type: 'partner_request_accepted',
+          data: payload,
+        });
+        // Remove from pending invites when accepted
+        this.handleConnectionEvent('partner_accepted', payload);
+        break;
+      case 'partner_request_rejected':
+        this.handleConnectionEvent('notification', {
+          type: 'partner_request_rejected',
+          data: payload,
+        });
+        // Remove from pending invites when rejected
+        this.handleConnectionEvent('partner_rejected', payload);
         break;
       case 'session_reminder':
         this.handleConnectionEvent('notification', {

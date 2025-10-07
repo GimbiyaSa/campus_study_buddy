@@ -888,10 +888,11 @@ async function handleInvite(req, res) {
     }
 
     // Accept both body shapes
-    const inviteUserIds =
-      Array.isArray(req.body?.inviteUserIds) ? req.body.inviteUserIds :
-      Array.isArray(req.body?.user_ids) ? req.body.user_ids :
-      [];
+    const inviteUserIds = Array.isArray(req.body?.inviteUserIds)
+      ? req.body.inviteUserIds
+      : Array.isArray(req.body?.user_ids)
+      ? req.body.user_ids
+      : [];
 
     if (!inviteUserIds.length) {
       return res.status(400).json({ error: 'inviteUserIds (or user_ids) is required' });
@@ -960,7 +961,9 @@ async function handleInvite(req, res) {
         await r.query(`
           IF NOT EXISTS (
             SELECT 1 FROM dbo.group_invitations 
-            WHERE group_id=@groupId AND user_id=@userId ${invCols.status ? `AND status='pending'` : ''}
+            WHERE group_id=@groupId AND user_id=@userId ${
+              invCols.status ? `AND status='pending'` : ''
+            }
           )
           BEGIN
             INSERT INTO dbo.group_invitations (${cols.join(', ')})
@@ -995,13 +998,34 @@ async function handleInvite(req, res) {
 
         const cols = [];
         const vals = [];
-        if (notifCols.user_id) { cols.push('user_id'); vals.push('@uid'); }
-        if (notifCols.notification_type) { cols.push('notification_type'); vals.push('@type'); }
-        if (notifCols.title) { cols.push('title'); vals.push('@title'); }
-        if (notifCols.message) { cols.push('message'); vals.push('@message'); }
-        if (notifCols.metadata) { cols.push('metadata'); vals.push('@meta'); }
-        if (notifCols.is_read) { cols.push('is_read'); vals.push('0'); }
-        if (notifCols.created_at) { cols.push('created_at'); vals.push('SYSUTCDATETIME()'); }
+        if (notifCols.user_id) {
+          cols.push('user_id');
+          vals.push('@uid');
+        }
+        if (notifCols.notification_type) {
+          cols.push('notification_type');
+          vals.push('@type');
+        }
+        if (notifCols.title) {
+          cols.push('title');
+          vals.push('@title');
+        }
+        if (notifCols.message) {
+          cols.push('message');
+          vals.push('@message');
+        }
+        if (notifCols.metadata) {
+          cols.push('metadata');
+          vals.push('@meta');
+        }
+        if (notifCols.is_read) {
+          cols.push('is_read');
+          vals.push('0');
+        }
+        if (notifCols.created_at) {
+          cols.push('created_at');
+          vals.push('SYSUTCDATETIME()');
+        }
 
         if (cols.length >= 2) {
           await r.query(`
@@ -1013,7 +1037,9 @@ async function handleInvite(req, res) {
         }
       }
 
-      return res.status(200).json({ ok: true, invited: inviteUserIds.length, via: 'notifications' });
+      return res
+        .status(200)
+        .json({ ok: true, invited: inviteUserIds.length, via: 'notifications' });
     }
 
     // Nothing to persist to — acknowledge to avoid client retries
@@ -1024,7 +1050,6 @@ async function handleInvite(req, res) {
     return res.status(500).json({ error: 'Failed to invite users to group' });
   }
 }
-
 
 // ---------- (Group-scoped) POST /groups/:groupId/sessions ----------
 router.post('/:groupId/sessions', authenticateToken, async (req, res) => {

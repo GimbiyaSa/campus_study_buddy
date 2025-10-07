@@ -511,8 +511,7 @@ router.put('/:sessionId', authenticateToken, async (req, res) => {
     // Read back AFTER trigger runs
     const read = await new sql.Request(tx)
       .input('sessionId', sql.Int, req.params.sessionId)
-      .input('userId', sql.NVarChar(255), req.user.id)
-      .query(`
+      .input('userId', sql.NVarChar(255), req.user.id).query(`
         SELECT
           ss.session_id AS id,
           ss.group_id   AS groupId,
@@ -552,7 +551,9 @@ router.put('/:sessionId', authenticateToken, async (req, res) => {
       isAttending: true,
     });
   } catch (error) {
-    try { await tx.rollback(); } catch {}
+    try {
+      await tx.rollback();
+    } catch {}
     console.error('Error updating study session:', error);
     res.status(500).json({ error: 'Failed to update study session' });
   }
@@ -592,7 +593,9 @@ router.put('/:sessionId/start', authenticateToken, async (req, res) => {
 
     const read = await new sql.Request(tx)
       .input('sessionId', sql.Int, req.params.sessionId)
-      .query(`SELECT session_id AS id, group_id AS groupId, status FROM study_sessions WHERE session_id=@sessionId`);
+      .query(
+        `SELECT session_id AS id, group_id AS groupId, status FROM study_sessions WHERE session_id=@sessionId`
+      );
 
     const row = read.recordset[0];
 
@@ -609,7 +612,9 @@ router.put('/:sessionId/start', authenticateToken, async (req, res) => {
       maxParticipants: mpRes.recordset[0]?.maxParticipants ?? 10,
     });
   } catch (error) {
-    try { await tx.rollback(); } catch {}
+    try {
+      await tx.rollback();
+    } catch {}
     console.error('Error starting session:', error);
     res.status(500).json({ error: 'Failed to start session' });
   }
@@ -647,9 +652,7 @@ router.put('/:sessionId/end', authenticateToken, async (req, res) => {
       WHERE session_id=@sessionId
     `);
 
-    await new sql.Request(tx)
-      .input('sessionId', sql.Int, req.params.sessionId)
-      .query(`
+    await new sql.Request(tx).input('sessionId', sql.Int, req.params.sessionId).query(`
         UPDATE session_attendees 
         SET attendance_status='attended'
         WHERE session_id=@sessionId AND attendance_status='attending'
@@ -657,7 +660,9 @@ router.put('/:sessionId/end', authenticateToken, async (req, res) => {
 
     const read = await new sql.Request(tx)
       .input('sessionId', sql.Int, req.params.sessionId)
-      .query(`SELECT session_id AS id, group_id AS groupId, status FROM study_sessions WHERE session_id=@sessionId`);
+      .query(
+        `SELECT session_id AS id, group_id AS groupId, status FROM study_sessions WHERE session_id=@sessionId`
+      );
 
     const row = read.recordset[0];
 
@@ -674,7 +679,9 @@ router.put('/:sessionId/end', authenticateToken, async (req, res) => {
       maxParticipants: mpRes.recordset[0]?.maxParticipants ?? 10,
     });
   } catch (error) {
-    try { await tx.rollback(); } catch {}
+    try {
+      await tx.rollback();
+    } catch {}
     console.error('Error ending session:', error);
     res.status(500).json({ error: 'Failed to end session' });
   }
@@ -713,9 +720,7 @@ router.put('/:sessionId/cancel', authenticateToken, async (req, res) => {
     `);
 
     // Read back AFTER trigger runs, selecting the same projection as before
-    const read = await new sql.Request(tx)
-      .input('sessionId', sql.Int, req.params.sessionId)
-      .query(`
+    const read = await new sql.Request(tx).input('sessionId', sql.Int, req.params.sessionId).query(`
         SELECT 
           ss.session_id AS id,
           ss.group_id   AS groupId,
@@ -752,7 +757,9 @@ router.put('/:sessionId/cancel', authenticateToken, async (req, res) => {
       status: mapStatus(row.status),
     });
   } catch (error) {
-    try { await tx.rollback(); } catch {}
+    try {
+      await tx.rollback();
+    } catch {}
     console.error('Error cancelling session:', error);
     res.status(500).json({ error: 'Failed to cancel session' });
   }
@@ -789,9 +796,7 @@ router.delete('/:sessionId', authenticateToken, async (req, res) => {
       WHERE session_id=@sessionId
     `);
 
-    const read = await new sql.Request(tx)
-      .input('sessionId', sql.Int, req.params.sessionId)
-      .query(`
+    const read = await new sql.Request(tx).input('sessionId', sql.Int, req.params.sessionId).query(`
         SELECT 
           ss.session_id AS id,
           ss.group_id   AS groupId,
@@ -828,7 +833,9 @@ router.delete('/:sessionId', authenticateToken, async (req, res) => {
       status: mapStatus(row.status),
     });
   } catch (error) {
-    try { await tx.rollback(); } catch {}
+    try {
+      await tx.rollback();
+    } catch {}
     console.error('Error deleting (cancelling) session:', error);
     res.status(500).json({ error: 'Failed to cancel session' });
   }

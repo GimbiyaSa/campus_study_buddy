@@ -94,11 +94,11 @@ jobs:
               az webapp config set \
                 --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
                 --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-                --startup-file "pm2 serve /home/site/wwwroot --spa --port 8080"
+                --startup-file "pm2 serve /home/site/wwwroot --spa --port 5173"
               az webapp config appsettings set \
                 --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
                 --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-                --settings WEBSITES_PORT=8080 WEBSITES_ENABLE_APP_SERVICE_STORAGE=true
+                --settings WEBSITES_PORT=5173 WEBSITES_ENABLE_APP_SERVICE_STORAGE=true
               az webapp config appsettings delete \
                 --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
                 --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \

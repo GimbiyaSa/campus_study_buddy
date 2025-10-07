@@ -45,7 +45,7 @@ jobs:
             az containerapp update \
               --name "${{ secrets.AZURE_CONTAINER_APP_NAME }}" \
               --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-              --set properties.configuration.ingress.targetPort=5000
+              --set properties.configuration.ingress.targetPort=5000 \
               --set PORT=5000
 
   deploy-frontend:

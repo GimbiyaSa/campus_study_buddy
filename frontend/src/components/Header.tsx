@@ -1,9 +1,9 @@
 // src/components/Header.tsx
 import { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, ChevronDown, LogOut } from 'lucide-react';
+import { Search, ChevronDown, LogOut, Settings } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
-//import { buildApiUrl } from '../utils/url';
+import { buildApiUrl } from '../utils/url';
 import NotificationHandler from './NotificationHandler';
 
 
@@ -14,6 +14,7 @@ export default function Header() {
 
   // Modal states
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -35,18 +36,34 @@ export default function Header() {
 
   const handleLogoutConfirm = async () => {
     try {
+      // Call logout API endpoint
+      await fetch(buildApiUrl('/api/v1/auth/logout'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Add auth headers if needed
+        },
+        credentials: 'include',
+      });
+    } catch (error) {
+      console.error('Logout API call failed:', error);
+    }
+
+    try {
       // Try to disable Google's auto sign-in and revoke session where possible
       const win = window as any;
       if (win.google?.accounts?.id?.disableAutoSelect) {
         win.google.accounts.id.disableAutoSelect();
       }
       // revoke the last used credential if stored in localStorage (best-effort)
-      const lastToken = localStorage.getItem('google_id_token');
+      const lastToken = localStorage.getItem('last_google_id_token');
       if (lastToken && win.google?.accounts?.id?.revoke) {
         win.google.accounts.id.revoke(lastToken, () => {});
       }
       // Clear stored token
       localStorage.removeItem('google_id_token');
+      localStorage.removeItem('last_google_id_token');
+      localStorage.removeItem('token');
     } catch (e) {
       // ignore
     }
@@ -130,6 +147,13 @@ export default function Header() {
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
                   <div className="p-2">
                     <button
+                      onClick={() => setShowSettingsModal(true)}
+                      className="w-full flex items-center gap-3 px-3 py-2 text-gray-700 hover:bg-gray-50 rounded-lg transition"
+                    >
+                      <Settings className="w-4 h-4" />
+                      <span>Settings</span>
+                    </button>
+                    <button
                       onClick={handleLogoutClick}
                       className="w-full flex items-center gap-3 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition"
                     >
@@ -150,11 +174,78 @@ export default function Header() {
         onClose={() => setShowLogoutConfirm(false)}
         onConfirm={handleLogoutConfirm}
       />
+
+      {/* Settings Modal */}
+      <SettingsModal
+        open={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+      />
     </>
   );
 }
 
-/* ---------- Logout Confirmation Modal ---------- */
+/* ---------- Settings Modal ---------- */
+function SettingsModal({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-[9998] bg-black/40" onClick={onClose} />
+      <div className="fixed inset-0 z-[9999] grid place-items-center p-4">
+        <div className="w-full max-w-md rounded-2xl bg-white shadow-xl border border-gray-100 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Settings</h2>
+            <button
+              onClick={onClose}
+              className="p-1 hover:bg-gray-100 rounded-lg transition"
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+          
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-700">Email Updates</span>
+              <button
+                className="w-12 h-6 bg-gray-200 rounded-full relative transition-colors hover:bg-gray-300"
+                aria-label="Toggle email updates"
+              >
+                <div className="w-5 h-5 bg-white rounded-full absolute top-0.5 left-0.5 transition-transform" />
+              </button>
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-700">Push Notifications</span>
+              <button
+                className="w-12 h-6 bg-gray-200 rounded-full relative transition-colors hover:bg-gray-300"
+                aria-label="Toggle push notifications"
+              >
+                <div className="w-5 h-5 bg-white rounded-full absolute top-0.5 left-0.5 transition-transform" />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex justify-end mt-6">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </>,
+    document.body
+  );
+}
 function LogoutConfirmModal({
   open,
   onClose,

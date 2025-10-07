@@ -2,10 +2,44 @@ import '@testing-library/jest-dom';
 import { afterEach, beforeEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 
+// Mock Azure Web PubSub Client to prevent connection errors
+vi.mock('@azure/web-pubsub-client', () => ({
+  WebPubSubClient: vi.fn().mockImplementation(() => ({
+    start: vi.fn().mockResolvedValue(undefined),
+    stop: vi.fn().mockResolvedValue(undefined),
+    sendEvent: vi.fn().mockResolvedValue(undefined),
+    on: vi.fn(),
+    off: vi.fn(),
+  })),
+}));
+
+// Mock localStorage
+const localStorageMock = {
+  getItem: vi.fn(),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
+  length: 0,
+  key: vi.fn(),
+};
+
+// Set up localStorage mock before tests
+Object.defineProperty(window, 'localStorage', {
+  value: localStorageMock,
+  writable: true,
+});
+
 // Mock fetch globally for all tests
 beforeEach(() => {
+  // Clear all mocks before each test
+  vi.clearAllMocks();
+  
   // Ensure a valid auth token is set for all tests
-  window.localStorage.setItem('token', 'test-token');
+  localStorageMock.getItem.mockImplementation((key) => {
+    if (key === 'token') return 'test-token';
+    return null;
+  });
+  
   global.fetch = vi.fn((input: string | URL | Request) => {
     const url = typeof input === 'string' ? input : input.toString();
 

@@ -9,7 +9,7 @@ vi.mock('react-dom', async (orig) => {
   return { ...actual, createPortal: (node: any) => node };
 });
 
-// ---------- Test data ----------
+// ---------- Test data (must be declared before vi.mock calls) ----------
 const mockSessions = [
   {
     id: '1',
@@ -48,7 +48,7 @@ const mockSessions = [
 const mockGroups = [{ id: 'g1', name: 'Study Group A', course: 'Algorithms', courseCode: 'CS301' }];
 
 // ---------- Mocks ----------
-vi.mock('../../services/dataService', () => {
+vi.mock('../services/dataService', () => {
   return {
     DataService: {
       fetchSessions: vi.fn().mockResolvedValue(mockSessions),
@@ -66,7 +66,7 @@ vi.mock('../../services/dataService', () => {
   };
 });
 
-vi.mock('../../utils/url', () => {
+vi.mock('../utils/url', () => {
   return { buildApiUrl: (path: string) => `http://api.test${path}` };
 });
 

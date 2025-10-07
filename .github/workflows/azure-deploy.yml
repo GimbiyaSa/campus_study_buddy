@@ -35,7 +35,7 @@ jobs:
           resourceGroup: ${{ secrets.AZURE_RESOURCE_GROUP }}
           containerAppName: ${{ secrets.AZURE_CONTAINER_APP_NAME }}
           imageToBuild: ${{ secrets.AZURE_ACR_LOGIN_SERVER }}/campus-study-buddy-api:${{ github.sha }}
-          dockerfilePath: backend/Dockerfile
+          dockerfilePath: Dockerfile
           appSourcePath: backend
 
   deploy-frontend:

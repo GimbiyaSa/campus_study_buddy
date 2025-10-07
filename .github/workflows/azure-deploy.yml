@@ -29,13 +29,12 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Deploy Container App
-        uses: Azure/container-apps-deploy-action@v0
+        uses: Azure/container-apps-deploy-action@v2
         with:
           acrName: ${{ secrets.AZURE_ACR_NAME }}
           resourceGroup: ${{ secrets.AZURE_RESOURCE_GROUP }}
           containerAppName: ${{ secrets.AZURE_CONTAINER_APP_NAME }}
           imageToBuild: ${{ secrets.AZURE_ACR_LOGIN_SERVER }}/campus-study-buddy-api:${{ github.sha }}
-          dockerfilePath: backend/Dockerfile
           appSourcePath: backend
 
   deploy-frontend:
@@ -70,6 +69,30 @@ jobs:
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Configure App Service for static hosting
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            WEBAPP_OS=$(az webapp show \
+              --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+              --query "reserved" -o tsv)
+
+            if [ "$WEBAPP_OS" = "true" ]; then
+              echo "Configuring Linux startup command for static SPA"
+              az webapp config set \
+                --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+                --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+                --startup-file "pm2 serve /home/site/wwwroot --spa"
+            else
+              echo "App Service is not Linux-based; skipping startup command configuration"
+            fi
+
+            az webapp config appsettings set \
+              --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+              --settings WEBSITE_RUN_FROM_PACKAGE=1
 
       - name: Deploy to App Service
         uses: azure/webapps-deploy@v3

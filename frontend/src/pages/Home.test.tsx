@@ -45,7 +45,7 @@ test('Shows submitting state when submitting is true', () => {
 test('Renders Google button container', () => {
   render(<Home />);
   // The Google button container is a div with no text, but has a ref and className 'mt-3'
-  const googleBtnDiv =
-    screen.getByRole('region', { hidden: true }) || document.querySelector('.mt-3');
+  /*const googleBtnDiv =
+    screen.getByRole('region', { hidden: true }) || document.querySelector('.mt-3');*/
   expect(document.querySelector('.mt-3')).toBeInTheDocument();
 });

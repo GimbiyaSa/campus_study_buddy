@@ -9,7 +9,9 @@ RUN npm ci
 # Copy source and config, then build
 COPY tsconfig.json ./
 COPY src ./src
-RUN npm run build
+RUN npm run build && \
+	mkdir -p dist/middleware && \
+	cp src/middleware/authMiddleware.js dist/middleware/
 
 # Stage 2: runtime image
 FROM node:20-bookworm-slim

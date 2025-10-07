@@ -6,7 +6,6 @@ import { buildApiUrl } from '../utils/url';
 import { DataService, FALLBACK_PARTNERS, type StudyPartner } from '../services/dataService';
 import { navigate } from '../router';
 
-
 type StudyGroup = {
   group_id: number;
   group_name: string;
@@ -236,22 +235,21 @@ export default function Groups() {
         ? String(g.creator_id)
         : '';
 
+    // keep owner map fresh in case backend transfers ownership
+    setOwners((prev) =>
+      prev[numericId] === createdBy ? prev : { ...prev, [numericId]: createdBy }
+    );
+    if (g?.id)
       // keep owner map fresh in case backend transfers ownership
       setOwners((prev) =>
         prev[numericId] === createdBy ? prev : { ...prev, [numericId]: createdBy }
       );
-      if (g?.id)
-        // keep owner map fresh in case backend transfers ownership
-      setOwners((prev) =>
-        prev[numericId] === createdBy ? prev : { ...prev, [numericId]: createdBy }
-      );
 
-      // ✅ NEW: accept either id or group_id as the backend id
-      if (g?.id != null || g?.group_id != null) {
-        const backendId = String(g.id ?? g.group_id);
-        setIdMap((prev) => (prev[numericId] ? prev : { ...prev, [numericId]: backendId }));
-      }
-
+    // ✅ NEW: accept either id or group_id as the backend id
+    if (g?.id != null || g?.group_id != null) {
+      const backendId = String(g.id ?? g.group_id);
+      setIdMap((prev) => (prev[numericId] ? prev : { ...prev, [numericId]: backendId }));
+    }
 
     // membership hint from API if available
     if (Array.isArray(g?.members) && meId) {
@@ -430,23 +428,22 @@ export default function Groups() {
     (DataService as any)?.getMembers;
 
   async function loadMembersFor(group: StudyGroup) {
-  const backendId = idMap[group.group_id] ?? String(group.group_id); // ✅ fallback
-  if (!backendId || typeof membersFn !== 'function') return;
+    const backendId = idMap[group.group_id] ?? String(group.group_id); // ✅ fallback
+    if (!backendId || typeof membersFn !== 'function') return;
 
-  setMembersLoading((p) => ({ ...p, [group.group_id]: true }));
-  setMembersError((p) => ({ ...p, [group.group_id]: null }));
-  try {
-    const list = await membersFn(backendId);
-    const arr = Array.isArray(list) ? list : [];
-    setMembersByGroup((p) => ({ ...p, [group.group_id]: arr }));
-  } catch (e) {
-    console.warn('loadMembersFor failed', e);
-    setMembersError((p) => ({ ...p, [group.group_id]: 'Could not load members' }));
-  } finally {
-    setMembersLoading((p) => ({ ...p, [group.group_id]: false }));
+    setMembersLoading((p) => ({ ...p, [group.group_id]: true }));
+    setMembersError((p) => ({ ...p, [group.group_id]: null }));
+    try {
+      const list = await membersFn(backendId);
+      const arr = Array.isArray(list) ? list : [];
+      setMembersByGroup((p) => ({ ...p, [group.group_id]: arr }));
+    } catch (e) {
+      console.warn('loadMembersFor failed', e);
+      setMembersError((p) => ({ ...p, [group.group_id]: 'Could not load members' }));
+    } finally {
+      setMembersLoading((p) => ({ ...p, [group.group_id]: false }));
+    }
   }
-}
-
 
   const joinGroup = async (groupId: number) => {
     const realId = idMap[groupId]; // undefined => fallback/demo
@@ -594,7 +591,6 @@ export default function Groups() {
         } catch (e) {
           console.warn('joinGroup right after create failed (non-fatal)', e);
         }
-
 
         // Ensure the UI immediately reflects creator membership + ownership
         setJoinedByMe((prev) => ({ ...prev, [sg.group_id]: true }));
@@ -912,7 +908,8 @@ export default function Groups() {
                     {/* Members toggle (only if we have or can fetch members) */}
                     {(Array.isArray((group as any).members) ||
                       Array.isArray((group as any).membersList) ||
-                      (typeof membersFn === 'function' && (idMap[group.group_id] ?? group.group_id))) && (
+                      (typeof membersFn === 'function' &&
+                        (idMap[group.group_id] ?? group.group_id))) && (
                       <button
                         onClick={async () => {
                           const next = !isExpanded;
@@ -932,7 +929,6 @@ export default function Groups() {
                         {isExpanded ? 'Hide members' : 'View members'}
                       </button>
                     )}
-
                   </div>
                   {group.module_name && (
                     <div className="text-xs text-gray-500">{group.module_name}</div>
@@ -1056,14 +1052,14 @@ export default function Groups() {
                         </button>
                       )}
                       <button
-                      type="button"
-                      onClick={() => navigate('/chat')}
-                      className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
-                      title="Open chat"
-                      aria-label="Open chat"
-                    >
-                      <MessageSquare className="w-4 h-4" />
-                    </button>
+                        type="button"
+                        onClick={() => navigate('/chat')}
+                        className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
+                        title="Open chat"
+                        aria-label="Open chat"
+                      >
+                        <MessageSquare className="w-4 h-4" />
+                      </button>
 
                       <button
                         onClick={() =>

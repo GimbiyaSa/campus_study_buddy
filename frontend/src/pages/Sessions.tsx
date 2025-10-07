@@ -77,11 +77,12 @@ export default function Sessions() {
         );
         // let everyone else update inline
         try {
-          window.dispatchEvent(new CustomEvent('session:updated', { detail: { ...updated, id: editingSession.id } }));
+          window.dispatchEvent(
+            new CustomEvent('session:updated', { detail: { ...updated, id: editingSession.id } })
+          );
         } catch {}
         return;
-    }
-
+      }
     } catch (error) {
       console.error('Error updating session:', error);
     }
@@ -110,9 +111,11 @@ export default function Sessions() {
           )
         );
         try {
-        window.dispatchEvent(new CustomEvent('session:deleted', { detail: { id: String(sessionId) } }));
-        window.dispatchEvent(new Event('sessions:invalidate'));
-      } catch {}
+          window.dispatchEvent(
+            new CustomEvent('session:deleted', { detail: { id: String(sessionId) } })
+          );
+          window.dispatchEvent(new Event('sessions:invalidate'));
+        } catch {}
 
         return;
       }
@@ -194,7 +197,6 @@ export default function Sessions() {
       console.warn('Leave request error (keeping optimistic state):', err);
     }
   };
-
 
   const filteredSessions =
     filter === 'all' ? sessions : sessions.filter((s) => s.status === filter);
@@ -299,7 +301,6 @@ export default function Sessions() {
                   ? () => handleLeaveSession(session.id)
                   : undefined
               }
-              
             />
           ))}
         </div>
@@ -325,7 +326,6 @@ function SessionCard({
   onDelete,
   onJoin,
   onLeave,
-  
 }: {
   session: StudySession;
   onEdit?: () => void;

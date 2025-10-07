@@ -13,9 +13,9 @@ beforeEach(() => {
 test('App hides chrome on auth routes like home and register', async () => {
   // Mock localStorage to simulate no token
   (localStorage.getItem as any).mockImplementation(() => null);
-  
+
   // Mock fetch to return 401 (unauthorized) to simulate no user
-  (global.fetch as any).mockImplementation(() => 
+  (global.fetch as any).mockImplementation(() =>
     Promise.resolve({
       ok: false,
       status: 401,
@@ -38,19 +38,20 @@ test('App shows chrome on dashboard route when token present', async () => {
   });
 
   // Mock fetch to return successful user response
-  (global.fetch as any).mockImplementation(() => 
+  (global.fetch as any).mockImplementation(() =>
     Promise.resolve({
       ok: true,
-      json: () => Promise.resolve({
-        user_id: 1,
-        email: 'test@example.com',
-        first_name: 'Test',
-        last_name: 'User',
-        university: 'Test University',
-        course: 'Computer Science',
-        year_of_study: 2,
-        is_active: true,
-      }),
+      json: () =>
+        Promise.resolve({
+          user_id: 1,
+          email: 'test@example.com',
+          first_name: 'Test',
+          last_name: 'User',
+          university: 'Test University',
+          course: 'Computer Science',
+          year_of_study: 2,
+          is_active: true,
+        }),
     })
   );
 

@@ -700,10 +700,13 @@ export class DataService {
 
       console.log('🎓 Fetching courses with params:', Object.fromEntries(params));
 
-      const res = await this.request(`/api/v1/courses${params.toString() ? `?${params.toString()}` : ''}`, {
-        method: 'GET',
-      });
-      
+      const res = await this.request(
+        `/api/v1/courses${params.toString() ? `?${params.toString()}` : ''}`,
+        {
+          method: 'GET',
+        }
+      );
+
       console.log('📡 Response status:', res.status, res.statusText);
 
       if (!res.ok) {
@@ -1409,7 +1412,7 @@ export class DataService {
   static async fetchTopicProgress(topicId: number): Promise<any> {
     try {
       const res = await this.request(`/api/v1/progress/topics/${topicId}`, {
-        method: 'GET'
+        method: 'GET',
       });
       if (!res.ok) {
         const appError = ErrorHandler.handleApiError({ status: res.status }, 'progress');
@@ -1429,7 +1432,7 @@ export class DataService {
     try {
       console.log('📚 Fetching module topics for moduleId:', moduleId);
       const res = await this.request(`/api/v1/courses/${moduleId}/topics`, {
-        method: 'GET'
+        method: 'GET',
       });
       if (!res.ok) {
         const appError = ErrorHandler.handleApiError({ status: res.status }, 'courses');
@@ -1473,16 +1476,19 @@ export class DataService {
     }
   }
 
-  static async logCourseStudyHours(courseId: string, log: {
-    hours: number;
-    description?: string;
-    studyDate?: string;
-  }): Promise<any> {
+  static async logCourseStudyHours(
+    courseId: string,
+    log: {
+      hours: number;
+      description?: string;
+      studyDate?: string;
+    }
+  ): Promise<any> {
     try {
       console.log('📝 Logging course study hours:', { courseId, log });
       const res = await this.request(`/api/v1/courses/${courseId}/log-hours`, {
         method: 'POST',
-        body: JSON.stringify(log)
+        body: JSON.stringify(log),
       });
       if (!res.ok) {
         const appError = ErrorHandler.handleApiError({ status: res.status }, 'courses');

@@ -33,13 +33,13 @@ Object.defineProperty(window, 'localStorage', {
 beforeEach(() => {
   // Clear all mocks before each test
   vi.clearAllMocks();
-  
+
   // Ensure a valid auth token is set for all tests
   localStorageMock.getItem.mockImplementation((key) => {
     if (key === 'token') return 'test-token';
     return null;
   });
-  
+
   global.fetch = vi.fn((input: string | URL | Request) => {
     const url = typeof input === 'string' ? input : input.toString();
 

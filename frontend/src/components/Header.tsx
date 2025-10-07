@@ -6,7 +6,6 @@ import { useUser } from '../contexts/UserContext';
 import { buildApiUrl } from '../utils/url';
 import NotificationHandler from './NotificationHandler';
 
-
 export default function Header() {
   const { currentUser, loading, logout } = useUser();
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -176,22 +175,13 @@ export default function Header() {
       />
 
       {/* Settings Modal */}
-      <SettingsModal
-        open={showSettingsModal}
-        onClose={() => setShowSettingsModal(false)}
-      />
+      <SettingsModal open={showSettingsModal} onClose={() => setShowSettingsModal(false)} />
     </>
   );
 }
 
 /* ---------- Settings Modal ---------- */
-function SettingsModal({
-  open,
-  onClose,
-}: {
-  open: boolean;
-  onClose: () => void;
-}) {
+function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   if (!open) return null;
 
   return createPortal(
@@ -209,7 +199,7 @@ function SettingsModal({
               ×
             </button>
           </div>
-          
+
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-700">Email Updates</span>
@@ -220,7 +210,7 @@ function SettingsModal({
                 <div className="w-5 h-5 bg-white rounded-full absolute top-0.5 left-0.5 transition-transform" />
               </button>
             </div>
-            
+
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-700">Push Notifications</span>
               <button

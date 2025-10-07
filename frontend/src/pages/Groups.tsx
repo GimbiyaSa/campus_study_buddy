@@ -40,7 +40,12 @@ export default function Groups() {
     open: boolean;
     backendId?: string; // /api id for this group
     groupLocalId?: number;
-    defaults?: Partial<{ name: string; description: string; maxMembers: number; isPublic: boolean }>;
+    defaults?: Partial<{
+      name: string;
+      description: string;
+      maxMembers: number;
+      isPublic: boolean;
+    }>;
   }>({ open: false });
 
   const [connections, setConnections] = useState<StudyPartner[]>([]);
@@ -712,8 +717,7 @@ export default function Groups() {
               ...g,
               group_name: form.name,
               description: form.description ?? g.description,
-              max_members:
-                typeof form.maxMembers === 'number' ? form.maxMembers : g.max_members,
+              max_members: typeof form.maxMembers === 'number' ? form.maxMembers : g.max_members,
             }
           : g
       )

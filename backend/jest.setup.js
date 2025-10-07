@@ -245,8 +245,13 @@ jest.mock('mssql', () => {
       this.isSelect = false;
     }
 
-    input(name, value) {
-      this.inputParams[name] = value;
+    input(name, type, value) {
+      // Handle both 2-parameter and 3-parameter versions
+      if (arguments.length === 2) {
+        this.inputParams[name] = type; // 2-param: input(name, value)
+      } else {
+        this.inputParams[name] = value; // 3-param: input(name, type, value)
+      }
       return this;
     }
 
@@ -254,6 +259,12 @@ jest.mock('mssql', () => {
       this.queryText = sql;
       this.isSelect = sql.toLowerCase().trim().startsWith('select');
       const lowerSql = sql.toLowerCase();
+
+      // Handle system table queries (used by groupService)
+      if (lowerSql.includes('sys.tables') && lowerSql.includes('where name =')) {
+        // Mock system tables check - assume tables exist
+        return { recordset: [{ name: 'study_groups' }] };
+      }
 
       // Route queries to appropriate sample data based on content
       if (lowerSql.includes('users') || lowerSql.includes('from users')) {
@@ -366,6 +377,53 @@ jest.mock('mssql', () => {
             description: h.description,
             logged_at: h.logged_at instanceof Date ? h.logged_at : new Date(h.logged_at),
           }));
+        }
+
+        return { recordset: results };
+      }
+
+      // Handle group_members table queries
+      if (lowerSql.includes('group_members') || lowerSql.includes('from group_members')) {
+        // Mock group membership data
+        const sampleGroupMembers = [
+          {
+            group_id: 'g1',
+            user_id: 'u1',
+            role: 'member',
+            status: 'active',
+            joined_at: new Date('2024-01-01T00:00:00.000Z'),
+          },
+          {
+            group_id: 'g1',
+            user_id: 'u2',
+            role: 'admin',
+            status: 'active',
+            joined_at: new Date('2024-01-01T00:00:00.000Z'),
+          },
+        ];
+
+        let results = [...sampleGroupMembers];
+
+        // Filter by user_id if specified
+        if (lowerSql.includes('where') && lowerSql.includes('user_id =')) {
+          const userIdMatch =
+            sql.match(/user_id\s*=\s*['"]([^'"]+)['"]/i) || sql.match(/user_id\s*=\s*@(\w+)/i);
+          if (userIdMatch) {
+            const paramName = userIdMatch[1];
+            const userId = this.inputParams?.[paramName] || paramName;
+            results = results.filter((gm) => gm.user_id === userId);
+          }
+        }
+
+        // Filter by group_id if specified
+        if (lowerSql.includes('group_id =')) {
+          const groupIdMatch =
+            sql.match(/group_id\s*=\s*['"]([^'"]+)['"]/i) || sql.match(/group_id\s*=\s*@(\w+)/i);
+          if (groupIdMatch) {
+            const paramName = groupIdMatch[1];
+            const groupId = this.inputParams?.[paramName] || paramName;
+            results = results.filter((gm) => gm.group_id === groupId);
+          }
         }
 
         return { recordset: results };
@@ -519,12 +577,12 @@ jest.mock('mssql', () => {
       MAX: 4000,
     },
     // Mock sql type constructors that services call directly
-    NVarChar: jest.fn().mockReturnValue('NVarChar'),
-    Int: jest.fn().mockReturnValue('Int'),
-    VarChar: jest.fn().mockReturnValue('VarChar'),
-    DateTime: jest.fn().mockReturnValue('DateTime'),
-    NText: jest.fn().mockReturnValue('NText'),
-    Date: jest.fn().mockReturnValue('Date'),
+    NVarChar: jest.fn().mockImplementation((length) => ({ type: 'NVarChar', length })),
+    Int: jest.fn().mockImplementation(() => ({ type: 'Int' })),
+    VarChar: jest.fn().mockImplementation((length) => ({ type: 'VarChar', length })),
+    DateTime: jest.fn().mockImplementation(() => ({ type: 'DateTime' })),
+    NText: jest.fn().mockImplementation(() => ({ type: 'NText' })),
+    Date: jest.fn().mockImplementation(() => ({ type: 'Date' })),
     MAX: 4000,
   };
 });

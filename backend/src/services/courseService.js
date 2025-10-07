@@ -68,7 +68,12 @@ const checkDuplicateCourse = async (transaction, userId, moduleName, moduleCode 
     // Clean the provided module code (remove any existing suffix)
     const cleanCode = moduleCode.trim().replace(/_[a-zA-Z0-9]{3,}$/, '');
     request.input('moduleCode', sql.NVarChar(50), cleanCode);
-    query += ` OR LOWER(REPLACE(m.module_code, '_' + RIGHT(m.module_code, CHARINDEX('_', REVERSE(m.module_code)) - 1), '')) = LOWER(@moduleCode)`;
+    query += ` OR LOWER(REPLACE(m.module_code, '_' + 
+      CASE 
+        WHEN CHARINDEX('_', REVERSE(m.module_code)) > 0 
+        THEN RIGHT(m.module_code, CHARINDEX('_', REVERSE(m.module_code)) - 1)
+        ELSE ''
+      END, '')) = LOWER(@moduleCode)`;
   }
 
   query += `)`;

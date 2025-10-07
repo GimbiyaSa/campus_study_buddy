@@ -56,7 +56,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Health check with Azure services
-app.get('/health', async (req: Request, res: Response) => {
+app.get('/api/v1/health', async (req: Request, res: Response) => {
   try {
     const azureHealth = await azureConfig.healthCheck();
     res.json({

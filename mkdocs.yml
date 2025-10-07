@@ -73,6 +73,7 @@ nav:
       - API: backend/api.md
       - Data models: backend/data-models.md
       - Services: backend/services.md
+      - API Documentation: backend/swagger.md
   - Architecture:
       - Overview: architecture/index.md
       - Diagrams: architecture/diagrams.md

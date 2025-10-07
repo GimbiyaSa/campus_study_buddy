@@ -1,5 +1,5 @@
 // src/components/Header.tsx
-import { useRef, useState, useEffect, useLayoutEffect } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, Bell, ChevronDown, Settings, LogOut } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';

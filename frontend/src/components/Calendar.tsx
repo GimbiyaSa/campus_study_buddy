@@ -59,6 +59,29 @@ export default function Calendar() {
   }, []);
 
   useEffect(() => {
+  const onUpdated = (e: Event) => {
+    const updated = (e as CustomEvent<StudySession>).detail;
+    if (!updated || !updated.id) return;
+    setSessions((prev) => prev.map((s) => (s.id === updated.id ? { ...s, ...updated } : s)));
+  };
+
+  const onDeleted = (e: Event) => {
+    const { id } = (e as CustomEvent<{ id: string }>).detail || {};
+    if (!id) return;
+    setSessions((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  window.addEventListener('session:updated', onUpdated as EventListener);
+  window.addEventListener('session:deleted', onDeleted as EventListener);
+
+  return () => {
+    window.removeEventListener('session:updated', onUpdated as EventListener);
+    window.removeEventListener('session:deleted', onDeleted as EventListener);
+  };
+}, []);
+
+
+  useEffect(() => {
     async function fetchSessions() {
       setLoading(true);
       try {
@@ -361,40 +384,76 @@ function ScheduleSessionModal({
 
   if (!open) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim() || !date || !startTime || !endTime || !location.trim()) return;
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!title.trim() || !date || !startTime || !endTime || !location.trim()) return;
 
-    const newSession: StudySession = {
-      id: Date.now().toString(),
-      title: title.trim(),
-      course: course.trim() || undefined,
-      courseCode: courseCode.trim() || undefined,
-      date, // already local YYYY-MM-DD
-      startTime,
-      endTime,
-      location: location.trim(),
-      type,
-      participants: 1,
-      maxParticipants,
-      status: 'upcoming',
-      isCreator: true, // organizer label everywhere
-      isAttending: true, // organizer auto-attends
-    };
-
-    onSessionCreated(newSession);
-
-    // Reset form
-    setTitle('');
-    setCourse('');
-    setCourseCode('');
-    setDate('');
-    setStartTime('');
-    setEndTime('');
-    setLocation('');
-    setType('study');
-    setMaxParticipants(undefined);
+  // Prepare payload that matches the shape used by Sessions.tsx -> DataService.createSession
+  const payload: Omit<
+    StudySession,
+    'id' | 'participants' | 'status' | 'isCreator' | 'isAttending'
+  > = {
+    title: title.trim(),
+    course: course.trim() || undefined,
+    courseCode: courseCode.trim() || undefined,
+    date,          // local YYYY-MM-DD (your DataService composes server payload)
+    startTime,     // "HH:MM"
+    endTime,       // "HH:MM"
+    location: location.trim(),
+    type,
+    maxParticipants,
+    // NOTE: no groupId field here since the calendar modal doesn’t pick a group.
   };
+
+  try {
+    const created = await DataService.createSession(payload);
+    if (created) {
+      onSessionCreated(created);                              // update local list
+      // notify all other widgets
+      window.dispatchEvent(new CustomEvent('session:created', { detail: created }));
+      window.dispatchEvent(new Event('sessions:invalidate'));
+    } else {
+      // Fallback (optimistic) if service returned falsy
+      const optimistic: StudySession = {
+        ...payload,
+        id: Date.now().toString(),
+        participants: 1,
+        status: 'upcoming',
+        isCreator: true,
+        isAttending: true,
+      };
+      onSessionCreated(optimistic);
+      window.dispatchEvent(new CustomEvent('session:created', { detail: optimistic }));
+      window.dispatchEvent(new Event('sessions:invalidate'));
+    }
+  } catch (err) {
+    console.error('Error creating session (calendar):', err);
+    // Keep your previous optimistic UX
+    const optimistic: StudySession = {
+      ...payload,
+      id: Date.now().toString(),
+      participants: 1,
+      status: 'upcoming',
+      isCreator: true,
+      isAttending: true,
+    };
+    onSessionCreated(optimistic);
+    window.dispatchEvent(new CustomEvent('session:created', { detail: optimistic }));
+    window.dispatchEvent(new Event('sessions:invalidate'));
+  }
+
+  // Reset form
+  setTitle('');
+  setCourse('');
+  setCourseCode('');
+  setDate('');
+  setStartTime('');
+  setEndTime('');
+  setLocation('');
+  setType('study');
+  setMaxParticipants(undefined);
+};
+
 
   return createPortal(
     <>

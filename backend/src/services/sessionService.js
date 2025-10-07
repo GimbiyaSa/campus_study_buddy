@@ -265,6 +265,8 @@ router.get('/:sessionId', authenticateToken, async (req, res) => {
 });
 
 /* ---------- POST / (create) ---------- */
+/* NOTE: create keeps OUTPUT on INSERT because your trigger is AFTER UPDATE only.
+   If you ever add INSERT triggers to study_sessions, convert this to the same pattern as updates. */
 router.post('/', authenticateToken, async (req, res) => {
   try {
     const {
@@ -441,83 +443,104 @@ router.delete('/:sessionId/leave', authenticateToken, async (req, res) => {
 
 /* ---------- PUT /:sessionId (update, organizer only) ---------- */
 router.put('/:sessionId', authenticateToken, async (req, res) => {
-  try {
-    const pool = await getPool();
-    const request = pool.request();
-    request.input('sessionId', sql.Int, req.params.sessionId);
-    request.input('userId', sql.NVarChar(255), req.user.id);
+  const pool = await getPool();
+  const tx = new sql.Transaction(pool);
 
-    const org = await request.query(`
-      SELECT organizer_id, status, group_id FROM study_sessions WHERE session_id=@sessionId AND organizer_id=@userId
+  try {
+    await tx.begin();
+
+    const reqTx = new sql.Request(tx);
+    reqTx.input('sessionId', sql.Int, req.params.sessionId);
+    reqTx.input('userId', sql.NVarChar(255), req.user.id);
+
+    const org = await reqTx.query(`
+      SELECT organizer_id, status, group_id 
+      FROM study_sessions 
+      WHERE session_id=@sessionId AND organizer_id=@userId
     `);
-    if (!org.recordset.length)
+    if (!org.recordset.length) {
+      await tx.rollback();
       return res.status(403).json({ error: 'Only the session organizer can update the session' });
-    if (org.recordset[0].status === 'completed')
+    }
+    if (org.recordset[0].status === 'completed') {
+      await tx.rollback();
       return res.status(400).json({ error: 'Cannot update a completed session' });
+    }
 
     const { title, date, startTime, endTime, location, type, description } = req.body;
     const sets = [];
     if (title !== undefined) {
       sets.push('session_title=@sessionTitle');
-      request.input('sessionTitle', sql.NVarChar(255), title);
+      reqTx.input('sessionTitle', sql.NVarChar(255), title);
     }
     if (location !== undefined) {
       sets.push('location=@location');
-      request.input('location', sql.NVarChar(500), location || null);
+      reqTx.input('location', sql.NVarChar(500), location || null);
     }
     if (type !== undefined) {
       sets.push('session_type=@sessionType');
-      request.input('sessionType', sql.NVarChar(50), type);
+      reqTx.input('sessionType', sql.NVarChar(50), type);
     }
     if (description !== undefined) {
       sets.push('description=@description');
-      request.input('description', sql.NText, description || null);
+      reqTx.input('description', sql.NText, description || null);
     }
 
     if (date !== undefined && startTime !== undefined) {
       const startIso = new Date(`${date}T${startTime}:00`);
       sets.push('scheduled_start=@scheduledStart');
-      request.input('scheduledStart', sql.DateTime2, startIso);
+      reqTx.input('scheduledStart', sql.DateTime2, startIso);
     }
     if (date !== undefined && endTime !== undefined) {
       const endIso = new Date(`${date}T${endTime}:00`);
       sets.push('scheduled_end=@scheduledEnd');
-      request.input('scheduledEnd', sql.DateTime2, endIso);
+      reqTx.input('scheduledEnd', sql.DateTime2, endIso);
     }
 
-    if (!sets.length) return res.status(400).json({ error: 'No valid fields to update' });
+    if (!sets.length) {
+      await tx.rollback();
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
 
-    const q = await request.query(`
+    await reqTx.query(`
       UPDATE study_sessions
       SET ${sets.join(', ')}, updated_at=GETUTCDATE()
-      OUTPUT 
-        inserted.session_id AS id,
-        inserted.group_id   AS groupId,
-        inserted.session_title AS title,
-        ${ymd('inserted.scheduled_start')} AS date,
-        ${hhmm('inserted.scheduled_start')} AS startTime,
-        ${hhmm('inserted.scheduled_end')}   AS endTime,
-        inserted.location,
-        inserted.session_type AS [type],
-        inserted.status AS status
       WHERE session_id=@sessionId
     `);
 
-    const row = q.recordset[0];
+    // Read back AFTER trigger runs
+    const read = await new sql.Request(tx)
+      .input('sessionId', sql.Int, req.params.sessionId)
+      .input('userId', sql.NVarChar(255), req.user.id)
+      .query(`
+        SELECT
+          ss.session_id AS id,
+          ss.group_id   AS groupId,
+          ss.session_title AS title,
+          ${ymd('ss.scheduled_start')} AS date,
+          ${hhmm('ss.scheduled_start')} AS startTime,
+          ${hhmm('ss.scheduled_end')}   AS endTime,
+          ss.location,
+          ss.session_type AS [type],
+          ss.status AS status
+        FROM study_sessions ss
+        WHERE ss.session_id=@sessionId
+      `);
 
-    // Fetch maxParticipants from group
-    const mpRes = await pool
-      .request()
+    const row = read.recordset[0];
+
+    // Fetch maxParticipants + participants with separate requests inside the tx
+    const mpRes = await new sql.Request(tx)
       .input('groupId', sql.Int, row.groupId)
       .query(`SELECT max_members AS maxParticipants FROM study_groups WHERE group_id=@groupId`);
 
-    // participants count (fresh)
-    const partRes = await pool
-      .request()
+    const partRes = await new sql.Request(tx)
       .input('sessionId', sql.Int, row.id)
       .query(
         `SELECT COUNT(*) AS participants FROM session_attendees WHERE session_id=@sessionId AND attendance_status='attending'`
       );
+
+    await tx.commit();
 
     res.json({
       ...row,
@@ -529,6 +552,7 @@ router.put('/:sessionId', authenticateToken, async (req, res) => {
       isAttending: true,
     });
   } catch (error) {
+    try { await tx.rollback(); } catch {}
     console.error('Error updating study session:', error);
     res.status(500).json({ error: 'Failed to update study session' });
   }
@@ -536,34 +560,47 @@ router.put('/:sessionId', authenticateToken, async (req, res) => {
 
 /* ---------- PUT /:sessionId/start ---------- */
 router.put('/:sessionId/start', authenticateToken, async (req, res) => {
+  const pool = await getPool();
+  const tx = new sql.Transaction(pool);
+
   try {
-    const pool = await getPool();
-    const request = pool.request();
-    request.input('sessionId', sql.Int, req.params.sessionId);
-    request.input('userId', sql.NVarChar(255), req.user.id);
+    await tx.begin();
 
-    const org = await request.query(
-      `SELECT organizer_id, status FROM study_sessions WHERE session_id=@sessionId AND organizer_id=@userId`
-    );
-    if (!org.recordset.length)
+    const reqTx = new sql.Request(tx);
+    reqTx.input('sessionId', sql.Int, req.params.sessionId);
+    reqTx.input('userId', sql.NVarChar(255), req.user.id);
+
+    const org = await reqTx.query(`
+      SELECT organizer_id, status, group_id 
+      FROM study_sessions 
+      WHERE session_id=@sessionId AND organizer_id=@userId
+    `);
+    if (!org.recordset.length) {
+      await tx.rollback();
       return res.status(403).json({ error: 'Only the session organizer can start the session' });
-    if (org.recordset[0].status !== 'scheduled')
+    }
+    if (org.recordset[0].status !== 'scheduled') {
+      await tx.rollback();
       return res.status(400).json({ error: 'Session is not in scheduled status' });
+    }
 
-    const q = await request.query(`
+    await reqTx.query(`
       UPDATE study_sessions 
       SET status='in_progress', actual_start=GETUTCDATE(), updated_at=GETUTCDATE()
-      OUTPUT inserted.session_id AS id, inserted.group_id AS groupId, inserted.status
       WHERE session_id=@sessionId
     `);
 
-    const row = q.recordset[0];
+    const read = await new sql.Request(tx)
+      .input('sessionId', sql.Int, req.params.sessionId)
+      .query(`SELECT session_id AS id, group_id AS groupId, status FROM study_sessions WHERE session_id=@sessionId`);
 
-    // Fetch maxParticipants from group
-    const mpRes = await pool
-      .request()
+    const row = read.recordset[0];
+
+    const mpRes = await new sql.Request(tx)
       .input('groupId', sql.Int, row.groupId)
       .query(`SELECT max_members AS maxParticipants FROM study_groups WHERE group_id=@groupId`);
+
+    await tx.commit();
 
     res.json({
       id: String(row.id),
@@ -572,6 +609,7 @@ router.put('/:sessionId/start', authenticateToken, async (req, res) => {
       maxParticipants: mpRes.recordset[0]?.maxParticipants ?? 10,
     });
   } catch (error) {
+    try { await tx.rollback(); } catch {}
     console.error('Error starting session:', error);
     res.status(500).json({ error: 'Failed to start session' });
   }
@@ -579,40 +617,55 @@ router.put('/:sessionId/start', authenticateToken, async (req, res) => {
 
 /* ---------- PUT /:sessionId/end ---------- */
 router.put('/:sessionId/end', authenticateToken, async (req, res) => {
+  const pool = await getPool();
+  const tx = new sql.Transaction(pool);
+
   try {
-    const pool = await getPool();
-    const request = pool.request();
-    request.input('sessionId', sql.Int, req.params.sessionId);
-    request.input('userId', sql.NVarChar(255), req.user.id);
+    await tx.begin();
 
-    const org = await request.query(
-      `SELECT organizer_id, status, group_id FROM study_sessions WHERE session_id=@sessionId AND organizer_id=@userId`
-    );
-    if (!org.recordset.length)
+    const reqTx = new sql.Request(tx);
+    reqTx.input('sessionId', sql.Int, req.params.sessionId);
+    reqTx.input('userId', sql.NVarChar(255), req.user.id);
+
+    const org = await reqTx.query(`
+      SELECT organizer_id, status, group_id 
+      FROM study_sessions 
+      WHERE session_id=@sessionId AND organizer_id=@userId
+    `);
+    if (!org.recordset.length) {
+      await tx.rollback();
       return res.status(403).json({ error: 'Only the session organizer can end the session' });
-    if (org.recordset[0].status !== 'in_progress')
+    }
+    if (org.recordset[0].status !== 'in_progress') {
+      await tx.rollback();
       return res.status(400).json({ error: 'Session is not currently in progress' });
+    }
 
-    const q = await request.query(`
+    await reqTx.query(`
       UPDATE study_sessions 
       SET status='completed', actual_end=GETUTCDATE(), updated_at=GETUTCDATE()
-      OUTPUT inserted.session_id AS id, inserted.group_id AS groupId, inserted.status
       WHERE session_id=@sessionId
     `);
 
-    await request.query(`
-      UPDATE session_attendees 
-      SET attendance_status='attended'
-      WHERE session_id=@sessionId AND attendance_status='attending'
-    `);
+    await new sql.Request(tx)
+      .input('sessionId', sql.Int, req.params.sessionId)
+      .query(`
+        UPDATE session_attendees 
+        SET attendance_status='attended'
+        WHERE session_id=@sessionId AND attendance_status='attending'
+      `);
 
-    const row = q.recordset[0];
+    const read = await new sql.Request(tx)
+      .input('sessionId', sql.Int, req.params.sessionId)
+      .query(`SELECT session_id AS id, group_id AS groupId, status FROM study_sessions WHERE session_id=@sessionId`);
 
-    // Fetch maxParticipants from group
-    const mpRes = await pool
-      .request()
+    const row = read.recordset[0];
+
+    const mpRes = await new sql.Request(tx)
       .input('groupId', sql.Int, row.groupId)
       .query(`SELECT max_members AS maxParticipants FROM study_groups WHERE group_id=@groupId`);
+
+    await tx.commit();
 
     res.json({
       id: String(row.id),
@@ -621,6 +674,7 @@ router.put('/:sessionId/end', authenticateToken, async (req, res) => {
       maxParticipants: mpRes.recordset[0]?.maxParticipants ?? 10,
     });
   } catch (error) {
+    try { await tx.rollback(); } catch {}
     console.error('Error ending session:', error);
     res.status(500).json({ error: 'Failed to end session' });
   }
@@ -628,49 +682,67 @@ router.put('/:sessionId/end', authenticateToken, async (req, res) => {
 
 /* ---------- PUT /:sessionId/cancel (organizer) ---------- */
 router.put('/:sessionId/cancel', authenticateToken, async (req, res) => {
+  const pool = await getPool();
+  const tx = new sql.Transaction(pool);
+
   try {
-    const pool = await getPool();
-    const request = pool.request();
-    request.input('sessionId', sql.Int, req.params.sessionId);
-    request.input('userId', sql.NVarChar(255), req.user.id);
+    await tx.begin();
 
-    const org = await request.query(
-      `SELECT organizer_id, status, group_id FROM study_sessions WHERE session_id=@sessionId AND organizer_id=@userId`
-    );
-    if (!org.recordset.length)
+    const reqTx = new sql.Request(tx);
+    reqTx.input('sessionId', sql.Int, req.params.sessionId);
+    reqTx.input('userId', sql.NVarChar(255), req.user.id);
+
+    const org = await reqTx.query(`
+      SELECT organizer_id, status, group_id 
+      FROM study_sessions 
+      WHERE session_id=@sessionId AND organizer_id=@userId
+    `);
+    if (!org.recordset.length) {
+      await tx.rollback();
       return res.status(403).json({ error: 'Only the session organizer can cancel the session' });
-    if (org.recordset[0].status === 'completed')
+    }
+    if (org.recordset[0].status === 'completed') {
+      await tx.rollback();
       return res.status(400).json({ error: 'Cannot cancel a completed session' });
+    }
 
-    const q = await request.query(`
-      UPDATE study_sessions SET status='cancelled', updated_at=GETUTCDATE()
-      OUTPUT inserted.session_id AS id,
-             inserted.group_id   AS groupId,
-             inserted.session_title AS title,
-             ${ymd('inserted.scheduled_start')} AS date,
-             ${hhmm('inserted.scheduled_start')} AS startTime,
-             ${hhmm('inserted.scheduled_end')}   AS endTime,
-             inserted.location,
-             inserted.session_type AS [type],
-             inserted.status AS status
+    await reqTx.query(`
+      UPDATE study_sessions 
+      SET status='cancelled', updated_at=GETUTCDATE()
       WHERE session_id=@sessionId
     `);
 
-    const row = q.recordset[0];
+    // Read back AFTER trigger runs, selecting the same projection as before
+    const read = await new sql.Request(tx)
+      .input('sessionId', sql.Int, req.params.sessionId)
+      .query(`
+        SELECT 
+          ss.session_id AS id,
+          ss.group_id   AS groupId,
+          ss.session_title AS title,
+          ${ymd('ss.scheduled_start')} AS date,
+          ${hhmm('ss.scheduled_start')} AS startTime,
+          ${hhmm('ss.scheduled_end')}   AS endTime,
+          ss.location,
+          ss.session_type AS [type],
+          ss.status AS status
+        FROM study_sessions ss
+        WHERE ss.session_id=@sessionId
+      `);
 
-    // Fetch maxParticipants from group
-    const mpRes = await pool
-      .request()
+    const row = read.recordset[0];
+
+    const mpRes = await new sql.Request(tx)
       .input('groupId', sql.Int, row.groupId)
       .query(`SELECT max_members AS maxParticipants FROM study_groups WHERE group_id=@groupId`);
 
-    // participants (fresh)
-    const partRes = await pool
-      .request()
+    const partRes = await new sql.Request(tx)
       .input('sessionId', sql.Int, row.id)
       .query(
         `SELECT COUNT(*) AS participants FROM session_attendees WHERE session_id=@sessionId AND attendance_status='attending'`
       );
+
+    await tx.commit();
 
     res.json({
       ...row,
@@ -680,6 +752,7 @@ router.put('/:sessionId/cancel', authenticateToken, async (req, res) => {
       status: mapStatus(row.status),
     });
   } catch (error) {
+    try { await tx.rollback(); } catch {}
     console.error('Error cancelling session:', error);
     res.status(500).json({ error: 'Failed to cancel session' });
   }
@@ -687,50 +760,65 @@ router.put('/:sessionId/cancel', authenticateToken, async (req, res) => {
 
 /* ---------- DELETE /:sessionId (soft cancel) ---------- */
 router.delete('/:sessionId', authenticateToken, async (req, res) => {
-  try {
-    // Same as cancel to ensure "Cancelled" counts are reflected
-    const pool = await getPool();
-    const request = pool.request();
-    request.input('sessionId', sql.Int, req.params.sessionId);
-    request.input('userId', sql.NVarChar(255), req.user.id);
+  const pool = await getPool();
+  const tx = new sql.Transaction(pool);
 
-    const org = await request.query(
-      `SELECT organizer_id, status, group_id FROM study_sessions WHERE session_id=@sessionId AND organizer_id=@userId`
-    );
-    if (!org.recordset.length)
+  try {
+    await tx.begin();
+
+    const reqTx = new sql.Request(tx);
+    reqTx.input('sessionId', sql.Int, req.params.sessionId);
+    reqTx.input('userId', sql.NVarChar(255), req.user.id);
+
+    const org = await reqTx.query(`
+      SELECT organizer_id, status, group_id 
+      FROM study_sessions 
+      WHERE session_id=@sessionId AND organizer_id=@userId
+    `);
+    if (!org.recordset.length) {
+      await tx.rollback();
       return res
         .status(403)
         .json({ error: 'Only the session organizer can delete (cancel) the session' });
+    }
 
-    const q = await request.query(`
-      UPDATE study_sessions SET status='cancelled', updated_at=GETUTCDATE()
-      OUTPUT inserted.session_id AS id,
-             inserted.group_id   AS groupId,
-             inserted.session_title AS title,
-             ${ymd('inserted.scheduled_start')} AS date,
-             ${hhmm('inserted.scheduled_start')} AS startTime,
-             ${hhmm('inserted.scheduled_end')}   AS endTime,
-             inserted.location,
-             inserted.session_type AS [type],
-             inserted.status AS status
+    // Align with "cancel" semantics (soft cancel)
+    await reqTx.query(`
+      UPDATE study_sessions 
+      SET status='cancelled', updated_at=GETUTCDATE()
       WHERE session_id=@sessionId
     `);
 
-    const row = q.recordset[0];
+    const read = await new sql.Request(tx)
+      .input('sessionId', sql.Int, req.params.sessionId)
+      .query(`
+        SELECT 
+          ss.session_id AS id,
+          ss.group_id   AS groupId,
+          ss.session_title AS title,
+          ${ymd('ss.scheduled_start')} AS date,
+          ${hhmm('ss.scheduled_start')} AS startTime,
+          ${hhmm('ss.scheduled_end')}   AS endTime,
+          ss.location,
+          ss.session_type AS [type],
+          ss.status AS status
+        FROM study_sessions ss
+        WHERE ss.session_id=@sessionId
+      `);
 
-    // Fetch maxParticipants from group
-    const mpRes = await pool
-      .request()
+    const row = read.recordset[0];
+
+    const mpRes = await new sql.Request(tx)
       .input('groupId', sql.Int, row.groupId)
       .query(`SELECT max_members AS maxParticipants FROM study_groups WHERE group_id=@groupId`);
 
-    // participants (fresh)
-    const partRes = await pool
-      .request()
+    const partRes = await new sql.Request(tx)
       .input('sessionId', sql.Int, row.id)
       .query(
         `SELECT COUNT(*) AS participants FROM session_attendees WHERE session_id=@sessionId AND attendance_status='attending'`
       );
+
+    await tx.commit();
 
     res.json({
       ...row,
@@ -740,6 +828,7 @@ router.delete('/:sessionId', authenticateToken, async (req, res) => {
       status: mapStatus(row.status),
     });
   } catch (error) {
+    try { await tx.rollback(); } catch {}
     console.error('Error deleting (cancelling) session:', error);
     res.status(500).json({ error: 'Failed to cancel session' });
   }

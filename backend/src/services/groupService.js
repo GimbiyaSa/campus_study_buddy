@@ -873,6 +873,159 @@ router.post('/:groupId/join', authenticateToken, async (req, res) => {
   }
 });
 
+// ---------- POST /groups/:groupId/invite ----------
+// Also supports /:groupId/invitations with { user_ids: [...] }
+router.post('/:groupId/invite', authenticateToken, handleInvite);
+router.post('/:groupId/invitations', authenticateToken, handleInvite);
+
+async function handleInvite(req, res) {
+  try {
+    await getPool();
+
+    const groupId = Number(req.params.groupId);
+    if (Number.isNaN(groupId)) {
+      return res.status(400).json({ error: 'Invalid group id' });
+    }
+
+    // Accept both body shapes
+    const inviteUserIds =
+      Array.isArray(req.body?.inviteUserIds) ? req.body.inviteUserIds :
+      Array.isArray(req.body?.user_ids) ? req.body.user_ids :
+      [];
+
+    if (!inviteUserIds.length) {
+      return res.status(400).json({ error: 'inviteUserIds (or user_ids) is required' });
+    }
+
+    // Ensure group exists
+    const g = schema.tables.groups;
+    const exists = await pool
+      .request()
+      .input('groupId', sql.Int, groupId)
+      .query(`SELECT 1 FROM dbo.${g} WHERE group_id=@groupId`);
+    if (!exists.recordset.length) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    // Must be owner/admin/moderator
+    const authReq = pool.request();
+    authReq.input('groupId', sql.Int, groupId);
+    authReq.input('userId', sql.NVarChar(255), req.user.id);
+
+    const roleCheck = await authReq.query(`
+      SELECT TOP 1 1 AS ok
+      FROM dbo.group_members gm
+      WHERE gm.group_id=@groupId
+        AND gm.user_id=@userId
+        ${schema.membersCols.role ? `AND gm.role IN ('owner','admin','moderator')` : ''}
+    `);
+    if (!roleCheck.recordset.length) {
+      return res.status(403).json({ error: 'Only owners/admins can invite members' });
+    }
+
+    // Prefer a dedicated invitations table if present
+    const hasInvTable = await hasTable('group_invitations');
+
+    if (hasInvTable) {
+      // Detect a few common columns
+      const invCols = {
+        status: await hasColumn('group_invitations', 'status'),
+        invited_by: await hasColumn('group_invitations', 'invited_by'),
+        created_at: await hasColumn('group_invitations', 'created_at'),
+      };
+
+      // Insert one row per invitee (ignore duplicates)
+      for (const uid of inviteUserIds) {
+        const r = pool.request();
+        r.input('groupId', sql.Int, groupId);
+        r.input('userId', sql.NVarChar(255), String(uid));
+        r.input('inviter', sql.NVarChar(255), req.user.id);
+
+        const cols = ['group_id', 'user_id'];
+        const vals = ['@groupId', '@userId'];
+
+        if (invCols.status) {
+          cols.push('status');
+          vals.push(`'pending'`);
+        }
+        if (invCols.invited_by) {
+          cols.push('invited_by');
+          vals.push('@inviter');
+        }
+        if (invCols.created_at) {
+          cols.push('created_at');
+          vals.push('SYSUTCDATETIME()');
+        }
+
+        await r.query(`
+          IF NOT EXISTS (
+            SELECT 1 FROM dbo.group_invitations 
+            WHERE group_id=@groupId AND user_id=@userId ${invCols.status ? `AND status='pending'` : ''}
+          )
+          BEGIN
+            INSERT INTO dbo.group_invitations (${cols.join(', ')})
+            VALUES (${vals.join(', ')});
+          END
+        `);
+      }
+
+      return res.status(200).json({ ok: true, invited: inviteUserIds.length });
+    }
+
+    // Fallback: use notifications table if available
+    const hasNotifications = await hasTable('notifications');
+    if (hasNotifications) {
+      const notifCols = {
+        user_id: await hasColumn('notifications', 'user_id'),
+        notification_type: await hasColumn('notifications', 'notification_type'),
+        title: await hasColumn('notifications', 'title'),
+        message: await hasColumn('notifications', 'message'),
+        metadata: await hasColumn('notifications', 'metadata'),
+        is_read: await hasColumn('notifications', 'is_read'),
+        created_at: await hasColumn('notifications', 'created_at'),
+      };
+
+      for (const uid of inviteUserIds) {
+        const r = pool.request();
+        r.input('uid', sql.NVarChar(255), String(uid));
+        r.input('type', sql.NVarChar(100), 'group_invite');
+        r.input('title', sql.NVarChar(255), 'Group invitation');
+        r.input('message', sql.NVarChar(sql.MAX), 'You have been invited to join a study group.');
+        r.input('meta', sql.NVarChar(sql.MAX), JSON.stringify({ group_id: groupId }));
+
+        const cols = [];
+        const vals = [];
+        if (notifCols.user_id) { cols.push('user_id'); vals.push('@uid'); }
+        if (notifCols.notification_type) { cols.push('notification_type'); vals.push('@type'); }
+        if (notifCols.title) { cols.push('title'); vals.push('@title'); }
+        if (notifCols.message) { cols.push('message'); vals.push('@message'); }
+        if (notifCols.metadata) { cols.push('metadata'); vals.push('@meta'); }
+        if (notifCols.is_read) { cols.push('is_read'); vals.push('0'); }
+        if (notifCols.created_at) { cols.push('created_at'); vals.push('SYSUTCDATETIME()'); }
+
+        if (cols.length >= 2) {
+          await r.query(`
+            INSERT INTO dbo.notifications (${cols.join(', ')})
+            VALUES (${vals.join(', ')});
+          `);
+        } else {
+          console.warn('notifications table exists but lacks expected columns; skipping insert');
+        }
+      }
+
+      return res.status(200).json({ ok: true, invited: inviteUserIds.length, via: 'notifications' });
+    }
+
+    // Nothing to persist to — acknowledge to avoid client retries
+    console.warn('No group_invitations or notifications table found; invite acknowledged only');
+    return res.status(200).json({ ok: true, invited: inviteUserIds.length, persisted: false });
+  } catch (err) {
+    console.error('POST /groups/:groupId/invite error:', err);
+    return res.status(500).json({ error: 'Failed to invite users to group' });
+  }
+}
+
+
 // ---------- (Group-scoped) POST /groups/:groupId/sessions ----------
 router.post('/:groupId/sessions', authenticateToken, async (req, res) => {
   try {

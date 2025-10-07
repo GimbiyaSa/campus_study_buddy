@@ -94,15 +94,23 @@ jobs:
               az webapp config set \
                 --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
                 --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-                --startup-file "pm2 serve /home/site/wwwroot --spa"
+                --startup-file "pm2 serve /home/site/wwwroot --spa --port 8080"
+              az webapp config appsettings set \
+                --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+                --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+                --settings WEBSITES_PORT=8080 WEBSITES_ENABLE_APP_SERVICE_STORAGE=true
+              az webapp config appsettings delete \
+                --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+                --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+                --setting-names WEBSITE_RUN_FROM_PACKAGE || true
             else
               echo "App Service is not Linux-based; skipping startup command configuration"
+              az webapp config appsettings set \
+                --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+                --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+                --settings WEBSITE_RUN_FROM_PACKAGE=1
             fi
 
-            az webapp config appsettings set \
-              --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
-              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-              --settings WEBSITE_RUN_FROM_PACKAGE=1
 
       - name: Deploy to App Service
         uses: azure/webapps-deploy@v3

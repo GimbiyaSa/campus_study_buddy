@@ -35,17 +35,17 @@ jobs:
           resourceGroup: ${{ secrets.AZURE_RESOURCE_GROUP }}
           containerAppName: ${{ secrets.AZURE_CONTAINER_APP_NAME }}
           imageToBuild: ${{ secrets.AZURE_ACR_LOGIN_SERVER }}/campus-study-buddy-api:${{ github.sha }}
-          targetPort: 80
+          targetPort: 5000
           appSourcePath: backend
 
-      - name: Ensure Container App ingress target port is 80
+      - name: Ensure Container App ingress target port is 5000
         uses: azure/CLI@v1
         with:
           inlineScript: |
             az containerapp update \
               --name "${{ secrets.AZURE_CONTAINER_APP_NAME }}" \
               --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-              --set properties.configuration.ingress.targetPort=80
+              --set properties.configuration.ingress.targetPort=5000
 
   deploy-frontend:
     name: Deploy Frontend Web App

@@ -13,7 +13,9 @@ import Progress from './pages/Progress';
 import Sessions from './pages/Sessions';
 import Settings from './pages/Settings';
 import Profile from './pages/Profile';
+import Chat from './pages/Chat';
 import { useUser } from './contexts/UserContext';
+import CourseDetails from './pages/CourseDetails';
 
 export default function App() {
   const { currentUser, loading } = useUser();
@@ -39,9 +41,23 @@ export default function App() {
     'sessions',
     'settings',
     'profile',
+    'chat',
   ]);
 
+  const isProtectedRoute = (route: string) => {
+    // Course details pages are also protected
+    if (route.startsWith('courses/')) return true;
+    return chromeRoutes.has(route) || !publicRoutes.has(route);
+  };
+
   const renderPage = () => {
+    // Support /courses/:id for course details
+    if (route.startsWith('courses/')) {
+      // Extract id from route
+      const id = route.replace('courses/', '');
+      return <CourseDetails id={id} />;
+    }
+    
     switch (route) {
       case 'home':
         return <Home />;
@@ -63,6 +79,8 @@ export default function App() {
         return <Settings />;
       case 'profile':
         return <Profile />;
+      case 'chat':
+        return <Chat />;
       default:
         return <Home />;
     }
@@ -78,7 +96,7 @@ export default function App() {
   }
 
   // If user is not logged in and trying to access protected route, redirect to home
-  if (!currentUser && !publicRoutes.has(route)) {
+  if (!currentUser && !publicRoutes.has(route) && isProtectedRoute(route)) {
     // Redirect to home page
     window.history.replaceState({}, '', '/');
     setRoute('home');
@@ -107,7 +125,7 @@ export default function App() {
   }
 
   // Determine if we should show chrome (header/sidebar)
-  const shouldShowChrome = currentUser && chromeRoutes.has(route);
+  const shouldShowChrome = currentUser && (chromeRoutes.has(route) || route.startsWith('courses/'));
 
   return (
     <div className="min-h-screen relative">

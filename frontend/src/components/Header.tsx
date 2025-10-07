@@ -1,143 +1,24 @@
 // src/components/Header.tsx
 import { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Bell, ChevronDown, Settings, LogOut } from 'lucide-react';
+import { Search, ChevronDown, LogOut } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
-import { buildApiUrl } from '../utils/url';
-import { DataService } from '../services/dataService';
+//import { buildApiUrl } from '../utils/url';
+import NotificationHandler from './NotificationHandler';
 
-type User = {
-  user_id: number;
-  email: string;
-  first_name: string;
-  last_name: string;
-  university: string;
-  course: string;
-  year_of_study: number;
-  profile_image_url?: string;
-  is_active: boolean;
-};
-
-type Notification = {
-  id: number;
-  user_id: number;
-  title: string;
-  message: string;
-  /** visual category used by the header UI */
-  type: 'info' | 'warning' | 'success' | 'error';
-  is_read: boolean;
-  created_at: string;
-};
 
 export default function Header() {
   const { currentUser, loading, logout } = useUser();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
   // Modal states
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  const notificationRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  // Fallback notifications (unchanged)
-  const fallbackNotifications: Notification[] = [
-    {
-      id: 1,
-      user_id: 1,
-      title: 'New Study Group Invitation',
-      message: 'You have been invited to join the Data Structures study group',
-      type: 'info',
-      is_read: false,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 2,
-      user_id: 1,
-      title: 'Session Reminder',
-      message: 'Your Linear Algebra session starts in 30 minutes',
-      type: 'warning',
-      is_read: false,
-      created_at: new Date().toISOString(),
-    },
-  ];
-
-  // Map API rows -> local Notification UI shape
-  function mapRowToNotification(row: any): Notification {
-    const id = Number(row.id ?? row.notification_id ?? Date.now());
-    const user_id = Number(row.user_id ?? 0);
-    const created_at = String(row.created_at ?? new Date().toISOString());
-    const title = String(row.title ?? 'Notification');
-    const message = String(row.message ?? '');
-
-    // Convert backend types to your visual categories
-    const rawType = String(row.notification_type ?? row.type ?? 'info').toLowerCase();
-    const type: Notification['type'] =
-      rawType === 'session_reminder'
-        ? 'warning'
-        : rawType === 'partner_match'
-        ? 'success'
-        : rawType === 'group_invite'
-        ? 'info'
-        : rawType === 'system'
-        ? 'info'
-        : rawType === 'message'
-        ? 'info'
-        : rawType === 'success' || rawType === 'warning' || rawType === 'error'
-        ? (rawType as Notification['type'])
-        : 'info';
-
-    return {
-      id,
-      user_id,
-      title,
-      message,
-      type,
-      is_read: !!row.is_read,
-      created_at,
-    };
-  }
-
-  useEffect(() => {
-    if (!currentUser) return;
-
-    let isMounted = true;
-    const controller = new AbortController();
-
-    const fetchNotifications = async () => {
-      try {
-        const rows = await DataService.fetchNotifications({ limit: 50, offset: 0 });
-        if (!isMounted) return;
-        setNotifications(Array.isArray(rows) ? rows.map(mapRowToNotification) : []);
-      } catch {
-        // Keep behavior similar to your original: show fallback on error
-        if (!isMounted) return;
-        setNotifications(fallbackNotifications);
-      }
-    };
-
-    // Initial fetch immediately
-    fetchNotifications();
-
-    // Then poll every 60 seconds
-    const interval = setInterval(fetchNotifications, 60 * 1000);
-
-    return () => {
-      isMounted = false;
-      controller.abort();
-      clearInterval(interval);
-    };
-  }, [currentUser]);
-
-  // Close dropdowns when clicking outside (unchanged)
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
-        setShowNotifications(false);
-      }
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setShowUserMenu(false);
       }
@@ -147,24 +28,6 @@ export default function Header() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const markNotificationAsRead = async (notificationId: number) => {
-    try {
-      const ok = await DataService.markNotificationRead(notificationId);
-      if (ok) {
-        setNotifications((prev) =>
-          prev.map((n) => (n.id === notificationId ? { ...n, is_read: true } : n))
-        );
-      }
-    } catch (err) {
-      console.error('Error marking notification as read:', err);
-    }
-  };
-
-  const handleSettingsClick = () => {
-    setShowUserMenu(false);
-    setShowSettingsModal(true);
-  };
-
   const handleLogoutClick = () => {
     setShowUserMenu(false);
     setShowLogoutConfirm(true);
@@ -172,16 +35,7 @@ export default function Header() {
 
   const handleLogoutConfirm = async () => {
     try {
-      await fetch(buildApiUrl('/api/v1/auth/logout'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-    } catch (err) {
-      console.error('Error logging out:', err);
-    }
-
-    // Try to disable Google's auto sign-in and revoke session where possible
-    try {
+      // Try to disable Google's auto sign-in and revoke session where possible
       const win = window as any;
       if (win.google?.accounts?.id?.disableAutoSelect) {
         win.google.accounts.id.disableAutoSelect();
@@ -199,45 +53,9 @@ export default function Header() {
 
     // Clear user data from context
     logout();
-    setNotifications([]);
 
     // Redirect to login
     window.location.href = '/login';
-  };
-
-  /*const handleUpdateProfile = async (updatedData: Partial<User>) => {
-    if (!currentUser) return;
-
-    try {
-      const res = await fetch(buildApiUrl(`/api/v1/users/${currentUser.user_id}`), {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedData),
-      });
-
-      if (res.ok) {
-        const updatedUser = await res.json();
-        updateUser(updatedUser);
-        setShowProfileModal(false);
-      }
-    } catch (err) {
-      console.error('Error updating profile:', err);
-    }
-  };*/
-
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
-
-  const getNotificationIcon = (type: string) => {
-    switch (type) {
-      case 'success':
-        return '✅';
-      case 'warning':
-        return '⚠️';
-      case 'error':
-        return '❌';
-      default:
-        return '📢';
-    }
   };
 
   const getInitials = (firstName: string, lastName: string) => {
@@ -249,20 +67,6 @@ export default function Header() {
     return (
       <header className="bg-white border-b border-gray-200 h-16 px-6 flex items-center">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold text-brand-600">Campus Study Buddy</h1>
-          <div className="text-sm text-gray-500">Please log in</div>
-        </div>
-      </header>
-    );
-  }
-
-  // Loading skeleton (unchanged; your test looks for .animate-pulse)
-  if (loading) {
-    return (
-      <header className="bg-white border-b border-gray-200 h-16 px-6 flex items-center">
-        <div className="flex items-center justify-between w-full">
-          <div className="animate-pulse h-8 bg-gray-200 rounded w-48"></div>
-          <div className="animate-pulse h-8 bg-gray-200 rounded w-32"></div>
         </div>
       </header>
     );
@@ -270,140 +74,76 @@ export default function Header() {
 
   return (
     <>
-      <header className="bg-white border-b border-gray-200 h-16 px-6 flex items-center">
-        <div className="w-full flex items-center justify-between">
-          {/* Left side - Search */}
-          <div className="flex-1 max-w-lg">
-            <div className="relative">
-              <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search courses, groups, or buddies..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
-              />
-            </div>
+      <header className="bg-white border-b border-gray-200 h-16 px-6 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          {/* Search Bar */}
+          <div className="hidden md:flex items-center bg-gray-100 rounded-lg px-3 py-2">
+            <Search className="w-4 h-4 text-gray-400 mr-2" />
+            <input
+              type="text"
+              placeholder="Search courses, partners..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="bg-transparent outline-none text-sm text-gray-700 placeholder-gray-400 w-64"
+            />
           </div>
+        </div>
 
-          {/* Right side - Notifications and User Menu */}
-          <div className="flex items-center gap-4">
-            {/* Notifications */}
-            <div className="relative" ref={notificationRef}>
+        <div className="flex items-center gap-4">
+          {/* Mobile Search Icon */}
+          <button className="md:hidden p-2 hover:bg-gray-100 rounded-lg transition">
+            <Search className="w-5 h-5 text-gray-600" />
+          </button>
+
+          {/* Notifications */}
+          <NotificationHandler />
+
+          {/* User Menu */}
+          {currentUser && (
+            <div className="relative" ref={userMenuRef}>
               <button
-                onClick={() => setShowNotifications(!showNotifications)}
-                className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition"
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-lg transition"
               >
-                <Bell className="w-6 h-6" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                    {unreadCount}
-                  </span>
-                )}
+                <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center">
+                  {currentUser.profile_image_url ? (
+                    <img
+                      src={currentUser.profile_image_url}
+                      alt={`${currentUser.first_name} ${currentUser.last_name}`}
+                      className="w-8 h-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-brand-700 text-sm font-semibold">
+                      {getInitials(currentUser.first_name, currentUser.last_name)}
+                    </span>
+                  )}
+                </div>
+                <div className="hidden md:block text-left">
+                  <p className="text-sm font-medium text-gray-900">
+                    {currentUser.first_name} {currentUser.last_name}
+                  </p>
+                  <p className="text-xs text-gray-500">{currentUser.course}</p>
+                </div>
+                <ChevronDown className="w-4 h-4 text-gray-400" />
               </button>
 
-              {showNotifications && (
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-                  <div className="p-4 border-b border-gray-200">
-                    <h3 className="font-semibold text-gray-900">Notifications</h3>
-                  </div>
-                  <div className="max-h-96 overflow-y-auto">
-                    {notifications.length === 0 ? (
-                      <div className="p-4 text-center text-gray-500">No notifications</div>
-                    ) : (
-                      notifications.map((notification) => (
-                        <div
-                          key={notification.id}
-                          className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${
-                            !notification.is_read ? 'bg-blue-50' : ''
-                          }`}
-                          onClick={() => markNotificationAsRead(notification.id)}
-                        >
-                          <div className="flex items-start gap-3">
-                            <span className="text-lg">
-                              {getNotificationIcon(notification.type)}
-                            </span>
-                            <div className="flex-1">
-                              <h4 className="font-medium text-gray-900">{notification.title}</h4>
-                              <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
-                              <p className="text-xs text-gray-400 mt-1">
-                                {new Date(notification.created_at).toLocaleString()}
-                              </p>
-                            </div>
-                            {!notification.is_read && (
-                              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                            )}
-                          </div>
-                        </div>
-                      ))
-                    )}
+              {showUserMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                  <div className="p-2">
+                    <button
+                      onClick={handleLogoutClick}
+                      className="w-full flex items-center gap-3 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Logout</span>
+                    </button>
                   </div>
                 </div>
               )}
             </div>
-
-            {/* User Menu */}
-            {currentUser && (
-              <div className="relative" ref={userMenuRef}>
-                <button
-                  onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-lg transition"
-                >
-                  <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center">
-                    {currentUser.profile_image_url ? (
-                      <img
-                        src={currentUser.profile_image_url}
-                        alt={`${currentUser.first_name} ${currentUser.last_name}`}
-                        className="w-8 h-8 rounded-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-brand-700 text-sm font-semibold">
-                        {getInitials(currentUser.first_name, currentUser.last_name)}
-                      </span>
-                    )}
-                  </div>
-                  <div className="hidden md:block text-left">
-                    <p className="text-sm font-medium text-gray-900">
-                      {currentUser.first_name} {currentUser.last_name}
-                    </p>
-                    <p className="text-xs text-gray-500">{currentUser.course}</p>
-                  </div>
-                  <ChevronDown className="w-4 h-4 text-gray-400" />
-                </button>
-
-                {showUserMenu && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-                    <div className="p-2">
-                      <button
-                        onClick={handleSettingsClick}
-                        className="w-full flex items-center gap-3 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition"
-                      >
-                        <Settings className="w-4 h-4" />
-                        <span>Settings</span>
-                      </button>
-                      <hr className="my-2" />
-                      <button
-                        onClick={handleLogoutClick}
-                        className="w-full flex items-center gap-3 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition"
-                      >
-                        <LogOut className="w-4 h-4" />
-                        <span>Logout</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </header>
-
-      {/* Settings Modal */}
-      <SettingsModal
-        open={showSettingsModal}
-        onClose={() => setShowSettingsModal(false)}
-        user={currentUser}
-      />
 
       {/* Logout Confirmation Modal */}
       <LogoutConfirmModal
@@ -412,118 +152,6 @@ export default function Header() {
         onConfirm={handleLogoutConfirm}
       />
     </>
-  );
-}
-
-/* ---------- Settings Modal ---------- */
-function SettingsModal({
-  open,
-  onClose,
-  user: _user,
-}: {
-  open: boolean;
-  onClose: () => void;
-  user: User | null;
-}) {
-  const [settings, setSettings] = useState({
-    notifications: true,
-    emailUpdates: true,
-    darkMode: false,
-    studyReminders: true,
-  });
-
-  if (!open) return null;
-
-  return createPortal(
-    <>
-      <div className="fixed inset-0 z-[9998] bg-black/40" onClick={onClose} />
-      <div className="fixed inset-0 z-[9999] grid place-items-center p-4">
-        <div className="w-full max-w-md rounded-2xl bg-white shadow-xl border border-gray-100 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">Settings</h2>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">Push Notifications</span>
-              <button
-                onClick={() => setSettings({ ...settings, notifications: !settings.notifications })}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  settings.notifications ? 'bg-brand-500' : 'bg-gray-200'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    settings.notifications ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">Email Updates</span>
-              <button
-                onClick={() => setSettings({ ...settings, emailUpdates: !settings.emailUpdates })}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  settings.emailUpdates ? 'bg-brand-500' : 'bg-gray-200'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    settings.emailUpdates ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">Study Reminders</span>
-              <button
-                onClick={() =>
-                  setSettings({ ...settings, studyReminders: !settings.studyReminders })
-                }
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  settings.studyReminders ? 'bg-brand-500' : 'bg-gray-200'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    settings.studyReminders ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">Dark Mode</span>
-              <button
-                onClick={() => setSettings({ ...settings, darkMode: !settings.darkMode })}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  settings.darkMode ? 'bg-brand-500' : 'bg-gray-200'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    settings.darkMode ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
-
-          <div className="flex gap-3 pt-6">
-            <button
-              onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-            >
-              Close
-            </button>
-            <button className="flex-1 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600">
-              Save Settings
-            </button>
-          </div>
-        </div>
-      </div>
-    </>,
-    document.body
   );
 }
 

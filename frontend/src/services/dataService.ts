@@ -85,9 +85,12 @@ export type StudyPartner = {
   reviewCount: number;
   responseRate: number;
   lastActive: string;
-
-  // Connection
-  connectionStatus?: 'not_connected' | 'pending' | 'connected' | 'blocked';
+  
+  // Connection status
+  connectionStatus?: 'none' | 'pending' | 'accepted' | 'declined' | 'blocked';
+  connectionId?: number;
+  isPendingSent?: boolean;
+  isPendingReceived?: boolean;
   mutualConnections?: number;
 
   // Match details
@@ -930,6 +933,42 @@ export class DataService {
     }
   }
 
+  static async acceptPartnerRequest(requestId: number): Promise<void> {
+    try {
+      const res = await this.request(`/api/v1/partners/accept/${requestId}`, {
+        method: 'POST'
+      });
+      if (!res.ok) {
+        const appError = ErrorHandler.handleApiError({ status: res.status }, 'partners');
+        throw appError;
+      }
+      await this.safeJson<any>(res, null);
+      console.log('✅ Partner request accepted');
+    } catch (error) {
+      console.error('❌ acceptPartnerRequest error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'partners');
+      throw appError;
+    }
+  }
+
+  static async rejectPartnerRequest(requestId: number): Promise<void> {
+    try {
+      const res = await this.request(`/api/v1/partners/reject/${requestId}`, {
+        method: 'POST'
+      });
+      if (!res.ok) {
+        const appError = ErrorHandler.handleApiError({ status: res.status }, 'partners');
+        throw appError;
+      }
+      await this.safeJson<any>(res, null);
+      console.log('✅ Partner request rejected');
+    } catch (error) {
+      console.error('❌ rejectPartnerRequest error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'partners');
+      throw appError;
+    }
+  }
+
   // -------------------- Groups --------------------
   static async fetchMyGroups(): Promise<any[]> {
     try {
@@ -1245,6 +1284,141 @@ export class DataService {
       return res.ok;
     } catch {
       return false;
+    }
+  }
+
+  // -------------------- Study Goal and Progress APIs --------------------
+  static async setTopicGoal(topicId: number, goal: {
+    hoursGoal: number;
+    targetCompletionDate?: string;
+    personalNotes?: string;
+  }): Promise<any> {
+    try {
+      const res = await this.request(`/api/v1/progress/topics/${topicId}/goal`, {
+        method: 'PUT',
+        body: JSON.stringify(goal)
+      });
+      if (!res.ok) {
+        const appError = ErrorHandler.handleApiError({ status: res.status }, 'progress');
+        throw appError;
+      }
+      const data = await this.safeJson<any>(res, null);
+      console.log('🎯 Study goal set:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ setTopicGoal error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'progress');
+      throw appError;
+    }
+  }
+
+  static async logStudyHours(topicId: number, log: {
+    hours: number;
+    description?: string;
+    studyDate?: string;
+    reflections?: string;
+  }): Promise<any> {
+    try {
+      console.log('📝 Logging study hours:', { topicId, log });
+      const res = await this.request(`/api/v1/progress/topics/${topicId}/log-hours`, {
+        method: 'POST',
+        body: JSON.stringify(log)
+      });
+      if (!res.ok) {
+        const appError = ErrorHandler.handleApiError({ status: res.status }, 'progress');
+        throw appError;
+      }
+      const data = await this.safeJson<any>(res, null);
+      console.log('📝 Study hours logged successfully:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ logStudyHours error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'progress');
+      throw appError;
+    }
+  }
+
+  static async markTopicComplete(topicId: number): Promise<any> {
+    try {
+      console.log('✅ Marking topic as complete:', { topicId });
+      const res = await this.request(`/api/v1/progress/topics/${topicId}/complete`, {
+        method: 'PUT'
+      });
+      if (!res.ok) {
+        const appError = ErrorHandler.handleApiError({ status: res.status }, 'progress');
+        throw appError;
+      }
+      const data = await this.safeJson<any>(res, null);
+      console.log('✅ Topic marked complete successfully:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ markTopicComplete error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'progress');
+      throw appError;
+    }
+  }
+
+  static async fetchTopicProgress(topicId: number): Promise<any> {
+    try {
+      const res = await this.request(`/api/v1/progress/topics/${topicId}`, {
+        method: 'GET'
+      });
+      if (!res.ok) {
+        const appError = ErrorHandler.handleApiError({ status: res.status }, 'progress');
+        throw appError;
+      }
+      const data = await this.safeJson<any>(res, null);
+      console.log('📊 Topic progress loaded:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ fetchTopicProgress error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'progress');
+      throw appError;
+    }
+  }
+
+  static async fetchModuleTopics(moduleId: number): Promise<any[]> {
+    try {
+      console.log('📚 Fetching module topics for moduleId:', moduleId);
+      const res = await this.request(`/api/v1/courses/${moduleId}/topics`, {
+        method: 'GET'
+      });
+      if (!res.ok) {
+        const appError = ErrorHandler.handleApiError({ status: res.status }, 'courses');
+        throw appError;
+      }
+      const data = await this.safeJson<any[]>(res, []);
+      console.log('📚 Module topics loaded successfully:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ fetchModuleTopics error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'courses');
+      throw appError;
+    }
+  }
+
+  static async addTopic(moduleId: number, topic: {
+    topic_name: string;
+    description?: string;
+    order_sequence?: number;
+  }): Promise<any> {
+    try {
+      console.log('➕ Adding topic to module:', { moduleId, topic });
+      const res = await this.request(`/api/v1/modules/${moduleId}/topics`, {
+        method: 'POST',
+        body: JSON.stringify(topic)
+      });
+      if (!res.ok) {
+        const appError = ErrorHandler.handleApiError({ status: res.status }, 'courses');
+        throw appError;
+      }
+      const data = await this.safeJson<any>(res, null);
+      console.log('✅ Topic added successfully:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ addTopic error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'courses');
+      throw appError;
     }
   }
 }

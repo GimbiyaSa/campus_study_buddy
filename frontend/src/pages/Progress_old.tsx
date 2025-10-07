@@ -1,21 +1,30 @@
 import { useEffect, useState } from 'react';
-import { Clock, BookOpen, Trophy, TrendingUp, AlertCircle, RefreshCw, Loader2, Plus, CheckCircle, Target, Calendar, BarChart3, Award, Users } from 'lucide-react';
+import { Clock, BookOpen, Trophy, TrendingUp, AlertCircle, RefreshCw, Loader2, Plus, CheckCircle, Target } from 'lucide-react';
 import { ErrorHandler, type AppError } from '../utils/errorHandler';
 import { createInitialLoadingState } from '../components/ui/LoadingStates';
 import type { LoadingState } from '../components/ui/LoadingStates';
 import StudyGoalDialog, { type StudyGoal } from '../components/StudyGoalDialog';
 import StudyLogDialog, { type StudyLog } from '../components/StudyLogDialog';
-import { DataService, type Course } from '../services/dataService';
+import { DataService } from '../services/dataService';
 
-// Simplified interface that leverages existing Course data
-interface ProgressOverview {
-  totalHours: number;
-  totalTopics: number;
-  completedTopics: number;
-  averageProgress: number;
-  activeCourses: number;
-  completedCourses: number;
-  totalCourses: number;
+// Interface for the progress data structure
+interface ProgressData {
+  goals: {
+    overall: {
+      totalHours: number;
+      completedTopics: number;
+      totalSessions: number;
+    };
+  };
+  modules: Array<{
+    id: number;
+    name: string;
+    code: string;
+    enrollmentStatus: 'active' | 'completed' | 'dropped';
+    progress: number;
+    totalHours: number;
+    topics: any[];
+  }>;
 }
 
 export default function Progress() {
@@ -183,8 +192,8 @@ export default function Progress() {
   
   // Calculate derived stats from real data
   const avgProgress = modules?.length ? 
-    Math.round(modules.reduce((sum, module) => sum + (module.progress || 0), 0) / modules.length) : 0;
-  const activeModules = modules?.filter(module => module.enrollmentStatus === 'active').length || 0;
+    Math.round(modules.reduce((sum: number, module) => sum + (module.progress || 0), 0) / modules.length) : 0;
+  const activeModules = modules?.filter((module) => module.enrollmentStatus === 'active').length || 0;
 
   return (
     <div className="space-y-6">

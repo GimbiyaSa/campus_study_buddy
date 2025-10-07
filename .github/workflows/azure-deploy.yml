@@ -45,12 +45,7 @@ jobs:
             az containerapp update \
               --name "${{ secrets.AZURE_CONTAINER_APP_NAME }}" \
               --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-              --set PORT=5000 \
-              --set GOOGLE_CLIENT_ID="${{ secrets.GOOGLE_CLIENT_ID }}" \
-              --set KEY_VAULT_NAME="${{ secrets.KEY_VAULT_NAME }}" \
-              --set AZURE_CLIENT_ID="${{ secrets.AZURE_CLIENT_ID }}" \
-              --set AZURE_CLIENT_SECRET="${{ secrets.AZURE_CLIENT_SECRET }}" \
-              --set AZURE_TENANT_ID="${{ secrets.AZURE_TENANT_ID }}"
+              --set PORT=5000
 
   deploy-frontend:
     name: Deploy Frontend Web App

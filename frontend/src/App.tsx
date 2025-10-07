@@ -57,7 +57,7 @@ export default function App() {
       const id = route.replace('courses/', '');
       return <CourseDetails id={id} />;
     }
-    
+
     switch (route) {
       case 'home':
         return <Home />;

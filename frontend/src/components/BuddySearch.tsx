@@ -16,7 +16,7 @@ export default function BuddySearch() {
   const [suggestions, setSuggestions] = useState<StudyPartner[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<AppError | null>(null);
-  
+
   // Track pending invites by partner ID
   const [pendingInvites, setPendingInvites] = useState<Set<string>>(new Set());
 
@@ -35,13 +35,13 @@ export default function BuddySearch() {
         setLoading(false);
       }
     }
-    
+
     fetchSuggestions();
 
     // Listen for partner request status updates
     const handlePartnerAccepted = (data: any) => {
       console.log('Partner request accepted:', data);
-      setPendingInvites(prev => {
+      setPendingInvites((prev) => {
         const newSet = new Set(prev);
         // Find and remove the partner ID that was accepted
         newSet.delete(data.acceptedBy);
@@ -53,7 +53,7 @@ export default function BuddySearch() {
 
     const handlePartnerRejected = (data: any) => {
       console.log('Partner request rejected:', data);
-      setPendingInvites(prev => {
+      setPendingInvites((prev) => {
         const newSet = new Set(prev);
         // Find and remove the partner ID that was rejected
         newSet.delete(data.rejectedBy);
@@ -66,9 +66,15 @@ export default function BuddySearch() {
       fetchSuggestions();
     };
 
-    const unsubscribeAccepted = azureIntegrationService.onConnectionEvent('partner_accepted', handlePartnerAccepted);
-    const unsubscribeRejected = azureIntegrationService.onConnectionEvent('partner_rejected', handlePartnerRejected);
-    
+    const unsubscribeAccepted = azureIntegrationService.onConnectionEvent(
+      'partner_accepted',
+      handlePartnerAccepted
+    );
+    const unsubscribeRejected = azureIntegrationService.onConnectionEvent(
+      'partner_rejected',
+      handlePartnerRejected
+    );
+
     window.addEventListener('buddies:invalidate', handleBuddiesInvalidate);
 
     return () => {
@@ -86,7 +92,6 @@ export default function BuddySearch() {
 
   const closeModal = () => setOpen(false);
 
-
   const sendInvite = async () => {
     if (!selected?.id) return;
     setError(null);
@@ -100,21 +105,20 @@ export default function BuddySearch() {
         // Log but don't block UI if notification fails
         console.warn('Notification send failed:', notifyErr);
       }
-      
+
       // 3. Update pending invites state
-      setPendingInvites(prev => new Set(prev).add(selected.id));
-      
+      setPendingInvites((prev) => new Set(prev).add(selected.id));
+
       // 4. Dispatch event for local state update (optional)
       window.dispatchEvent(new CustomEvent('buddy:connected', { detail: selected }));
       setInvited(true);
-      
+
       // 5. Close modal immediately after successful invite
       setTimeout(() => {
         closeModal();
         // Reset state for next time
         setInvited(false);
       }, 1000); // Show "Invite sent" for 1 second, then close
-      
     } catch (err) {
       const appError = ErrorHandler.handleApiError(err, 'partners');
       setError(appError);
@@ -189,9 +193,9 @@ export default function BuddySearch() {
         <div className="flex-1">
           <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {suggestions.map((s) => (
-              <EnhancedSuggestionCard 
-                key={s.id} 
-                suggestion={s} 
+              <EnhancedSuggestionCard
+                key={s.id}
+                suggestion={s}
                 onConnect={() => openModal(s)}
                 isPending={pendingInvites.has(s.id)}
               />
@@ -230,7 +234,15 @@ export default function BuddySearch() {
 
 /* ---------- Enhanced Components ---------- */
 
-function EnhancedSuggestionCard({ suggestion, onConnect, isPending = false }: { suggestion: StudyPartner; onConnect: () => void; isPending?: boolean }) {
+function EnhancedSuggestionCard({
+  suggestion,
+  onConnect,
+  isPending = false,
+}: {
+  suggestion: StudyPartner;
+  onConnect: () => void;
+  isPending?: boolean;
+}) {
   const initials = suggestion.name
     .split(' ')
     .map((n) => n[0])
@@ -276,10 +288,14 @@ function EnhancedSuggestionCard({ suggestion, onConnect, isPending = false }: { 
 
       <button
         onClick={onConnect}
-        disabled={isPending || suggestion.connectionStatus === 'pending' || suggestion.connectionStatus === 'accepted'}
+        disabled={
+          isPending ||
+          suggestion.connectionStatus === 'pending' ||
+          suggestion.connectionStatus === 'accepted'
+        }
         className={`w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold shadow-md hover:shadow-lg focus-visible:outline focus-visible:outline-2 transition-all duration-200 ${
           isPending || suggestion.connectionStatus === 'pending'
-            ? 'bg-yellow-100 text-yellow-800 cursor-not-allowed' 
+            ? 'bg-yellow-100 text-yellow-800 cursor-not-allowed'
             : suggestion.connectionStatus === 'accepted'
             ? 'bg-green-100 text-green-800 cursor-not-allowed'
             : 'bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:outline-emerald-600'
@@ -288,12 +304,11 @@ function EnhancedSuggestionCard({ suggestion, onConnect, isPending = false }: { 
         <Users className="h-4 w-4" />
         {isPending || suggestion.connectionStatus === 'pending'
           ? suggestion.isPendingSent
-            ? 'Pending acceptance' 
+            ? 'Pending acceptance'
             : 'Pending response'
           : suggestion.connectionStatus === 'accepted'
           ? 'Study buddies'
-          : 'Connect'
-        }
+          : 'Connect'}
       </button>
     </li>
   );

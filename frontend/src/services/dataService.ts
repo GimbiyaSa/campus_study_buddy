@@ -12,7 +12,7 @@ export type Course = {
   description?: string;
   university?: string;
 
-  // Progress & Analytics
+  // Progress & Analytics (from user_progress + study_hours tables)
   progress?: number;
   totalHours?: number;
   totalTopics?: number;
@@ -20,18 +20,18 @@ export type Course = {
   completedChapters?: number;
   totalChapters?: number;
 
-  // Enrollment
+  // Enrollment details (from user_modules table)
   enrollmentStatus?: 'active' | 'completed' | 'dropped';
   enrolledAt?: string;
 
-  // Study metrics
+  // Study metrics (from study_hours aggregations)
   weeklyHours?: number;
   monthlyHours?: number;
   averageSessionDuration?: number;
   studyStreak?: number;
   lastStudiedAt?: string;
 
-  // Social context
+  // Social context (from study_groups + session_attendees)
   activeStudyGroups?: number;
   upcomingSessions?: number;
   studyPartners?: number;
@@ -54,13 +54,13 @@ export type StudyPartner = {
   name: string;
   avatar?: string;
 
-  // Academic profile
+  // Academic profile (from users table)
   university: string;
   course: string;
   yearOfStudy: number;
   bio?: string;
 
-  // Preferences
+  // Study preferences & compatibility
   studyPreferences?: {
     preferredTimes: string[];
     studyStyle: 'visual' | 'auditory' | 'kinesthetic' | 'mixed';
@@ -68,24 +68,24 @@ export type StudyPartner = {
     environment: 'quiet' | 'collaborative' | 'flexible';
   };
 
-  // Shared context
+  // Shared academic context (from user_modules overlap)
   sharedCourses: string[];
   sharedTopics: string[];
   compatibilityScore: number;
 
-  // Activity
+  // Activity & engagement metrics
   studyHours: number;
   weeklyHours: number;
   studyStreak: number;
   activeGroups: number;
   sessionsAttended: number;
 
-  // Social proof
+  // Social proof & reliability
   rating: number;
   reviewCount: number;
   responseRate: number;
   lastActive: string;
-  
+
   // Connection status
   connectionStatus?: 'none' | 'pending' | 'accepted' | 'declined' | 'blocked';
   connectionId?: number;
@@ -93,7 +93,7 @@ export type StudyPartner = {
   isPendingReceived?: boolean;
   mutualConnections?: number;
 
-  // Match details
+  // Study match details
   recommendationReason?: string;
   sharedGoals?: string[];
 };
@@ -479,11 +479,17 @@ export class DataService {
   // --- headers/helpers ---
   private static authHeaders(): Headers {
     const h = new Headers();
-    // Prefer Google token; fall back to generic app token
+    // Check for both 'google_id_token' (Google Auth) and 'token' (fallback)
     const googleToken =
       typeof window !== 'undefined' ? localStorage.getItem('google_id_token') : null;
     const generalToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     const raw = googleToken || generalToken;
+
+    console.log('🔍 Auth token check:', {
+      googleToken: googleToken ? `${googleToken.substring(0, 20)}...` : null,
+      generalToken: generalToken ? `${generalToken.substring(0, 20)}...` : null,
+      selectedToken: raw ? `${raw.substring(0, 20)}...` : null,
+    });
 
     if (raw) {
       let t = raw;
@@ -506,8 +512,8 @@ export class DataService {
   private static async fetchWithRetry(
     url: string,
     options: RequestInit = {},
-    retries = 2,
-    timeout = 5000
+    retries = 2, // Reduced retries for faster response
+    timeout = 5000 // 5 second timeout
   ): Promise<Response> {
     for (let i = 0; i < retries; i++) {
       try {
@@ -521,6 +527,8 @@ export class DataService {
           ...options.headers,
         };
 
+        console.log('📡 Final request headers:', finalHeaders);
+
         const response = await fetch(url, {
           ...options,
           headers: finalHeaders,
@@ -530,9 +538,11 @@ export class DataService {
 
         clearTimeout(timeoutId);
 
-        if (response.ok) return response;
+        if (response.ok) {
+          return response;
+        }
 
-        // Don't retry 4xx
+        // Don't retry for client errors (4xx), only server errors (5xx)
         if (response.status >= 400 && response.status < 500) {
           throw Object.assign(
             new Error(`Client error: ${response.status} ${response.statusText}`),
@@ -547,7 +557,8 @@ export class DataService {
         }
       } catch (error: any) {
         if (i === retries - 1) throw error;
-        await new Promise((r) => setTimeout(r, Math.min(500, Math.pow(2, i) * 200)));
+        // Reduced backoff for faster response
+        await new Promise((resolve) => setTimeout(resolve, Math.min(500, Math.pow(2, i) * 200)));
       }
     }
     throw new Error('Should not reach here');
@@ -687,47 +698,70 @@ export class DataService {
       if (options?.sortBy) params.append('sortBy', options.sortBy);
       if (options?.sortOrder) params.append('sortOrder', options.sortOrder);
 
-      const res = await this.request(`/api/v1/courses${params.toString() ? `?${params}` : ''}`, {
+      console.log('🎓 Fetching courses with params:', Object.fromEntries(params));
+
+      const res = await this.request(`/api/v1/courses${params.toString() ? `?${params.toString()}` : ''}`, {
         method: 'GET',
       });
+      
+      console.log('📡 Response status:', res.status, res.statusText);
+
       if (!res.ok) {
         throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
       }
 
       const data = await this.safeJson<any>(res, []);
+      console.log('📦 Raw response data:', data);
+
       let courses: Course[] = [];
       if (data?.courses) {
         courses = data.courses;
+        console.log('✅ Using data.courses:', courses.length, 'courses');
       } else if (Array.isArray(data)) {
         courses = data;
+        console.log('✅ Using data as array:', courses.length, 'courses');
       } else {
+        console.log('⚠️ No courses found in response structure');
         courses = [];
       }
 
+      console.log('🎓 Final courses to return:', courses);
       return courses;
     } catch (error) {
+      console.error('❌ fetchCourses error details:', {
+        error,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+
+      // Re-throw the error so the component can handle it
       throw error;
     }
   }
 
   static async addCourse(courseData: Omit<Course, 'id' | 'progress'>): Promise<Course> {
-    const res = await this.request('/api/v1/courses', {
+    const url = buildApiUrl('/api/v1/courses');
+    console.log('➕ Adding course:', courseData);
+
+    const res = await this.fetchWithRetry(url, {
       method: 'POST',
       body: JSON.stringify(courseData),
     });
-    if (!res.ok) {
-      throw Object.assign(new Error('Failed to add course'), { status: res.status });
-    }
-    return this.safeJson<Course>(res, null as any);
+
+    const newCourse = await res.json();
+    console.log('✅ Course added:', newCourse);
+    return newCourse;
   }
 
   static async removeCourse(courseId: string): Promise<void> {
-    const res = await this.request(`/api/v1/courses/${encodeURIComponent(courseId)}`, {
+    const url = buildApiUrl(`/api/v1/courses/${courseId}`);
+    console.log('🗑️ Removing course:', courseId);
+
+    await this.fetchWithRetry(url, {
       method: 'DELETE',
     });
-    if (!res.ok) {
-      throw Object.assign(new Error('Failed to remove course'), { status: res.status });
-    }
+
+    console.log('✅ Course removed:', courseId);
   }
 
   // -------------------- Sessions --------------------
@@ -893,11 +927,19 @@ export class DataService {
   }): Promise<StudyPartner[]> {
     try {
       const queryParams = new URLSearchParams();
-      if (params?.subjects?.length) queryParams.append('subjects', params.subjects.join(','));
-      if (params?.studyStyle) queryParams.append('studyStyle', params.studyStyle);
-      if (params?.groupSize) queryParams.append('groupSize', params.groupSize);
-      if (params?.availability?.length)
+
+      if (params?.subjects?.length) {
+        queryParams.append('subjects', params.subjects.join(','));
+      }
+      if (params?.studyStyle) {
+        queryParams.append('studyStyle', params.studyStyle);
+      }
+      if (params?.groupSize) {
+        queryParams.append('groupSize', params.groupSize);
+      }
+      if (params?.availability?.length) {
         queryParams.append('availability', params.availability.join(','));
+      }
       if (params?.university) queryParams.append('university', params.university);
       if (params?.search) queryParams.append('search', params.search);
 
@@ -914,6 +956,8 @@ export class DataService {
       const appError = ErrorHandler.handleApiError(error, 'partners');
       throw appError;
     }
+    // Ensure a return in all code paths (should never reach here, but for type safety)
+    return [];
   }
 
   static async sendBuddyRequest(recipientId: string, message?: string): Promise<void> {
@@ -935,8 +979,8 @@ export class DataService {
 
   static async acceptPartnerRequest(requestId: number): Promise<void> {
     try {
-      const res = await this.request(`/api/v1/partners/accept/${requestId}`, {
-        method: 'POST'
+      const res = await this.fetchWithRetry(buildApiUrl(`/api/v1/partners/accept/${requestId}`), {
+        method: 'POST',
       });
       if (!res.ok) {
         const appError = ErrorHandler.handleApiError({ status: res.status }, 'partners');
@@ -953,8 +997,8 @@ export class DataService {
 
   static async rejectPartnerRequest(requestId: number): Promise<void> {
     try {
-      const res = await this.request(`/api/v1/partners/reject/${requestId}`, {
-        method: 'POST'
+      const res = await this.fetchWithRetry(buildApiUrl(`/api/v1/partners/reject/${requestId}`), {
+        method: 'POST',
       });
       if (!res.ok) {
         const appError = ErrorHandler.handleApiError({ status: res.status }, 'partners');
@@ -1288,21 +1332,24 @@ export class DataService {
   }
 
   // -------------------- Study Goal and Progress APIs --------------------
-  static async setTopicGoal(topicId: number, goal: {
-    hoursGoal: number;
-    targetCompletionDate?: string;
-    personalNotes?: string;
-  }): Promise<any> {
+  // Study Goal and Progress APIs
+  static async setTopicGoal(
+    topicId: number,
+    goal: {
+      hoursGoal: number;
+      targetCompletionDate?: string;
+      personalNotes?: string;
+    }
+  ): Promise<any> {
     try {
-      const res = await this.request(`/api/v1/progress/topics/${topicId}/goal`, {
-        method: 'PUT',
-        body: JSON.stringify(goal)
-      });
-      if (!res.ok) {
-        const appError = ErrorHandler.handleApiError({ status: res.status }, 'progress');
-        throw appError;
-      }
-      const data = await this.safeJson<any>(res, null);
+      const res = await this.fetchWithRetry(
+        buildApiUrl(`/api/v1/progress/topics/${topicId}/goal`),
+        {
+          method: 'PUT',
+          body: JSON.stringify(goal),
+        }
+      );
+      const data = await res.json();
       console.log('🎯 Study goal set:', data);
       return data;
     } catch (error) {
@@ -1312,23 +1359,25 @@ export class DataService {
     }
   }
 
-  static async logStudyHours(topicId: number, log: {
-    hours: number;
-    description?: string;
-    studyDate?: string;
-    reflections?: string;
-  }): Promise<any> {
+  static async logStudyHours(
+    topicId: number,
+    log: {
+      hours: number;
+      description?: string;
+      studyDate?: string;
+      reflections?: string;
+    }
+  ): Promise<any> {
     try {
       console.log('📝 Logging study hours:', { topicId, log });
-      const res = await this.request(`/api/v1/progress/topics/${topicId}/log-hours`, {
-        method: 'POST',
-        body: JSON.stringify(log)
-      });
-      if (!res.ok) {
-        const appError = ErrorHandler.handleApiError({ status: res.status }, 'progress');
-        throw appError;
-      }
-      const data = await this.safeJson<any>(res, null);
+      const res = await this.fetchWithRetry(
+        buildApiUrl(`/api/v1/progress/topics/${topicId}/log-hours`),
+        {
+          method: 'POST',
+          body: JSON.stringify(log),
+        }
+      );
+      const data = await res.json();
       console.log('📝 Study hours logged successfully:', data);
       return data;
     } catch (error) {
@@ -1341,14 +1390,13 @@ export class DataService {
   static async markTopicComplete(topicId: number): Promise<any> {
     try {
       console.log('✅ Marking topic as complete:', { topicId });
-      const res = await this.request(`/api/v1/progress/topics/${topicId}/complete`, {
-        method: 'PUT'
-      });
-      if (!res.ok) {
-        const appError = ErrorHandler.handleApiError({ status: res.status }, 'progress');
-        throw appError;
-      }
-      const data = await this.safeJson<any>(res, null);
+      const res = await this.fetchWithRetry(
+        buildApiUrl(`/api/v1/progress/topics/${topicId}/complete`),
+        {
+          method: 'PUT',
+        }
+      );
+      const data = await res.json();
       console.log('✅ Topic marked complete successfully:', data);
       return data;
     } catch (error) {
@@ -1397,16 +1445,19 @@ export class DataService {
     }
   }
 
-  static async addTopic(moduleId: number, topic: {
-    topic_name: string;
-    description?: string;
-    order_sequence?: number;
-  }): Promise<any> {
+  static async addTopic(
+    moduleId: number,
+    topic: {
+      topic_name: string;
+      description?: string;
+      order_sequence?: number;
+    }
+  ): Promise<any> {
     try {
       console.log('➕ Adding topic to module:', { moduleId, topic });
       const res = await this.request(`/api/v1/modules/${moduleId}/topics`, {
         method: 'POST',
-        body: JSON.stringify(topic)
+        body: JSON.stringify(topic),
       });
       if (!res.ok) {
         const appError = ErrorHandler.handleApiError({ status: res.status }, 'courses');
@@ -1417,6 +1468,31 @@ export class DataService {
       return data;
     } catch (error) {
       console.error('❌ addTopic error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'courses');
+      throw appError;
+    }
+  }
+
+  static async logCourseStudyHours(courseId: string, log: {
+    hours: number;
+    description?: string;
+    studyDate?: string;
+  }): Promise<any> {
+    try {
+      console.log('📝 Logging course study hours:', { courseId, log });
+      const res = await this.request(`/api/v1/courses/${courseId}/log-hours`, {
+        method: 'POST',
+        body: JSON.stringify(log)
+      });
+      if (!res.ok) {
+        const appError = ErrorHandler.handleApiError({ status: res.status }, 'courses');
+        throw appError;
+      }
+      const data = await this.safeJson<any>(res, null);
+      console.log('📝 Course study hours logged successfully:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ logCourseStudyHours error:', error);
       const appError = ErrorHandler.handleApiError(error, 'courses');
       throw appError;
     }

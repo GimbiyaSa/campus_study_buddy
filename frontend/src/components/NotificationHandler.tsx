@@ -27,19 +27,22 @@ export default function NotificationHandler() {
 
   useEffect(() => {
     // Listen for incoming notifications
-    const unsubscribe = azureIntegrationService.onConnectionEvent('notification', (notification: any) => {
-      console.log('📧 Received notification:', notification);
-      
-      const newNotification: Notification = {
-        id: `${notification.type}-${Date.now()}`,
-        type: notification.type,
-        data: notification.data,
-        timestamp: new Date().toISOString(),
-        read: false
-      };
+    const unsubscribe = azureIntegrationService.onConnectionEvent(
+      'notification',
+      (notification: any) => {
+        console.log('📧 Received notification:', notification);
 
-      setNotifications(prev => [newNotification, ...prev].slice(0, 10)); // Keep last 10 notifications
-    });
+        const newNotification: Notification = {
+          id: `${notification.type}-${Date.now()}`,
+          type: notification.type,
+          data: notification.data,
+          timestamp: new Date().toISOString(),
+          read: false,
+        };
+
+        setNotifications((prev) => [newNotification, ...prev].slice(0, 10)); // Keep last 10 notifications
+      }
+    );
 
     return () => {
       unsubscribe();
@@ -47,16 +50,16 @@ export default function NotificationHandler() {
   }, []);
 
   const markAsRead = (id: string) => {
-    setNotifications(prev => 
-      prev.map(notif => notif.id === id ? { ...notif, read: true } : notif)
+    setNotifications((prev) =>
+      prev.map((notif) => (notif.id === id ? { ...notif, read: true } : notif))
     );
   };
 
   const removeNotification = (id: string) => {
-    setNotifications(prev => prev.filter(notif => notif.id !== id));
+    setNotifications((prev) => prev.filter((notif) => notif.id !== id));
   };
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   const renderNotification = (notification: Notification) => {
     switch (notification.type) {
@@ -96,18 +99,13 @@ export default function NotificationHandler() {
 
       {showDropdown && (
         <>
-          <div 
-            className="fixed inset-0 z-10" 
-            onClick={() => setShowDropdown(false)}
-          />
+          <div className="fixed inset-0 z-10" onClick={() => setShowDropdown(false)} />
           <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl border border-slate-200 shadow-lg z-20 max-h-96 overflow-y-auto">
             <div className="p-4 border-b border-slate-200">
               <h3 className="font-semibold text-slate-900">Notifications</h3>
-              {unreadCount > 0 && (
-                <p className="text-sm text-slate-600">{unreadCount} unread</p>
-              )}
+              {unreadCount > 0 && <p className="text-sm text-slate-600">{unreadCount} unread</p>}
             </div>
-            
+
             {notifications.length === 0 ? (
               <div className="p-8 text-center text-slate-500">
                 <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />
@@ -129,7 +127,7 @@ function PartnerRequestNotificationItem({
   notification,
   data,
   onRead,
-  onRemove
+  onRemove,
 }: {
   notification: Notification;
   data: PartnerRequestNotification;
@@ -168,7 +166,7 @@ function PartnerRequestNotificationItem({
         <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
           <Users className="h-5 w-5 text-emerald-600" />
         </div>
-        
+
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between">
             <div className="flex-1">
@@ -185,7 +183,7 @@ function PartnerRequestNotificationItem({
                 {new Date(data.timestamp).toLocaleString()}
               </p>
             </div>
-            
+
             <button
               onClick={onRemove}
               className="p-1 hover:bg-slate-200 rounded transition-colors"
@@ -194,7 +192,7 @@ function PartnerRequestNotificationItem({
               <X className="h-4 w-4 text-slate-400" />
             </button>
           </div>
-          
+
           <div className="flex items-center gap-2 mt-3">
             <button
               onClick={handleAccept}

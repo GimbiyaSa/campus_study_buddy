@@ -1,6 +1,18 @@
 // src/pages/Partners.tsx
 import { useMemo, useState, useLayoutEffect, useRef, useEffect } from 'react';
-import { Search, Filter, X, Mail, Check, Loader2, AlertCircle, Users, Heart, RefreshCw, Clock } from 'lucide-react';
+import {
+  Search,
+  Filter,
+  X,
+  Mail,
+  Check,
+  Loader2,
+  AlertCircle,
+  Users,
+  Heart,
+  RefreshCw,
+  Clock,
+} from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { type StudyPartner, DataService } from '../services/dataService';
 import azureIntegrationService from '../services/azureIntegrationService';
@@ -26,7 +38,7 @@ export default function Partners() {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<StudyPartner | null>(null);
   const [invited, setInvited] = useState(false);
-  
+
   // Track pending invites by partner ID
   const [pendingInvites, setPendingInvites] = useState<Set<string>>(new Set());
 
@@ -176,8 +188,14 @@ export default function Partners() {
     };
 
     // Set up Azure Web PubSub listeners
-    const unsubscribeAccepted = azureIntegrationService.onConnectionEvent('partner_request_accepted', handlePartnerAccepted);
-    const unsubscribeRejected = azureIntegrationService.onConnectionEvent('partner_request_rejected', handlePartnerRejected);
+    const unsubscribeAccepted = azureIntegrationService.onConnectionEvent(
+      'partner_request_accepted',
+      handlePartnerAccepted
+    );
+    const unsubscribeRejected = azureIntegrationService.onConnectionEvent(
+      'partner_request_rejected',
+      handlePartnerRejected
+    );
 
     window.addEventListener('buddy:connected', onAdded as EventListener);
     window.addEventListener('buddies:invalidate', onInvalidate);
@@ -276,9 +294,9 @@ export default function Partners() {
           ) : (
             <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {suggestions.map((suggestion, i) => (
-                <EnhancedSuggestionCard 
-                  key={i} 
-                  suggestion={suggestion} 
+                <EnhancedSuggestionCard
+                  key={i}
+                  suggestion={suggestion}
                   onConnect={() => openModal(suggestion)}
                   isPending={pendingInvites.has(suggestion.id)}
                 />
@@ -426,9 +444,9 @@ export default function Partners() {
             ) : (
               <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {results.map((partner, i) => (
-                  <EnhancedPartnerCard 
-                    key={`r-${i}`} 
-                    partner={partner} 
+                  <EnhancedPartnerCard
+                    key={`r-${i}`}
+                    partner={partner}
                     onConnect={() => openModal(partner)}
                     isPending={pendingInvites.has(partner.id)}
                   />
@@ -457,17 +475,17 @@ export default function Partners() {
               // Log but don't block UI if notification fails
               console.warn('Notification send failed:', notifyErr);
             }
-            
+
             // Update pending invites state
-            setPendingInvites(prev => new Set(prev).add(selected.id));
+            setPendingInvites((prev) => new Set(prev).add(selected.id));
             setInvited(true);
-            
+
             // Close modal after showing success
             setTimeout(() => {
               setOpen(false);
               setInvited(false);
             }, 1000);
-            
+
             window.dispatchEvent(new Event('buddies:invalidate'));
             // Optionally, initiate chat here in the future
           } catch (err) {
@@ -483,7 +501,15 @@ export default function Partners() {
 }
 /* ---------- Enhanced Components ---------- */
 
-function EnhancedSuggestionCard({ suggestion, onConnect, isPending = false }: { suggestion: StudyPartner; onConnect: () => void; isPending?: boolean }) {
+function EnhancedSuggestionCard({
+  suggestion,
+  onConnect,
+  isPending = false,
+}: {
+  suggestion: StudyPartner;
+  onConnect: () => void;
+  isPending?: boolean;
+}) {
   const initials = initialsFrom(suggestion.name || '—');
   const sharedCoursesText = suggestion.sharedCourses?.length
     ? `${suggestion.sharedCourses.length} shared course${
@@ -504,6 +530,7 @@ function EnhancedSuggestionCard({ suggestion, onConnect, isPending = false }: { 
               {suggestion.name}
             </h3>
             <p className="text-sm text-slate-600 mb-2">{suggestion.course}</p>
+            <p className="text-xs text-slate-500">{suggestion.university}</p>
             <div className="flex flex-wrap gap-1.5">
               <span className="text-xs px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 font-medium">
                 {sharedCoursesText}
@@ -527,10 +554,14 @@ function EnhancedSuggestionCard({ suggestion, onConnect, isPending = false }: { 
       </div>
       <button
         onClick={onConnect}
-        disabled={isPending || suggestion.connectionStatus === 'pending' || suggestion.connectionStatus === 'accepted'}
+        disabled={
+          isPending ||
+          suggestion.connectionStatus === 'pending' ||
+          suggestion.connectionStatus === 'accepted'
+        }
         className={`w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold shadow-md hover:shadow-lg focus-visible:outline focus-visible:outline-2 transition-all duration-200 ${
           isPending || suggestion.connectionStatus === 'pending'
-            ? 'bg-yellow-100 text-yellow-800 cursor-not-allowed' 
+            ? 'bg-yellow-100 text-yellow-800 cursor-not-allowed'
             : suggestion.connectionStatus === 'accepted'
             ? 'bg-green-100 text-green-800 cursor-not-allowed'
             : 'bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:outline-emerald-600'
@@ -538,13 +569,12 @@ function EnhancedSuggestionCard({ suggestion, onConnect, isPending = false }: { 
       >
         <Users className="h-4 w-4" />
         {isPending || suggestion.connectionStatus === 'pending'
-          ? suggestion.isPendingSent 
-            ? 'Pending acceptance' 
+          ? suggestion.isPendingSent
+            ? 'Pending acceptance'
             : 'Pending response'
           : suggestion.connectionStatus === 'accepted'
           ? 'Study buddies'
-          : 'Connect'
-        }
+          : 'Connect'}
       </button>
     </li>
   );
@@ -578,7 +608,15 @@ function EnhancedBuddyCard({ buddy }: { buddy: StudyPartner }) {
   );
 }
 
-function EnhancedPartnerCard({ partner, onConnect, isPending = false }: { partner: StudyPartner; onConnect: () => void; isPending?: boolean }) {
+function EnhancedPartnerCard({
+  partner,
+  onConnect,
+  isPending = false,
+}: {
+  partner: StudyPartner;
+  onConnect: () => void;
+  isPending?: boolean;
+}) {
   const initials = initialsFrom(partner.name || '—');
   const sharedCoursesText = partner.sharedCourses?.length
     ? `${partner.sharedCourses.length} shared course${
@@ -598,6 +636,7 @@ function EnhancedPartnerCard({ partner, onConnect, isPending = false }: { partne
             {partner.name}
           </h3>
           <p className="text-xs text-slate-600">{partner.course}</p>
+          <p className="text-xs text-slate-500">{partner.university}</p>
         </div>
       </div>
 
@@ -614,21 +653,24 @@ function EnhancedPartnerCard({ partner, onConnect, isPending = false }: { partne
 
       <button
         onClick={onConnect}
-        disabled={isPending || partner.connectionStatus === 'pending' || partner.connectionStatus === 'accepted'}
+        disabled={
+          isPending ||
+          partner.connectionStatus === 'pending' ||
+          partner.connectionStatus === 'accepted'
+        }
         className={`w-full inline-flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 ${
           isPending || partner.connectionStatus === 'pending'
-            ? 'bg-yellow-100 text-yellow-800 border border-yellow-200 cursor-not-allowed' 
+            ? 'bg-yellow-100 text-yellow-800 border border-yellow-200 cursor-not-allowed'
             : partner.connectionStatus === 'accepted'
             ? 'bg-green-100 text-green-800 border border-green-200 cursor-not-allowed'
             : 'bg-white border border-slate-200 text-slate-700 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700'
         }`}
       >
         {isPending || partner.connectionStatus === 'pending'
-          ? 'Pending' 
+          ? 'Pending'
           : partner.connectionStatus === 'accepted'
           ? 'Buddies'
-          : 'Connect'
-        }
+          : 'Connect'}
       </button>
     </li>
   );
@@ -793,7 +835,11 @@ function EnhancedProfileModal({
             </button>
             <button
               onClick={onInvite}
-              disabled={invited || person.connectionStatus === 'pending' || person.connectionStatus === 'accepted'}
+              disabled={
+                invited ||
+                person.connectionStatus === 'pending' ||
+                person.connectionStatus === 'accepted'
+              }
               className={`flex-1 px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all duration-200 ${
                 invited || person.connectionStatus === 'pending'
                   ? 'bg-yellow-100 text-yellow-800 border border-yellow-200 cursor-default'

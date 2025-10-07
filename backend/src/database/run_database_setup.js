@@ -1,4 +1,3 @@
-require('dotenv').config();
 const DatabaseConnection = require('./database_setup');
 
 async function checkDatabaseHealth() {
@@ -10,13 +9,8 @@ async function checkDatabaseHealth() {
     dbConfig = await azureConfig.getLegacyDatabaseConfig();
     console.log('✅ Using Azure configuration for database health check');
   } catch (error) {
-    console.log('⚠️ Azure config not available, using environment variables');
-    dbConfig = {
-      user: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
-      server: process.env.DB_SERVER || 'csb-prod-sql-san-7ndjbzgu.database.windows.net',
-      database: process.env.DB_DATABASE || 'csb-prod-sqldb-7ndjbzgu',
-    };
+    console.error('❌ Azure config not available or failed:', error.message);
+    process.exit(1);
   }
 
   console.log('Starting Database Health Check...\n');

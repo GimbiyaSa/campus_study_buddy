@@ -79,9 +79,7 @@ export default function StudyLogDialog({ isOpen, onClose, onSubmit, topic }: Stu
 
           {/* Hours Studied */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Hours Studied *
-            </label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Hours Studied *</label>
             <div className="relative">
               <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
               <input

@@ -19,7 +19,12 @@ export interface StudyGoal {
   personalNotes?: string;
 }
 
-export default function StudyGoalDialog({ isOpen, onClose, onSubmit, topic }: StudyGoalDialogProps) {
+export default function StudyGoalDialog({
+  isOpen,
+  onClose,
+  onSubmit,
+  topic,
+}: StudyGoalDialogProps) {
   const [hoursGoal, setHoursGoal] = useState<number>(10);
   const [targetDate, setTargetDate] = useState<string>('');
   const [notes, setNotes] = useState<string>('');

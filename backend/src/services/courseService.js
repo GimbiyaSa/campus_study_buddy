@@ -113,7 +113,6 @@ router.get('/', authenticateToken, async (req, res) => {
 
     // Build search conditions
     let searchCondition = '';
-    let searchParams = [];
     if (search && search.trim() !== '') {
       const searchTerm = `%${search.trim()}%`;
       request.input('search', sql.NVarChar(255), searchTerm);
@@ -125,7 +124,6 @@ router.get('/', authenticateToken, async (req, res) => {
           )
         `;
       console.log('🔍 Applied search condition for term:', search.trim());
-      searchParams.push(`search="${searchTerm}"`);
     }
 
     // Validate sort parameters

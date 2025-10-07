@@ -288,18 +288,17 @@ function EnhancedCourseCard({
   return (
     <article className="group relative rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-lg hover:border-emerald-200 transition-all duration-300">
       {/* Clickable Course Area */}
-      <div 
-        onClick={handleCourseClick}
-        className="p-6 cursor-pointer"
-      >
+      <div onClick={handleCourseClick} className="p-6 cursor-pointer">
         {/* Course Header */}
         <div className="flex items-start justify-between gap-4 mb-4">
           <div className="flex items-center gap-4 min-w-0 flex-1">
-            <div className={`grid h-14 w-14 place-items-center rounded-2xl flex-shrink-0 transition-colors ${
-              isInstitution 
-                ? 'bg-emerald-50 text-emerald-700 group-hover:bg-emerald-100' 
-                : 'bg-blue-50 text-blue-700 group-hover:bg-blue-100'
-            }`}>
+            <div
+              className={`grid h-14 w-14 place-items-center rounded-2xl flex-shrink-0 transition-colors ${
+                isInstitution
+                  ? 'bg-emerald-50 text-emerald-700 group-hover:bg-emerald-100'
+                  : 'bg-blue-50 text-blue-700 group-hover:bg-blue-100'
+              }`}
+            >
               {isInstitution ? (
                 <GraduationCap className="h-7 w-7" />
               ) : (
@@ -329,12 +328,12 @@ function EnhancedCourseCard({
             </div>
           </div>
         </div>
-        
+
         {/* Course Description (for personal topics) */}
         {course.type === 'casual' && course.description && (
           <p className="text-sm text-slate-700 mb-4 line-clamp-2">{course.description}</p>
         )}
-        
+
         {/* Course Metadata */}
         <div className="flex items-center gap-4 text-xs text-slate-500 mb-4">
           {course.createdAt && (
@@ -348,19 +347,20 @@ function EnhancedCourseCard({
             {course.totalHours || 0}h studied
           </span>
         </div>
-        
+
         {/* Enhanced Progress Section */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-slate-700">Progress</span>
             <div className="flex items-center gap-2">
               {hasProgress ? (
-                <span className="font-bold text-emerald-600">
-                  {progressPercentage}%
-                </span>
+                <span className="font-bold text-emerald-600">{progressPercentage}%</span>
               ) : (
                 <span className="text-xs text-slate-500 bg-slate-50 rounded-full px-2 py-1">
-                  {(course.totalTopics && course.totalTopics > 0) || (course.totalHours && course.totalHours > 0) ? 'In progress' : 'Not started'}
+                  {(course.totalTopics && course.totalTopics > 0) ||
+                  (course.totalHours && course.totalHours > 0)
+                    ? 'In progress'
+                    : 'Not started'}
                 </span>
               )}
               <span className="text-xs text-slate-500 bg-slate-100 rounded-full px-2 py-1">
@@ -368,37 +368,45 @@ function EnhancedCourseCard({
               </span>
             </div>
           </div>
-          
+
           <div className="relative h-3 w-full overflow-hidden rounded-full bg-slate-100">
             <div
               className={`h-3 rounded-full transition-all duration-500 ease-out ${
-                progressPercentage >= 100 
-                  ? 'bg-gradient-to-r from-emerald-500 to-emerald-600' 
-                  : progressPercentage > 0 
+                progressPercentage >= 100
+                  ? 'bg-gradient-to-r from-emerald-500 to-emerald-600'
+                  : progressPercentage > 0
                   ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
-                  : ((course.totalTopics && course.totalTopics > 0) || (course.totalHours && course.totalHours > 0))
+                  : (course.totalTopics && course.totalTopics > 0) ||
+                    (course.totalHours && course.totalHours > 0)
                   ? 'bg-gradient-to-r from-blue-400 to-blue-500'
                   : 'bg-slate-300'
               }`}
-              style={{ 
-                width: progressPercentage > 0 
-                  ? `${Math.min(100, Math.max(0, progressPercentage))}%`
-                  : ((course.totalTopics && course.totalTopics > 0) || (course.totalHours && course.totalHours > 0))
-                  ? '10%' // Show small progress if there are topics/hours but no completed topics
-                  : '0%'
+              style={{
+                width:
+                  progressPercentage > 0
+                    ? `${Math.min(100, Math.max(0, progressPercentage))}%`
+                    : (course.totalTopics && course.totalTopics > 0) ||
+                      (course.totalHours && course.totalHours > 0)
+                    ? '10%' // Show small progress if there are topics/hours but no completed topics
+                    : '0%',
               }}
             />
             {progressPercentage >= 100 && (
               <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-emerald-600/20 rounded-full animate-pulse" />
             )}
           </div>
-          
+
           <div className="flex items-center justify-between">
             <p className="text-xs text-slate-600">
               {progressPercentage >= 100 ? (
                 <span className="text-emerald-600 font-medium">🎉 Completed!</span>
-              ) : ((course.totalTopics && course.totalTopics > 0) || (course.totalHours && course.totalHours > 0)) ? (
-                progressPercentage > 0 ? 'In progress - keep it up!' : 'Started - add more progress!'
+              ) : (course.totalTopics && course.totalTopics > 0) ||
+                (course.totalHours && course.totalHours > 0) ? (
+                progressPercentage > 0 ? (
+                  'In progress - keep it up!'
+                ) : (
+                  'Started - add more progress!'
+                )
               ) : (
                 'Ready to begin'
               )}

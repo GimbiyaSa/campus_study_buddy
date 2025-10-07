@@ -18,7 +18,6 @@ const initializeDatabase = async () => {
       pool = await sql.connect(dbConfig);
       // Initialize Web PubSub client
       webPubSubClient = await azureConfig.getWebPubSubClient();
-      console.log('✅ Connected to Azure Web PubSub for partner notifications');
     } catch (azureError) {
       console.warn('Azure config not available, using environment variables');
       // Fallback to connection string

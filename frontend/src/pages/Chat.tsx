@@ -11,7 +11,11 @@ export default function Chat() {
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<{title: string; message: string; retryable?: boolean} | null>(null);
+  const [error, setError] = useState<{
+    title: string;
+    message: string;
+    retryable?: boolean;
+  } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load buddies (accepted connections)
@@ -24,7 +28,7 @@ export default function Chat() {
     };
 
     window.addEventListener('buddies:invalidate', handleBuddiesUpdate);
-    
+
     return () => {
       window.removeEventListener('buddies:invalidate', handleBuddiesUpdate);
     };
@@ -39,8 +43,9 @@ export default function Chat() {
     } catch (err) {
       setError({
         title: 'Failed to load study partners',
-        message: 'Unable to fetch your connected study buddies. Please check your connection and try again.',
-        retryable: true
+        message:
+          'Unable to fetch your connected study buddies. Please check your connection and try again.',
+        retryable: true,
       });
       console.error('Error loading partners:', err);
     } finally {
@@ -77,23 +82,26 @@ export default function Chat() {
 
   async function sendMessage() {
     if (!input.trim() || !selectedBuddy) return;
-    
+
     try {
       const chatRoomId = getChatRoomId(String(currentUser?.user_id), String(selectedBuddy.id));
       await azureIntegrationService.sendChatMessage(chatRoomId, input.trim());
-      setMessages((prev) => [...prev, {
-        chatRoomId,
-        content: input.trim(),
-        senderId: currentUser?.user_id,
-        senderName: currentUser?.first_name + ' ' + currentUser?.last_name,
-        timestamp: new Date().toISOString(),
-      }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          chatRoomId,
+          content: input.trim(),
+          senderId: currentUser?.user_id,
+          senderName: currentUser?.first_name + ' ' + currentUser?.last_name,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
       setInput('');
     } catch (err) {
       setError({
         title: 'Failed to send message',
         message: 'Your message could not be sent. Please try again.',
-        retryable: false
+        retryable: false,
       });
       console.error('Error sending message:', err);
     }
@@ -109,7 +117,11 @@ export default function Chat() {
           </p>
         </div>
         <div className="flex items-center justify-center py-16">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+          <div
+            className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"
+            role="status"
+            aria-label="Loading"
+          ></div>
         </div>
       </div>
     );
@@ -165,7 +177,7 @@ export default function Chat() {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex-1 overflow-y-auto p-6">
               {buddies.length === 0 ? (
                 <div className="text-center py-8">
@@ -173,7 +185,9 @@ export default function Chat() {
                     <MessageCircle className="h-8 w-8 text-slate-400" />
                   </div>
                   <h3 className="font-medium text-slate-900 mb-2">No partners yet</h3>
-                  <p className="text-sm text-slate-500">Start connecting with classmates to begin chatting!</p>
+                  <p className="text-sm text-slate-500">
+                    Start connecting with classmates to begin chatting!
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -204,7 +218,9 @@ export default function Chat() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-slate-900 truncate">{buddy.name}</p>
-                          <p className="text-sm text-slate-500 truncate">{buddy.course || 'Study Partner'}</p>
+                          <p className="text-sm text-slate-500 truncate">
+                            {buddy.course || 'Study Partner'}
+                          </p>
                           <p className="text-xs text-slate-400">Connected</p>
                         </div>
                       </div>
@@ -249,15 +265,23 @@ export default function Chat() {
                       <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                         <MessageCircle className="h-8 w-8 text-emerald-600" />
                       </div>
-                      <h3 className="text-lg font-semibold text-slate-900 mb-2">Start the conversation!</h3>
-                      <p className="text-slate-500">Send a message to begin your study collaboration.</p>
+                      <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                        Start the conversation!
+                      </h3>
+                      <p className="text-slate-500">
+                        Send a message to begin your study collaboration.
+                      </p>
                     </div>
                   ) : (
                     <div className="space-y-4">
                       {messages.map((message, i) => (
                         <div
                           key={i}
-                          className={`flex ${message.senderId === currentUser?.user_id ? 'justify-end' : 'justify-start'}`}
+                          className={`flex ${
+                            message.senderId === currentUser?.user_id
+                              ? 'justify-end'
+                              : 'justify-start'
+                          }`}
                         >
                           <div
                             className={`max-w-xs lg:max-w-sm xl:max-w-md px-4 py-3 rounded-2xl ${
@@ -266,16 +290,27 @@ export default function Chat() {
                                 : 'bg-white border border-slate-200 text-slate-900'
                             }`}
                           >
-                            <div className={`text-xs font-medium mb-1 ${
-                              message.senderId === currentUser?.user_id ? 'text-emerald-100' : 'text-slate-500'
-                            }`}>
+                            <div
+                              className={`text-xs font-medium mb-1 ${
+                                message.senderId === currentUser?.user_id
+                                  ? 'text-emerald-100'
+                                  : 'text-slate-500'
+                              }`}
+                            >
                               {message.senderName}
                             </div>
                             <p className="break-words">{message.content}</p>
-                            <p className={`text-xs mt-2 ${
-                              message.senderId === currentUser?.user_id ? 'text-emerald-100' : 'text-slate-400'
-                            }`}>
-                              {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            <p
+                              className={`text-xs mt-2 ${
+                                message.senderId === currentUser?.user_id
+                                  ? 'text-emerald-100'
+                                  : 'text-slate-400'
+                              }`}
+                            >
+                              {new Date(message.timestamp).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
                             </p>
                           </div>
                         </div>
@@ -313,6 +348,7 @@ export default function Chat() {
                     <button
                       type="submit"
                       disabled={!input.trim()}
+                      aria-label="Send"
                       className="w-12 h-12 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-2xl flex items-center justify-center transition-colors shadow-sm"
                     >
                       <Send className="h-5 w-5" />
@@ -326,8 +362,12 @@ export default function Chat() {
                   <div className="w-20 h-20 bg-slate-100 rounded-3xl flex items-center justify-center mx-auto mb-6">
                     <MessageCircle className="h-10 w-10 text-slate-400" />
                   </div>
-                  <h3 className="text-xl font-semibold text-slate-900 mb-2">Select a study partner</h3>
-                  <p className="text-slate-500">Choose someone from your partner list to start chatting.</p>
+                  <h3 className="text-xl font-semibold text-slate-900 mb-2">
+                    Select a study partner
+                  </h3>
+                  <p className="text-slate-500">
+                    Choose someone from your partner list to start chatting.
+                  </p>
                 </div>
               </div>
             )}

@@ -157,15 +157,15 @@ class AzureIntegrationService {
       case 'partner_request_accepted':
         this.handleConnectionEvent('notification', {
           type: 'partner_request_accepted',
-          data: payload
+          data: payload,
         });
         // Remove from pending invites when accepted
         this.handleConnectionEvent('partner_accepted', payload);
         break;
       case 'partner_request_rejected':
         this.handleConnectionEvent('notification', {
-          type: 'partner_request_rejected', 
-          data: payload
+          type: 'partner_request_rejected',
+          data: payload,
         });
         // Remove from pending invites when rejected
         this.handleConnectionEvent('partner_rejected', payload);

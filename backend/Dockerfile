@@ -23,5 +23,5 @@ RUN npm ci --omit=dev
 # Copy compiled output from builder stage
 COPY --from=builder /workspace/dist ./dist
 
-EXPOSE 3000
+EXPOSE 80
 CMD ["node", "dist/app.js"]

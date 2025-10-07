@@ -1,5 +1,5 @@
 # Stage 1: build the TypeScript source
-FROM node:20-bookworm-slim AS builder
+FROM node:22.2-bullseye AS builder
 WORKDIR /workspace
 
 # Install dependencies
@@ -9,12 +9,10 @@ RUN npm ci
 # Copy source and config, then build
 COPY tsconfig.json ./
 COPY src ./src
-RUN npm run build && \
-	mkdir -p dist/middleware && \
-	cp src/middleware/authMiddleware.js dist/middleware/
+RUN npm run build
 
 # Stage 2: runtime image
-FROM node:20-bookworm-slim
+FROM node:22.2-bullseye
 WORKDIR /workspace
 ENV NODE_ENV=production
 ENV PORT=5000

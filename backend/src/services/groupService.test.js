@@ -136,12 +136,35 @@ function bootAppWithPreset(preset) {
       const exists =
         (tbl === SCH.groupsTable && !!SCH.groupsCols[col]) ||
         (tbl === 'group_members' && !!SCH.gmCols[col]) ||
-        (tbl === 'modules' && ['module_id', 'module_code', 'module_name', 'description', 'university', 'is_active', 'created_at', 'updated_at'].includes(col)) ||
-        (tbl === 'notifications' && ['user_id','notification_type','title','message','metadata','is_read','created_at'].includes(col)) ||
-        (tbl === 'group_invitations' && ['status','invited_by','created_at','group_id','user_id'].includes(col));
+        (tbl === 'modules' &&
+          [
+            'module_id',
+            'module_code',
+            'module_name',
+            'description',
+            'university',
+            'is_active',
+            'created_at',
+            'updated_at',
+          ].includes(col)) ||
+        (tbl === 'notifications' &&
+          [
+            'user_id',
+            'notification_type',
+            'title',
+            'message',
+            'metadata',
+            'is_read',
+            'created_at',
+          ].includes(col)) ||
+        (tbl === 'group_invitations' &&
+          ['status', 'invited_by', 'created_at', 'group_id', 'user_id'].includes(col));
       return { recordset: exists ? [{ 1: 1 }] : [] };
     }
-    if (sqlText.includes('FROM INFORMATION_SCHEMA.COLUMNS') && sqlText.includes("TABLE_SCHEMA = 'dbo'")) {
+    if (
+      sqlText.includes('FROM INFORMATION_SCHEMA.COLUMNS') &&
+      sqlText.includes("TABLE_SCHEMA = 'dbo'")
+    ) {
       const tbl = lastInputs?.tbl;
       const col = lastInputs?.col;
       const key = `${tbl}.${col}`;
@@ -159,16 +182,25 @@ function bootAppWithPreset(preset) {
       const mid = lastInputs?.mid;
       return { recordset: mid === 1 ? [{ module_id: 1 }] : [] };
     }
-    if (sqlText.includes('SELECT TOP 1 m.module_id AS id') && sqlText.includes('FROM dbo.modules m')) {
+    if (
+      sqlText.includes('SELECT TOP 1 m.module_id AS id') &&
+      sqlText.includes('FROM dbo.modules m')
+    ) {
       const byCode = !!lastInputs?.code;
       const byName = !!lastInputs?.name;
       if (byCode || byName) return { recordset: [{ id: 2 }] };
       return { recordset: [] };
     }
-    if (sqlText.includes('INSERT INTO dbo.modules') && sqlText.includes('OUTPUT inserted.module_id AS id')) {
+    if (
+      sqlText.includes('INSERT INTO dbo.modules') &&
+      sqlText.includes('OUTPUT inserted.module_id AS id')
+    ) {
       return { recordset: [{ id: 3 }] };
     }
-    if (sqlText.includes('SELECT TOP 1 university AS uni') && sqlText.includes('FROM dbo.modules')) {
+    if (
+      sqlText.includes('SELECT TOP 1 university AS uni') &&
+      sqlText.includes('FROM dbo.modules')
+    ) {
       return { recordset: [{ uni: 'General' }] };
     }
 
@@ -218,7 +250,10 @@ function bootAppWithPreset(preset) {
     }
 
     // ---- POST /groups insert ----
-    if (sqlText.includes('INSERT INTO dbo.') && sqlText.includes('OUTPUT INSERTED.group_id AS id, INSERTED.*')) {
+    if (
+      sqlText.includes('INSERT INTO dbo.') &&
+      sqlText.includes('OUTPUT INSERTED.group_id AS id, INSERTED.*')
+    ) {
       return {
         recordset: [
           {
@@ -240,7 +275,10 @@ function bootAppWithPreset(preset) {
     }
 
     // ---- DELETE ownership checks ----
-    if (sqlText.includes('SELECT TOP 1 1 AS ok') && sqlText.includes('FROM dbo.' + SCH.groupsTable)) {
+    if (
+      sqlText.includes('SELECT TOP 1 1 AS ok') &&
+      sqlText.includes('FROM dbo.' + SCH.groupsTable)
+    ) {
       if (preset.deleteAsNonOwner) return { recordset: [] };
       return { recordset: [{ ok: 1 }] };
     }
@@ -268,7 +306,11 @@ function bootAppWithPreset(preset) {
     }
 
     // ---- /leave owner + count ----
-    if (sqlText.includes('FROM dbo.' + SCH.groupsTable) && sqlText.includes('memberCount') && sqlText.includes('WHERE g.group_id = @groupId')) {
+    if (
+      sqlText.includes('FROM dbo.' + SCH.groupsTable) &&
+      sqlText.includes('memberCount') &&
+      sqlText.includes('WHERE g.group_id = @groupId')
+    ) {
       const memberCount = preset.leaveMembers ?? 2;
       const isOwner = preset.leaveIsOwner !== false ? 1 : 0;
       return { recordset: [{ memberCount, isOwner }] };
@@ -278,7 +320,11 @@ function bootAppWithPreset(preset) {
     }
 
     // ---- group-scoped /sessions ----
-    if (sqlText.includes('WHERE g.group_id = @groupId') && sqlText.includes('AS maxMembers') && sqlText.includes('FROM dbo.')) {
+    if (
+      sqlText.includes('WHERE g.group_id = @groupId') &&
+      sqlText.includes('AS maxMembers') &&
+      sqlText.includes('FROM dbo.')
+    ) {
       if (preset.sessionGroupNotFound) return { recordset: [] };
       return {
         recordset: [
@@ -316,7 +362,10 @@ function bootAppWithPreset(preset) {
     }
 
     // ---- invites: ensure group exist check
-    if (sqlText.includes('SELECT 1 FROM dbo.group_invitations') || sqlText.includes('INSERT INTO dbo.group_invitations')) {
+    if (
+      sqlText.includes('SELECT 1 FROM dbo.group_invitations') ||
+      sqlText.includes('INSERT INTO dbo.group_invitations')
+    ) {
       return { recordset: [] };
     }
     if (sqlText.includes('INSERT INTO dbo.notifications')) {
@@ -392,7 +441,11 @@ describe('Group Service API', () => {
     expect(one.statusCode).toBe(200);
     expect(one.body).toHaveProperty('id', '10');
 
-    const app404 = bootAppWithPreset({ nameCol: true, descriptionCol: true, groupExistsSingular: false });
+    const app404 = bootAppWithPreset({
+      nameCol: true,
+      descriptionCol: true,
+      groupExistsSingular: false,
+    });
     const miss = await request(app404).get('/groups/999');
     expect(miss.statusCode).toBe(404);
   });
@@ -486,7 +539,12 @@ describe('Group Service API', () => {
     expect(deny.statusCode).toBe(403);
     expect(deny.body.error).toMatch(/Only the owner\/admin/i);
 
-    const appOk = bootAppWithPreset({ nameCol: true, descriptionCol: true, max_members: true, canEdit: true });
+    const appOk = bootAppWithPreset({
+      nameCol: true,
+      descriptionCol: true,
+      max_members: true,
+      canEdit: true,
+    });
     const ok = await request(appOk).patch('/groups/10').send({ name: 'New', maxMembers: 12 });
     expect(ok.statusCode).toBe(200);
     expect(ok.body).toHaveProperty('name', 'Alpha'); // mapped row name (service projects selection)
@@ -534,12 +592,21 @@ describe('Group Service API', () => {
 
   test('POST /groups/:id/leave blocks owner w/ members > 1; succeeds non-owner', async () => {
     const appBlock = bootAppWithPreset({
-      nameCol: true, creator_id: true, role: true, leaveIsOwner: true, leaveMembers: 3,
+      nameCol: true,
+      creator_id: true,
+      role: true,
+      leaveIsOwner: true,
+      leaveMembers: 3,
     });
     const block = await request(appBlock).post('/groups/10/leave');
     expect(block.statusCode).toBe(403);
 
-    const appOk = bootAppWithPreset({ nameCol: true, role: true, leaveIsOwner: false, leaveMembers: 2 });
+    const appOk = bootAppWithPreset({
+      nameCol: true,
+      role: true,
+      leaveIsOwner: false,
+      leaveMembers: 2,
+    });
     const ok = await request(appOk).post('/groups/10/leave');
     expect(ok.statusCode).toBe(204);
   });
@@ -551,7 +618,10 @@ describe('Group Service API', () => {
       expect(bad1.statusCode).toBe(400);
 
       const bad2 = await request(app).post('/groups/10/sessions').send({
-        title: 'T', startTime: '2025-01-10T11:00:00Z', endTime: '2025-01-10T10:00:00Z', location: 'L',
+        title: 'T',
+        startTime: '2025-01-10T11:00:00Z',
+        endTime: '2025-01-10T10:00:00Z',
+        location: 'L',
       });
       expect(bad2.statusCode).toBe(400);
     });
@@ -559,7 +629,10 @@ describe('Group Service API', () => {
     test('404 when group not found', async () => {
       const app = bootAppWithPreset({ sessionGroupNotFound: true });
       const res = await request(app).post('/groups/999/sessions').send({
-        title: 'Study', startTime: '2025-01-10T10:00:00Z', endTime: '2025-01-10T11:00:00Z', location: 'Library',
+        title: 'Study',
+        startTime: '2025-01-10T10:00:00Z',
+        endTime: '2025-01-10T11:00:00Z',
+        location: 'Library',
       });
       expect(res.statusCode).toBe(404);
     });
@@ -567,12 +640,22 @@ describe('Group Service API', () => {
     test('creates and returns transformed payload', async () => {
       const app = bootAppWithPreset({ last_activity: true, course: true, course_code: true });
       const res = await request(app).post('/groups/10/sessions').send({
-        title: 'Study', description: 'd', startTime: '2025-01-10T10:00:00Z', endTime: '2025-01-10T11:00:00Z', location: 'Library', type: 'study',
+        title: 'Study',
+        description: 'd',
+        startTime: '2025-01-10T10:00:00Z',
+        endTime: '2025-01-10T11:00:00Z',
+        location: 'Library',
+        type: 'study',
       });
       expect([201, 500]).toContain(res.statusCode);
       if (res.statusCode === 201) {
         expect(res.body).toMatchObject({
-          id: '77', status: 'upcoming', isCreator: true, isAttending: true, course: 'CS', courseCode: 'CS101',
+          id: '77',
+          status: 'upcoming',
+          isCreator: true,
+          isAttending: true,
+          course: 'CS',
+          courseCode: 'CS101',
         });
       }
     });
@@ -588,7 +671,9 @@ describe('Group Service API', () => {
 
     test('403 when not owner/admin/creator', async () => {
       const app = bootAppWithPreset({ nameCol: true });
-      const res = await request(app).post('/groups/10/invite').send({ inviteUserIds: ['u1','u2'] });
+      const res = await request(app)
+        .post('/groups/10/invite')
+        .send({ inviteUserIds: ['u1', 'u2'] });
       expect(res.statusCode).toBe(403);
       expect(res.body.error).toMatch(/owners\/admins/i);
     });
@@ -600,7 +685,9 @@ describe('Group Service API', () => {
         // authorize role/creator via canEditGroup-like union used in handler
         canEdit: true,
       });
-      const res = await request(app).post('/groups/10/invite').send({ inviteUserIds: ['u1','u2'] });
+      const res = await request(app)
+        .post('/groups/10/invite')
+        .send({ inviteUserIds: ['u1', 'u2'] });
       expect(res.statusCode).toBe(200);
       expect(res.body).toMatchObject({ ok: true, invited: 2 });
     });
@@ -611,7 +698,9 @@ describe('Group Service API', () => {
         hasNotificationsTable: true,
         canEdit: true,
       });
-      const res = await request(app).post('/groups/10/invitations').send({ user_ids: ['a','b','c'] });
+      const res = await request(app)
+        .post('/groups/10/invitations')
+        .send({ user_ids: ['a', 'b', 'c'] });
       expect(res.statusCode).toBe(200);
       expect(res.body).toMatchObject({ ok: true, invited: 3 });
     });

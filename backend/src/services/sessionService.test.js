@@ -24,7 +24,7 @@ describe('Session Service API (additional coverage, no UI assumptions)', () => {
       expect(res.body).toMatchObject({
         id: '200',
         title: 'Defaults',
-        type: 'study',               // default in router
+        type: 'study', // default in router
         isCreator: true,
         isAttending: true,
       });
@@ -39,7 +39,8 @@ describe('Session Service API (additional coverage, no UI assumptions)', () => {
     // Make the INSERT succeed, then make the RSVP upsert query throw
     // 1st query: INSERT … OUTPUT (already handled by preset)
     // next query in create flow is the upsert into session_attendees
-    mockQuery.mockImplementationOnce(mockQuery) // let INSERT run
+    mockQuery
+      .mockImplementationOnce(mockQuery) // let INSERT run
       .mockRejectedValueOnce(new Error('rsvp fail')); // RSVP upsert fails
     const res = await request(app).post('/sessions').send({
       group_id: 5,
@@ -84,7 +85,7 @@ describe('Session Service API (additional coverage, no UI assumptions)', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toMatchObject({
       id: '300',
-      status: 'upcoming',         // mapStatus('scheduled')
+      status: 'upcoming', // mapStatus('scheduled')
       isCreator: true,
       isAttending: true,
     });

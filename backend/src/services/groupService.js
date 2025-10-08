@@ -191,7 +191,9 @@ function buildGroupSelectPieces(gc, alias = 'g') {
     gc.max_members ? `${alias}.max_members AS maxMembers` : 'NULL AS maxMembers',
     gc.is_public ? `${alias}.is_public AS isPublic` : 'CAST(1 AS bit) AS isPublic',
     `${alias}.created_at AS createdAt`,
-    gc.last_activity ? `${alias}.last_activity AS lastActivity` : `${alias}.created_at AS lastActivity`,
+    gc.last_activity
+      ? `${alias}.last_activity AS lastActivity`
+      : `${alias}.created_at AS lastActivity`,
     gc.creator_id ? `${alias}.creator_id AS createdBy` : 'NULL AS createdBy',
     `(SELECT COUNT(*) FROM dbo.group_members gm WHERE gm.group_id = ${alias}.group_id) AS memberCount`,
   ];
@@ -203,11 +205,12 @@ async function canEditGroup(groupId, userId) {
   const q = await pool
     .request()
     .input('groupId', sql.Int, groupId)
-    .input('userId', sql.NVarChar(255), userId)
-    .query(`
+    .input('userId', sql.NVarChar(255), userId).query(`
       SELECT TOP 1 1 AS ok
       FROM dbo.${g} gx
-      WHERE gx.group_id=@groupId ${schema.groupsCols.creator_id ? 'AND gx.creator_id=@userId' : 'AND 1=0'}
+      WHERE gx.group_id=@groupId ${
+        schema.groupsCols.creator_id ? 'AND gx.creator_id=@userId' : 'AND 1=0'
+      }
       UNION ALL
       SELECT TOP 1 1
       FROM dbo.group_members gm
@@ -627,10 +630,7 @@ router.get('/:groupId', authenticateToken, async (req, res) => {
     const g = schema.tables.groups;
     const gc = schema.groupsCols;
 
-    const { recordset } = await pool
-      .request()
-      .input('groupId', sql.Int, groupId)
-      .query(`
+    const { recordset } = await pool.request().input('groupId', sql.Int, groupId).query(`
         SELECT ${buildGroupSelectPieces(gc, 'g').join(', ')}
         FROM dbo.${g} g
         WHERE g.group_id=@groupId
@@ -1060,12 +1060,12 @@ async function handleInvite(req, res) {
       return res.status(404).json({ error: 'Group not found' });
     }
 
-      // Must be owner/admin/moderator OR the actual creator (if creator_id exists)
-  const authReq = pool.request();
-  authReq.input('groupId', sql.Int, groupId);
-  authReq.input('userId', sql.NVarChar(255), req.user.id);
+    // Must be owner/admin/moderator OR the actual creator (if creator_id exists)
+    const authReq = pool.request();
+    authReq.input('groupId', sql.Int, groupId);
+    authReq.input('userId', sql.NVarChar(255), req.user.id);
 
-  const roleCheck = await authReq.query(`
+    const roleCheck = await authReq.query(`
     SELECT TOP 1 1 AS ok
     FROM dbo.group_members gm
     LEFT JOIN ${tbl('groups')} gg ON gg.group_id = gm.group_id
@@ -1077,10 +1077,9 @@ async function handleInvite(req, res) {
       )
   `);
 
-  if (!roleCheck.recordset.length) {
-    return res.status(403).json({ error: 'Only owners/admins can invite members' });
-  }
-
+    if (!roleCheck.recordset.length) {
+      return res.status(403).json({ error: 'Only owners/admins can invite members' });
+    }
 
     // Prefer a dedicated invitations table if present
     const hasInvTable = await hasTable('group_invitations');

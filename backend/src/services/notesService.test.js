@@ -6,9 +6,9 @@ import { describe, test, expect, vi, beforeEach, afterEach, beforeAll } from 'vi
 /* -------------------- mssql mock with controllable state -------------------- */
 const state = {
   tables: {
-    groups: true,        // router prefers "groups" if present
+    groups: true, // router prefers "groups" if present
     study_groups: false, // fallback; unused in these tests
-    shared_notes: true,  // toggle to false to test 501/empty cases
+    shared_notes: true, // toggle to false to test 501/empty cases
   },
   columns: {
     groups: { name: true, group_name: false, title: false },
@@ -92,13 +92,11 @@ const mkRequest = () => {
           note_id: newId,
           group_id: params.groupId,
           author_id: params.authorId,
-          topic_id: state.columns.shared_notes.topic_id ? (params.topic ?? null) : null,
+          topic_id: state.columns.shared_notes.topic_id ? params.topic ?? null : null,
           note_title: params.title,
           note_content: params.content,
-          attachments: state.columns.shared_notes.attachments
-            ? (params.att ?? null)
-            : null,
-          visibility: state.columns.shared_notes.visibility ? (params.vis ?? 'group') : 'group',
+          attachments: state.columns.shared_notes.attachments ? params.att ?? null : null,
+          visibility: state.columns.shared_notes.visibility ? params.vis ?? 'group' : 'group',
           is_active: state.columns.shared_notes.is_active ? 1 : 1,
           created_at: new Date('2025-02-01T00:00:00Z'),
           updated_at: new Date('2025-02-01T00:00:00Z'),

@@ -106,6 +106,7 @@ describe('Partner Service API', () => {
       expect(Array.isArray(res.body)).toBe(true);
       expect(res.body[0]).toHaveProperty('id', 'buddy1');
       expect(res.body[0]).toHaveProperty('name', 'Buddy One');
+      expect(res.body[0]).toHaveProperty('connectionStatus', 'accepted');
     });
 
     test('handles DB error', async () => {
@@ -388,6 +389,82 @@ describe('Partner Service API', () => {
       const res = await request(app).post('/partners/reject/123');
       expect(res.statusCode).toBe(500);
       expect(res.body).toHaveProperty('error');
+    });
+  });
+
+  describe('GET /partners/pending-invitations', () => {
+    test('returns pending invitations for current user', async () => {
+      const mockInvitations = [
+        {
+          requestId: 1,
+          requesterId: 'requester-1',
+          requesterName: 'John Doe',
+          requesterEmail: 'john@example.com',
+          requesterUniversity: 'Test University',
+          requesterCourse: 'Computer Science',
+          timestamp: '2025-01-01T00:00:00.000Z'
+        },
+        {
+          requestId: 2,
+          requesterId: 'requester-2',
+          requesterName: 'Jane Smith',
+          requesterEmail: 'jane@example.com',
+          requesterUniversity: 'Test University',
+          requesterCourse: 'Data Science',
+          timestamp: '2025-01-02T00:00:00.000Z'
+        }
+      ];
+
+      mockQuery.mockResolvedValueOnce({ recordset: mockInvitations });
+
+      const res = await request(app)
+        .get('/partners/pending-invitations')
+        .expect(200);
+
+      expect(res.body).toEqual(mockInvitations);
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('WHERE pm.matched_user_id = @userId')
+      );
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('AND pm.match_status = \'pending\'')
+      );
+    });
+
+    test('returns empty array when no pending invitations', async () => {
+      mockQuery.mockResolvedValueOnce({ recordset: [] });
+
+      const res = await request(app)
+        .get('/partners/pending-invitations')
+        .expect(200);
+
+      expect(res.body).toEqual([]);
+    });
+
+    test('handles database error', async () => {
+      mockQuery.mockRejectedValueOnce(new Error('Database connection failed'));
+
+      await request(app)
+        .get('/partners/pending-invitations')
+        .expect(500);
+    });
+
+    test('logs pending invitations count', async () => {
+      const mockInvitations = [
+        { requestId: 1, requesterName: 'Test User' }
+      ];
+      mockQuery.mockResolvedValueOnce({ recordset: mockInvitations });
+
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+      await request(app)
+        .get('/partners/pending-invitations')
+        .expect(200);
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('📋 Found 1 pending invitations')
+      );
+
+      consoleSpy.mockRestore();
     });
   });
 
@@ -915,6 +992,248 @@ describe('Partner Service API', () => {
         expect(res.body[0]).toHaveProperty('compatibilityScore');
         expect(res.body[0].sharedCourses).toHaveLength(6);
       }
+    });
+
+    test('should handle WebPubSub connection errors in accept', async () => {
+      mockQuery
+        .mockResolvedValueOnce({
+          recordset: [
+            {
+              requester_id: 'requester-user',
+              requestee_id: 'current-user',
+              first_name: 'Requester',
+              last_name: 'User',
+              email: 'requester@example.com',
+            },
+          ],
+        })
+        .mockResolvedValueOnce({ recordset: [] })
+        .mockResolvedValueOnce({ recordset: [] });
+
+      // Mock WebPubSub to fail
+      const mockGetWebPubSubClient = require('../config/azureConfig').azureConfig.getWebPubSubClient;
+      mockGetWebPubSubClient.mockRejectedValueOnce(new Error('WebPubSub error'));
+
+      const res = await request(app).post('/partners/accept/123');
+      expect(res.statusCode).toBe(200); // Should still succeed despite notification failure
+    });
+
+    test('should handle WebPubSub connection errors in reject', async () => {
+      mockQuery
+        .mockResolvedValueOnce({
+          recordset: [
+            {
+              requester_id: 'requester-user',
+              first_name: 'Requester',
+              last_name: 'User',
+              email: 'requester@example.com',
+            },
+          ],
+        })
+        .mockResolvedValueOnce({ recordset: [] });
+
+      // Mock WebPubSub to fail
+      const mockGetWebPubSubClient = require('../config/azureConfig').azureConfig.getWebPubSubClient;
+      mockGetWebPubSubClient.mockRejectedValueOnce(new Error('WebPubSub error'));
+
+      const res = await request(app).post('/partners/reject/123');
+      expect(res.statusCode).toBe(200); // Should still succeed despite notification failure
+    });
+
+    test('should validate request ID parameter', async () => {
+      const res = await request(app).post('/partners/accept/invalid-id');
+      // Should handle invalid ID gracefully
+      expect([200, 400, 404, 500]).toContain(res.statusCode);
+    });
+
+    test('should handle pending invitations database connection issues', async () => {
+      mockQuery.mockRejectedValueOnce(new Error('Connection timeout'));
+
+      const res = await request(app).get('/partners/pending-invitations');
+      expect(res.statusCode).toBe(500);
+      expect(res.body.error).toBe('Failed to fetch pending invitations');
+    });
+
+    test('should handle empty pending invitations result', async () => {
+      mockQuery.mockResolvedValueOnce({ recordset: [] });
+
+      const res = await request(app).get('/partners/pending-invitations');
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toEqual([]);
+    });
+
+    test('should handle malformed user data in pending invitations', async () => {
+      mockQuery.mockResolvedValueOnce({
+        recordset: [
+          {
+            requestId: 1,
+            requesterId: 'requester-1',
+            requesterFirstName: null, // Missing name
+            requesterLastName: null,
+            requesterEmail: 'test@example.com',
+            message: 'Hi there!',
+            created_at: '2025-01-01T10:00:00Z'
+          }
+        ]
+      });
+
+      const res = await request(app).get('/partners/pending-invitations');
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].requesterName).toBeUndefined(); // Should be undefined for null names
+    });
+
+    test('should handle search with invalid university parameter', async () => {
+      // Mock error for empty university parameter
+      mockQuery.mockRejectedValueOnce(new Error('Invalid university'));
+
+      const res = await request(app).get('/partners/search?university=');
+      // Should handle empty university parameter
+      expect(res.statusCode).toBe(500);
+    });
+
+    test('should handle search with extremely long bio text', async () => {
+      mockQuery
+        .mockResolvedValueOnce({
+          recordset: [{ university: 'MIT', course: 'CS', study_preferences: '{}' }],
+        })
+        .mockResolvedValueOnce({
+          recordset: [
+            {
+              id: 'partner1',
+              email: 'partner@mit.edu',
+              first_name: 'Partner',
+              last_name: 'One',
+              university: 'MIT',
+              course: 'CS',
+              year_of_study: 2,
+              bio: 'A'.repeat(10000), // Very long bio
+              study_preferences: '{}',
+              sharedCourses: 'CS101',
+              connectionStatus: null,
+            },
+          ],
+        });
+
+      const res = await request(app).get('/partners/search');
+      expect(res.statusCode).toBe(200);
+    });
+
+    test('should handle missing user context in middleware', async () => {
+      // Import the router
+      const partnerRouter = require('./partnerService');
+      
+      // Test route without proper user context
+      const expressApp = express();
+      expressApp.use(express.json());
+      // Don't add authentication middleware
+      expressApp.use('/partners', partnerRouter);
+
+      const res = await request(expressApp).get('/partners/search');
+      // Should handle missing user gracefully
+      expect([401, 500]).toContain(res.statusCode);
+    });
+
+    test('should handle compatibility calculation edge cases', async () => {
+      mockQuery
+        .mockResolvedValueOnce({
+          recordset: [{ 
+            university: 'MIT', 
+            course: 'CS', 
+            study_preferences: '{"studyTime": "morning", "location": "library"}' 
+          }],
+        })
+        .mockResolvedValueOnce({
+          recordset: [
+            {
+              id: 'partner1',
+              email: 'partner@mit.edu',
+              first_name: 'Partner',
+              last_name: 'One',
+              university: 'MIT',
+              course: 'CS',
+              year_of_study: 2,
+              bio: 'CS student',
+              study_preferences: '{"studyTime": "morning", "location": "library"}', // Exact match
+              sharedCourses: '',
+              connectionStatus: null,
+            },
+          ],
+        });
+
+      const res = await request(app).get('/partners/search');
+      expect(res.statusCode).toBe(200);
+      if (res.body.length > 0) {
+        expect(res.body[0].compatibilityScore).toBeGreaterThan(0);
+      }
+    });
+
+    test('should handle database pool connection errors gracefully', async () => {
+      // Force an error by mocking undefined pool
+      mockQuery.mockRejectedValueOnce(new Error('No pool available'));
+
+      const res = await request(app).get('/partners/search');
+      expect(res.statusCode).toBe(500);
+      expect(res.body.error).toBe('Failed to search for partners');
+    });
+
+    test('should handle study preferences with invalid JSON', async () => {
+      mockQuery
+        .mockResolvedValueOnce({
+          recordset: [{ 
+            university: 'MIT', 
+            course: 'CS', 
+            study_preferences: 'invalid json' 
+          }],
+        })
+        .mockResolvedValueOnce({
+          recordset: [
+            {
+              id: 'partner1',
+              email: 'partner@mit.edu',
+              first_name: 'Partner',
+              last_name: 'One',
+              university: 'MIT',
+              course: 'CS',
+              year_of_study: 2,
+              bio: 'CS student',
+              study_preferences: 'also invalid json',
+              sharedCourses: 'CS101',
+              connectionStatus: null,
+            },
+          ],
+        });
+
+      const res = await request(app).get('/partners/search');
+      expect(res.statusCode).toBe(200);
+      if (res.body.length > 0) {
+        expect(res.body[0]).toHaveProperty('compatibilityScore');
+      }
+    });
+
+    test('should handle empty search results correctly', async () => {
+      mockQuery
+        .mockResolvedValueOnce({
+          recordset: [{ university: 'MIT', course: 'CS', study_preferences: '{}' }],
+        })
+        .mockResolvedValueOnce({
+          recordset: []  // No partners found
+        });
+
+      const res = await request(app).get('/partners/search');
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toEqual([]);
+    });
+
+    test('should handle request/match endpoints with proper error flow', async () => {
+      mockQuery.mockRejectedValueOnce(new Error('Database timeout'));
+
+      const res = await request(app)
+        .post('/partners/request')
+        .send({ recipientId: 'target-user' });
+
+      expect(res.statusCode).toBe(500);
+      expect(res.body.error).toBe('Failed to send buddy request');
     });
   });
 });

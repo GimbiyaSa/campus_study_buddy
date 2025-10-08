@@ -26,6 +26,38 @@ export default function NotificationHandler() {
   const [showDropdown, setShowDropdown] = useState(false);
 
   useEffect(() => {
+    // Load existing pending invitations on component mount
+    const loadPendingInvitations = async () => {
+      try {
+        console.log('🔍 Loading pending invitations...');
+        const pendingInvitations = await DataService.getPendingInvitations();
+        console.log('📨 Pending invitations received:', pendingInvitations);
+        
+        const notifications: Notification[] = pendingInvitations.map(invitation => ({
+          id: `pending-${invitation.requestId}`,
+          type: 'partner_request' as const,
+          data: {
+            requestId: invitation.requestId,
+            requesterId: invitation.requesterId,
+            requesterName: invitation.requesterName,
+            requesterUniversity: invitation.requesterUniversity,
+            requesterCourse: invitation.requesterCourse,
+            message: invitation.message,
+            timestamp: invitation.timestamp,
+          },
+          timestamp: invitation.timestamp,
+          read: false,
+        }));
+        
+        console.log('🔔 Setting notifications:', notifications.length);
+        setNotifications(notifications);
+      } catch (error) {
+        console.error('❌ Failed to load pending invitations:', error);
+      }
+    };
+
+    loadPendingInvitations();
+
     // Listen for incoming notifications
     const unsubscribe = azureIntegrationService.onConnectionEvent(
       'notification',
@@ -44,8 +76,26 @@ export default function NotificationHandler() {
       }
     );
 
+    // Listen for partner acceptance/rejection to refresh pending invitations
+    const handlePartnerStatusChange = () => {
+      console.log('🔄 Partner status changed - refreshing pending invitations');
+      loadPendingInvitations();
+    };
+
+    const unsubscribeAccepted = azureIntegrationService.onConnectionEvent(
+      'partner_accepted',
+      handlePartnerStatusChange
+    );
+
+    const unsubscribeRejected = azureIntegrationService.onConnectionEvent(
+      'partner_rejected',
+      handlePartnerStatusChange
+    );
+
     return () => {
       unsubscribe();
+      unsubscribeAccepted();
+      unsubscribeRejected();
     };
   }, []);
 

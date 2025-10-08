@@ -157,10 +157,6 @@ async function detectSchema() {
     'id',
     'group_member_id',
   ]);
-
-  console.log('📐 groups table:', g);
-  console.log('📐 groups cols:', schema.groupsCols);
-  console.log('📐 group_members cols:', schema.membersCols);
 }
 
 const tbl = (name) => `dbo.${schema.tables[name]}`;

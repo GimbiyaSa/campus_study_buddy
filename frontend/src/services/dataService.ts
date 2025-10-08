@@ -763,7 +763,7 @@ export class DataService {
 
       console.log('🎓 Fetching courses with params:', Object.fromEntries(params));
 
-      const res = await this.request(
+      let res = await this.request(
         `/api/v1/courses${params.toString() ? `?${params.toString()}` : ''}`,
         {
           method: 'GET',
@@ -1102,21 +1102,6 @@ export class DataService {
       const res = await this.fetchWithRetry(buildApiUrl(`/api/v1/partners/accept/${requestId}`), {
         method: 'POST',
       });
-      const data = await res.json();
-      console.log('✅ Partner request accepted:', data);
-      return data;
-    } catch (error) {
-      console.error('❌ acceptPartnerRequest error:', error);
-      const appError = ErrorHandler.handleApiError(error, 'partners');
-      throw appError;
-    }
-  }
-
-  static async acceptPartnerRequest(requestId: number): Promise<void> {
-    try {
-      const res = await this.fetchWithRetry(buildApiUrl(`/api/v1/partners/accept/${requestId}`), {
-        method: 'POST',
-      });
       if (!res.ok) {
         const appError = ErrorHandler.handleApiError({ status: res.status }, 'partners');
         throw appError;
@@ -1125,6 +1110,20 @@ export class DataService {
       console.log('✅ Partner request accepted');
     } catch (error) {
       console.error('❌ acceptPartnerRequest error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'partners');
+      throw appError;
+    }
+  }
+
+  static async getPendingInvitations(): Promise<any[]> {
+    try {
+      console.log('🔍 Fetching pending invitations from API...');
+      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/partners/pending-invitations'));
+      const data = await this.safeJson<any[]>(res, []);
+      console.log('✅ Pending invitations fetched:', data.length, data);
+      return data;
+    } catch (error) {
+      console.error('❌ getPendingInvitations error:', error);
       const appError = ErrorHandler.handleApiError(error, 'partners');
       throw appError;
     }

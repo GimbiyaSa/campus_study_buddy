@@ -177,8 +177,14 @@ permalink: /testing/api-testing.html
         </div>
         
         <div class="section">
-            <h3>Step 1: Sign in with Google</h3>
-            <p>Click the button below to authenticate with Google and get your ID token:</p>
+            <h3>Step 1: Configure Google Client ID</h3>
+            <div class="status error" id="configWarning">
+                <strong>⚠️ Configuration Required:</strong> This tool needs a valid Google Client ID to work. 
+                <a href="#setup-instructions">See setup instructions below</a>.
+            </div>
+            
+            <h3>Step 2: Sign in with Google</h3>
+            <p>After configuring your Client ID, click the button below to authenticate with Google and get your ID token:</p>
             <div id="buttonDiv" style="margin: 20px 0;"></div>
             
             <div id="tokenSection" style="display: none;">
@@ -192,7 +198,7 @@ permalink: /testing/api-testing.html
         </div>
 
         <div class="section">
-            <h3>Step 2: Test API Endpoints</h3>
+            <h3>Step 3: Test API Endpoints</h3>
             <p>Use the buttons below to test endpoints directly, or copy the token for external tools:</p>
             
             <div style="margin: 20px 0;">
@@ -202,6 +208,34 @@ permalink: /testing/api-testing.html
             </div>
             
             <div id="testResults"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2 id="setup-instructions">🔧 Setup Instructions</h2>
+        
+        <div class="endpoint-example">
+            <h4>Required: Configure Google Client ID</h4>
+            <p>To use this testing tool, you need to:</p>
+            <ol>
+                <li><strong>Get a Google OAuth Client ID:</strong>
+                    <ul>
+                        <li>Go to <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a></li>
+                        <li>Create or select a project</li>
+                        <li>Go to "APIs & Services" → "Credentials"</li>
+                        <li>Create "OAuth 2.0 Client ID" → "Web application"</li>
+                        <li>Add authorized origins: <code>https://gimbiyasa.github.io</code></li>
+                    </ul>
+                </li>
+                <li><strong>Update this page:</strong>
+                    <ul>
+                        <li>Download this HTML file</li>
+                        <li>Replace <code>YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com</code> with your actual Client ID</li>
+                        <li>Open the modified file in your browser</li>
+                    </ul>
+                </li>
+            </ol>
+            <p><strong>📖 Detailed Instructions:</strong> <a href="setup.html">Complete Setup Guide</a></p>
         </div>
     </div>
 
@@ -296,21 +330,45 @@ response = requests.get('/api/v1/users/me', headers=headers)</div>
 
         // Initialize Google Sign-In
         window.onload = function () {
-            google.accounts.id.initialize({
-                // You need to replace this with your actual Google Client ID
-                client_id: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
-                callback: handleCredentialResponse
-            });
+            const clientId = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
             
-            google.accounts.id.renderButton(
-                document.getElementById("buttonDiv"),
-                { 
-                    theme: "outline", 
-                    size: "large",
-                    text: "signin_with",
-                    width: 300
-                }
-            );
+            // Check if Client ID has been configured
+            if (clientId === "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com") {
+                document.getElementById('buttonDiv').innerHTML = `
+                    <div class="status error">
+                        <strong>⚠️ Configuration Required</strong><br>
+                        Please follow the <a href="#setup-instructions">setup instructions</a> to configure your Google Client ID.
+                    </div>
+                `;
+                return;
+            }
+            
+            try {
+                google.accounts.id.initialize({
+                    client_id: clientId,
+                    callback: handleCredentialResponse
+                });
+                
+                google.accounts.id.renderButton(
+                    document.getElementById("buttonDiv"),
+                    { 
+                        theme: "outline", 
+                        size: "large",
+                        text: "signin_with",
+                        width: 300
+                    }
+                );
+                
+                // Hide configuration warning if Client ID is set
+                document.getElementById('configWarning').style.display = 'none';
+            } catch (error) {
+                document.getElementById('buttonDiv').innerHTML = `
+                    <div class="status error">
+                        <strong>❌ Google Sign-In Error:</strong> ${error.message}<br>
+                        Make sure you have a valid Google Client ID configured.
+                    </div>
+                `;
+            }
         }
 
         function handleCredentialResponse(response) {

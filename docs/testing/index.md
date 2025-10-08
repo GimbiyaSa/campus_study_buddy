@@ -18,13 +18,15 @@ This page provides tools to help you test the Campus Study Buddy API endpoints. 
 ## Testing Options
 
 ### 🌐 Interactive Testing Page
-**[→ Open API Testing Tool](api-testing.html)**
+**[→ Open API Testing Tool](api-testing.html)** | **[→ Alternative View](tool.md)**
 
 Our interactive testing page allows you to:
 - Sign in with Google to get ID tokens
 - Test endpoints directly in the browser
 - Copy tokens for use in external tools
 - View real-time API responses
+
+> **Note**: If you have trouble accessing the tool, try the [alternative view](tool.md) or [download it locally](api-testing.html) (right-click → save).
 
 ### 📮 Postman Collection
 We've prepared a Postman collection with pre-configured requests:

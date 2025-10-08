@@ -1,0 +1,289 @@
+---
+layout: none
+permalink: /testing/api-testing-template.html
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Testing - Get Google Token (Template)</title>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+            line-height: 1.6;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        .config-section {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 8px 8px 8px 0;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .token-display {
+            background: #f1f3f4;
+            border: 2px solid #dadce0;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            word-break: break-all;
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+            font-size: 13px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+        .success { 
+            background: #d4edda; 
+            border: 1px solid #c3e6cb; 
+            color: #155724; 
+        }
+        .error { 
+            background: #f8d7da; 
+            border: 1px solid #f5c6cb; 
+            color: #721c24; 
+        }
+        .info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        .code-block {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 16px;
+            margin: 16px 0;
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+            font-size: 13px;
+            overflow-x: auto;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 API Testing Tool - Configuration</h1>
+        
+        <div class="config-section">
+            <h3>⚙️ Step 1: Configure Your Google Client ID</h3>
+            <label for="clientIdInput"><strong>Enter your Google OAuth Client ID:</strong></label>
+            <input type="text" id="clientIdInput" placeholder="123456789-abc123.apps.googleusercontent.com" />
+            <button class="btn" onclick="initializeGoogleAuth()">🔄 Initialize Google Sign-In</button>
+            
+            <div style="margin-top: 15px;">
+                <small>
+                    <strong>Don't have a Client ID?</strong> 
+                    <a href="https://console.cloud.google.com/" target="_blank">Get one from Google Cloud Console</a> |
+                    <a href="setup.html">Setup Guide</a>
+                </small>
+            </div>
+        </div>
+        
+        <div id="authSection" style="display: none;">
+            <h3>🔑 Step 2: Sign in with Google</h3>
+            <div id="buttonDiv" style="margin: 20px 0;"></div>
+            
+            <div id="tokenSection" style="display: none;">
+                <h4>📋 Your Google ID Token:</h4>
+                <div id="tokenDisplay" class="token-display"></div>
+                <button class="btn" onclick="copyToken()">📋 Copy Token</button>
+                <button class="btn" onclick="copyAuthHeader()">📋 Copy Authorization Header</button>
+                <div id="userInfo"></div>
+            </div>
+        </div>
+        
+        <div id="testSection" style="display: none;">
+            <h3>🧪 Step 3: Test API Endpoints</h3>
+            <div>
+                <label for="apiBaseInput"><strong>API Base URL:</strong></label>
+                <input type="text" id="apiBaseInput" value="http://localhost:5000/api/v1" />
+            </div>
+            <div style="margin: 20px 0;">
+                <button class="btn" onclick="testHealthEndpoint()">🔍 Test Health Endpoint</button>
+                <button class="btn" onclick="testUserMeEndpoint()" id="testUserBtn" disabled>🔍 Test /users/me</button>
+            </div>
+            <div id="testResults"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentToken = null;
+        let googleInitialized = false;
+
+        function initializeGoogleAuth() {
+            const clientId = document.getElementById('clientIdInput').value.trim();
+            
+            if (!clientId) {
+                showMessage('Please enter a valid Google Client ID', 'error');
+                return;
+            }
+            
+            if (!clientId.includes('.apps.googleusercontent.com')) {
+                showMessage('Client ID should end with .apps.googleusercontent.com', 'error');
+                return;
+            }
+
+            try {
+                google.accounts.id.initialize({
+                    client_id: clientId,
+                    callback: handleCredentialResponse
+                });
+                
+                google.accounts.id.renderButton(
+                    document.getElementById("buttonDiv"),
+                    { 
+                        theme: "outline", 
+                        size: "large",
+                        text: "signin_with",
+                        width: 300
+                    }
+                );
+                
+                document.getElementById('authSection').style.display = 'block';
+                showMessage('✅ Google Sign-In initialized! You can now sign in.', 'success');
+                googleInitialized = true;
+                
+            } catch (error) {
+                showMessage(`❌ Error initializing Google Sign-In: ${error.message}`, 'error');
+            }
+        }
+
+        function handleCredentialResponse(response) {
+            currentToken = response.credential;
+            
+            // Display token
+            document.getElementById('tokenDisplay').textContent = currentToken;
+            document.getElementById('tokenSection').style.display = 'block';
+            document.getElementById('testSection').style.display = 'block';
+            document.getElementById('testUserBtn').disabled = false;
+            
+            // Decode and show token info
+            try {
+                const payload = JSON.parse(atob(currentToken.split('.')[1]));
+                
+                const userInfo = `
+                    <div style="background: #e3f2fd; border: 1px solid #bbdefb; border-radius: 6px; padding: 15px; margin: 15px 0;">
+                        <h4>✅ Successfully authenticated</h4>
+                        <p><strong>Name:</strong> ${payload.name}</p>
+                        <p><strong>Email:</strong> ${payload.email}</p>
+                        <p><strong>Token expires:</strong> ${new Date(payload.exp * 1000).toLocaleString()}</p>
+                    </div>
+                `;
+                document.getElementById('userInfo').innerHTML = userInfo;
+                
+                showMessage('✅ Successfully signed in! You can now test authenticated endpoints.', 'success');
+            } catch (e) {
+                showMessage('⚠️ Token received but could not decode user info.', 'info');
+            }
+        }
+
+        function copyToken() {
+            navigator.clipboard.writeText(currentToken).then(() => {
+                showMessage('✅ Token copied to clipboard!', 'success');
+            }).catch(() => {
+                showMessage('❌ Failed to copy token. Please copy manually.', 'error');
+            });
+        }
+
+        function copyAuthHeader() {
+            const authHeader = `Authorization: Bearer ${currentToken}`;
+            navigator.clipboard.writeText(authHeader).then(() => {
+                showMessage('✅ Authorization header copied to clipboard!', 'success');
+            }).catch(() => {
+                showMessage('❌ Failed to copy header. Please copy manually.', 'error');
+            });
+        }
+
+        async function testHealthEndpoint() {
+            const apiBase = document.getElementById('apiBaseInput').value.trim();
+            showMessage('🔄 Testing health endpoint...', 'info');
+            
+            try {
+                const response = await fetch(`${apiBase}/health`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showMessage(`✅ Health endpoint working! Status: ${data.status}`, 'success');
+                } else {
+                    showMessage(`❌ Health endpoint failed with status: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`❌ Health endpoint error: ${error.message}. Make sure your API server is running.`, 'error');
+            }
+        }
+
+        async function testUserMeEndpoint() {
+            if (!currentToken) {
+                showMessage('❌ Please sign in first!', 'error');
+                return;
+            }
+
+            const apiBase = document.getElementById('apiBaseInput').value.trim();
+            showMessage('🔄 Testing /users/me endpoint...', 'info');
+            
+            try {
+                const response = await fetch(`${apiBase}/users/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showMessage(`✅ /users/me working! Welcome, ${data.first_name} ${data.last_name}!`, 'success');
+                } else {
+                    showMessage(`❌ /users/me failed: ${JSON.stringify(data)}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`❌ /users/me error: ${error.message}`, 'error');
+            }
+        }
+
+        function showMessage(message, type) {
+            const statusClass = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+            document.getElementById('testResults').innerHTML = `<div class="status ${statusClass}">${message}</div>`;
+        }
+    </script>
+</body>
+</html>

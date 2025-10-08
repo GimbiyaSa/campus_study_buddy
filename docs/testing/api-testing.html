@@ -224,7 +224,14 @@ permalink: /testing/api-testing.html
                         <li>Create or select a project</li>
                         <li>Go to "APIs & Services" → "Credentials"</li>
                         <li>Create "OAuth 2.0 Client ID" → "Web application"</li>
-                        <li>Add authorized origins: <code>https://gimbiyasa.github.io</code></li>
+                        <li><strong>⚠️ IMPORTANT - Add authorized JavaScript origins:</strong>
+                            <ul>
+                                <li><code>https://gimbiyasa.github.io</code> (for GitHub Pages)</li>
+                                <li><code>http://localhost:3000</code> (for local development)</li>
+                                <li><code>http://localhost:5000</code> (for backend testing)</li>
+                                <li><code>http://127.0.0.1:3000</code> (alternative localhost)</li>
+                            </ul>
+                        </li>
                     </ul>
                 </li>
                 <li><strong>Update this page:</strong>
@@ -235,6 +242,13 @@ permalink: /testing/api-testing.html
                     </ul>
                 </li>
             </ol>
+            
+            <div class="status error">
+                <strong>🚨 Getting "origin_mismatch" error?</strong><br>
+                This means your Google OAuth Client ID doesn't allow requests from <code>https://gimbiyasa.github.io</code>.<br>
+                <strong>Solution:</strong> Add <code>https://gimbiyasa.github.io</code> to your OAuth Client's "Authorized JavaScript origins" in Google Cloud Console.
+            </div>
+            
             <p><strong>📖 Detailed Instructions:</strong> <a href="setup.html">Complete Setup Guide</a></p>
         </div>
     </div>

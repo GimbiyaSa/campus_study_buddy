@@ -6,9 +6,27 @@ info:
     form study groups, schedule sessions, track progress, and find compatible study partners.
     
     ## Authentication
-    Most endpoints require authentication via JWT token in the Authorization header:
+    Most endpoints require authentication via Google ID token in the Authorization header:
     ```
-    Authorization: Bearer <your-jwt-token>
+    Authorization: Bearer <your-google-id-token>
+    ```
+    
+    **Note**: This API uses Google OAuth 2.0 ID tokens for authentication. You must obtain a valid
+    Google ID token through the Google OAuth 2.0 flow and include it in the Authorization header.
+    
+    ### Getting a Google ID Token for Testing:
+    1. **Use the test page**: Open `test-auth.html` in your browser and sign in with Google
+    2. **Use gcloud CLI**: Run `gcloud auth print-identity-token` 
+    3. **Frontend integration**: Use Google Sign-In JavaScript library
+    
+    ### Example API Calls:
+    ```bash
+    # Health check (no auth required)
+    curl http://localhost:5000/api/v1/health
+    
+    # Get user profile (requires auth)
+    curl -H "Authorization: Bearer YOUR_GOOGLE_ID_TOKEN" \
+         http://localhost:5000/api/v1/users/me
     ```
     
     ## Features
@@ -31,7 +49,7 @@ info:
 servers:
   - url: http://localhost:5000/api/v1
     description: Development server
-  - url: https://api.studybuddy.campus.com/api
+  - url: https://csb-prod-ca-api-w0zgifbb.whiteriver-3b1efee3.southafricanorth.azurecontainerapps.io/api/v1
     description: Production server
 
 security:
@@ -42,7 +60,8 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
-      bearerFormat: JWT
+      bearerFormat: GoogleIDToken
+      description: Google OAuth 2.0 ID Token. Obtain this token through Google's OAuth 2.0 flow.
 
   schemas:
     Error:
@@ -61,8 +80,8 @@ components:
       type: object
       properties:
         user_id:
-          type: integer
-          description: Unique user identifier
+          type: string
+          description: Unique user identifier (from Azure AD)
         email:
           type: string
           format: email
@@ -120,6 +139,10 @@ components:
           type: string
           format: date-time
           description: Last update timestamp
+        enrolled_modules:
+          type: string
+          nullable: true
+          description: Comma-separated list of enrolled module codes
 
     Module:
       type: object
@@ -341,7 +364,8 @@ components:
         progress_id:
           type: integer
         user_id:
-          type: integer
+          type: string
+          description: User identifier (Azure AD)
         topic_id:
           type: integer
           nullable: true
@@ -369,6 +393,18 @@ components:
         updated_at:
           type: string
           format: date-time
+        topic_name:
+          type: string
+          nullable: true
+        chapter_name:
+          type: string
+          nullable: true
+        module_code:
+          type: string
+          nullable: true
+        module_name:
+          type: string
+          nullable: true
 
     StudyHours:
       type: object
@@ -376,7 +412,8 @@ components:
         hour_id:
           type: integer
         user_id:
-          type: integer
+          type: string
+          description: User identifier (Azure AD)
         module_id:
           type: integer
           nullable: true
@@ -399,6 +436,18 @@ components:
         logged_at:
           type: string
           format: date-time
+        module_code:
+          type: string
+          nullable: true
+        module_name:
+          type: string
+          nullable: true
+        topic_name:
+          type: string
+          nullable: true
+        session_title:
+          type: string
+          nullable: true
 
     UserStatistics:
       type: object
@@ -415,6 +464,91 @@ components:
         modules_enrolled:
           type: integer
 
+    Course:
+      type: object
+      properties:
+        course_id:
+          type: integer
+        name:
+          type: string
+          description: Course name
+        description:
+          type: string
+          nullable: true
+          description: Course description
+        course_code:
+          type: string
+          description: Course code (e.g., CS101)
+        university:
+          type: string
+          description: University offering the course
+        is_active:
+          type: boolean
+          description: Whether course is active
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        enrolled_count:
+          type: integer
+          description: Number of enrolled students
+        topic_count:
+          type: integer
+          description: Number of topics in course
+
+    Note:
+      type: object
+      properties:
+        note_id:
+          type: integer
+        title:
+          type: string
+          description: Note title
+        content:
+          type: string
+          description: Note content
+        author_id:
+          type: string
+          description: User ID of note author
+        author_name:
+          type: string
+          description: Display name of note author
+        group_id:
+          type: integer
+          nullable: true
+          description: Associated group ID
+        topic_id:
+          type: integer
+          nullable: true
+          description: Associated topic ID
+        visibility:
+          type: string
+          enum: [public, private, group]
+          description: Note visibility setting
+        is_active:
+          type: boolean
+          description: Whether note is active
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        attachments:
+          type: array
+          items:
+            type: object
+            properties:
+              filename:
+                type: string
+              url:
+                type: string
+                format: uri
+          nullable: true
+          description: File attachments
+
 paths:
   # Health Check
   /health:
@@ -422,7 +556,7 @@ paths:
       tags:
         - System
       summary: Health check endpoint
-      description: Check API and database connectivity
+      description: Check API health and Azure services connectivity
       security: []
       responses:
         '200':
@@ -434,13 +568,23 @@ paths:
                 properties:
                   status:
                     type: string
-                    example: OK
-                  database:
-                    type: string
-                    example: Connected
+                    example: healthy
                   timestamp:
                     type: string
                     format: date-time
+                  azure:
+                    type: object
+                    description: Azure services health status
+                    properties:
+                      database:
+                        type: string
+                        description: Database connection status
+                      webPubSub:
+                        type: string
+                        description: Web PubSub service status
+                      storage:
+                        type: string
+                        description: Storage service status
         '500':
           description: System is unhealthy
           content:
@@ -450,15 +594,13 @@ paths:
                 properties:
                   status:
                     type: string
-                    example: ERROR
-                  database:
-                    type: string
-                    example: Disconnected
-                  error:
-                    type: string
+                    example: unhealthy
                   timestamp:
                     type: string
                     format: date-time
+                  error:
+                    type: string
+                    example: Health check failed
 
   # User Management
   /users/me:
@@ -776,6 +918,51 @@ paths:
               schema:
                 $ref: '#/components/schemas/UserStatistics'
 
+  /users/files/upload:
+    post:
+      tags:
+        - Users
+      summary: Upload file
+      description: Upload a file for the current user
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: File to upload
+      responses:
+        '200':
+          description: File uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: File uploaded successfully
+                  url:
+                    type: string
+                    format: uri
+                    description: URL of the uploaded file
+        '400':
+          description: No file provided or invalid file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   # Module Management
   /modules:
     get:
@@ -998,6 +1185,572 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Chapter'
+
+  # Courses
+  /courses:
+    get:
+      tags:
+        - Courses
+      summary: Get all courses
+      description: Retrieve all available courses with optional filtering
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search in course name or description
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+          description: Maximum number of results
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Number of results to skip
+      responses:
+        '200':
+          description: Courses retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Course'
+
+    post:
+      tags:
+        - Courses
+      summary: Create new course
+      description: Create a new course (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                course_code:
+                  type: string
+                university:
+                  type: string
+              required:
+                - name
+                - course_code
+      responses:
+        '201':
+          description: Course created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+
+  /courses/available:
+    get:
+      tags:
+        - Courses
+      summary: Get available courses
+      description: Get courses available for enrollment
+      responses:
+        '200':
+          description: Available courses retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Course'
+
+  /courses/{courseId}/topics:
+    get:
+      tags:
+        - Courses
+      summary: Get course topics
+      description: Retrieve topics for a specific course
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Course topics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Topic'
+
+  # Progress Tracking
+  /progress/sessions:
+    post:
+      tags:
+        - Progress
+      summary: Log study session
+      description: Log a completed study session for progress tracking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                module_id:
+                  type: integer
+                hours_studied:
+                  type: number
+                  format: float
+                  minimum: 0
+                topic_ids:
+                  type: array
+                  items:
+                    type: integer
+                notes:
+                  type: string
+              required:
+                - module_id
+                - hours_studied
+      responses:
+        '201':
+          description: Study session logged successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  session_id:
+                    type: integer
+                  total_hours:
+                    type: number
+                    format: float
+
+  /progress/analytics:
+    get:
+      tags:
+        - Progress
+      summary: Get progress analytics
+      description: Retrieve progress analytics for the current user
+      parameters:
+        - name: moduleId
+          in: query
+          schema:
+            type: integer
+          description: Filter by specific module
+        - name: timeRange
+          in: query
+          schema:
+            type: string
+            enum: [week, month, year, all]
+            default: month
+          description: Time range for analytics
+      responses:
+        '200':
+          description: Progress analytics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_hours:
+                    type: number
+                    format: float
+                  sessions_count:
+                    type: integer
+
+  /progress/leaderboard:
+    get:
+      tags:
+        - Progress
+      summary: Get progress leaderboard
+      description: Get leaderboard showing top performers
+      parameters:
+        - name: moduleId
+          in: query
+          schema:
+            type: integer
+          description: Filter by specific module
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+          description: Number of top performers to return
+      responses:
+        '200':
+          description: Leaderboard retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    user_id:
+                      type: string
+                    first_name:
+                      type: string
+                    last_name:
+                      type: string
+                    total_hours:
+                      type: number
+                      format: float
+                    rank:
+                      type: integer
+
+  # Partner Matching
+  /partners:
+    get:
+      tags:
+        - Partners
+      summary: Get study partners
+      description: Get matched study partners for the current user
+      responses:
+        '200':
+          description: Partners retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    user_id:
+                      type: string
+                    first_name:
+                      type: string
+                    last_name:
+                      type: string
+                    university:
+                      type: string
+                    course:
+                      type: string
+                    compatibility_score:
+                      type: number
+                      format: float
+
+  /partners/search:
+    get:
+      tags:
+        - Partners
+      summary: Search for study partners
+      description: Search for potential study partners based on criteria
+      parameters:
+        - name: university
+          in: query
+          schema:
+            type: string
+          description: Filter by university
+        - name: course
+          in: query
+          schema:
+            type: string
+          description: Filter by course
+        - name: moduleId
+          in: query
+          schema:
+            type: integer
+          description: Filter by shared module
+      responses:
+        '200':
+          description: Search results retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    user_id:
+                      type: string
+                    first_name:
+                      type: string
+                    last_name:
+                      type: string
+                    university:
+                      type: string
+                    course:
+                      type: string
+                    compatibility_score:
+                      type: number
+                      format: float
+
+  /partners/request:
+    post:
+      tags:
+        - Partners
+      summary: Send partner request
+      description: Send a study partner request to another user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                target_user_id:
+                  type: string
+                  description: User ID to send request to
+                message:
+                  type: string
+                  description: Optional message with the request
+              required:
+                - target_user_id
+      responses:
+        '201':
+          description: Partner request sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request_id:
+                    type: integer
+                  message:
+                    type: string
+
+  # Chat and Messaging
+  /chat/negotiate:
+    post:
+      tags:
+        - Chat
+      summary: Negotiate WebSocket connection
+      description: Get connection details for real-time chat WebSocket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                group_id:
+                  type: integer
+                  description: Group ID for chat session
+              required:
+                - group_id
+      responses:
+        '200':
+          description: WebSocket connection details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    description: WebSocket connection URL
+                  access_token:
+                    type: string
+                    description: Access token for WebSocket authentication
+
+  /chat/groups/{groupId}/messages:
+    get:
+      tags:
+        - Chat
+      summary: Get group messages
+      description: Retrieve messages from a group chat
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+          description: Maximum number of messages
+      responses:
+        '200':
+          description: Messages retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    message_id:
+                      type: integer
+                    sender_id:
+                      type: string
+                    sender_name:
+                      type: string
+                    content:
+                      type: string
+                    timestamp:
+                      type: string
+                      format: date-time
+
+    post:
+      tags:
+        - Chat
+      summary: Send message to group
+      description: Send a message to a group chat
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+                  description: Message content
+              required:
+                - content
+      responses:
+        '201':
+          description: Message sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message_id:
+                    type: integer
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  # Notes
+  /notes:
+    get:
+      tags:
+        - Notes
+      summary: Get shared notes
+      description: Retrieve shared notes with optional filtering
+      parameters:
+        - name: groupId
+          in: query
+          schema:
+            type: integer
+          description: Filter by group ID
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search in note title or content
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Notes retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Note'
+
+    post:
+      tags:
+        - Notes
+      summary: Create note
+      description: Create a new shared note
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                content:
+                  type: string
+                group_id:
+                  type: integer
+                visibility:
+                  type: string
+                  enum: [public, private, group]
+                  default: group
+              required:
+                - title
+                - content
+      responses:
+        '201':
+          description: Note created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Note'
+
+  /notes/{noteId}:
+    put:
+      tags:
+        - Notes
+      summary: Update note
+      description: Update an existing note
+      parameters:
+        - name: noteId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                content:
+                  type: string
+      responses:
+        '200':
+          description: Note updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Note'
+
+    delete:
+      tags:
+        - Notes
+      summary: Delete note
+      description: Delete a note
+      parameters:
+        - name: noteId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Note deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
 
   # Study Groups
   /groups:
@@ -1250,6 +2003,136 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+
+  /groups/{groupId}/members:
+    get:
+      tags:
+        - Study Groups
+      summary: Get group members
+      description: Retrieve members of a specific study group
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Group members retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    user_id:
+                      type: string
+                    first_name:
+                      type: string
+                    last_name:
+                      type: string
+                    email:
+                      type: string
+                    role:
+                      type: string
+                      enum: [owner, admin, moderator, member]
+                    status:
+                      type: string
+                      enum: [active, pending, inactive]
+                    joined_at:
+                      type: string
+                      format: date-time
+        '404':
+          description: Group not found
+
+  /groups/{groupId}/invite:
+    post:
+      tags:
+        - Study Groups
+      summary: Invite users to group
+      description: Invite users to join a study group
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_emails:
+                  type: array
+                  items:
+                    type: string
+                    format: email
+                message:
+                  type: string
+                  description: Optional invitation message
+              required:
+                - user_emails
+      responses:
+        '201':
+          description: Invitations sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  invited_count:
+                    type: integer
+
+  /groups/{groupId}/sessions:
+    post:
+      tags:
+        - Study Groups
+      summary: Create session for group
+      description: Create a new study session for a specific group
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                session_title:
+                  type: string
+                description:
+                  type: string
+                scheduled_start:
+                  type: string
+                  format: date-time
+                scheduled_end:
+                  type: string
+                  format: date-time
+                location:
+                  type: string
+                session_type:
+                  type: string
+                  enum: [study, review, project, exam_prep, discussion]
+              required:
+                - session_title
+                - scheduled_start
+                - scheduled_end
+      responses:
+        '201':
+          description: Session created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudySession'
 
   /groups/user/my-groups:
     get:
@@ -2123,10 +3006,20 @@ tags:
     description: User profile and progress management
   - name: Modules
     description: Academic modules, topics, and chapters
+  - name: Courses
+    description: Course management and enrollment
   - name: Study Groups
     description: Study group creation and management
   - name: Study Sessions
     description: Study session scheduling and attendance
+  - name: Progress
+    description: Progress tracking and analytics
+  - name: Partners
+    description: Study partner matching system
+  - name: Chat
+    description: Real-time messaging and communication
+  - name: Notes
+    description: Shared notes and collaboration
   - name: Notifications
     description: Notification system
   - name: Search

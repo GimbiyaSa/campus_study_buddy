@@ -116,4 +116,3 @@ describe('Header', () => {
     expect(document.querySelector('.animate-pulse')).toBeInTheDocument();
   });
 });
-

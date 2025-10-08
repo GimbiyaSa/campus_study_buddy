@@ -5,7 +5,7 @@ Campus Study Buddy helps students organize learning, track progress, and connect
 ## High-level features
 - Dashboard with study buddy suggestions, activity, schedule
 - Courses list + progress
-- Notes & reminders (UI scaffolding)
+- Notes & reminders
 - Study sessions / calendar
 
 ## Tech stack

@@ -1,4 +1,3 @@
-// frontend/src/pages/Groups.tsx
 import { useState, useEffect, useId, useLayoutEffect, useRef, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Users, Plus, MessageSquare, Calendar, Trash2, X, Pencil } from 'lucide-react';
@@ -55,7 +54,6 @@ export default function Groups() {
   const [meId, setMeId] = useState<string>('');
   const [owners, setOwners] = useState<Record<number, string>>({});
   const [idMap, setIdMap] = useState<Record<number, string>>({}); // local numeric → backend id
-  const [usingFallback, setUsingFallback] = useState<boolean>(false);
 
   // join/leave UI state
   const [joiningId, setJoiningId] = useState<number | null>(null);
@@ -77,69 +75,6 @@ export default function Groups() {
   const [membersByGroup, setMembersByGroup] = useState<Record<number, any[]>>({});
   const [membersLoading, setMembersLoading] = useState<Record<number, boolean>>({});
   const [membersError, setMembersError] = useState<Record<number, string | null>>({});
-
-  const fallbackGroups: StudyGroup[] = [
-    {
-      group_id: 1,
-      group_name: 'CS Advanced Study Group',
-      description: 'Advanced computer science topics and algorithms',
-      creator_id: '1',
-      module_id: 1,
-      max_members: 8,
-      group_type: 'study',
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      member_count: 5,
-      module_name: 'CS 201 - Data Structures',
-      creator_name: 'John Doe',
-    },
-    {
-      group_id: 2,
-      group_name: 'Math Warriors',
-      description: 'Tackling linear algebra together',
-      creator_id: '2',
-      module_id: 2,
-      max_members: 6,
-      group_type: 'exam_prep',
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      member_count: 4,
-      module_name: 'MATH 204 - Linear Algebra',
-      creator_name: 'Jane Smith',
-    },
-    {
-      group_id: 3,
-      group_name: 'Physics Lab Partners',
-      description: 'Lab work and problem solving',
-      creator_id: '3',
-      module_id: 3,
-      max_members: 4,
-      group_type: 'project',
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      member_count: 3,
-      module_name: 'PHY 101 - Mechanics',
-      creator_name: 'Alex Johnson',
-    },
-    {
-      group_id: 4,
-      group_name: 'Fallback Group',
-      description: 'Fallback group for testing',
-      creator_id: '4',
-      module_id: 4,
-      max_members: 10,
-      group_type: 'discussion',
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      member_count: 1,
-      module_name: 'GEN 101 - General',
-      creator_name: 'Fallback User',
-    },
-  ];
 
   // ---- headers consistent with DataService ----
   function authHeadersJSON(): Headers {
@@ -239,11 +174,6 @@ export default function Groups() {
     setOwners((prev) =>
       prev[numericId] === createdBy ? prev : { ...prev, [numericId]: createdBy }
     );
-    if (g?.id)
-      // keep owner map fresh in case backend transfers ownership
-      setOwners((prev) =>
-        prev[numericId] === createdBy ? prev : { ...prev, [numericId]: createdBy }
-      );
 
     // ✅ NEW: accept either id or group_id as the backend id
     if (g?.id != null || g?.group_id != null) {
@@ -265,7 +195,11 @@ export default function Groups() {
       );
     }
 
-    const membersCount = Array.isArray(g?.members) ? g.members.length : g?.member_count ?? 0;
+    const membersCount = Array.isArray(g?.members)
+      ? g.members.length
+      : typeof g?.member_count === 'number'
+      ? g.member_count
+      : undefined;
     const createdAt = g?.createdAt || g?.created_at || new Date().toISOString();
     const updatedAt = g?.lastActivity || g?.updated_at || createdAt;
 
@@ -386,13 +320,6 @@ export default function Groups() {
     }
   }
 
-  function mergeGroups(prev: StudyGroup[], incoming: StudyGroup[]): StudyGroup[] {
-    const byId = new Map<number, StudyGroup>();
-    for (const g of prev) byId.set(g.group_id, g);
-    for (const g of incoming) byId.set(g.group_id, g); // prefer incoming
-    return Array.from(byId.values());
-  }
-
   async function refreshGroups(): Promise<boolean> {
     try {
       let data: any[] = [];
@@ -402,14 +329,12 @@ export default function Groups() {
         data = await DataService.fetchGroupsRaw();
       }
       const mapped = (Array.isArray(data) ? data : []).map((g: any) => toStudyGroup(g));
-      setGroups((prev) =>
-        mapped.length > 0 ? mergeGroups(prev, mapped) : prev.length ? prev : fallbackGroups
-      );
-      setUsingFallback(false);
+      setGroups(mapped); // <- just set what the backend gives you
+      setError(null);
       return true;
     } catch {
-      setGroups((prev) => (prev.length ? prev : fallbackGroups));
-      setUsingFallback(true);
+      setGroups([]); // <- empty; your “No study groups found” UI kicks in
+      setError('Showing demo groups'); // surface fallback state to UI
       return false;
     }
   }
@@ -650,25 +575,6 @@ export default function Groups() {
       description?: string;
     }
   ) => {
-    // Optimistic broadcast (keeps local date/time so Calendar feels instant)
-    const optimistic = {
-      id: String(Date.now()),
-      title: form.title,
-      date: form.date,
-      startTime: form.startTime,
-      endTime: form.endTime,
-      location: form.location,
-      type: 'study' as const,
-      participants: 1,
-      status: 'upcoming' as const,
-      isCreator: true,
-      isAttending: true,
-      groupId: groupCtx.groupId,
-      course: groupCtx.course,
-      courseCode: groupCtx.courseCode,
-    };
-    broadcastSessionCreated(optimistic);
-
     if (!groupCtx.groupId) return;
 
     try {
@@ -833,7 +739,7 @@ export default function Groups() {
           <h1 className="text-2xl font-bold text-gray-900">Study Groups</h1>
           <p className="text-gray-600">
             Join or create study groups to collaborate with peers
-            {usingFallback && <span className="ml-2 text-xs text-gray-500">(demo data)</span>}
+            {error && <span className="ml-2 text-xs text-gray-500">(demo data)</span>}
           </p>
         </div>
         <button

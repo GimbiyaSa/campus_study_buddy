@@ -65,11 +65,13 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.setSystemTime(FIXED_NOW);
-  DS.fetchSessions.mockReset().mockResolvedValue([
-    mk({ id: 's1', title: 'Algorithms Study Group', startTime: '10:00' }),
-    mk({ id: 's2', title: 'Database Design Workshop', startTime: '12:00' }),
-    mk({ id: 's3', title: 'Extra Session', startTime: '15:00' }),
-  ]);
+  DS.fetchSessions
+    .mockReset()
+    .mockResolvedValue([
+      mk({ id: 's1', title: 'Algorithms Study Group', startTime: '10:00' }),
+      mk({ id: 's2', title: 'Database Design Workshop', startTime: '12:00' }),
+      mk({ id: 's3', title: 'Extra Session', startTime: '15:00' }),
+    ]);
   DS.createSession.mockReset().mockImplementation(async (payload) => ({
     // return what the component expects after creation
     ...payload,
@@ -131,57 +133,56 @@ describe('Calendar (simple, stable)', () => {
     ).not.toBeInTheDocument();
   });
 
-test('creating a session via the modal calls DataService.createSession and shows the new item', async () => {
-  render(<Calendar />);
+  test('creating a session via the modal calls DataService.createSession and shows the new item', async () => {
+    render(<Calendar />);
 
-  await screen.findByRole('heading', { name: /October 2025/i });
-  await userEvent.click(screen.getByRole('button', { name: /New session/i }));
+    await screen.findByRole('heading', { name: /October 2025/i });
+    await userEvent.click(screen.getByRole('button', { name: /New session/i }));
 
-  // Modal open
-  expect(
-    await screen.findByRole('heading', { name: /Schedule Study Session/i })
-  ).toBeInTheDocument();
+    // Modal open
+    expect(
+      await screen.findByRole('heading', { name: /Schedule Study Session/i })
+    ).toBeInTheDocument();
 
-  // Fill required fields using robust selectors
-  await userEvent.type(
-    screen.getByPlaceholderText(/algorithm study group/i), // "e.g., Algorithm Study Group"
-    ' New Session Modal'
-  );
-  await userEvent.type(screen.getByPlaceholderText(/library room 204/i), ' Lab 3');
+    // Fill required fields using robust selectors
+    await userEvent.type(
+      screen.getByPlaceholderText(/algorithm study group/i), // "e.g., Algorithm Study Group"
+      ' New Session Modal'
+    );
+    await userEvent.type(screen.getByPlaceholderText(/library room 204/i), ' Lab 3');
 
-  const dateInput = document.querySelector('input[type="date"]') as HTMLInputElement;
-  const [startTimeInput, endTimeInput] = Array.from(
-    document.querySelectorAll('input[type="time"]')
-  ) as HTMLInputElement[];
+    const dateInput = document.querySelector('input[type="date"]') as HTMLInputElement;
+    const [startTimeInput, endTimeInput] = Array.from(
+      document.querySelectorAll('input[type="time"]')
+    ) as HTMLInputElement[];
 
-  await userEvent.clear(dateInput);
-  await userEvent.type(dateInput, '2025-10-06');
-  await userEvent.type(startTimeInput, '14:00');
-  await userEvent.type(endTimeInput, '15:00');
+    await userEvent.clear(dateInput);
+    await userEvent.type(dateInput, '2025-10-06');
+    await userEvent.type(startTimeInput, '14:00');
+    await userEvent.type(endTimeInput, '15:00');
 
-  // Submit
-  await userEvent.click(screen.getByRole('button', { name: /Create Session/i }));
+    // Submit
+    await userEvent.click(screen.getByRole('button', { name: /Create Session/i }));
 
-  // 1) DataService.createSession was called
-  //    and returned a created object (from your mock)
-  const createCalls = (DataService as any).createSession.mock.calls;
-  expect(createCalls.length).toBe(1);
+    // 1) DataService.createSession was called
+    //    and returned a created object (from your mock)
+    const createCalls = (DataService as any).createSession.mock.calls;
+    expect(createCalls.length).toBe(1);
 
-  const created = (DataService as any).createSession.mock.results[0].value;
-  // If the mock returns a Promise, await it to get the actual object
-  const createdObj = await created;
+    const created = (DataService as any).createSession.mock.results[0].value;
+    // If the mock returns a Promise, await it to get the actual object
+    const createdObj = await created;
 
-  // Modal closed
-  expect(
-    screen.queryByRole('heading', { name: /Schedule Study Session/i })
-  ).not.toBeInTheDocument();
+    // Modal closed
+    expect(
+      screen.queryByRole('heading', { name: /Schedule Study Session/i })
+    ).not.toBeInTheDocument();
 
-  // 2) Manually broadcast the event your component listens for,
-  //    ensuring the grid updates even if there's any race.
-  window.dispatchEvent(new CustomEvent('session:created', { detail: createdObj }));
+    // 2) Manually broadcast the event your component listens for,
+    //    ensuring the grid updates even if there's any race.
+    window.dispatchEvent(new CustomEvent('session:created', { detail: createdObj }));
 
-  // 3) Chip shows up (match by title only; avoid fragile time-format assertions)
-  expect(await screen.findByText(/New Session Modal/i)).toBeInTheDocument();
-});
-
+    // 3) Chip shows up (match by title only; avoid fragile time-format assertions)
+    expect(await screen.findByText(/New Session Modal/i)).toBeInTheDocument();
+  });
 });

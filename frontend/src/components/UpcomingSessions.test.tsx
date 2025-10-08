@@ -22,10 +22,8 @@ vi.mock('../utils/url', () => ({ buildApiUrl: (path: string) => `http://api.test
 const FIXED_NOW_ISO = '2025-10-02T12:00:00.000Z';
 
 beforeEach(() => {
-  // Use real timers for these async component tests
-  vi.useRealTimers();
-
-  // Mock Date to be consistent for filtering tests
+  // Use fake timers so setSystemTime takes effect
+  vi.useFakeTimers();
   vi.setSystemTime(new Date(FIXED_NOW_ISO));
 
   fetchSessionsMock.mockReset();
@@ -299,17 +297,20 @@ describe('UpcomingSessions', () => {
 
     render(<UpcomingSessions />);
 
+    const cardFor = (title: string) =>
+      screen.getByRole('heading', { name: title }).closest('.bg-white') as HTMLElement;
+
     await screen.findByText('Soon');
-    const soonCard = screen.getByRole('heading', { name: 'Soon' }).closest('div')!;
+    const soonCard = cardFor('Soon');
     expect(within(soonCard).getByText(/starting soon/i)).toBeInTheDocument();
 
-    const m45 = screen.getByRole('heading', { name: 'In45' }).closest('div')!;
+    const m45 = cardFor('In45');
     expect(within(m45).getByText('45m')).toBeInTheDocument();
 
-    const h3 = screen.getByRole('heading', { name: 'In3h15' }).closest('div')!;
+    const h3 = cardFor('In3h15');
     expect(within(h3).getByText('3h 15m')).toBeInTheDocument();
 
-    const d2 = screen.getByRole('heading', { name: 'In2Days' }).closest('div')!;
+    const d2 = cardFor('In2Days');
     expect(within(d2).getByText('2 days')).toBeInTheDocument();
   });
 

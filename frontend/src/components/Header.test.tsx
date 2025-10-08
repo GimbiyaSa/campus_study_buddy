@@ -1,7 +1,7 @@
 // src/components/Header.test.tsx
 import { render } from '../test-utils';
-import { screen, waitFor, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+//mport { screen, waitFor, within } from '@testing-library/react';
+//import userEvent from '@testing-library/user-event';
 import { expect, test, vi, beforeEach, afterEach, describe } from 'vitest';
 import Header from './Header';
 
@@ -111,7 +111,9 @@ describe('Header', () => {
 
     render(<Header />);
 
-  // Header shows loading state initially, wait for content to load
-  // Look for the loading placeholder elements
-  expect(document.querySelector('.animate-pulse')).toBeInTheDocument();
+    // Header shows loading state initially, wait for content to load
+    // Look for the loading placeholder elements
+    expect(document.querySelector('.animate-pulse')).toBeInTheDocument();
+  });
 });
+

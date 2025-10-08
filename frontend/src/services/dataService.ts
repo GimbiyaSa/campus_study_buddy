@@ -763,7 +763,7 @@ export class DataService {
 
       console.log('🎓 Fetching courses with params:', Object.fromEntries(params));
 
-      const res = await this.request(
+      let res = await this.request(
         `/api/v1/courses${params.toString() ? `?${params.toString()}` : ''}`,
         {
           method: 'GET',
@@ -1097,7 +1097,7 @@ export class DataService {
     }
   }
 
-  static async acceptPartnerRequest(requestId: number): Promise<void> {
+  /* static async acceptPartnerRequest(requestId: number): Promise<void> {
     try {
       const res = await this.fetchWithRetry(buildApiUrl(`/api/v1/partners/accept/${requestId}`), {
         method: 'POST',
@@ -1110,7 +1110,7 @@ export class DataService {
       const appError = ErrorHandler.handleApiError(error, 'partners');
       throw appError;
     }
-  }
+  } */
 
   static async acceptPartnerRequest(requestId: number): Promise<void> {
     try {

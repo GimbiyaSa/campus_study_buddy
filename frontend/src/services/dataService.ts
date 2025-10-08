@@ -1097,7 +1097,7 @@ export class DataService {
     }
   }
 
- /* static async acceptPartnerRequest(requestId: number): Promise<void> {
+  /* static async acceptPartnerRequest(requestId: number): Promise<void> {
     try {
       const res = await this.fetchWithRetry(buildApiUrl(`/api/v1/partners/accept/${requestId}`), {
         method: 'POST',

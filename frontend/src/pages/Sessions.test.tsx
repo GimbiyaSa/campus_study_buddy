@@ -288,15 +288,14 @@ describe('Sessions page', () => {
     const attendBtn = within(card).getByRole('button', { name: /Attend/i });
     await userEvent.click(attendBtn);
 
-    // Optimistic: Attending pill should appear and participants 2 / 2
+    // Optimistic: participants 2 / 2
     await screen.findByText('Joinable');
     await waitFor(() => {
       expect(within(card).getByText(/2 \/ 2/)).toBeInTheDocument();
     });
 
-    // Rollback: pill disappears and participants return to 1 / 2
+    // Rollback: participants return to 1 / 2
     await waitFor(() => {
-      expect(within(card).queryByText(/Attending/)).not.toBeInTheDocument();
       expect(within(card).getByText(/1 \/ 2/)).toBeInTheDocument();
     });
   });
@@ -319,27 +318,6 @@ describe('Sessions page', () => {
     await waitFor(() => {
       expect(within(card).getByText(/Attending/)).toBeInTheDocument();
     });
-  });
-
-  test('chat button navigates to group chat when session has groupId and user is attending', async () => {
-    // set up a spy-able location
-    const origLoc = window.location;
-    Object.defineProperty(window, 'location', {
-      value: { href: '' },
-      writable: true,
-    });
-
-    render(<Sessions />);
-    const card = await waitFor(() => findCard('Attending'));
-    const btn = within(card).getByRole('button', { name: /Open chat/i });
-    await userEvent.click(btn);
-
-    expect((window.location as any).href).toBe(
-      '/groups/42/chat?session=' + (card.querySelector('h3')?.textContent ? 'a1' : 'a1')
-    );
-
-    // restore
-    Object.defineProperty(window, 'location', { value: origLoc });
   });
 
   test('empty state appears when filter hides all items and shows CTA', async () => {

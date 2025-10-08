@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { Calendar, Clock, MapPin, Plus, Users, X, Edit, Trash2 } from 'lucide-react';
 import { DataService, type StudySession, type StudyGroup } from '../services/dataService';
 
+
 export default function Sessions() {
   const [sessions, setSessions] = useState<StudySession[]>([]);
   const [loading, setLoading] = useState(true);

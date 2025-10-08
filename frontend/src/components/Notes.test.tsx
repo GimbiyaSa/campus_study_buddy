@@ -10,87 +10,93 @@ vi.mock('react-dom', async (orig) => {
   return { ...actual, createPortal: (node: any) => node };
 });
 
-// Make buildApiUrl predictable
-vi.mock('../utils/url', () => ({ buildApiUrl: (p: string) => `http://api.test${p}` }));
+// --- Mock DataService (matches Notes.tsx usage) ---
+const ds = {
+  fetchMyGroups: vi.fn(),
+  fetchNotes: vi.fn(),
+  createNote: vi.fn(),
+};
 
-const okJson = (data: any) => ({ ok: true, status: 200, json: async () => data });
-const fail = () => ({ ok: false, status: 500, json: async () => ({}) });
+vi.mock('../services/dataService', () => {
+  return {
+    DataService: {
+      fetchMyGroups: (...a: unknown[]) => ds.fetchMyGroups(...a),
+      fetchNotes: (...a: unknown[]) => ds.fetchNotes(...a),
+      createNote: (...a: unknown[]) => ds.createNote(...a),
+    },
+  };
+});
 
 const FALLBACK_TITLES = ['Binary Tree Traversal Methods', 'Matrix Operations', 'Fallback Note'];
 
 beforeEach(() => {
-  vi.useFakeTimers(); // not strictly needed but consistent with other suites
-  // default: success fetch; tests override as needed
-  global.fetch = vi
-    .fn()
-    // modules
-    .mockResolvedValueOnce(
-      okJson([
-        { module_id: 1, module_code: 'CS201', module_name: 'Data Structures', university: 'U' },
-        { module_id: 2, module_code: 'MATH204', module_name: 'Linear Algebra', university: 'U' },
-      ])
-    )
-    // notes
-    .mockResolvedValueOnce(
-      okJson([
-        {
-          note_id: 10,
-          group_id: 1,
-          author_id: 1,
-          topic_id: 1,
-          note_title: 'Binary Tree Traversal Methods',
-          note_content: 'In-order, pre-order, and post-order...',
-          visibility: 'public',
-          is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          author_name: 'John Doe',
-          group_name: 'CS Advanced',
-          topic_name: 'Data Structures',
-        },
-        {
-          note_id: 11,
-          group_id: 2,
-          author_id: 2,
-          topic_id: 2,
-          note_title: 'Matrix Operations',
-          note_content: 'Fundamental matrix operations including addition...',
-          visibility: 'group',
-          is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          author_name: 'Jane Smith',
-          group_name: 'Math Warriors',
-          topic_name: 'Linear Algebra',
-        },
-        // should be ignored by filter: inactive
-        {
-          note_id: 12,
-          group_id: 9,
-          author_id: 9,
-          topic_id: 1,
-          note_title: 'Inactive Note',
-          note_content: 'This should be filtered out',
-          visibility: 'private',
-          is_active: false,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        // should be ignored by filter: missing title
-        {
-          note_id: 13,
-          group_id: 9,
-          author_id: 9,
-          topic_id: 1,
-          note_title: '',
-          note_content: 'Missing title so filtered out',
-          visibility: 'public',
-          is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      ])
-    ) as any;
+  vi.useFakeTimers();
+
+  Object.values(ds).forEach((f) => (f as any).mockReset());
+
+  // default: groups + notes succeed
+  ds.fetchMyGroups.mockResolvedValue([
+    { id: '1', name: 'CS Advanced' },
+    { id: '2', name: 'Math Warriors' },
+  ]);
+  ds.fetchNotes.mockResolvedValue([
+    {
+      note_id: 10,
+      group_id: 1,
+      author_id: 1,
+      topic_id: 1,
+      note_title: 'Binary Tree Traversal Methods',
+      note_content: 'In-order, pre-order, and post-order...',
+      visibility: 'public',
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      author_name: 'John Doe',
+      group_name: 'CS Advanced',
+      topic_name: 'Data Structures',
+    },
+    {
+      note_id: 11,
+      group_id: 2,
+      author_id: 2,
+      topic_id: 2,
+      note_title: 'Matrix Operations',
+      note_content: 'Fundamental matrix operations including addition...',
+      visibility: 'group',
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      author_name: 'Jane Smith',
+      group_name: 'Math Warriors',
+      topic_name: 'Linear Algebra',
+    },
+    // ignored by filter: inactive
+    {
+      note_id: 12,
+      group_id: 9,
+      author_id: 9,
+      topic_id: 1,
+      note_title: 'Inactive Note',
+      note_content: 'This should be filtered out',
+      visibility: 'private',
+      is_active: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    // ignored by filter: missing title
+    {
+      note_id: 13,
+      group_id: 9,
+      author_id: 9,
+      topic_id: 1,
+      note_title: '',
+      note_content: 'Missing title so filtered out',
+      visibility: 'public',
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+  ]);
 });
 
 afterEach(() => {
@@ -99,7 +105,7 @@ afterEach(() => {
 });
 
 describe('Notes', () => {
-  test('renders header, fetches modules+notes, shows cards with icons and metadata', async () => {
+  test('renders header, fetches groups+notes, shows cards with icons and metadata', async () => {
     render(<Notes />);
 
     // Header present
@@ -114,72 +120,75 @@ describe('Notes', () => {
     expect(screen.getByText('Matrix Operations')).toBeInTheDocument();
     expect(screen.queryByText('Inactive Note')).not.toBeInTheDocument();
 
-    // Icons: visibility and group
+    // Icons: visibility and group (Matrix is "group" -> Users blue)
     const matrixCard = screen.getByText('Matrix Operations').closest('div')!;
-    expect((matrixCard.parentElement as HTMLElement).querySelector('.text-blue-500')).toBeTruthy(); // group -> Users blue
+    expect((matrixCard.parentElement as HTMLElement).querySelector('.text-blue-500')).toBeTruthy();
 
     // Author / group / topic metadata
     expect(screen.getByText(/By: John Doe/i)).toBeInTheDocument();
     expect(screen.getByText('CS Advanced')).toBeInTheDocument();
     expect(screen.getByText('Data Structures')).toBeInTheDocument();
 
-    // modules dropdown populated from fetch
-    expect(screen.getByRole('option', { name: /CS201 - Data Structures/i })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: /MATH204 - Linear Algebra/i })).toBeInTheDocument();
+    // groups dropdown populated
+    // (component renders group names, not modules)
+    expect(screen.getByRole('option', { name: /CS Advanced/i })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Math Warriors/i })).toBeInTheDocument();
 
-    // Two fetch calls were made to the expected endpoints
-    const calls = (global.fetch as any).mock.calls.map((c: any) => c[0]);
-    expect(calls).toEqual([
-      'http://api.test/api/v1/modules',
-      'http://api.test/api/v1/groups/notes',
-    ]);
+    // DataService methods called
+    expect(ds.fetchMyGroups).toHaveBeenCalledTimes(1);
+    expect(ds.fetchNotes).toHaveBeenCalledTimes(1);
   });
 
-  test('fallback path: when fetch fails, fallback notes appear (no crash)', async () => {
-    // Next render: make both endpoints fail -> component uses fallback arrays
-    (global.fetch as any).mockReset().mockResolvedValueOnce(fail()).mockResolvedValueOnce(fail());
+  test('fallback path: when service calls throw, fallback notes appear (no crash)', async () => {
+    ds.fetchMyGroups.mockRejectedValueOnce(new Error('nope'));
+    ds.fetchNotes.mockRejectedValueOnce(new Error('nope'));
 
     render(<Notes />);
 
-    // Fallback titles should render
     for (const t of FALLBACK_TITLES) {
       expect(await screen.findByText(new RegExp(t, 'i'))).toBeInTheDocument();
     }
   });
 
-  test('search filters by title, content, or author_name (case-insensitive)', async () => {
+  test('search filters by title, content, author_name, or group_name (case-insensitive)', async () => {
     render(<Notes />);
     await screen.findByText('Binary Tree Traversal Methods');
 
     const search = screen.getByPlaceholderText(/Search notes/i);
-    // Search by title
+
+    // title
     await userEvent.type(search, 'Matrix');
     expect(screen.getByText('Matrix Operations')).toBeInTheDocument();
     expect(screen.queryByText('Binary Tree Traversal Methods')).not.toBeInTheDocument();
 
-    // Search by author name
+    // author_name
     await userEvent.clear(search);
     await userEvent.type(search, 'john doe');
     expect(screen.getByText('Binary Tree Traversal Methods')).toBeInTheDocument();
     expect(screen.queryByText('Matrix Operations')).not.toBeInTheDocument();
 
-    // Search by content fragment
+    // content fragment
     await userEvent.clear(search);
     await userEvent.type(search, 'pre-order');
     expect(screen.getByText('Binary Tree Traversal Methods')).toBeInTheDocument();
+
+    // group_name
+    await userEvent.clear(search);
+    await userEvent.type(search, 'math warriors');
+    expect(screen.getByText('Matrix Operations')).toBeInTheDocument();
   });
 
-  test('module filter uses note.topic_id string equality', async () => {
+  test('group filter works (pick CS Advanced then Math Warriors)', async () => {
     render(<Notes />);
     await screen.findByText('Binary Tree Traversal Methods');
 
-    // topic_id of Binary… is 1, Matrix… is 2 (per setup)
-    const moduleSelect = screen.getByRole('combobox', { name: '' }); // first select after search
-    await userEvent.selectOptions(moduleSelect, '1');
+    const allSelects = screen.getAllByRole('combobox');
+    const groupSelect = allSelects[0]; // first select is group
+    await userEvent.selectOptions(groupSelect, '1');
     expect(screen.getByText('Binary Tree Traversal Methods')).toBeInTheDocument();
     expect(screen.queryByText('Matrix Operations')).not.toBeInTheDocument();
 
-    await userEvent.selectOptions(moduleSelect, '2');
+    await userEvent.selectOptions(groupSelect, '2');
     expect(screen.getByText('Matrix Operations')).toBeInTheDocument();
     expect(screen.queryByText('Binary Tree Traversal Methods')).not.toBeInTheDocument();
   });
@@ -188,8 +197,7 @@ describe('Notes', () => {
     render(<Notes />);
     await screen.findByText('Binary Tree Traversal Methods');
 
-    const visSelects = screen.getAllByRole('combobox');
-    const visSelect = visSelects[visSelects.length - 1]; // last select is visibility
+    const visSelect = screen.getAllByRole('combobox')[1]; // last select is visibility
     await userEvent.selectOptions(visSelect, 'public');
     expect(screen.getByText('Binary Tree Traversal Methods')).toBeInTheDocument();
     expect(screen.queryByText('Matrix Operations')).not.toBeInTheDocument();
@@ -204,26 +212,21 @@ describe('Notes', () => {
   });
 
   test('content is truncated to 150 chars in card, but modal shows full text; modal closes by X and backdrop', async () => {
-    // Provide a long content to hit truncation
-    (global.fetch as any)
-      .mockReset()
-      .mockResolvedValueOnce(okJson([])) // modules (we won't use dropdown here)
-      .mockResolvedValueOnce(
-        okJson([
-          {
-            note_id: 21,
-            group_id: 1,
-            author_id: 1,
-            topic_id: 1,
-            note_title: 'Very Long Note',
-            note_content: 'A'.repeat(200),
-            visibility: 'private',
-            is_active: true,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-        ])
-      );
+    ds.fetchMyGroups.mockResolvedValueOnce([]);
+    ds.fetchNotes.mockResolvedValueOnce([
+      {
+        note_id: 21,
+        group_id: 1,
+        author_id: 1,
+        topic_id: 1,
+        note_title: 'Very Long Note',
+        note_content: 'A'.repeat(200),
+        visibility: 'private',
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    ]);
 
     render(<Notes />);
     await screen.findByText('Very Long Note');
@@ -237,14 +240,13 @@ describe('Notes', () => {
     // Full content (no truncation)
     expect(screen.getByText(/^A{200}$/)).toBeInTheDocument();
 
-    // Close via X button
-    await userEvent.click(screen.getByRole('button', { name: '' })); // the X has no accessible name
+    // Close via X button (no accessible name in markup)
+    await userEvent.click(screen.getByRole('button', { name: '' }));
     await waitFor(() => expect(screen.queryByText(/^A{200}$/)).not.toBeInTheDocument());
 
     // Reopen and close via backdrop click
     await userEvent.click(within(card).getByRole('button', { name: /View Full Note/i }));
     expect(screen.getByText(/^A{200}$/)).toBeInTheDocument();
-    // Backdrop is the first absolute overlay (click on it)
     const backdrop = document.querySelector('.bg-black\\/40') as HTMLElement;
     await userEvent.click(backdrop);
     await waitFor(() => expect(screen.queryByText(/^A{200}$/)).not.toBeInTheDocument());

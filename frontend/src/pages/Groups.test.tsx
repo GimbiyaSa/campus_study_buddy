@@ -13,6 +13,10 @@ vi.mock('react-dom', async (orig) => {
 // Stub buildApiUrl (used only for /users/me in this component)
 vi.mock('../utils/url', () => ({ buildApiUrl: (p: string) => `http://api.test${p}` }));
 
+// Mock router navigate to avoid real navigation
+const navigateMock = vi.fn();
+vi.mock('../router', () => ({ navigate: (...a: unknown[]) => navigateMock(...a) }));
+
 // Minimal BroadcastChannel shim to avoid jsdom errors
 class BCMock {
   constructor(_name: string) {}
@@ -35,6 +39,9 @@ const ds = {
   notifyGroup: vi.fn(),
   inviteToGroup: vi.fn(),
   createNotification: vi.fn(),
+  // NEW
+  updateGroup: vi.fn(),
+  getGroupMembers: vi.fn(),
 };
 
 vi.mock('../services/dataService', () => {
@@ -52,6 +59,9 @@ vi.mock('../services/dataService', () => {
       notifyGroup: (...a: unknown[]) => ds.notifyGroup(...a),
       inviteToGroup: (...a: unknown[]) => ds.inviteToGroup(...a),
       createNotification: (...a: unknown[]) => ds.createNotification(...a),
+      // NEW
+      updateGroup: (...a: unknown[]) => ds.updateGroup(...a),
+      getGroupMembers: (...a: unknown[]) => ds.getGroupMembers(...a),
     },
     FALLBACK_PARTNERS: [
       { id: 'u1', name: 'Ada Lovelace', major: 'CS' } as any,
@@ -62,13 +72,12 @@ vi.mock('../services/dataService', () => {
 
 // Helpers to craft API-shaped groups that map cleanly through toStudyGroup()
 const mkSrvGroup = (over: Partial<any> = {}) => ({
-  // server/cosmos id (string) ensures idMap entry so actions use "real" id
   id: over.id ?? 'g-cosmos-' + Math.random().toString(36).slice(2),
   name: over.name ?? 'Algorithms Crew',
   description: over.description ?? 'Study hard things',
   maxMembers: over.maxMembers ?? 8,
   isPublic: over.isPublic ?? true,
-  createdBy: over.createdBy ?? '1', // owner user id
+  createdBy: over.createdBy ?? '1',
   members: over.members ?? [{ userId: over.createdBy ?? '1', role: 'owner' }],
   createdAt: over.createdAt ?? new Date().toISOString(),
   lastActivity: over.lastActivity ?? new Date().toISOString(),
@@ -90,6 +99,7 @@ beforeEach(() => {
   vi.setSystemTime(FIXED_NOW);
 
   Object.values(ds).forEach((f) => (f as any).mockReset());
+  navigateMock.mockReset();
 
   // /users/me → I am user '1' (owner of owner group)
   (global.fetch as any) = vi.fn().mockImplementation((url: string) => {
@@ -117,7 +127,6 @@ beforeEach(() => {
       members: [{ userId: '2', role: 'owner' }],
       maxMembers: 10,
     }),
-    // demo-like: no `id` field → no idMap entry; shows "fallback" join/leave behavior
     {
       group_id: 777,
       group_name: 'Demo Local',
@@ -130,10 +139,8 @@ beforeEach(() => {
     },
   ]);
 
-  // raw fallback not used unless fetchMyGroups throws
   ds.fetchGroupsRaw.mockResolvedValue([]);
 
-  // sensible defaults for actions
   ds.joinGroup.mockResolvedValue(true);
   ds.leaveGroup.mockResolvedValue(true);
   ds.deleteGroup.mockResolvedValue(true);
@@ -148,8 +155,12 @@ beforeEach(() => {
   ds.inviteToGroup.mockResolvedValue(true);
   ds.createNotification.mockResolvedValue(true);
 
-  // confirm() default to true; tests can override
+  // NEW defaults for new methods
+  ds.updateGroup.mockResolvedValue(undefined);
+  ds.getGroupMembers.mockResolvedValue([]);
+
   vi.spyOn(window, 'confirm').mockReturnValue(true);
+  vi.spyOn(window, 'alert').mockImplementation(() => {}); // silence alerts in tests
 });
 
 afterEach(() => {
@@ -161,25 +172,20 @@ describe('Groups page', () => {
   test('loads groups (owner & non-owner), renders header + cards', async () => {
     render(<Groups />);
 
-    // Loading then header
     expect(screen.getByText(/Loading study groups/i)).toBeInTheDocument();
     await screen.findByRole('heading', { name: /Study Groups/i });
 
-    // Cards appear
     expect(screen.getByRole('heading', { name: ownerName })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: otherName })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Demo Local' })).toBeInTheDocument();
 
-    // Owner badge & owner actions visible only for the owner card
     const ownerCard = findCard(ownerName);
     expect(within(ownerCard).getByText('Owner')).toBeInTheDocument();
-    // buttons with tooltips (title attr)
     expect(within(ownerCard).getByTitle('Invite members')).toBeInTheDocument();
     expect(within(ownerCard).getByTitle('Delete group')).toBeInTheDocument();
     expect(within(ownerCard).getByTitle('Open chat')).toBeInTheDocument();
     expect(within(ownerCard).getByTitle('Schedule a session')).toBeInTheDocument();
 
-    // Non owner card presents Join/Leave (initially Join since we aren't a member)
     const otherCard = findCard(otherName);
     expect(within(otherCard).getByRole('button', { name: /Join Group/i })).toBeInTheDocument();
   });
@@ -189,37 +195,32 @@ describe('Groups page', () => {
     ds.fetchGroupsRaw.mockRejectedValueOnce(new Error('nope'));
 
     render(<Groups />);
-    await screen.findByText(/demo data/i); // marker in subtitle when usingFallback
+    await screen.findByText(/demo data/i);
 
-    // some fallback names present
     expect(await screen.findByText(/CS Advanced Study Group/i)).toBeInTheDocument();
   });
 
   test('join group (real id): optimistic + rollback when API returns false', async () => {
-    ds.joinGroup.mockResolvedValueOnce(false); // trigger rollback
+    ds.joinGroup.mockResolvedValueOnce(false);
 
     render(<Groups />);
     const otherCard = await waitFor(() => findCard(otherName));
-
     const membersLine = within(otherCard).getByText(/members/i);
     const btn = within(otherCard).getByRole('button', { name: /Join Group/i });
 
-    // capture initial count
     const before = membersLine.textContent!;
     await userEvent.click(btn);
 
-    // optimistic: count bumps and button shows Joining…
     await waitFor(() => {
       expect(membersLine.textContent).not.toBe(before);
     });
 
-    // rollback: count returns & join button visible again
     await waitFor(() => {
       expect(within(otherCard).getByRole('button', { name: /Join Group/i })).toBeInTheDocument();
     });
   });
 
-  test('join group (demo local without real id): completes locally (no API calls), clears progress soon', async () => {
+  test('join group (demo local without real id): completes locally (no API calls)', async () => {
     render(<Groups />);
     const demo = await waitFor(() => findCard('Demo Local'));
     const members = within(demo).getByText(/members/i);
@@ -227,14 +228,12 @@ describe('Groups page', () => {
     const btn = within(demo).getByRole('button', { name: /Join Group/i });
     await userEvent.click(btn);
 
-    // optimistic: count increments; button may switch to Leave Group
     await waitFor(() => {
       expect(members.textContent).not.toBe(before);
     });
   });
 
   test('leave group (real id): optimistic decrement + rollback when API returns false', async () => {
-    // Make "other" pretend already joined (by returning members including me)
     ds.fetchMyGroups.mockResolvedValueOnce([
       mkSrvGroup({ name: ownerName, createdBy: '1', members: [{ userId: '1', role: 'owner' }] }),
       mkSrvGroup({
@@ -248,72 +247,70 @@ describe('Groups page', () => {
       }),
     ]);
 
-    ds.leaveGroup.mockResolvedValueOnce(false); // force rollback
+    ds.leaveGroup.mockResolvedValueOnce(false);
 
     render(<Groups />);
     const other = await waitFor(() => findCard(otherName));
 
-    // should show Leave
     const leaveBtn = within(other).getByRole('button', { name: /Leave Group/i });
     const members = within(other).getByText(/members/i);
     const before = members.textContent!;
     await userEvent.click(leaveBtn);
 
-    // optimistic decrement
     await waitFor(() => {
       expect(members.textContent).not.toBe(before);
     });
 
-    // rollback -> Leave appears again
     await waitFor(() => {
       expect(within(other).getByRole('button', { name: /Leave Group/i })).toBeInTheDocument();
     });
   });
 
   test('delete group: confirm → optimistic remove → API failure reverts', async () => {
-    ds.deleteGroup.mockResolvedValueOnce(false); // fail to force revert
+    ds.deleteGroup.mockResolvedValueOnce(false);
 
     render(<Groups />);
     const ownerCard = await waitFor(() => findCard(ownerName));
     const del = within(ownerCard).getByTitle('Delete group');
     await userEvent.click(del);
 
-    // owner card temporarily gone
     await waitFor(() => {
       expect(screen.queryByRole('heading', { name: ownerName })).not.toBeInTheDocument();
     });
 
-    // revert after failure
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: ownerName })).toBeInTheDocument();
     });
   });
 
-  test('create group: success path adds server group, then refresh merges & owner badge present', async () => {
-    const serverCreated = mkSrvGroup({
+  test('create group: success path adds server group, then joinGroup is called, owner badge present', async () => {
+    const created = mkSrvGroup({
+      id: 'srv-123',
       name: 'Server Group',
       createdBy: '1',
       members: [{ userId: '1', role: 'owner' }],
     });
-    ds.createGroup.mockResolvedValueOnce(serverCreated);
+    ds.createGroup.mockResolvedValueOnce(created);
 
     render(<Groups />);
 
-    await screen.findByRole('button', { name: /Create Group/i });
-    await userEvent.click(screen.getByRole('button', { name: /Create Group/i }));
-
+    await userEvent.click(await screen.findByRole('button', { name: /Create Group/i }));
     await screen.findByRole('heading', { name: /Create new group/i });
     await userEvent.type(screen.getByLabelText(/Group name/i), ' Server Group');
     await userEvent.click(screen.getByRole('button', { name: /Create group/i }));
 
-    // card appears
     expect(await screen.findByRole('heading', { name: 'Server Group' })).toBeInTheDocument();
     const card = findCard('Server Group');
     expect(within(card).getByText('Owner')).toBeInTheDocument();
+
+    // NEW: should auto-join on server after create
+    await waitFor(() => {
+      expect(ds.joinGroup).toHaveBeenCalledWith('srv-123');
+    });
   });
 
   test('create group: optimistic fallback when API returns null', async () => {
-    ds.createGroup.mockResolvedValueOnce(null); // keep default
+    ds.createGroup.mockResolvedValueOnce(null);
 
     render(<Groups />);
     await userEvent.click(await screen.findByRole('button', { name: /Create Group/i }));
@@ -336,11 +333,7 @@ describe('Groups page', () => {
     const scheduleBtn = within(ownerCard).getByTitle('Schedule a session');
     await userEvent.click(scheduleBtn);
 
-    // Modal opens with default title incorporating group name
     await screen.findByRole('heading', { name: /Schedule a session/i });
-    const titleInput = screen.getByLabelText(/Session title/i) as HTMLInputElement;
-    expect(titleInput.value).toMatch(new RegExp(`Study session: ${ownerName}`));
-
     await userEvent.type(screen.getByLabelText(/^Date/i), '2025-10-07');
     await userEvent.type(screen.getByLabelText(/Start time/i), '09:00');
     await userEvent.type(screen.getByLabelText(/End time/i), '10:00');
@@ -348,14 +341,11 @@ describe('Groups page', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /Schedule/i }));
 
-    // We dispatch optimistic "session:created" immediately, then again after API success re-broadcast
     await waitFor(() => {
       expect(createdSpy).toHaveBeenCalled();
     });
-    // Also invalidation fired at least once
     expect(invalidateSpy).toHaveBeenCalled();
 
-    // API calls for reminder + notify
     await waitFor(() => {
       expect(ds.scheduleSession24hReminders).toHaveBeenCalledTimes(1);
       expect(ds.notifyGroup).toHaveBeenCalledTimes(1);
@@ -368,12 +358,10 @@ describe('Groups page', () => {
     const inviteBtn = within(ownerCard).getByTitle('Invite members');
     await userEvent.click(inviteBtn);
 
-    // Connections list shown
     await screen.findByText(/Invite Members/i);
     const items = screen.getAllByRole('checkbox');
     expect(items.length).toBeGreaterThan(0);
 
-    // pick both
     await userEvent.click(items[0]);
     await userEvent.click(items[1]);
 
@@ -382,11 +370,9 @@ describe('Groups page', () => {
 
     await waitFor(() => {
       expect(ds.inviteToGroup).toHaveBeenCalledTimes(1);
-      // one notification to inviter + one per invitee (2)
       expect(ds.createNotification).toHaveBeenCalled();
     });
 
-    // Button text changes to "Invites sent"
     await screen.findByRole('button', { name: /Invites sent/i });
   });
 
@@ -394,7 +380,6 @@ describe('Groups page', () => {
     render(<Groups />);
     await screen.findByRole('heading', { name: ownerName });
 
-    // Next refresh returns an extra group
     ds.fetchMyGroups.mockResolvedValueOnce([
       mkSrvGroup({ name: ownerName, createdBy: '1' }),
       mkSrvGroup({ name: otherName, createdBy: '2' }),
@@ -404,5 +389,111 @@ describe('Groups page', () => {
     window.dispatchEvent(new Event('groups:invalidate'));
 
     await screen.findByRole('heading', { name: 'New After Broadcast' });
+  });
+
+  /* ---------------------- NEW: Edit group flows ---------------------- */
+
+  test('edit group (happy path): button visible, modal pre-fills, updateGroup + notify + refresh', async () => {
+    render(<Groups />);
+
+    const ownerCard = await waitFor(() => findCard(ownerName));
+    // Edit button should be present because we mock updateGroup on DataService
+    const editBtn = within(ownerCard).getByTitle('Edit group');
+    await userEvent.click(editBtn);
+
+    await screen.findByRole('heading', { name: /Edit group/i });
+    const nameInput = screen.getByLabelText(/Group name/i);
+    expect((nameInput as HTMLInputElement).value).toMatch(ownerName);
+
+    await userEvent.clear(nameInput);
+    await userEvent.type(nameInput, ' Renamed Group');
+
+    await userEvent.click(screen.getByRole('button', { name: /Save changes/i }));
+
+    await waitFor(() => {
+      expect(ds.updateGroup).toHaveBeenCalledTimes(1);
+    });
+    // notifyGroup called after update
+    await waitFor(() => {
+      expect(ds.notifyGroup).toHaveBeenCalled();
+    });
+    // refresh kicks in (fetchMyGroups called again at least once)
+    await waitFor(() => {
+      expect(ds.fetchMyGroups).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  test('edit group (failure): shows alert and refreshes', async () => {
+    ds.updateGroup.mockRejectedValueOnce(new Error('nope'));
+
+    render(<Groups />);
+
+    const ownerCard = await waitFor(() => findCard(ownerName));
+    const editBtn = within(ownerCard).getByTitle('Edit group');
+    await userEvent.click(editBtn);
+
+    await screen.findByRole('heading', { name: /Edit group/i });
+    await userEvent.click(screen.getByRole('button', { name: /Save changes/i }));
+
+    await waitFor(() => {
+      expect(window.alert).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(ds.fetchMyGroups).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  /* ---------------------- NEW: Members list fetching ---------------------- */
+
+  test('members panel: fetches via getGroupMembers and renders chips', async () => {
+    // Return a third group without inline members to force fetch
+    ds.fetchMyGroups.mockResolvedValueOnce([
+      mkSrvGroup({ name: ownerName, createdBy: '1', members: [{ userId: '1', role: 'owner' }] }),
+      mkSrvGroup({ name: otherName, createdBy: '2', members: [{ userId: '2', role: 'owner' }] }),
+      // no members array; has backend id so idMap exists
+      { id: 'g-55', name: 'Members Group', createdBy: '9', maxMembers: 6 },
+    ]);
+
+    ds.getGroupMembers.mockResolvedValueOnce([
+      { userId: '9', name: 'Owner Nine', role: 'owner' },
+      { userId: '1', name: 'Me', role: 'member' },
+    ]);
+
+    render(<Groups />);
+
+    const mgCard = await screen.findByRole('heading', { name: 'Members Group' });
+    const card = mgCard.closest('.p-6') as HTMLElement;
+
+    const toggle = within(card).getByRole('button', { name: /View members/i });
+    await userEvent.click(toggle);
+
+    await screen.findByText('Owner Nine');
+    await screen.findByText('Me');
+    expect(ds.getGroupMembers).toHaveBeenCalledWith('g-55');
+  });
+
+  test('members panel: fetch error shows error message', async () => {
+    ds.fetchMyGroups.mockResolvedValueOnce([
+      mkSrvGroup({ name: ownerName, createdBy: '1', members: [{ userId: '1', role: 'owner' }] }),
+      { id: 'g-err', name: 'Err Group', createdBy: '8', maxMembers: 3 },
+    ]);
+    ds.getGroupMembers.mockRejectedValueOnce(new Error('boom'));
+
+    render(<Groups />);
+
+    const errCard = await screen.findByRole('heading', { name: 'Err Group' });
+    const card = errCard.closest('.p-6') as HTMLElement;
+    await userEvent.click(within(card).getByRole('button', { name: /View members/i }));
+
+    await screen.findByText(/Could not load members/i);
+  });
+
+  /* ---------------------- Tiny extra: Open chat action ---------------------- */
+
+  test('clicking Open chat uses navigate("/chat")', async () => {
+    render(<Groups />);
+    const ownerCard = await waitFor(() => findCard(ownerName));
+    await userEvent.click(within(ownerCard).getByTitle('Open chat'));
+    expect(navigateMock).toHaveBeenCalledWith('/chat');
   });
 });

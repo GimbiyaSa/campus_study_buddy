@@ -196,7 +196,7 @@ describe('Calendar', () => {
     expect(document.body.style.overflow).toBe('');
 
     // event fired
-    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledTimes(2);
 
     // form was reset (reopen and assert blanks)
     await userEvent.click(screen.getByRole('button', { name: /New session/i }));

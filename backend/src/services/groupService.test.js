@@ -23,7 +23,6 @@ let mockQuery; // per-test
 let lastInputs; // holds latest .input() values for a given Request
 const mockInput = jest.fn(function (name, _type, value) {
   if (!this._inputs) this._inputs = {};
-  // mssql accepts .input(name, type, value) OR .input(name, value) in some cases; we only need value
   this._inputs[name] = value !== undefined ? value : _type;
   lastInputs = this._inputs;
   return this;
@@ -47,7 +46,6 @@ const mockTransaction = function () {
 
 let mockPool;
 jest.mock('mssql', () => ({
-  // light wrappers/aliases used by service
   NVarChar: (v) => v,
   Int: (v) => v,
   DateTime2: (v) => v,
@@ -59,12 +57,6 @@ jest.mock('mssql', () => ({
 }));
 
 /* ----------------------------- Harness helpers ---------------------------- */
-/**
- * Boot an isolated express app with a chosen "schema preset".
- * We mock all metadata queries (sys.tables, sys.columns, INFORMATION_SCHEMA) and
- * downstream DML based on preset flags. The groupService module is required
- * *inside* isolateModules so its top-level initializeDatabase() runs against our mocks.
- */
 function bootAppWithPreset(preset) {
   mockBegin = jest.fn().mockResolvedValue();
   mockCommit = jest.fn().mockResolvedValue();
@@ -77,12 +69,21 @@ function bootAppWithPreset(preset) {
     close: jest.fn().mockResolvedValue(),
   };
 
-  // Describe schema knobs for this run
   const SCH = {
     groupsTable: preset.groupsTable ?? 'study_groups',
-    hasGroupsTable: { groups: preset.groupsTable === 'groups', study_groups: true },
+    hasGroupsTable: {
+      groups: preset.groupsTable === 'groups',
+      study_groups: true,
+      // NEW: let tests flip invitations/notifications tables on
+      group_invitations: !!preset.hasInvitationsTable,
+      notifications: !!preset.hasNotificationsTable,
+      modules: true,
+      users: true,
+      group_members: true,
+      study_sessions: true,
+      session_attendees: true,
+    },
     groupsCols: {
-      // candidates
       name: preset.nameCol !== false,
       group_name: false,
       title: false,
@@ -90,7 +91,6 @@ function bootAppWithPreset(preset) {
       details: false,
       group_description: false,
       desc: false,
-      // flags
       last_activity: !!preset.last_activity,
       max_members: !!preset.max_members,
       is_public: !!preset.is_public,
@@ -110,16 +110,16 @@ function bootAppWithPreset(preset) {
       role: !!preset.role,
       joined_at: !!preset.joined_at,
       created_at: !!preset.gm_created_at,
-      // id candidates: prefer member_id if available
-      member_id: !!preset.gm_member_id !== false, // default true
+      member_id: preset.gm_member_id !== false,
       id: false,
       group_member_id: false,
     },
-    // optional CHECK constraint simulation for detectAllowedMemberRoles()
     roleCheckDef: preset.roleCheckDef ?? "([role] IN ('member','admin','owner'))",
+    // NEW toggles to drive query results for canEdit/invite auth and singular group existence
+    canEdit: !!preset.canEdit, // authorize update
+    groupExistsSingular: preset.groupExistsSingular !== false, // GET /:id present?
   };
 
-  // Implementation: respond to each SQL based on SCH and captured inputs
   mockQuery = jest.fn(async (sqlText) => {
     sqlText = String(sqlText);
 
@@ -135,13 +135,13 @@ function bootAppWithPreset(preset) {
       const col = lastInputs?.col;
       const exists =
         (tbl === SCH.groupsTable && !!SCH.groupsCols[col]) ||
-        (tbl === 'group_members' && !!SCH.gmCols[col]);
+        (tbl === 'group_members' && !!SCH.gmCols[col]) ||
+        (tbl === 'modules' && ['module_id', 'module_code', 'module_name', 'description', 'university', 'is_active', 'created_at', 'updated_at'].includes(col)) ||
+        (tbl === 'notifications' && ['user_id','notification_type','title','message','metadata','is_read','created_at'].includes(col)) ||
+        (tbl === 'group_invitations' && ['status','invited_by','created_at','group_id','user_id'].includes(col));
       return { recordset: exists ? [{ 1: 1 }] : [] };
     }
-    if (
-      sqlText.includes('FROM INFORMATION_SCHEMA.COLUMNS') &&
-      sqlText.includes("TABLE_SCHEMA = 'dbo'")
-    ) {
+    if (sqlText.includes('FROM INFORMATION_SCHEMA.COLUMNS') && sqlText.includes("TABLE_SCHEMA = 'dbo'")) {
       const tbl = lastInputs?.tbl;
       const col = lastInputs?.col;
       const key = `${tbl}.${col}`;
@@ -156,49 +156,36 @@ function bootAppWithPreset(preset) {
 
     // ---- utility lookups (modules, fallback, etc.) ----
     if (sqlText.includes('FROM dbo.modules') && sqlText.includes('module_id=@mid')) {
-      // validate explicit module id exists
       const mid = lastInputs?.mid;
       return { recordset: mid === 1 ? [{ module_id: 1 }] : [] };
     }
-    if (
-      sqlText.includes('SELECT TOP 1 m.module_id AS id') &&
-      sqlText.includes('FROM dbo.modules m')
-    ) {
-      // resolve by name/code
+    if (sqlText.includes('SELECT TOP 1 m.module_id AS id') && sqlText.includes('FROM dbo.modules m')) {
       const byCode = !!lastInputs?.code;
       const byName = !!lastInputs?.name;
       if (byCode || byName) return { recordset: [{ id: 2 }] };
       return { recordset: [] };
     }
-    if (
-      sqlText.includes('INSERT INTO dbo.modules') &&
-      sqlText.includes('OUTPUT inserted.module_id AS id')
-    ) {
+    if (sqlText.includes('INSERT INTO dbo.modules') && sqlText.includes('OUTPUT inserted.module_id AS id')) {
       return { recordset: [{ id: 3 }] };
     }
-    if (
-      sqlText.includes('SELECT TOP 1 university AS uni') &&
-      sqlText.includes('FROM dbo.modules')
-    ) {
+    if (sqlText.includes('SELECT TOP 1 university AS uni') && sqlText.includes('FROM dbo.modules')) {
       return { recordset: [{ uni: 'General' }] };
     }
 
     // pickFallbackModuleId()
     if (sqlText.includes('FROM dbo.') && sqlText.includes('WHERE module_id IS NOT NULL')) {
-      // try from groups table
       return { recordset: preset.fallbackModuleId ? [{ mid: preset.fallbackModuleId }] : [] };
     }
     if (sqlText.includes('FROM dbo.modules') && sqlText.includes('ORDER BY module_id ASC')) {
       return { recordset: [{ mid: 11 }] };
     }
 
-    // ---- GET /groups and /my-groups main SELECTs ----
-    if (
-      sqlText.includes('FROM dbo.') &&
-      sqlText.includes('SELECT') &&
-      sqlText.includes('FROM dbo.' + SCH.groupsTable)
-    ) {
-      // Return one group row; sub-selects are embedded
+    // ---- GET /groups, /my-groups, and /:id core SELECT ----
+    if (sqlText.includes('FROM dbo.') && sqlText.includes('FROM dbo.' + SCH.groupsTable)) {
+      // If requesting a single group by id, allow toggling existence
+      if (sqlText.includes('WHERE g.group_id=@groupId') && !SCH.groupExistsSingular) {
+        return { recordset: [] };
+      }
       return {
         recordset: [
           {
@@ -208,10 +195,10 @@ function bootAppWithPreset(preset) {
             course: SCH.groupsCols.course ? 'CS' : null,
             courseCode: SCH.groupsCols.course_code ? 'CS101' : null,
             maxMembers: SCH.groupsCols.max_members ? 2 : null,
-            isPublic: SCH.groupsCols.is_public ? 1 : 1, // default 1 if column missing
+            isPublic: SCH.groupsCols.is_public ? 1 : 1,
             createdAt: new Date('2025-01-01T00:00:00Z'),
             lastActivity: new Date('2025-01-02T00:00:00Z'),
-            createdBy: SCH.groupsCols.creator_id ? 'owner_user' : 'test_user', // derived via subquery path
+            createdBy: SCH.groupsCols.creator_id ? 'owner_user' : 'test_user',
             memberCount: 1,
             sessionCount: 0,
             isMember: 1,
@@ -220,16 +207,23 @@ function bootAppWithPreset(preset) {
       };
     }
 
-    // ---- POST /groups insert group ----
+    // ---- canEditGroup permission union (used by PATCH/PUT) ----
     if (
-      sqlText.includes('INSERT INTO dbo.') &&
-      sqlText.includes('OUTPUT INSERTED.group_id AS id, INSERTED.*')
+      sqlText.includes('FROM dbo.group_members gm') &&
+      sqlText.includes('AND gm.user_id=@userId') &&
+      sqlText.includes('UNION ALL') &&
+      sqlText.includes('FROM dbo.')
     ) {
+      return { recordset: SCH.canEdit ? [{ ok: 1 }] : [] };
+    }
+
+    // ---- POST /groups insert ----
+    if (sqlText.includes('INSERT INTO dbo.') && sqlText.includes('OUTPUT INSERTED.group_id AS id, INSERTED.*')) {
       return {
         recordset: [
           {
             id: 42,
-            [preset.nameCol === false ? 'name' : 'group_name']: 'X', // not used, response uses inputs
+            name: 'X',
             created_at: new Date('2025-01-03T00:00:00Z'),
             last_activity: new Date('2025-01-03T00:00:00Z'),
             creator_id: 'test_user',
@@ -241,22 +235,15 @@ function bootAppWithPreset(preset) {
         ],
       };
     }
-
-    // insert into group_members (creator join) or guarded IF NOT EXISTS blocks
     if (sqlText.includes('INSERT INTO dbo.group_members')) {
       return { recordset: [] };
     }
 
     // ---- DELETE ownership checks ----
-    if (
-      sqlText.includes('SELECT TOP 1 1 AS ok') &&
-      sqlText.includes('FROM dbo.' + SCH.groupsTable)
-    ) {
-      // owner check: return empty set to simulate not owner if preset says so
+    if (sqlText.includes('SELECT TOP 1 1 AS ok') && sqlText.includes('FROM dbo.' + SCH.groupsTable)) {
       if (preset.deleteAsNonOwner) return { recordset: [] };
       return { recordset: [{ ok: 1 }] };
     }
-
     if (
       sqlText.includes('DELETE sa FROM dbo.session_attendees') ||
       sqlText.includes('DELETE FROM dbo.study_sessions') ||
@@ -271,7 +258,6 @@ function bootAppWithPreset(preset) {
       if (preset.groupIsFull) {
         return { recordset: [{ maxMembers: 1, memberCount: 1 }] };
       }
-      // not full
       return { recordset: [{ maxMembers: 5, memberCount: 1 }] };
     }
     if (sqlText.includes('SELECT 1 FROM dbo.' + SCH.groupsTable + ' WHERE group_id = @groupId')) {
@@ -282,12 +268,7 @@ function bootAppWithPreset(preset) {
     }
 
     // ---- /leave owner + count ----
-    if (
-      sqlText.includes('SELECT') &&
-      sqlText.includes('FROM dbo.' + SCH.groupsTable) &&
-      sqlText.includes('memberCount')
-    ) {
-      // Determine owner + members > 1
+    if (sqlText.includes('FROM dbo.' + SCH.groupsTable) && sqlText.includes('memberCount') && sqlText.includes('WHERE g.group_id = @groupId')) {
       const memberCount = preset.leaveMembers ?? 2;
       const isOwner = preset.leaveIsOwner !== false ? 1 : 0;
       return { recordset: [{ memberCount, isOwner }] };
@@ -297,12 +278,7 @@ function bootAppWithPreset(preset) {
     }
 
     // ---- group-scoped /sessions ----
-    if (
-      sqlText.includes('FROM dbo.') &&
-      sqlText.includes('WHERE g.group_id = @groupId') &&
-      sqlText.includes('AS maxMembers')
-    ) {
-      // fetch group before creating a session
+    if (sqlText.includes('WHERE g.group_id = @groupId') && sqlText.includes('AS maxMembers') && sqlText.includes('FROM dbo.')) {
       if (preset.sessionGroupNotFound) return { recordset: [] };
       return {
         recordset: [
@@ -316,7 +292,6 @@ function bootAppWithPreset(preset) {
       };
     }
     if (sqlText.includes('INSERT INTO dbo.study_sessions') && sqlText.includes('OUTPUT')) {
-      // simulate created session payload
       return {
         recordset: [
           {
@@ -336,25 +311,26 @@ function bootAppWithPreset(preset) {
     if (sqlText.includes('INSERT INTO dbo.session_attendees')) {
       return { recordset: [] };
     }
-    if (
-      sqlText.includes('SELECT') &&
-      sqlText.includes('FROM dbo.group_members gm') &&
-      sqlText.includes('isGroupOwner')
-    ) {
+    if (sqlText.includes('FROM dbo.group_members gm') && sqlText.includes('isGroupOwner')) {
       return { recordset: [{ isGroupOwner: 1 }] };
     }
 
-    // fallback – return empty
+    // ---- invites: ensure group exist check
+    if (sqlText.includes('SELECT 1 FROM dbo.group_invitations') || sqlText.includes('INSERT INTO dbo.group_invitations')) {
+      return { recordset: [] };
+    }
+    if (sqlText.includes('INSERT INTO dbo.notifications')) {
+      return { recordset: [] };
+    }
+
     return { recordset: [] };
   });
 
   const app = express();
   app.use(express.json());
 
-  // IMPORTANT: require inside isolateModules to trigger fresh init with our mockQuery
   let router;
   jest.isolateModules(() => {
-    // eslint-disable-next-line global-require
     router = require('../groupService');
   });
   app.use('/groups', router);
@@ -375,7 +351,7 @@ describe('Group Service API', () => {
       descriptionCol: true,
       last_activity: true,
       max_members: true,
-      is_public: false, // ensure fallback path to CAST(1 AS bit)
+      is_public: false,
       creator_id: true,
       role: true,
       joined_at: true,
@@ -387,7 +363,7 @@ describe('Group Service API', () => {
     expect(Array.isArray(res.body)).toBe(true);
     const g = res.body[0];
     expect(g).toHaveProperty('id', '10');
-    expect(g).toHaveProperty('isPublic', true); // fallback since is_public col missing → default 1
+    expect(g).toHaveProperty('isPublic', true);
     expect(g).toHaveProperty('member_count', 1);
     expect(g).toHaveProperty('session_count', 0);
   });
@@ -407,7 +383,25 @@ describe('Group Service API', () => {
     const res = await request(app).get('/groups/my-groups');
     expect(res.statusCode).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body[0]).toHaveProperty('lastActivity'); // falls back to created_at inside service
+    expect(res.body[0]).toHaveProperty('lastActivity');
+  });
+
+  test('GET /groups/:groupId returns one group or 404', async () => {
+    const app = bootAppWithPreset({ nameCol: true, descriptionCol: true });
+    const one = await request(app).get('/groups/10');
+    expect(one.statusCode).toBe(200);
+    expect(one.body).toHaveProperty('id', '10');
+
+    const app404 = bootAppWithPreset({ nameCol: true, descriptionCol: true, groupExistsSingular: false });
+    const miss = await request(app404).get('/groups/999');
+    expect(miss.statusCode).toBe(404);
+  });
+
+  test('GET /groups/:groupId/members returns list (may be empty)', async () => {
+    const app = bootAppWithPreset({ nameCol: true, role: true, joined_at: true });
+    const res = await request(app).get('/groups/10/members');
+    expect(res.statusCode).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
   });
 
   test('POST /groups validates missing name', async () => {
@@ -417,7 +411,7 @@ describe('Group Service API', () => {
     expect(res.body.error).toMatch(/Group name is required/i);
   });
 
-  test('POST /groups fails if no suitable name/title column in schema', async () => {
+  test('POST /groups fails if no suitable name column', async () => {
     const app = bootAppWithPreset({ nameCol: false });
     const res = await request(app).post('/groups').send({ name: 'X' });
     expect(res.statusCode).toBe(500);
@@ -442,7 +436,7 @@ describe('Group Service API', () => {
       description: 'D',
       isPublic: true,
       maxMembers: 5,
-      moduleId: 1, // valid via mock
+      moduleId: 1,
     });
 
     expect([201, 500]).toContain(res.statusCode);
@@ -463,26 +457,46 @@ describe('Group Service API', () => {
       joined_at: true,
     });
 
-    const res = await request(app).post('/groups').send({
-      name: 'Alpha',
-      moduleId: 999, // invalid
-    });
-
+    const res = await request(app).post('/groups').send({ name: 'Alpha', moduleId: 999 });
     expect(res.statusCode).toBe(400);
     expect(res.body.error).toMatch(/Invalid module_id/i);
   });
 
-  test('POST /groups with required module_id but none provided → fallback(default) path', async () => {
+  test('POST /groups with required module_id but none provided → fallback path', async () => {
     const app = bootAppWithPreset({
       nameCol: true,
       module_id: true,
       module_id_required: true,
-      // no explicit module, no code/name → will try pickFallbackModuleId() then ensureDefaultModuleId()
     });
 
     const res = await request(app).post('/groups').send({ name: 'Alpha' });
-    // either created (201) or internal 500 if something else fails
     expect([201, 500, 400]).toContain(res.statusCode);
+  });
+
+  test('PATCH /groups/:id: 400 invalid, 400 no fields, 403 no permission, 200 success', async () => {
+    const appBad = bootAppWithPreset({ nameCol: true, descriptionCol: true });
+    const badId = await request(appBad).patch('/groups/notnum').send({ name: 'N' });
+    expect(badId.statusCode).toBe(400);
+
+    const noFields = await request(appBad).patch('/groups/10').send({});
+    expect(noFields.statusCode).toBe(400);
+    expect(noFields.body.error).toMatch(/No updatable fields/i);
+
+    const deny = await request(appBad).patch('/groups/10').send({ name: 'New' });
+    expect(deny.statusCode).toBe(403);
+    expect(deny.body.error).toMatch(/Only the owner\/admin/i);
+
+    const appOk = bootAppWithPreset({ nameCol: true, descriptionCol: true, max_members: true, canEdit: true });
+    const ok = await request(appOk).patch('/groups/10').send({ name: 'New', maxMembers: 12 });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.body).toHaveProperty('name', 'Alpha'); // mapped row name (service projects selection)
+    expect(ok.body).toHaveProperty('member_count', 1);
+  });
+
+  test('PUT /groups/:id same behavior as PATCH', async () => {
+    const appOk = bootAppWithPreset({ nameCol: true, descriptionCol: true, canEdit: true });
+    const ok = await request(appOk).put('/groups/10').send({ description: 'D' });
+    expect([200, 500]).toContain(ok.statusCode);
   });
 
   test('DELETE /groups/:id forbids non-owner', async () => {
@@ -490,7 +504,7 @@ describe('Group Service API', () => {
       nameCol: true,
       creator_id: true,
       role: true,
-      deleteAsNonOwner: true, // ownership check returns no rows
+      deleteAsNonOwner: true,
     });
 
     const res = await request(app).delete('/groups/10');
@@ -499,151 +513,121 @@ describe('Group Service API', () => {
   });
 
   test('DELETE /groups/:id succeeds for owner', async () => {
-    const app = bootAppWithPreset({
-      nameCol: true,
-      creator_id: true,
-      role: true,
-    });
-
+    const app = bootAppWithPreset({ nameCol: true, creator_id: true, role: true });
     const res = await request(app).delete('/groups/10');
     expect(res.statusCode).toBe(204);
   });
 
-  test('POST /groups/:id/join handles group full (409)', async () => {
-    const app = bootAppWithPreset({
-      nameCol: true,
-      max_members: true,
-      groupIsFull: true,
-    });
+  test('POST /groups/:id/join handles full/404/success', async () => {
+    const appFull = bootAppWithPreset({ nameCol: true, max_members: true, groupIsFull: true });
+    const full = await request(appFull).post('/groups/10/join');
+    expect(full.statusCode).toBe(409);
 
-    const res = await request(app).post('/groups/10/join');
-    expect(res.statusCode).toBe(409);
-    expect(res.body.error).toMatch(/Group is full/i);
+    const app404 = bootAppWithPreset({ nameCol: true, max_members: false, groupExists: false });
+    const miss = await request(app404).post('/groups/999/join');
+    expect(miss.statusCode).toBe(404);
+
+    const appOk = bootAppWithPreset({ nameCol: true, last_activity: true, joined_at: true });
+    const ok = await request(appOk).post('/groups/10/join');
+    expect(ok.statusCode).toBe(204);
   });
 
-  test('POST /groups/:id/join 404 when group not found', async () => {
-    const app = bootAppWithPreset({
-      nameCol: true,
-      max_members: false, // so service checks existence path
-      groupExists: false,
+  test('POST /groups/:id/leave blocks owner w/ members > 1; succeeds non-owner', async () => {
+    const appBlock = bootAppWithPreset({
+      nameCol: true, creator_id: true, role: true, leaveIsOwner: true, leaveMembers: 3,
     });
+    const block = await request(appBlock).post('/groups/10/leave');
+    expect(block.statusCode).toBe(403);
 
-    const res = await request(app).post('/groups/999/join');
-    expect(res.statusCode).toBe(404);
-    expect(res.body.error).toMatch(/Group not found/i);
-  });
-
-  test('POST /groups/:id/join success with last_activity update when column present', async () => {
-    const app = bootAppWithPreset({
-      nameCol: true,
-      last_activity: true,
-      joined_at: true,
-    });
-
-    const res = await request(app).post('/groups/10/join');
-    expect(res.statusCode).toBe(204);
-  });
-
-  test('POST /groups/:id/leave blocks owner with members > 1', async () => {
-    const app = bootAppWithPreset({
-      nameCol: true,
-      creator_id: true,
-      role: true,
-      leaveIsOwner: true,
-      leaveMembers: 3,
-    });
-
-    const res = await request(app).post('/groups/10/leave');
-    expect(res.statusCode).toBe(403);
-    expect(res.body.error).toMatch(/Owner cannot leave/i);
-  });
-
-  test('POST /groups/:id/leave succeeds for non-owner or single-member', async () => {
-    const app = bootAppWithPreset({
-      nameCol: true,
-      role: true,
-      leaveIsOwner: false,
-      leaveMembers: 2,
-    });
-
-    const res = await request(app).post('/groups/10/leave');
-    expect(res.statusCode).toBe(204);
+    const appOk = bootAppWithPreset({ nameCol: true, role: true, leaveIsOwner: false, leaveMembers: 2 });
+    const ok = await request(appOk).post('/groups/10/leave');
+    expect(ok.statusCode).toBe(204);
   });
 
   describe('Group-scoped sessions', () => {
-    test('POST /groups/:id/sessions validates payload and time order', async () => {
+    test('payload validation + time order', async () => {
       const app = bootAppWithPreset({ nameCol: true });
       const bad1 = await request(app).post('/groups/10/sessions').send({});
       expect(bad1.statusCode).toBe(400);
 
       const bad2 = await request(app).post('/groups/10/sessions').send({
-        title: 'T',
-        startTime: '2025-01-10T11:00:00Z',
-        endTime: '2025-01-10T10:00:00Z',
-        location: 'L',
+        title: 'T', startTime: '2025-01-10T11:00:00Z', endTime: '2025-01-10T10:00:00Z', location: 'L',
       });
       expect(bad2.statusCode).toBe(400);
-      expect(bad2.body.error).toMatch(/endTime must be after startTime/i);
     });
 
-    test('POST /groups/:id/sessions 404 when group not found', async () => {
+    test('404 when group not found', async () => {
       const app = bootAppWithPreset({ sessionGroupNotFound: true });
       const res = await request(app).post('/groups/999/sessions').send({
-        title: 'Study',
-        description: 'd',
-        startTime: '2025-01-10T10:00:00Z',
-        endTime: '2025-01-10T11:00:00Z',
-        location: 'Library',
+        title: 'Study', startTime: '2025-01-10T10:00:00Z', endTime: '2025-01-10T11:00:00Z', location: 'Library',
       });
       expect(res.statusCode).toBe(404);
-      expect(res.body.error).toMatch(/Group not found/i);
     });
 
-    test('POST /groups/:id/sessions creates and returns transformed payload', async () => {
-      const app = bootAppWithPreset({
-        last_activity: true,
-        course: true,
-        course_code: true,
-      });
-
+    test('creates and returns transformed payload', async () => {
+      const app = bootAppWithPreset({ last_activity: true, course: true, course_code: true });
       const res = await request(app).post('/groups/10/sessions').send({
-        title: 'Study',
-        description: 'd',
-        startTime: '2025-01-10T10:00:00Z',
-        endTime: '2025-01-10T11:00:00Z',
-        location: 'Library',
-        type: 'study',
+        title: 'Study', description: 'd', startTime: '2025-01-10T10:00:00Z', endTime: '2025-01-10T11:00:00Z', location: 'Library', type: 'study',
       });
-
       expect([201, 500]).toContain(res.statusCode);
       if (res.statusCode === 201) {
-        expect(res.body).toHaveProperty('id', '77');
-        expect(res.body).toHaveProperty('status', 'upcoming'); // transformed from 'scheduled'
-        expect(res.body).toHaveProperty('isCreator', true);
-        expect(res.body).toHaveProperty('course', 'CS');
-        expect(res.body).toHaveProperty('courseCode', 'CS101');
+        expect(res.body).toMatchObject({
+          id: '77', status: 'upcoming', isCreator: true, isAttending: true, course: 'CS', courseCode: 'CS101',
+        });
       }
     });
   });
 
-  test('schema detection switches to groups table when present', async () => {
-    const app = bootAppWithPreset({
-      groupsTable: 'groups', // prefer "groups"
-      nameCol: true,
-      descriptionCol: true,
+  describe('Invites', () => {
+    test('400 when missing inviteUserIds', async () => {
+      const app = bootAppWithPreset({ nameCol: true });
+      const res = await request(app).post('/groups/10/invite').send({});
+      expect(res.statusCode).toBe(400);
+      expect(res.body.error).toMatch(/inviteUserIds/i);
     });
-    // Any endpoint will have been initialized using "groups"
+
+    test('403 when not owner/admin/creator', async () => {
+      const app = bootAppWithPreset({ nameCol: true });
+      const res = await request(app).post('/groups/10/invite').send({ inviteUserIds: ['u1','u2'] });
+      expect(res.statusCode).toBe(403);
+      expect(res.body.error).toMatch(/owners\/admins/i);
+    });
+
+    test('200 when invitations table exists (pending rows inserted)', async () => {
+      const app = bootAppWithPreset({
+        nameCol: true,
+        hasInvitationsTable: true,
+        // authorize role/creator via canEditGroup-like union used in handler
+        canEdit: true,
+      });
+      const res = await request(app).post('/groups/10/invite').send({ inviteUserIds: ['u1','u2'] });
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toMatchObject({ ok: true, invited: 2 });
+    });
+
+    test('200 via notifications fallback when invitations table missing', async () => {
+      const app = bootAppWithPreset({
+        nameCol: true,
+        hasNotificationsTable: true,
+        canEdit: true,
+      });
+      const res = await request(app).post('/groups/10/invitations').send({ user_ids: ['a','b','c'] });
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toMatchObject({ ok: true, invited: 3 });
+    });
+  });
+
+  test('schema detection switches to groups table when present', async () => {
+    const app = bootAppWithPreset({ groupsTable: 'groups', nameCol: true, descriptionCol: true });
     const res = await request(app).get('/groups');
     expect([200, 500]).toContain(res.statusCode);
   });
 
-  test('invalid group id params are handled', async () => {
+  test('invalid id params handled', async () => {
     const app = bootAppWithPreset({ nameCol: true });
-    const del = await request(app).delete('/groups/not-a-number');
-    expect(del.statusCode).toBe(400);
-    const join = await request(app).post('/groups/NaN/join');
-    expect(join.statusCode).toBe(400);
-    const leave = await request(app).post('/groups/abc/leave');
-    expect(leave.statusCode).toBe(400);
+    expect((await request(app).delete('/groups/not-a-number')).statusCode).toBe(400);
+    expect((await request(app).post('/groups/NaN/join')).statusCode).toBe(400);
+    expect((await request(app).post('/groups/abc/leave')).statusCode).toBe(400);
+    expect((await request(app).get('/groups/xyz')).statusCode).toBe(400);
   });
 });

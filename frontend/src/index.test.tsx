@@ -15,9 +15,9 @@ vi.doMock('react-dom/client', () => {
   };
 
   return {
-    __esModule: true,   // important for ESM default interop
-    ...stub,            // named export createRoot
-    default: stub,      // default export with .createRoot
+    __esModule: true, // important for ESM default interop
+    ...stub, // named export createRoot
+    default: stub, // default export with .createRoot
   };
 });
 

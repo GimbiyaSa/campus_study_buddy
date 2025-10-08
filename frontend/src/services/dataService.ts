@@ -703,43 +703,42 @@ export class DataService {
 
   /* ----------------- Sessions (merged: richer API, keeps no-arg fetch) ----------------- */
   static async fetchSessions(opts?: {
-  status?: 'upcoming' | 'ongoing' | 'completed' | 'cancelled';
-  groupId?: string | number;
-  startDate?: string;
-  endDate?: string;
-  limit?: number;
-  offset?: number;
-}): Promise<StudySession[]> {
-  try {
-    if (!opts) {
-      // preserve simple fetch behaviour, but no hardcoded fallback
-      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/sessions'));
+    status?: 'upcoming' | 'ongoing' | 'completed' | 'cancelled';
+    groupId?: string | number;
+    startDate?: string;
+    endDate?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<StudySession[]> {
+    try {
+      if (!opts) {
+        // preserve simple fetch behaviour, but no hardcoded fallback
+        const res = await this.fetchWithRetry(buildApiUrl('/api/v1/sessions'));
+        if (!res.ok) return [];
+        const data = await res.json();
+        return (Array.isArray(data) ? data : []).map((s) =>
+          this.normalizeSession({ ...s, id: String((s as any).id ?? (s as any).session_id) })
+        );
+      }
+
+      const p = new URLSearchParams();
+      if (opts?.status) p.set('status', opts.status);
+      if (opts?.groupId != null) p.set('groupId', String(opts.groupId));
+      if (opts?.startDate) p.set('startDate', opts.startDate);
+      if (opts?.endDate) p.set('endDate', opts.endDate);
+      if (opts?.limit != null) p.set('limit', String(opts.limit));
+      if (opts?.offset != null) p.set('offset', String(opts.offset));
+
+      const qs = p.toString();
+      const res = await this.request(`/api/v1/sessions${qs ? `?${qs}` : ''}`, { method: 'GET' });
       if (!res.ok) return [];
-      const data = await res.json();
-      return (Array.isArray(data) ? data : []).map((s) =>
-        this.normalizeSession({ ...s, id: String((s as any).id ?? (s as any).session_id) })
-      );
+      const data = await this.safeJson<any[]>(res, []);
+      return (Array.isArray(data) ? data : []).map((row) => this.normalizeSession(row));
+    } catch (error) {
+      console.error('❌ fetchSessions error:', error);
+      return [];
     }
-
-    const p = new URLSearchParams();
-    if (opts?.status) p.set('status', opts.status);
-    if (opts?.groupId != null) p.set('groupId', String(opts.groupId));
-    if (opts?.startDate) p.set('startDate', opts.startDate);
-    if (opts?.endDate) p.set('endDate', opts.endDate);
-    if (opts?.limit != null) p.set('limit', String(opts.limit));
-    if (opts?.offset != null) p.set('offset', String(opts.offset));
-
-    const qs = p.toString();
-    const res = await this.request(`/api/v1/sessions${qs ? `?${qs}` : ''}`, { method: 'GET' });
-    if (!res.ok) return [];
-    const data = await this.safeJson<any[]>(res, []);
-    return (Array.isArray(data) ? data : []).map((row) => this.normalizeSession(row));
-  } catch (error) {
-    console.error('❌ fetchSessions error:', error);
-    return [];
   }
-}
-
 
   static async getSessionById(id: string): Promise<StudySession | null> {
     try {
@@ -1033,18 +1032,17 @@ export class DataService {
     }
   }
 
- static async fetchGroupsRaw(): Promise<any[]> {
-  try {
-    const meId = await this.getMeIdCached();
-    const res = await this.request('/api/v1/groups', { method: 'GET' });
-    if (!res.ok) return [];
-    const data = await this.safeJson<any[]>(res, []);
-    return (data || []).map((g) => this.annotateOwnership(g, meId));
-  } catch {
-    return [];
+  static async fetchGroupsRaw(): Promise<any[]> {
+    try {
+      const meId = await this.getMeIdCached();
+      const res = await this.request('/api/v1/groups', { method: 'GET' });
+      if (!res.ok) return [];
+      const data = await this.safeJson<any[]>(res, []);
+      return (data || []).map((g) => this.annotateOwnership(g, meId));
+    } catch {
+      return [];
+    }
   }
-}
-
 
   static async createGroup(payload: {
     name: string;
@@ -1245,31 +1243,30 @@ export class DataService {
   }
 
   static async getGroupMembers(
-  groupId: string
-): Promise<Array<{ userId: string; name: string; role?: string }>> {
-  try {
-    const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}/members`, {
-      method: 'GET',
-    });
-    if (!res.ok) return [];
-    const raw = await this.safeJson<any>(res, []);
-    const rows = Array.isArray(raw?.members) ? raw.members : Array.isArray(raw) ? raw : [];
-    return rows.map((m: any, i: number) => ({
-      userId: String(m?.userId ?? m?.id ?? m?.user_id ?? i),
-      name:
-        m?.name ??
-        m?.display_name ??
-        m?.full_name ??
-        m?.username ??
-        m?.email ??
-        String(m?.userId ?? m?.id ?? `User ${i + 1}`),
-      role: m?.role ?? m?.member_role ?? undefined,
-    }));
-  } catch {
-    return [];
+    groupId: string
+  ): Promise<Array<{ userId: string; name: string; role?: string }>> {
+    try {
+      const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}/members`, {
+        method: 'GET',
+      });
+      if (!res.ok) return [];
+      const raw = await this.safeJson<any>(res, []);
+      const rows = Array.isArray(raw?.members) ? raw.members : Array.isArray(raw) ? raw : [];
+      return rows.map((m: any, i: number) => ({
+        userId: String(m?.userId ?? m?.id ?? m?.user_id ?? i),
+        name:
+          m?.name ??
+          m?.display_name ??
+          m?.full_name ??
+          m?.username ??
+          m?.email ??
+          String(m?.userId ?? m?.id ?? `User ${i + 1}`),
+        role: m?.role ?? m?.member_role ?? undefined,
+      }));
+    } catch {
+      return [];
+    }
   }
-}
-
 
   static async updateGroup(
     groupId: string,

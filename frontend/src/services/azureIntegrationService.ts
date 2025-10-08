@@ -1,5 +1,4 @@
 import { WebPubSubClient } from '@azure/web-pubsub-client';
-import { buildApiUrl } from '../utils/url';
 
 class AzureIntegrationService {
   private static instance: AzureIntegrationService;

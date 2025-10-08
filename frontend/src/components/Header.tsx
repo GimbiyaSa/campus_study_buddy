@@ -57,7 +57,9 @@ export default function Header() {
       // revoke the last used credential if stored in localStorage (best-effort)
       const lastToken = localStorage.getItem('last_google_id_token');
       if (lastToken && win.google?.accounts?.id?.revoke) {
-        win.google.accounts.id.revoke(lastToken, () => {});
+        win.google.accounts.id.revoke(lastToken, () => {
+          /* no-op */
+        });
       }
       // Clear stored token
       localStorage.removeItem('google_id_token');
@@ -67,7 +69,7 @@ export default function Header() {
       // ignore
     }
 
-    // Clear user data from context
+    // Clear user data from context (this will sync with sidebar)
     logout();
 
     // Redirect to login
@@ -78,7 +80,7 @@ export default function Header() {
     return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
   };
 
-  // If no user is logged in, show minimal header (unchanged)
+  // If no user is logged in, show minimal header
   if (!currentUser && !loading) {
     return (
       <header className="bg-white border-b border-gray-200 h-16 px-6 flex items-center">

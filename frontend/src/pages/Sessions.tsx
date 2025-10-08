@@ -1,7 +1,7 @@
 // frontend/src/pages/Sessions.tsx
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Calendar, Clock, MapPin, Plus, Users, X, Edit, Trash2, MessageSquare } from 'lucide-react';
+import { Calendar, Clock, MapPin, Plus, Users, X, Edit, Trash2 } from 'lucide-react';
 import { DataService, type StudySession, type StudyGroup } from '../services/dataService';
 
 export default function Sessions() {
@@ -75,6 +75,12 @@ export default function Sessions() {
         setSessions((prev) =>
           prev.map((s) => (s.id === editingSession.id ? { ...s, ...updated } : s))
         );
+        // let everyone else update inline
+        try {
+          window.dispatchEvent(
+            new CustomEvent('session:updated', { detail: { ...updated, id: editingSession.id } })
+          );
+        } catch {}
         return;
       }
     } catch (error) {
@@ -104,6 +110,13 @@ export default function Sessions() {
               : s
           )
         );
+        try {
+          window.dispatchEvent(
+            new CustomEvent('session:deleted', { detail: { id: String(sessionId) } })
+          );
+          window.dispatchEvent(new Event('sessions:invalidate'));
+        } catch {}
+
         return;
       }
     } catch (error) {
@@ -183,11 +196,6 @@ export default function Sessions() {
     } catch (err) {
       console.warn('Leave request error (keeping optimistic state):', err);
     }
-  };
-
-  const handleOpenChat = (session: StudySession) => {
-    if (!session.groupId) return;
-    window.location.href = `/groups/${session.groupId}/chat?session=${session.id}`;
   };
 
   const filteredSessions =
@@ -293,7 +301,6 @@ export default function Sessions() {
                   ? () => handleLeaveSession(session.id)
                   : undefined
               }
-              onChat={session.isAttending ? () => handleOpenChat(session) : undefined}
             />
           ))}
         </div>
@@ -319,7 +326,6 @@ function SessionCard({
   onDelete,
   onJoin,
   onLeave,
-  onChat,
 }: {
   session: StudySession;
   onEdit?: () => void;
@@ -423,16 +429,6 @@ function SessionCard({
         </div>
 
         <div className="flex items-center gap-2">
-          {onChat && (
-            <button
-              onClick={onChat}
-              className="rounded-lg border border-slate-200 p-2 text-emerald-700 hover:bg-emerald-50"
-              aria-label="Open chat"
-              title="Open group chat"
-            >
-              <MessageSquare className="h-4 w-4" />
-            </button>
-          )}
           {onJoin && (
             <button
               onClick={onJoin}

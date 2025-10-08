@@ -118,6 +118,30 @@ PORT=5000
 
 **[📖 Detailed Setup Guide](setup.md)** - Complete configuration instructions
 
+## Troubleshooting
+
+### "Error 400: origin_mismatch"
+This error occurs when your Google OAuth Client ID doesn't allow requests from the current domain.
+
+**Quick Fix:**
+1. Go to [Google Cloud Console](https://console.cloud.google.com/) → "APIs & Services" → "Credentials"
+2. Edit your OAuth 2.0 Client ID
+3. Add `https://gimbiyasa.github.io` to "Authorized JavaScript origins"
+4. Save and wait a few minutes
+
+### "Access token required" Error
+This means you need to include a valid Google ID token in your request:
+- Make sure you're signed in on the testing page
+- Copy the full token (it's very long!)
+- Include it in the Authorization header
+
+### Token Expired Error
+Google ID tokens expire after about 1 hour:
+- Sign in again on the testing page to get a fresh token
+- For production apps, implement token refresh
+
+**[📖 Complete Troubleshooting Guide](setup.md#troubleshooting)**
+
 ## Security Notes
 
 ⚠️ **Important Security Reminders:**

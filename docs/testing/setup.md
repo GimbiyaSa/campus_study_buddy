@@ -82,14 +82,37 @@ DEFAULT_MODULE_UNIVERSITY=Your University
    - Go to "APIs & Services" > "Credentials"
    - Click "Create Credentials" > "OAuth 2.0 Client IDs"
    - Choose "Web application"
-   - Add authorized origins:
-     - `http://localhost:3000` (for frontend)
-     - `http://localhost:5000` (for backend)
-     - `http://127.0.0.1:3000`
-   - Add authorized redirect URIs:
+   - **⚠️ CRITICAL: Add authorized JavaScript origins:**
+     - `https://gimbiyasa.github.io` (for GitHub Pages testing)
+     - `http://localhost:3000` (for frontend development)
+     - `http://localhost:5000` (for backend testing)
+     - `http://127.0.0.1:3000` (alternative localhost)
+     - `http://127.0.0.1:5000` (alternative localhost)
+   - **Add authorized redirect URIs:**
      - `http://localhost:3000/auth/callback`
+     - `https://gimbiyasa.github.io/campus_study_buddy/testing/`
 
 5. **Copy the Client ID** and add it to your .env file
+
+### Fixing "origin_mismatch" Error
+
+If you get an error like "You can't sign in to this app because it doesn't comply with Google's OAuth 2.0 policy" or "Error 400: origin_mismatch", it means your current domain isn't authorized. 
+
+**To fix this:**
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Navigate to "APIs & Services" > "Credentials"
+3. Find your OAuth 2.0 Client ID and click the edit button (pencil icon)
+4. In the "Authorized JavaScript origins" section, add:
+   - `https://gimbiyasa.github.io` (the exact domain where your testing page is hosted)
+5. Click "Save"
+6. Wait a few minutes for the changes to propagate
+7. Try signing in again
+
+### Important Notes:
+- The origin must match **exactly** (including https/http and port numbers)
+- Changes may take a few minutes to take effect
+- For local testing, you may need both `localhost` and `127.0.0.1` entries
 
 ## Testing Methods
 

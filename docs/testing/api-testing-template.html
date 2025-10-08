@@ -109,6 +109,12 @@ permalink: /testing/api-testing-template.html
             <input type="text" id="clientIdInput" placeholder="123456789-abc123.apps.googleusercontent.com" />
             <button class="btn" onclick="initializeGoogleAuth()">🔄 Initialize Google Sign-In</button>
             
+            <div style="margin-top: 15px; padding: 15px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 6px;">
+                <strong>⚠️ Getting "origin_mismatch" error?</strong><br>
+                Your Google OAuth Client must allow requests from <code>https://gimbiyasa.github.io</code><br>
+                <strong>Fix:</strong> Add <code>https://gimbiyasa.github.io</code> to "Authorized JavaScript origins" in Google Cloud Console.
+            </div>
+            
             <div style="margin-top: 15px;">
                 <small>
                     <strong>Don't have a Client ID?</strong> 

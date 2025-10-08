@@ -1,3 +1,4 @@
+import { buildApiUrl } from '@/utils/url';
 import { WebPubSubClient } from '@azure/web-pubsub-client';
 
 class AzureIntegrationService {

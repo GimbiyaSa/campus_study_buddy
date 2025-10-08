@@ -1,39 +1,34 @@
-import { test, vi } from 'vitest';
+// src/index.test.tsx
+import { screen } from '@testing-library/react';
+import { test, vi, beforeEach, afterEach } from 'vitest';
 
-// Reset module registry and mock App to render a detectable element
-vi.resetModules();
-// ensure our mock is applied before the module under test is imported
-vi.doMock('react-dom/client', () => {
-  const stub = {
-    createRoot: (_el: Element) => ({
-      render: (_v: any) => {
-        const m = document.createElement('div');
-        m.setAttribute('data-testid', 'app-mounted');
-        document.body.appendChild(m);
-      },
-    }),
-  };
-
-  return {
-    __esModule: true, // important for ESM default interop
-    ...stub, // named export createRoot
-    default: stub, // default export with .createRoot
-  };
+// Make each test run with a fresh module graph & clean DOM
+beforeEach(() => {
+  vi.resetModules();
+  document.body.innerHTML = '';
+});
+afterEach(() => {
+  vi.clearAllMocks();
 });
 
-import { screen } from '@testing-library/react';
+// Mock App so the real ReactDOM render produces a detectable node
+vi.mock('./App', () => ({
+  __esModule: true,
+  default: () => <div data-testid="app-mounted" />,
+}));
+
+// Stub CSS import (harmless with Vite, but keeps this test portable)
+vi.mock('./index.css', () => ({}));
 
 test('index mounts App by creating root and rendering App subtree', async () => {
-  // create root element expected by index.tsx
+  // Create the root div that index.tsx expects
   const root = document.createElement('div');
   root.id = 'root';
   document.body.appendChild(root);
 
-  // dynamic import executes the module and should result in App being rendered
+  // Import side-effectful entry
   await import('./index');
 
+  // App mock should now be in the DOM
   await screen.findByTestId('app-mounted');
-
-  // restore any module mocks
-  vi.unmock('react-dom/client');
 });

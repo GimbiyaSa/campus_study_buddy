@@ -17,16 +17,21 @@ This page provides tools to help you test the Campus Study Buddy API endpoints. 
 
 ## Testing Options
 
-### 🌐 Interactive Testing Page
-**[→ Open API Testing Tool](api-testing.html)** | **[→ Alternative View](tool.md)**
+### 🌐 Interactive Testing Page  
+**[→ Interactive Testing Tool](api-testing-template.html)** - Configure your Google Client ID and test endpoints
+
+**Alternative Options:**
+- **[Static Version](api-testing.html)** - Requires manual Client ID configuration  
+- **[Alternative View](tool.md)** - Embedded iframe version
 
 Our interactive testing page allows you to:
+- Configure your Google OAuth Client ID directly in the browser
 - Sign in with Google to get ID tokens
 - Test endpoints directly in the browser
 - Copy tokens for use in external tools
 - View real-time API responses
 
-> **Note**: If you have trouble accessing the tool, try the [alternative view](tool.md) or [download it locally](api-testing.html) (right-click → save).
+> **Note**: The interactive tool requires a Google OAuth Client ID. See our [setup guide](setup.md#how-to-get-google-oauth-client-id) for instructions.
 
 ### 📮 Postman Collection
 We've prepared a Postman collection with pre-configured requests:

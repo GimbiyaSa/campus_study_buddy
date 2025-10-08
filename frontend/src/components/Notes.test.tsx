@@ -62,9 +62,7 @@ describe('Notes (basic smoke tests)', () => {
     expect(await screen.findByText(/study notes/i)).toBeInTheDocument();
 
     // The single mocked note shows up
-    expect(
-      await screen.findByText('Binary Tree Traversal Methods')
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Binary Tree Traversal Methods')).toBeInTheDocument();
 
     // "Create Note" button should be present in the header
     expect(screen.getByRole('button', { name: /create note/i })).toBeInTheDocument();

@@ -33,7 +33,7 @@ vi.mock('../services/azureIntegrationService', () => {
     },
   };
   return {
-    default: mock,                 // default import usage
+    default: mock, // default import usage
     AzureIntegrationService: mock, // named import usage (if any)
   };
 });

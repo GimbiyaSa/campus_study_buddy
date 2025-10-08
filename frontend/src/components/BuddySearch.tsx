@@ -29,22 +29,33 @@ export default function BuddySearch() {
       try {
         // Get suggestions (new people to connect with)
         const allPartners = await DataService.searchPartners();
-        console.log('🔍 BuddySearch raw data:', allPartners.map(p => ({ name: p.name, connectionStatus: p.connectionStatus })));
-        
-        const newSuggestions = allPartners.filter(partner => 
-          !partner.connectionStatus || 
-          partner.connectionStatus === 'none' || 
-          partner.connectionStatus === undefined ||
-          partner.connectionStatus !== 'accepted'
-        ).slice(0, 4);
-        
-        console.log('🔍 BuddySearch filtered suggestions:', newSuggestions.length, 'out of', allPartners.length);
+        console.log(
+          '🔍 BuddySearch raw data:',
+          allPartners.map((p) => ({ name: p.name, connectionStatus: p.connectionStatus }))
+        );
+
+        const newSuggestions = allPartners
+          .filter(
+            (partner) =>
+              !partner.connectionStatus ||
+              partner.connectionStatus === 'none' ||
+              partner.connectionStatus === undefined ||
+              partner.connectionStatus !== 'accepted'
+          )
+          .slice(0, 4);
+
+        console.log(
+          '🔍 BuddySearch filtered suggestions:',
+          newSuggestions.length,
+          'out of',
+          allPartners.length
+        );
         setSuggestions(newSuggestions);
-        
+
         // Get existing connections
         const existingConnections = await DataService.fetchPartners();
-        const acceptedConnections = existingConnections.filter(partner => 
-          partner.connectionStatus === 'accepted'
+        const acceptedConnections = existingConnections.filter(
+          (partner) => partner.connectionStatus === 'accepted'
         );
         setConnections(acceptedConnections);
       } catch (err) {

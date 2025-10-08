@@ -83,7 +83,9 @@ describe('Chat page', () => {
 
   test('handles joinPartnerChat failure gracefully (logs error, does not crash)', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.spyOn(azureIntegrationService, 'joinPartnerChat').mockRejectedValueOnce(new Error('join failed'));
+    vi.spyOn(azureIntegrationService, 'joinPartnerChat').mockRejectedValueOnce(
+      new Error('join failed')
+    );
     renderWithUser(<Chat />);
     const buddy = await screen.findByText('Alice Smith');
     fireEvent.click(buddy);
@@ -96,7 +98,9 @@ describe('Chat page', () => {
 
   test('handles leavePartnerChat failure gracefully (logs error, does not crash)', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.spyOn(azureIntegrationService, 'leavePartnerChat').mockRejectedValueOnce(new Error('leave failed'));
+    vi.spyOn(azureIntegrationService, 'leavePartnerChat').mockRejectedValueOnce(
+      new Error('leave failed')
+    );
     // Add Bob Johnson to the list
     vi.spyOn(DataService, 'fetchPartners').mockResolvedValueOnce([
       mockBuddies[0],
@@ -128,9 +132,17 @@ describe('Chat page', () => {
     const { container } = renderWithUser(<Chat />);
     const buddy = await screen.findByText('Alice Smith');
     fireEvent.click(buddy);
-    await waitFor(() => expect(screen.getByPlaceholderText(/Type your message/i)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText(/Type your message/i)).toBeInTheDocument()
+    );
     // Simulate receiving a message with correct chatRoomId
-    messageHandler && messageHandler({ chatRoomId, sender: '2', content: 'Hello from Alice!', timestamp: '2025-10-01T12:00:00Z' });
+    messageHandler &&
+      messageHandler({
+        chatRoomId,
+        sender: '2',
+        content: 'Hello from Alice!',
+        timestamp: '2025-10-01T12:00:00Z',
+      });
     // Message event handled, but message does not appear in DOM in this test environment.
     // Skipping assertion to ensure test passes.
   });
@@ -147,9 +159,19 @@ describe('Chat page', () => {
     const { container } = renderWithUser(<Chat />);
     const buddy = await screen.findByText('Alice Smith');
     fireEvent.click(buddy);
-    await waitFor(() => expect(screen.getByPlaceholderText(/Type your message/i)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText(/Type your message/i)).toBeInTheDocument()
+    );
     // Simulate incoming message
-    messageHandler && messageHandler({ chatRoomId, sender: '2', content: 'Hi!', timestamp: '2025-10-01T12:00:00Z', senderName: 'Alice Smith', senderId: 2 });
+    messageHandler &&
+      messageHandler({
+        chatRoomId,
+        sender: '2',
+        content: 'Hi!',
+        timestamp: '2025-10-01T12:00:00Z',
+        senderName: 'Alice Smith',
+        senderId: 2,
+      });
     // Simulate sending a message
     const textarea = screen.getByPlaceholderText(/Type your message/i);
     fireEvent.change(textarea, { target: { value: 'Hello Alice!' } });
@@ -198,33 +220,33 @@ describe('Chat page', () => {
 
   test('selects a buddy and shows chat area', async () => {
     renderWithUser(<Chat />);
-    
+
     // Wait for partners to load, then look for Alice Smith
     expect(await screen.findByText(/Chat with study partners/i)).toBeInTheDocument();
     const buddy = await screen.findByText('Alice Smith');
     fireEvent.click(buddy);
-    
-    // Wait for chat interface to appear  
+
+    // Wait for chat interface to appear
     expect(await screen.findByText(/Start the conversation!/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Type your message/i)).toBeInTheDocument();
   });
 
   test('can type a message and shows error when send fails', async () => {
     renderWithUser(<Chat />);
-    
+
     // Wait for partners to load and select Alice
     const buddy = await screen.findByText('Alice Smith');
     fireEvent.click(buddy);
-    
+
     // Wait for chat interface and type message
     const textarea = await screen.findByPlaceholderText(/Type your message/i);
     fireEvent.change(textarea, { target: { value: 'Hello Alice!' } });
     expect(textarea).toHaveValue('Hello Alice!');
-    
+
     // Send message (will fail due to mocked fetch error)
     const sendBtn = screen.getByRole('button', { name: /send/i });
     fireEvent.click(sendBtn);
-    
+
     // Should show error message
     await waitFor(() => expect(screen.getByText(/Failed to send message/i)).toBeInTheDocument());
     // Message should remain in input when send fails
@@ -234,18 +256,18 @@ describe('Chat page', () => {
   test('successfully sends message and clears input', async () => {
     // This test checks message input behavior without relying on fetch mocking
     renderWithUser(<Chat />);
-    
+
     // Wait for partners to load and select Alice
     const buddy = await screen.findByText('Alice Smith');
     fireEvent.click(buddy);
-    
+
     // Wait for chat interface and type message
     const textarea = await screen.findByPlaceholderText(/Type your message/i);
     fireEvent.change(textarea, { target: { value: 'Hello Alice!' } });
-    
+
     // Verify message is in input
     expect(textarea).toHaveValue('Hello Alice!');
-    
+
     // Send button should be enabled
     const sendBtn = screen.getByRole('button', { name: /send/i });
     expect(sendBtn).not.toBeDisabled();
@@ -253,20 +275,20 @@ describe('Chat page', () => {
 
   test('form submission calls sendMessage', async () => {
     renderWithUser(<Chat />);
-    
+
     // Wait for partners to load and select Alice
     const buddy = await screen.findByText('Alice Smith');
     fireEvent.click(buddy);
-    
+
     // Wait for chat interface and type message
     const textarea = await screen.findByPlaceholderText(/Type your message/i);
     fireEvent.change(textarea, { target: { value: 'Test message' } });
-    
+
     // Submit form
     const form = textarea.closest('form');
     expect(form).toBeInTheDocument();
     fireEvent.submit(form!);
-    
+
     // Should show error since our fetch mock fails
     await waitFor(() => {
       expect(screen.getByText(/Failed to send message/i)).toBeInTheDocument();
@@ -275,100 +297,102 @@ describe('Chat page', () => {
 
   test('textarea handles Enter key press correctly', async () => {
     renderWithUser(<Chat />);
-    
+
     // Wait for partners to load and select Alice
     const buddy = await screen.findByText('Alice Smith');
     fireEvent.click(buddy);
-    
+
     // Wait for chat interface and type message
     const textarea = await screen.findByPlaceholderText(/Type your message/i);
     fireEvent.change(textarea, { target: { value: 'Hello via Enter!' } });
-    
+
     // Verify message is in input
     expect(textarea).toHaveValue('Hello via Enter!');
-    
+
     // Press Enter key - should call preventDefault and trigger submission
     fireEvent.keyPress(textarea, { key: 'Enter', code: 'Enter' });
-    
+
     // Message should still be in textarea (since our mock fetch will fail)
     expect(textarea).toHaveValue('Hello via Enter!');
   });
 
   test('does not send message on Shift+Enter', async () => {
     renderWithUser(<Chat />);
-    
+
     // Wait for partners to load and select Alice
     const buddy = await screen.findByText('Alice Smith');
     fireEvent.click(buddy);
-    
+
     // Wait for chat interface and type message
     const textarea = await screen.findByPlaceholderText(/Type your message/i);
     fireEvent.change(textarea, { target: { value: 'Hello with shift enter!' } });
-    
+
     // Press Shift+Enter (should not send)
     fireEvent.keyPress(textarea, { key: 'Enter', code: 'Enter', shiftKey: true });
-    
+
     // Input should remain unchanged
     expect(textarea).toHaveValue('Hello with shift enter!');
   });
 
   test('disables send button when input is empty', async () => {
     renderWithUser(<Chat />);
-    
+
     // Wait for partners to load and select Alice
     const buddy = await screen.findByText('Alice Smith');
     fireEvent.click(buddy);
-    
+
     // Wait for chat interface
     await screen.findByPlaceholderText(/Type your message/i);
     const sendBtn = screen.getByRole('button', { name: /send/i });
-    
+
     // Send button should be disabled when input is empty
     expect(sendBtn).toBeDisabled();
   });
 
   test('enables send button when input has text', async () => {
     renderWithUser(<Chat />);
-    
+
     // Wait for partners to load and select Alice
     const buddy = await screen.findByText('Alice Smith');
     fireEvent.click(buddy);
-    
+
     // Wait for chat interface and type message
     const textarea = await screen.findByPlaceholderText(/Type your message/i);
     const sendBtn = screen.getByRole('button', { name: /send/i });
-    
+
     fireEvent.change(textarea, { target: { value: 'Test message' } });
-    
+
     // Send button should be enabled when input has text
     expect(sendBtn).not.toBeDisabled();
   });
 
   test('renders empty chat messages area', async () => {
     renderWithUser(<Chat />);
-    
+
     // Wait for partners to load and select Alice
     const buddy = await screen.findByText('Alice Smith');
     fireEvent.click(buddy);
-    
+
     // Should show empty state message
     expect(await screen.findByText(/Start the conversation!/i)).toBeInTheDocument();
-    expect(screen.getByText(/Send a message to begin your study collaboration/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Send a message to begin your study collaboration/i)
+    ).toBeInTheDocument();
   });
 
   test('displays buddy avatar when available', async () => {
     const buddyWithAvatar = {
       ...mockBuddies[0],
-      avatar: 'https://example.com/avatar.jpg'
+      avatar: 'https://example.com/avatar.jpg',
     };
 
     vi.spyOn(DataService, 'fetchPartners').mockImplementationOnce(async () => [buddyWithAvatar]);
 
     renderWithUser(<Chat />);
-    
+
     // Wait for partner list to load
     await screen.findByText('Alice Smith');
-    
+
     // Should display avatar image
     const avatarImg = screen.getAllByAltText('Alice Smith')[0];
     expect(avatarImg).toBeInTheDocument();
@@ -377,10 +401,10 @@ describe('Chat page', () => {
 
   test('displays initials when no avatar available', async () => {
     renderWithUser(<Chat />);
-    
+
     // Wait for partner list to load
     await screen.findByText('Alice Smith');
-    
+
     // Should display first letter of name as avatar
     expect(screen.getByText('A')).toBeInTheDocument();
   });
@@ -390,31 +414,31 @@ describe('Chat page', () => {
     const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
 
     const { unmount } = renderWithUser(<Chat />);
-    
+
     // Should add event listener for buddies invalidation
     expect(addEventListenerSpy).toHaveBeenCalledWith('buddies:invalidate', expect.any(Function));
-    
+
     // Unmount component to trigger cleanup
     unmount();
-    
+
     // Should remove event listener on cleanup
     expect(removeEventListenerSpy).toHaveBeenCalledWith('buddies:invalidate', expect.any(Function));
   });
 
   test('refreshes buddy list on partner acceptance event', async () => {
     const fetchPartnersSpy = vi.spyOn(DataService, 'fetchPartners');
-    
+
     renderWithUser(<Chat />);
-    
+
     // Wait for initial load
     await screen.findByText('Alice Smith');
-    
+
     // Clear previous calls
     fetchPartnersSpy.mockClear();
-    
+
     // Simulate partner acceptance event
     window.dispatchEvent(new Event('buddies:invalidate'));
-    
+
     // Should reload buddies
     await waitFor(() => {
       expect(fetchPartnersSpy).toHaveBeenCalledTimes(1);
@@ -426,23 +450,23 @@ describe('Chat page', () => {
     const buddy2 = {
       ...mockBuddies[0],
       id: '3',
-      name: 'Bob Johnson'
+      name: 'Bob Johnson',
     };
 
     vi.spyOn(DataService, 'fetchPartners').mockImplementationOnce(async () => [buddy1, buddy2]);
 
     renderWithUser(<Chat />);
-    
+
     // Wait for partners to load and select first buddy
     await screen.findByText('Alice Smith');
     const aliceButton = screen.getByText('Alice Smith');
     fireEvent.click(aliceButton);
-    
+
     // Wait for Bob to appear and select him
     await screen.findByText('Bob Johnson');
     const bobButton = screen.getByText('Bob Johnson');
     fireEvent.click(bobButton);
-    
+
     // Messages should be reset (empty state should appear)
     expect(await screen.findByText(/Start the conversation!/i)).toBeInTheDocument();
   });
@@ -460,9 +484,11 @@ describe('Chat page', () => {
   test('handles broken avatar image gracefully', async () => {
     const buddyWithBrokenAvatar = {
       ...mockBuddies[0],
-      avatar: 'broken-url.jpg'
+      avatar: 'broken-url.jpg',
     };
-    vi.spyOn(DataService, 'fetchPartners').mockImplementationOnce(async () => [buddyWithBrokenAvatar]);
+    vi.spyOn(DataService, 'fetchPartners').mockImplementationOnce(async () => [
+      buddyWithBrokenAvatar,
+    ]);
     renderWithUser(<Chat />);
     await screen.findByText('Alice Smith');
     // Avatar fallback may not be immediate, so check for either image or fallback
@@ -477,7 +503,9 @@ describe('Chat page', () => {
   test('handles azureIntegrationService.onConnectionEvent throwing error', async () => {
     // Suppress error output for this test
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.spyOn(azureIntegrationService, 'onConnectionEvent').mockImplementation(() => { throw new Error('onConnectionEvent failed'); });
+    vi.spyOn(azureIntegrationService, 'onConnectionEvent').mockImplementation(() => {
+      throw new Error('onConnectionEvent failed');
+    });
     expect(() => renderWithUser(<Chat />)).toThrow('onConnectionEvent failed');
     errorSpy.mockRestore();
   });
@@ -529,9 +557,18 @@ describe('Chat page', () => {
     renderWithUser(<Chat />);
     const buddy = await screen.findByText('Alice Smith');
     fireEvent.click(buddy);
-    await waitFor(() => expect(screen.getByPlaceholderText(/Type your message/i)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText(/Type your message/i)).toBeInTheDocument()
+    );
     // Simulate system message
-    messageHandler && messageHandler({ chatRoomId, sender: 'system', content: 'System notice', timestamp: '2025-10-01T12:00:00Z', system: true });
+    messageHandler &&
+      messageHandler({
+        chatRoomId,
+        sender: 'system',
+        content: 'System notice',
+        timestamp: '2025-10-01T12:00:00Z',
+        system: true,
+      });
     // System message may not be rendered if not supported, so just check test does not throw
     expect(true).toBe(true);
   });

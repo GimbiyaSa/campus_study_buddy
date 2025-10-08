@@ -32,8 +32,8 @@ export default function NotificationHandler() {
         console.log('🔍 Loading pending invitations...');
         const pendingInvitations = await DataService.getPendingInvitations();
         console.log('📨 Pending invitations received:', pendingInvitations);
-        
-        const notifications: Notification[] = pendingInvitations.map(invitation => ({
+
+        const notifications: Notification[] = pendingInvitations.map((invitation) => ({
           id: `pending-${invitation.requestId}`,
           type: 'partner_request' as const,
           data: {
@@ -48,7 +48,7 @@ export default function NotificationHandler() {
           timestamp: invitation.timestamp,
           read: false,
         }));
-        
+
         console.log('🔔 Setting notifications:', notifications.length);
         setNotifications(notifications);
       } catch (error) {

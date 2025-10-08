@@ -99,7 +99,7 @@ const mockConnections = [
 describe('BuddySearch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     // Setup default mocks
     vi.mocked(DataService.searchPartners).mockResolvedValue(mockSuggestions);
     vi.mocked(DataService.fetchPartners).mockResolvedValue(mockConnections);
@@ -180,7 +180,7 @@ describe('BuddySearch', () => {
     });
 
     expect(screen.getByText(/We're still finding the perfect study matches/i)).toBeInTheDocument();
-    
+
     // Check explore all partners button
     const exploreButton = screen.getByRole('button', { name: /explore all partners/i });
     await userEvent.click(exploreButton);
@@ -202,7 +202,7 @@ describe('BuddySearch', () => {
 
     const dialog = await screen.findByRole('dialog');
     const inviteBtn = within(dialog).getByRole('button', { name: /send invite/i });
-    
+
     // Try to send invite (should fail)
     await userEvent.click(inviteBtn);
 
@@ -221,7 +221,7 @@ describe('BuddySearch', () => {
 
     const seeAllButton = screen.getByRole('button', { name: /see all partners/i });
     await userEvent.click(seeAllButton);
-    
+
     expect(vi.mocked(navigate)).toHaveBeenCalledWith('/partners');
   });
 
@@ -288,8 +288,8 @@ describe('BuddySearch', () => {
     // Button should now show pending state
     await waitFor(() => {
       const updatedButtons = screen.getAllByRole('button');
-      const pendingButton = updatedButtons.find(btn => 
-        btn.textContent?.includes('Pending') || btn.textContent?.includes('pending')
+      const pendingButton = updatedButtons.find(
+        (btn) => btn.textContent?.includes('Pending') || btn.textContent?.includes('pending')
       );
       expect(pendingButton).toBeInTheDocument();
     });

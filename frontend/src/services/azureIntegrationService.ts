@@ -113,17 +113,18 @@ class AzureIntegrationService {
 
     try {
       console.log('🔗 Initializing WebPubSub connection for user:', this.currentUser?.user_id);
-      
+
       // Get connection token from backend (general connection)
-      const tokenResponse = await this.request<{ url: string; accessToken: string; groups: string[] }>(
-        '/api/v1/chat/negotiate',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            // Initial connection without specific group
-          })
-        }
-      );
+      const tokenResponse = await this.request<{
+        url: string;
+        accessToken: string;
+        groups: string[];
+      }>('/api/v1/chat/negotiate', {
+        method: 'POST',
+        body: JSON.stringify({
+          // Initial connection without specific group
+        }),
+      });
 
       this.webPubSubClient = new WebPubSubClient(tokenResponse.url);
 
@@ -148,7 +149,6 @@ class AzureIntegrationService {
       // Join user-specific channel for notifications
       await this.webPubSubClient.joinGroup(`user-${this.currentUser.id}`);
       console.log('✅ Joined user notification group');
-      
     } catch (error) {
       console.error('Failed to initialize real-time connection:', error);
       // Reset webPubSubClient on failure so retryConnection can try again
@@ -308,7 +308,7 @@ class AzureIntegrationService {
     // Create consistent chat room ID
     const userIds = [this.currentUser?.id, partnerId].sort();
     const chatRoomId = `partner_${userIds.join('_')}`;
-    
+
     try {
       await this.webPubSubClient.joinGroup(chatRoomId);
       return chatRoomId;
@@ -324,7 +324,7 @@ class AzureIntegrationService {
 
     const userIds = [this.currentUser?.id, partnerId].sort();
     const chatRoomId = `partner_${userIds.join('_')}`;
-    
+
     try {
       await this.webPubSubClient.leaveGroup(chatRoomId);
     } catch (error) {

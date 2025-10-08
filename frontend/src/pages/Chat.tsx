@@ -34,7 +34,7 @@ export default function Chat() {
     };
 
     window.addEventListener('buddies:invalidate', handleBuddiesUpdate);
-    
+
     // Subscribe to Azure Web PubSub events
     const unsubscribeAccepted = azureIntegrationService.onConnectionEvent(
       'partner_accepted',
@@ -53,7 +53,7 @@ export default function Chat() {
       setError(null);
       const data = await DataService.fetchPartners(); // Get connected partners for chat
       // Filter to only show accepted connections for chat
-      const connectedBuddies = data.filter(partner => partner.connectionStatus === 'accepted');
+      const connectedBuddies = data.filter((partner) => partner.connectionStatus === 'accepted');
       setBuddies(connectedBuddies);
     } catch (err) {
       setError({
@@ -76,61 +76,71 @@ export default function Chat() {
   // Subscribe to real-time messages
   useEffect(() => {
     if (!selectedBuddy) return;
-    
+
     // Clear messages when switching buddies
     setMessages([]);
-    
+
     let chatRoomId: string;
-    
+
     const setupChat = async () => {
       try {
         // Retry connection if not established
         await azureIntegrationService.retryConnection();
-        
+
         // Get or create chat room and load message history
-        const roomResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/v1/chat/partner/${selectedBuddy.id}/room`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('google_id_token')}`,
-            'Content-Type': 'application/json'
+        const roomResponse = await fetch(
+          `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/v1/chat/partner/${
+            selectedBuddy.id
+          }/room`,
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem('google_id_token')}`,
+              'Content-Type': 'application/json',
+            },
           }
-        });
-        
+        );
+
         if (roomResponse.ok) {
           const roomData = await roomResponse.json();
           chatRoomId = roomData.roomName;
-          
+
           // Load message history
-          const messagesResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/v1/chat/partner/${selectedBuddy.id}/messages`, {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('google_id_token')}`,
-              'Content-Type': 'application/json'
+          const messagesResponse = await fetch(
+            `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/v1/chat/partner/${
+              selectedBuddy.id
+            }/messages`,
+            {
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem('google_id_token')}`,
+                'Content-Type': 'application/json',
+              },
             }
-          });
-          
+          );
+
           if (messagesResponse.ok) {
             const messageHistory = await messagesResponse.json();
             setMessages(messageHistory);
             console.log(`📨 Loaded ${messageHistory.length} messages from history`);
           }
         }
-        
+
         chatRoomId = await azureIntegrationService.joinPartnerChat(Number(selectedBuddy.id));
         console.log('Joined partner chat:', chatRoomId);
       } catch (error) {
         console.error('Failed to join partner chat:', error);
       }
     };
-    
+
     setupChat();
-    
+
     const handler = (payload: any) => {
       if (payload.chatRoomId === chatRoomId) {
         setMessages((prev) => [...prev, payload]);
       }
     };
-    
+
     const unsub = azureIntegrationService.onConnectionEvent('message', handler);
-    
+
     return () => {
       unsub();
       if (chatRoomId && selectedBuddy) {
@@ -149,23 +159,28 @@ export default function Chat() {
 
     try {
       // Send message via backend API (which will save to database and send via WebPubSub)
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/v1/chat/partner/${selectedBuddy.id}/message`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('google_id_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          content: input.trim(),
-          messageType: 'text'
-        })
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/v1/chat/partner/${
+          selectedBuddy.id
+        }/message`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('google_id_token')}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            content: input.trim(),
+            messageType: 'text',
+          }),
+        }
+      );
 
       if (response.ok) {
         // Add message to local state for immediate feedback
         const userIds = [currentUser?.user_id, Number(selectedBuddy.id)].sort();
         const chatRoomId = `partner_${userIds.join('_')}`;
-        
+
         setMessages((prev) => [
           ...prev,
           {

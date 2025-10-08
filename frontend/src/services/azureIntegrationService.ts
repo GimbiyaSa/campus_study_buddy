@@ -1,4 +1,3 @@
-import { buildApiUrl } from '@/utils/url';
 import { WebPubSubClient } from '@azure/web-pubsub-client';
 
 class AzureIntegrationService {
@@ -22,27 +21,8 @@ class AzureIntegrationService {
   }
 
   private async initializeAuth() {
-    // Check for existing session
-    try {
-      const token = localStorage.getItem('google_id_token');
-      if (!token) {
-        throw new Error('No authentication token found');
-      }
-      const headers = {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      };
-      const response = await fetch(buildApiUrl('/api/v1/users/me'), {
-        credentials: 'include',
-        headers,
-      });
-      if (response.ok) {
-        this.currentUser = await response.json();
-        await this.initializeRealTimeConnection();
-      }
-    } catch (error) {
-      console.log('No existing session found');
-    }
+    // No-op: Google Auth handles session, skip /me check
+    return;
   }
 
   public async setAuth(user: any) {

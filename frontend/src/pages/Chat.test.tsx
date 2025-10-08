@@ -40,7 +40,7 @@ const mockBuddies = [
   },
 ];
 
-vi.spyOn(DataService, 'fetchPartners').mockImplementation(async () => mockBuddies);
+vi.spyOn(DataService, 'searchPartners').mockImplementation(async () => mockBuddies);
 vi.spyOn(azureIntegrationService, 'onConnectionEvent').mockImplementation(() => () => {});
 vi.spyOn(azureIntegrationService, 'sendChatMessage').mockImplementation(() => Promise.resolve());
 
@@ -78,15 +78,15 @@ describe('Chat page', () => {
   });
 
   test('shows loading state', async () => {
-    // Simulate loading by delaying fetchPartners
-    vi.spyOn(DataService, 'fetchPartners').mockImplementationOnce(() => new Promise(() => {}));
+    // Simulate loading by delaying searchPartners
+    vi.spyOn(DataService, 'searchPartners').mockImplementationOnce(() => new Promise(() => {}));
     renderWithUser(<Chat />);
     expect(screen.getByText(/Chat with study partners/i)).toBeInTheDocument();
     expect(screen.getByRole('status')).toBeInTheDocument();
   });
 
   test('shows error state and retry', async () => {
-    vi.spyOn(DataService, 'fetchPartners').mockImplementationOnce(async () => {
+    vi.spyOn(DataService, 'searchPartners').mockImplementationOnce(async () => {
       throw new Error('fail');
     });
     renderWithUser(<Chat />);
@@ -97,7 +97,7 @@ describe('Chat page', () => {
   });
 
   test('shows empty state when no buddies', async () => {
-    vi.spyOn(DataService, 'fetchPartners').mockImplementationOnce(async () => []);
+    vi.spyOn(DataService, 'searchPartners').mockImplementationOnce(async () => []);
     renderWithUser(<Chat />);
     expect(await screen.findByText(/No partners yet/i)).toBeInTheDocument();
   });

@@ -174,7 +174,7 @@ async function verifyGroupAccess(userId, groupId) {
   // Implementation to verify user is member of the group using Azure SQL
   try {
     const request = pool.request();
-    request.input('userId', sql.NVarChar, userId);
+    request.input('userId', sql.NVarChar(255), userId);
     request.input('groupId', sql.Int, groupId);
 
     const result = await request.query(`

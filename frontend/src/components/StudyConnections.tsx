@@ -15,7 +15,7 @@ export default function StudyConnections() {
       setLoading(true);
       setError(null);
       try {
-        const partners = await DataService.fetchPartners(); // This gets accepted connections
+        const partners = await DataService.searchPartners(); // This gets accepted connections
         setConnections(partners.slice(0, 6)); // Show top 6 connections
       } catch (err) {
         const appError = ErrorHandler.handleApiError(err, 'partners');

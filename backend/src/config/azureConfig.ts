@@ -94,45 +94,8 @@ export class AzureConfigService {
       }
     }
 
-    // Fallback to environment variables
-    const envMap: Record<string, string> = {
-      'database-connection-string': 'DATABASE_CONNECTION_STRING',
-      'storage-connection-string': 'AZURE_STORAGE_CONNECTION_STRING',
-      'web-pubsub-connection-string': 'WEB_PUBSUB_CONNECTION_STRING',
-    };
-
-    const envVar = envMap[secretName];
-    let value = envVar ? process.env[envVar] || '' : '';
-
-    // For development, optionally construct DB connection string from parts if provided
-    if (!value && secretName === 'database-connection-string') {
-      const server = process.env.DB_SERVER;
-      const database = process.env.DB_DATABASE;
-      const user = process.env.DB_USER;
-      const password = process.env.DB_PASSWORD;
-
-      if (server && database && user && password) {
-        value = `Server=${server};Database=${database};User Id=${user};Password=${password};Encrypt=true;TrustServerCertificate=${
-          process.env.NODE_ENV === 'development'
-        }`;
-      }
-    }
-
-    if (!value) {
-      throw new Error(`Secret ${secretName} not found in Key Vault or environment variables`);
-    }
-
-    // cache and return
-    this.secretCache.set(secretName, { value, expiry: Date.now() + 5 * 60 * 1000 });
-    if (!this.loggedSecrets.has(secretName)) {
-      console.info(
-        `[AzureConfig] Secret ${secretName} loaded from environment variable ${
-          envVar || 'constructed value'
-        }`
-      );
-      this.loggedSecrets.add(secretName);
-    }
-    return value;
+    // No fallback - Key Vault only
+    throw new Error(`Secret ${secretName} not found in Key Vault`);
   }
 
   public async getDatabaseConfig(): Promise<sql.config> {
@@ -162,13 +125,7 @@ export class AzureConfigService {
         database: (config as any).database,
       };
     } catch (error) {
-      // Fallback to environment variables for legacy support
-      return {
-        user: process.env.DB_USER || '',
-        password: process.env.DB_PASSWORD || '',
-        server: process.env.DB_SERVER || '',
-        database: process.env.DB_DATABASE || '',
-      };
+      throw error; // No fallback - Key Vault only
     }
   }
 

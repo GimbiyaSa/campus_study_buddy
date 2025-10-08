@@ -59,13 +59,13 @@ export type StudyPartner = {
   name: string;
   avatar?: string;
 
-  // Academic profile
+  // Academic profile (from users table)
   university: string;
   course: string;
   yearOfStudy: number;
   bio?: string;
 
-  // Preferences
+  // Study preferences & compatibility
   studyPreferences?: {
     preferredTimes: string[];
     studyStyle: 'visual' | 'auditory' | 'kinesthetic' | 'mixed';
@@ -73,39 +73,32 @@ export type StudyPartner = {
     environment: 'quiet' | 'collaborative' | 'flexible';
   };
 
-  // Shared context
+  // Shared academic context (from user_modules overlap)
   sharedCourses: string[];
   sharedTopics: string[];
   compatibilityScore: number;
 
-  // Activity
+  // Activity & engagement metrics
   studyHours: number;
   weeklyHours: number;
   studyStreak: number;
   activeGroups: number;
   sessionsAttended: number;
 
-  // Social proof
+  // Social proof & reliability
   rating: number;
   reviewCount: number;
   responseRate: number;
   lastActive: string;
 
-  // Connection (merged enum + flags)
-  connectionStatus?:
-    | 'none'
-    | 'pending'
-    | 'accepted'
-    | 'declined'
-    | 'blocked'
-    | 'not_connected'
-    | 'connected';
+  // Connection status
+  connectionStatus?: 'none' | 'pending' | 'accepted' | 'declined' | 'blocked';
   connectionId?: number;
   isPendingSent?: boolean;
   isPendingReceived?: boolean;
   mutualConnections?: number;
 
-  // Match details
+  // Study match details
   recommendationReason?: string;
   sharedGoals?: string[];
 };
@@ -394,6 +387,7 @@ export class DataService {
   /* ----------------- auth + retry (incoming, preserved) ----------------- */
   private static authHeaders(): Headers {
     const h = new Headers();
+    // Check for both 'google_id_token' (Google Auth) and 'token' (fallback)
     const googleToken =
       typeof window !== 'undefined' ? localStorage.getItem('google_id_token') : null;
     const generalToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -431,8 +425,8 @@ export class DataService {
   private static async fetchWithRetry(
     url: string,
     options: RequestInit = {},
-    retries = 2,
-    timeout = 5000
+    retries = 2, // Reduced retries for faster response
+    timeout = 5000 // 5 second timeout
   ): Promise<Response> {
     for (let i = 0; i < retries; i++) {
       try {
@@ -457,8 +451,11 @@ export class DataService {
 
         clearTimeout(timeoutId);
 
-        if (response.ok) return response;
+        if (response.ok) {
+          return response;
+        }
 
+        // Don't retry for client errors (4xx), only server errors (5xx)
         if (response.status >= 400 && response.status < 500) {
           throw Object.assign(
             new Error(`Client error: ${response.status} ${response.statusText}`),
@@ -480,13 +477,14 @@ export class DataService {
           console.warn(`Request timeout after ${timeout}ms for ${url}`);
         }
         if (i === retries - 1) throw error;
+        // Reduced backoff for faster response
         await new Promise((resolve) => setTimeout(resolve, Math.min(500, Math.pow(2, i) * 200)));
       }
     }
     throw new Error('Should not reach here');
   }
 
-  /* ----------------- your convenience wrappers (added) ----------------- */
+  // ⬇️ now consistently uses fetchWithRetry + merged headers
   private static async request(path: string, init: RequestInit = {}) {
     const url = buildApiUrl(path);
     const auth = Object.fromEntries(this.authHeaders().entries());
@@ -763,12 +761,17 @@ export class DataService {
       if (options?.sortBy) params.append('sortBy', options.sortBy);
       if (options?.sortOrder) params.append('sortOrder', options.sortOrder);
 
-      const url = buildApiUrl(`/api/v1/courses${params.toString() ? `?${params.toString()}` : ''}`);
-      console.log('🎓 Fetching courses from:', url);
-      console.log('🔑 Auth headers:', this.authHeaders());
+      console.log('🎓 Fetching courses with params:', Object.fromEntries(params));
 
-      let res = await this.fetchWithRetry(url);
-      // fallback to /modules if /courses missing
+      const res = await this.request(
+        `/api/v1/courses${params.toString() ? `?${params.toString()}` : ''}`,
+        {
+          method: 'GET',
+        }
+      );
+
+      console.log('📡 Response status:', res.status, res.statusText);
+
       if (!res.ok) {
         const modulesUrl = buildApiUrl(
           `/api/v1/modules${params.toString() ? `?${params.toString()}` : ''}`
@@ -776,21 +779,22 @@ export class DataService {
         res = await this.fetchWithRetry(modulesUrl);
       }
 
-      console.log('📡 Response status:', res.status, res.statusText);
-      const data = await res.json();
-      console.log('📦 Response data:', data);
+      const data = await this.safeJson<any>(res, []);
+      console.log('📦 Raw response data:', data);
 
       let courses: Course[] = [];
       if (data.courses) {
         courses = data.courses;
+        console.log('✅ Using data.courses:', courses.length, 'courses');
       } else if (Array.isArray(data)) {
         courses = data;
+        console.log('✅ Using data as array:', courses.length, 'courses');
       } else {
-        console.warn('⚠️ Unexpected response format:', data);
+        console.log('⚠️ No courses found in response structure');
         courses = [];
       }
 
-      console.log('✅ Courses processed successfully:', courses.length, 'courses');
+      console.log('🎓 Final courses to return:', courses);
       return courses;
     } catch (error) {
       console.error('❌ fetchCourses error details:', {
@@ -798,6 +802,8 @@ export class DataService {
         message: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined,
       });
+
+      // Re-throw the error so the component can handle it
       throw error;
     }
   }
@@ -1045,11 +1051,19 @@ export class DataService {
   }): Promise<StudyPartner[]> {
     try {
       const queryParams = new URLSearchParams();
-      if (params?.subjects?.length) queryParams.append('subjects', params.subjects.join(','));
-      if (params?.studyStyle) queryParams.append('studyStyle', params.studyStyle);
-      if (params?.groupSize) queryParams.append('groupSize', params.groupSize);
-      if (params?.availability?.length)
+
+      if (params?.subjects?.length) {
+        queryParams.append('subjects', params.subjects.join(','));
+      }
+      if (params?.studyStyle) {
+        queryParams.append('studyStyle', params.studyStyle);
+      }
+      if (params?.groupSize) {
+        queryParams.append('groupSize', params.groupSize);
+      }
+      if (params?.availability?.length) {
         queryParams.append('availability', params.availability.join(','));
+      }
       if (params?.university) queryParams.append('university', params.university);
       if (params?.search) queryParams.append('search', params.search);
 
@@ -1063,6 +1077,8 @@ export class DataService {
       const appError = ErrorHandler.handleApiError(error, 'partners');
       throw appError;
     }
+    // Ensure a return in all code paths (should never reach here, but for type safety)
+    return [];
   }
 
   static async sendBuddyRequest(recipientId: string, message?: string): Promise<void> {
@@ -1096,14 +1112,35 @@ export class DataService {
     }
   }
 
+  static async acceptPartnerRequest(requestId: number): Promise<void> {
+    try {
+      const res = await this.fetchWithRetry(buildApiUrl(`/api/v1/partners/accept/${requestId}`), {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const appError = ErrorHandler.handleApiError({ status: res.status }, 'partners');
+        throw appError;
+      }
+      await this.safeJson<any>(res, null);
+      console.log('✅ Partner request accepted');
+    } catch (error) {
+      console.error('❌ acceptPartnerRequest error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'partners');
+      throw appError;
+    }
+  }
+
   static async rejectPartnerRequest(requestId: number): Promise<void> {
     try {
       const res = await this.fetchWithRetry(buildApiUrl(`/api/v1/partners/reject/${requestId}`), {
         method: 'POST',
       });
-      const data = await res.json();
-      console.log('✅ Partner request rejected:', data);
-      return data;
+      if (!res.ok) {
+        const appError = ErrorHandler.handleApiError({ status: res.status }, 'partners');
+        throw appError;
+      }
+      await this.safeJson<any>(res, null);
+      console.log('✅ Partner request rejected');
     } catch (error) {
       console.error('❌ rejectPartnerRequest error:', error);
       const appError = ErrorHandler.handleApiError(error, 'partners');
@@ -1111,52 +1148,7 @@ export class DataService {
     }
   }
 
-  /* ----------------- Groups (incoming + schema-aligned) ----------------- */
-  static async fetchGroups(): Promise<StudyGroup[]> {
-    try {
-      const meId = await this.getMeIdCached();
-      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/groups'), { cache: 'no-store' });
-      const raw = await res.json();
-
-      const mapped = (raw as any[]).map((g) => {
-        const enriched = this.annotateOwnership(g, meId);
-        const { createdById, createdByName } = enriched;
-        return {
-          id: String(g.group_id ?? g.id),
-          name: g.group_name ?? g.name,
-          description: g.description ?? '',
-          course: g.module_name ?? g.course,
-          courseCode: g.module_code ?? g.courseCode,
-          members: g.member_count ?? g.members,
-          member_count: g.member_count ?? g.members,
-          maxMembers: g.max_members ?? g.maxMembers,
-          isPublic: !!(g.is_public ?? true), // display-only; backend has no column
-          tags: Array.isArray(g.tags) ? g.tags : undefined, // display-only
-          createdBy: g.creator_name ?? g.createdBy ?? createdById,
-          createdById: g.creator_id ?? createdById,
-          createdByName: g.creator_name ?? createdByName,
-          createdAt: g.created_at ?? g.createdAt,
-          lastActivity: g.updated_at ?? g.lastActivity ?? g.created_at,
-          group_type: g.group_type,
-          session_count: g.session_count ?? g.sessionCount,
-          isMember: g.isMember,
-          membersList: Array.isArray(g.membersList)
-            ? g.membersList
-            : Array.isArray(g.members)
-            ? g.members
-            : undefined,
-          isOwner: !!enriched.isOwner,
-        } as StudyGroup;
-      });
-
-      return mapped;
-    } catch (error) {
-      console.error('❌ fetchGroups error:', error);
-      return FALLBACK_GROUPS.map((g) => ({ ...g, isOwner: false }));
-    }
-  }
-
-  // helper to fetch "my groups" with graceful fallback
+  // -------------------- Groups --------------------
   static async fetchMyGroups(): Promise<any[]> {
     try {
       const meId = await this.getMeIdCached();
@@ -1732,10 +1724,15 @@ export class DataService {
     }
   }
 
-  /* ----------------- Study progress/topics (incoming preserved) ----------------- */
+  // -------------------- Study Goal and Progress APIs --------------------
+  // Study Goal and Progress APIs
   static async setTopicGoal(
     topicId: number,
-    goal: { hoursGoal: number; targetCompletionDate?: string; personalNotes?: string }
+    goal: {
+      hoursGoal: number;
+      targetCompletionDate?: string;
+      personalNotes?: string;
+    }
   ): Promise<any> {
     try {
       const res = await this.fetchWithRetry(
@@ -1757,7 +1754,12 @@ export class DataService {
 
   static async logStudyHours(
     topicId: number,
-    log: { hours: number; description?: string; studyDate?: string; reflections?: string }
+    log: {
+      hours: number;
+      description?: string;
+      studyDate?: string;
+      reflections?: string;
+    }
   ): Promise<any> {
     try {
       console.log('📝 Logging study hours:', { topicId, log });
@@ -1799,8 +1801,14 @@ export class DataService {
 
   static async fetchTopicProgress(topicId: number): Promise<any> {
     try {
-      const res = await this.fetchWithRetry(buildApiUrl(`/api/v1/progress/topics/${topicId}`));
-      const data = await res.json();
+      const res = await this.request(`/api/v1/progress/topics/${topicId}`, {
+        method: 'GET',
+      });
+      if (!res.ok) {
+        const appError = ErrorHandler.handleApiError({ status: res.status }, 'progress');
+        throw appError;
+      }
+      const data = await this.safeJson<any>(res, null);
       console.log('📊 Topic progress loaded:', data);
       return data;
     } catch (error) {
@@ -1813,8 +1821,14 @@ export class DataService {
   static async fetchModuleTopics(moduleId: number): Promise<any[]> {
     try {
       console.log('📚 Fetching module topics for moduleId:', moduleId);
-      const res = await this.fetchWithRetry(buildApiUrl(`/api/v1/courses/${moduleId}/topics`));
-      const data = await res.json();
+      const res = await this.request(`/api/v1/courses/${moduleId}/topics`, {
+        method: 'GET',
+      });
+      if (!res.ok) {
+        const appError = ErrorHandler.handleApiError({ status: res.status }, 'courses');
+        throw appError;
+      }
+      const data = await this.safeJson<any[]>(res, []);
       console.log('📚 Module topics loaded successfully:', data);
       return data;
     } catch (error) {
@@ -1826,15 +1840,23 @@ export class DataService {
 
   static async addTopic(
     moduleId: number,
-    topic: { topic_name: string; description?: string; order_sequence?: number }
+    topic: {
+      topic_name: string;
+      description?: string;
+      order_sequence?: number;
+    }
   ): Promise<any> {
     try {
       console.log('➕ Adding topic to module:', { moduleId, topic });
-      const res = await this.fetchWithRetry(buildApiUrl(`/api/v1/modules/${moduleId}/topics`), {
+      const res = await this.request(`/api/v1/modules/${moduleId}/topics`, {
         method: 'POST',
         body: JSON.stringify(topic),
       });
-      const data = await res.json();
+      if (!res.ok) {
+        const appError = ErrorHandler.handleApiError({ status: res.status }, 'courses');
+        throw appError;
+      }
+      const data = await this.safeJson<any>(res, null);
       console.log('✅ Topic added successfully:', data);
       return data;
     } catch (error) {
@@ -1843,11 +1865,37 @@ export class DataService {
       throw appError;
     }
   }
+
+  static async logCourseStudyHours(
+    courseId: string,
+    log: {
+      hours: number;
+      description?: string;
+      studyDate?: string;
+    }
+  ): Promise<any> {
+    try {
+      console.log('📝 Logging course study hours:', { courseId, log });
+      const res = await this.request(`/api/v1/courses/${courseId}/log-hours`, {
+        method: 'POST',
+        body: JSON.stringify(log),
+      });
+      if (!res.ok) {
+        const appError = ErrorHandler.handleApiError({ status: res.status }, 'courses');
+        throw appError;
+      }
+      const data = await this.safeJson<any>(res, null);
+      console.log('📝 Course study hours logged successfully:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ logCourseStudyHours error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'courses');
+      throw appError;
+    }
+  }
 }
 
-/* ============================================================================
-   SMALL UTIL
-============================================================================ */
+// Small helper for ids in normalize fallback
 function cryptoRandomId() {
   try {
     // @ts-ignore

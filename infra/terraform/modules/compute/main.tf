@@ -8,6 +8,25 @@
 ################################################################################
 
 # ==============================================================================
+# CONTAINER REGISTRY
+# ==============================================================================
+
+# Azure Container Registry - using 'cr' abbreviation per Azure CAF
+resource "azurerm_container_registry" "main" {
+  # Format: {project}{env}cr{location}{suffix} (max 50 chars, alphanumeric only)
+  name = substr(
+    lower(replace("${var.naming_prefix}cr${var.location_abbrev}${var.random_suffix}", "-", "")),
+    0, 50
+  )
+  resource_group_name = var.resource_group_name
+  location            = var.location
+  sku                 = "Basic" # Basic tier for free/dev usage
+  admin_enabled       = true    # Enable for easier CI/CD integration
+
+  tags = var.common_tags
+}
+
+# ==============================================================================
 # CONTAINER APPS ENVIRONMENT
 # ==============================================================================
 
@@ -73,7 +92,7 @@ resource "azurerm_container_app" "api" {
 
     container {
       name   = "api"
-      image  = var.api_container_image         # Node.js Express API
+      image  = var.api_container_image         # Use variable for flexible image source
       cpu    = var.container_apps_cpu_limit    # 0.25 for free tier
       memory = var.container_apps_memory_limit # 0.5Gi for free tier
 
@@ -154,6 +173,13 @@ resource "azurerm_container_app" "api" {
     }
   }
 
+  # Container registry configuration
+  registry {
+    server               = azurerm_container_registry.main.login_server
+    username             = azurerm_container_registry.main.admin_username
+    password_secret_name = "registry-password"
+  }
+
   # Key Vault secrets configuration
   secret {
     name                = "database-connection-string"
@@ -171,6 +197,11 @@ resource "azurerm_container_app" "api" {
     name                = "storage-connection-string"
     key_vault_secret_id = var.storage_connection_secret_id
     identity            = azurerm_user_assigned_identity.container_apps.id
+  }
+
+  secret {
+    name  = "registry-password"
+    value = azurerm_container_registry.main.admin_password
   }
 
   # Managed identity configuration

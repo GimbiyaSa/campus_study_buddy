@@ -38,7 +38,7 @@ export default function Chat() {
     try {
       setLoading(true);
       setError(null);
-      const data = await DataService.fetchPartners();
+      const data = await DataService.searchPartners();
       setBuddies(data);
     } catch (err) {
       setError({

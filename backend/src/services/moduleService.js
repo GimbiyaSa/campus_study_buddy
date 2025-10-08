@@ -33,7 +33,6 @@ const initializeDatabase = async () => {
         pool = await sql.connect(config);
       }
     }
-    console.log('✅ Module Service: Database connected successfully');
   } catch (error) {
     console.error('❌ Module Service: Database connection failed:', error);
     throw error;

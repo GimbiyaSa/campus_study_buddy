@@ -29,14 +29,23 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Deploy Container App
-        uses: Azure/container-apps-deploy-action@v0
+        uses: Azure/container-apps-deploy-action@v2
         with:
           acrName: ${{ secrets.AZURE_ACR_NAME }}
           resourceGroup: ${{ secrets.AZURE_RESOURCE_GROUP }}
           containerAppName: ${{ secrets.AZURE_CONTAINER_APP_NAME }}
           imageToBuild: ${{ secrets.AZURE_ACR_LOGIN_SERVER }}/campus-study-buddy-api:${{ github.sha }}
-          dockerfilePath: backend/Dockerfile
+          targetPort: 5000
           appSourcePath: backend
+
+      - name: Ensure Container App environments are set
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            az containerapp update \
+              --name "${{ secrets.AZURE_CONTAINER_APP_NAME }}" \
+              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+              --set PORT=5000
 
   deploy-frontend:
     name: Deploy Frontend Web App
@@ -70,6 +79,38 @@ jobs:
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Configure App Service for static hosting
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            WEBAPP_OS=$(az webapp show \
+              --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+              --query "reserved" -o tsv)
+
+            if [ "$WEBAPP_OS" = "true" ]; then
+              echo "Configuring Linux startup command for static SPA"
+              az webapp config set \
+                --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+                --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+                --startup-file "pm2 serve /home/site/wwwroot 5173 --spa --no-daemon"
+              az webapp config appsettings set \
+                --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+                --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+                --settings PORT=5173 WEBSITES_PORT=5173 WEBSITES_ENABLE_APP_SERVICE_STORAGE=true
+              az webapp config appsettings delete \
+                --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+                --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+                --setting-names WEBSITE_RUN_FROM_PACKAGE || true
+            else
+              echo "App Service is not Linux-based; skipping startup command configuration"
+              az webapp config appsettings set \
+                --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+                --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+                --settings WEBSITE_RUN_FROM_PACKAGE=1
+            fi
+
 
       - name: Deploy to App Service
         uses: azure/webapps-deploy@v3

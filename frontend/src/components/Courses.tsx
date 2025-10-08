@@ -14,6 +14,14 @@ export default function Courses() {
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
+  // Add logging whenever courses state changes
+  useEffect(() => {
+    console.log('🎓 Courses state updated:', courses);
+    console.log('🎓 Courses count:', courses.length);
+    console.log('🎓 Loading state:', loading);
+    console.log('🎓 Error state:', error);
+  }, [courses, loading, error]);
+
   async function fetchCourses() {
     abortRef.current?.abort();
     const ctrl = new AbortController();
@@ -22,9 +30,17 @@ export default function Courses() {
     setLoading(true);
     setError(null);
     try {
+      console.log('🎓 Fetching courses...');
       const data = await DataService.fetchCourses();
-      if (!ctrl.signal.aborted) setCourses(data);
+      console.log('🎓 Courses fetched successfully:', data);
+      console.log('🎓 Courses array length:', data?.length);
+      console.log('🎓 First course:', data?.[0]);
+      if (!ctrl.signal.aborted) {
+        console.log('🎓 Setting courses state with:', data);
+        setCourses(data);
+      }
     } catch (err) {
+      console.error('❌ Failed to fetch courses:', err);
       if (!ctrl.signal.aborted) {
         const appError = ErrorHandler.handleApiError(err, 'courses');
         setError(appError);
@@ -43,6 +59,7 @@ export default function Courses() {
   const clamp = (n: number) => Math.max(0, Math.min(100, n));
 
   const stats = useMemo(() => {
+    console.log('📊 Calculating stats for courses:', courses);
     if (!courses.length) return { avg: 0, completed: 0, inProgress: 0, totalHours: 0 };
 
     const completed = courses.filter((c) => (c.progress ?? 0) >= 100).length;
@@ -53,7 +70,9 @@ export default function Courses() {
     const total = courses.reduce((s, c) => s + clamp(c.progress ?? 0), 0);
     const avg = Math.round((total / courses.length) * 10) / 10;
 
-    return { avg, completed, inProgress, totalHours };
+    const result = { avg, completed, inProgress, totalHours };
+    console.log('📊 Stats calculated:', result);
+    return result;
   }, [courses]);
 
   const handleRetry = () => {
@@ -124,28 +143,42 @@ export default function Courses() {
       )}
 
       {/* Enhanced Course List */}
-      {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <div className="text-center">
-            <Loader2 className="h-10 w-10 animate-spin text-emerald-600 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">Loading courses</h3>
-            <p className="text-slate-600">Getting your latest course data...</p>
-          </div>
-        </div>
-      ) : courses.length === 0 ? (
-        <EnhancedEmptyState />
-      ) : (
-        <div className="space-y-4 mb-6">
-          {courses.slice(0, 3).map((course) => (
-            <EnhancedCourseCard
-              key={course.id}
-              course={course}
-              onQuickLog={handleQuickLog}
-              onViewProgress={handleViewProgress}
-            />
-          ))}
-        </div>
-      )}
+      {(() => {
+        console.log('🎨 Rendering decision - Loading:', loading, 'Courses length:', courses.length);
+        if (loading) {
+          console.log('🎨 Rendering loading state');
+          return (
+            <div className="flex items-center justify-center py-16">
+              <div className="text-center">
+                <Loader2 className="h-10 w-10 animate-spin text-emerald-600 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">Loading courses</h3>
+                <p className="text-slate-600">Getting your latest course data...</p>
+              </div>
+            </div>
+          );
+        } else if (courses.length === 0) {
+          console.log('🎨 Rendering empty state');
+          return <EnhancedEmptyState />;
+        } else {
+          console.log('🎨 Rendering courses list with', courses.length, 'courses');
+          console.log('🎨 First 3 courses to render:', courses.slice(0, 3));
+          return (
+            <div className="space-y-4 mb-6">
+              {courses.slice(0, 3).map((course) => {
+                console.log('🎨 Rendering course card for:', course.id, course.title);
+                return (
+                  <EnhancedCourseCard
+                    key={course.id}
+                    course={course}
+                    onQuickLog={handleQuickLog}
+                    onViewProgress={handleViewProgress}
+                  />
+                );
+              })}
+            </div>
+          );
+        }
+      })()}
 
       {/* Enhanced Summary + Quick Actions */}
       {!loading && courses.length > 0 && (
@@ -268,34 +301,24 @@ function QuickLogDialog({
   const [hours, setHours] = useState<string>('');
   const [description, setDescription] = useState<string>('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const hoursNum = parseFloat(hours);
     if (hoursNum > 0) {
       setLoading(true);
+      setError(null);
       try {
-        // Call module-level hours logging endpoint
-        const response = await fetch(`/api/v1/courses/${courseId}/log-hours`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('google_id_token')}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            hours: hoursNum,
-            description: description || undefined,
-            studyDate: new Date().toISOString().split('T')[0],
-          }),
+        await DataService.logCourseStudyHours(courseId, {
+          hours: hoursNum,
+          description: description || undefined,
+          studyDate: new Date().toISOString().split('T')[0],
         });
-
-        if (response.ok) {
-          onSuccess();
-        } else {
-          throw new Error('Failed to log hours');
-        }
+        onSuccess();
       } catch (error) {
         console.error('Failed to log hours:', error);
+        setError('Failed to log study hours. Please try again.');
       } finally {
         setLoading(false);
       }
@@ -308,6 +331,12 @@ function QuickLogDialog({
         <h3 className="text-lg font-semibold text-slate-900 mb-4">Quick Log Study Hours</h3>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="rounded-lg bg-red-50 border border-red-200 text-red-800 px-3 py-2">
+              <p className="text-sm">{error}</p>
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Hours Studied</label>
             <input

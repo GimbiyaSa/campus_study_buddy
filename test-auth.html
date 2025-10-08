@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Testing - Get Google Token</title>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .token-display {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .copy-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        .copy-btn:hover {
+            background: #0056b3;
+        }
+        .test-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: #e9ecef;
+            border-radius: 5px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Campus Study Buddy - API Testing Token Generator</h1>
+        <p>Use this page to get a Google ID token for testing API endpoints.</p>
+        
+        <div id="buttonDiv"></div>
+        
+        <div id="tokenSection" style="display: none;">
+            <h3>📋 Your Google ID Token:</h3>
+            <div id="tokenDisplay" class="token-display"></div>
+            <button class="copy-btn" onclick="copyToken()">📋 Copy Token</button>
+            <button class="copy-btn" onclick="copyAuthHeader()">📋 Copy Full Auth Header</button>
+        </div>
+
+        <div class="test-section">
+            <h3>🧪 Test API Endpoints</h3>
+            <p>Once you have your token, you can test these endpoints:</p>
+            
+            <div style="margin: 20px 0;">
+                <button class="copy-btn" onclick="testHealthEndpoint()">🔍 Test Health Endpoint (No Auth)</button>
+                <button class="copy-btn" onclick="testUserMeEndpoint()" id="testUserBtn" disabled>🔍 Test /users/me (Needs Auth)</button>
+            </div>
+            
+            <div id="testResults"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📖 How to Use</h3>
+            <ol>
+                <li><strong>Click "Sign in with Google"</strong> above</li>
+                <li><strong>Copy the token</strong> using the "Copy Token" button</li>
+                <li><strong>Use in your API client:</strong>
+                    <pre style="background: #f8f9fa; padding: 10px; border-radius: 5px;">Authorization: Bearer YOUR_TOKEN_HERE</pre>
+                </li>
+            </ol>
+            
+            <h4>🛠️ Testing Tools:</h4>
+            <ul>
+                <li><strong>Postman:</strong> Add Authorization header with Bearer token</li>
+                <li><strong>curl:</strong> <code>curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:5000/api/v1/users/me</code></li>
+                <li><strong>JavaScript:</strong> Use fetch with headers as shown in examples below</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        let currentToken = null;
+        const API_BASE = 'http://localhost:5000/api/v1';
+
+        // Initialize Google Sign-In
+        window.onload = function () {
+            google.accounts.id.initialize({
+                // Replace with your actual Google Client ID
+                client_id: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
+                callback: handleCredentialResponse
+            });
+            
+            google.accounts.id.renderButton(
+                document.getElementById("buttonDiv"),
+                { 
+                    theme: "outline", 
+                    size: "large",
+                    text: "signin_with",
+                    width: 300
+                }
+            );
+        }
+
+        function handleCredentialResponse(response) {
+            currentToken = response.credential;
+            
+            // Display token
+            document.getElementById('tokenDisplay').textContent = currentToken;
+            document.getElementById('tokenSection').style.display = 'block';
+            document.getElementById('testUserBtn').disabled = false;
+            
+            // Decode and show token info (optional)
+            try {
+                const payload = JSON.parse(atob(currentToken.split('.')[1]));
+                console.log('Token payload:', payload);
+                
+                // Show user info
+                const userInfo = `
+                    <div style="margin-top: 10px; padding: 10px; background: #e3f2fd; border-radius: 5px;">
+                        <strong>Signed in as:</strong> ${payload.name} (${payload.email})
+                    </div>
+                `;
+                document.getElementById('tokenSection').innerHTML += userInfo;
+            } catch (e) {
+                console.error('Error decoding token:', e);
+            }
+        }
+
+        function copyToken() {
+            navigator.clipboard.writeText(currentToken).then(() => {
+                alert('✅ Token copied to clipboard!');
+            });
+        }
+
+        function copyAuthHeader() {
+            const authHeader = `Authorization: Bearer ${currentToken}`;
+            navigator.clipboard.writeText(authHeader).then(() => {
+                alert('✅ Authorization header copied to clipboard!');
+            });
+        }
+
+        async function testHealthEndpoint() {
+            showTestResult('Testing health endpoint...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showTestResult(`✅ Health endpoint working: ${data.status}`, 'success');
+                } else {
+                    showTestResult(`❌ Health endpoint failed: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                showTestResult(`❌ Health endpoint error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testUserMeEndpoint() {
+            if (!currentToken) {
+                showTestResult('❌ Please sign in first!', 'error');
+                return;
+            }
+
+            showTestResult('Testing /users/me endpoint...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE}/users/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showTestResult(`✅ /users/me working! User: ${data.first_name} ${data.last_name}`, 'success');
+                } else {
+                    showTestResult(`❌ /users/me failed: ${JSON.stringify(data)}`, 'error');
+                }
+            } catch (error) {
+                showTestResult(`❌ /users/me error: ${error.message}`, 'error');
+            }
+        }
+
+        function showTestResult(message, type) {
+            const resultsDiv = document.getElementById('testResults');
+            const statusClass = type === 'success' ? 'success' : type === 'error' ? 'error' : '';
+            resultsDiv.innerHTML = `<div class="status ${statusClass}">${message}</div>`;
+        }
+    </script>
+</body>
+</html>

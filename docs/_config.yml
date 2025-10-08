@@ -48,6 +48,8 @@ navigation:
     url: /backend/api/
   - title: "Frontend"
     url: /frontend/
+  - title: "API Testing"
+    url: /testing/
   - title: "Architecture"
     url: /architecture/
   - title: "Swagger API"

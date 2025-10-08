@@ -30,6 +30,7 @@ exclude:
 include:
   - _pages
   - docs/
+  - testing/
 
 # Collections
 collections:

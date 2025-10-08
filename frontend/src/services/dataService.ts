@@ -221,138 +221,6 @@ export type NotificationCounts = {
    FALLBACKS (keep incoming + compatible with your UI)
 ============================================================================ */
 
-export const FALLBACK_SESSIONS: StudySession[] = [
-  {
-    id: '1',
-    title: 'Algorithms Study Group',
-    course: 'Data Structures & Algorithms',
-    courseCode: 'CS301',
-    date: '2025-09-18',
-    startTime: '14:00',
-    endTime: '16:00',
-    location: 'Library Room 204',
-    type: 'study',
-    participants: 4,
-    maxParticipants: 6,
-    status: 'upcoming',
-    isCreator: true,
-    groupId: 1,
-    isAttending: true,
-  },
-  {
-    id: '2',
-    title: 'Database Design Workshop',
-    course: 'Database Systems',
-    courseCode: 'CS305',
-    date: '2025-09-19',
-    startTime: '10:00',
-    endTime: '12:00',
-    location: 'Computer Lab B',
-    type: 'project',
-    participants: 6,
-    maxParticipants: 8,
-    status: 'upcoming',
-    isCreator: false,
-    groupId: 2,
-    isAttending: false,
-  },
-  {
-    id: '3',
-    title: 'Linear Algebra Review',
-    course: 'Linear Algebra',
-    courseCode: 'MATH204',
-    date: '2025-09-20',
-    startTime: '15:00',
-    endTime: '17:00',
-    location: 'Study Hall A',
-    type: 'review',
-    participants: 3,
-    maxParticipants: 5,
-    status: 'upcoming',
-    isCreator: true,
-    groupId: 3,
-    isAttending: true,
-  },
-  {
-    id: '4',
-    title: 'ML Fundamentals Discussion',
-    course: 'Machine Learning Basics',
-    date: '2025-09-15',
-    startTime: '16:00',
-    endTime: '18:00',
-    location: 'Study Hall A',
-    type: 'discussion',
-    participants: 3,
-    status: 'completed',
-    isCreator: true,
-    groupId: 5,
-    isAttending: true,
-  },
-];
-
-export const FALLBACK_GROUPS: StudyGroup[] = [
-  {
-    id: '1',
-    name: 'CS Advanced Study Circle',
-    description:
-      'For students tackling advanced computer science topics like algorithms, data structures, and system design.',
-    course: 'Data Structures & Algorithms',
-    courseCode: 'CS301',
-    members: 12,
-    member_count: 12,
-    maxMembers: 15,
-    isPublic: true,
-    tags: ['algorithms', 'data-structures', 'competitive-programming'],
-    createdBy: 'Alex Johnson',
-    createdAt: '2025-08-15',
-  },
-  {
-    id: '2',
-    name: 'Database Design Masters',
-    description:
-      'Learn database design patterns, SQL optimization, and modern database technologies.',
-    course: 'Database Systems',
-    courseCode: 'CS305',
-    members: 8,
-    member_count: 8,
-    maxMembers: 12,
-    isPublic: true,
-    tags: ['sql', 'database-design', 'optimization'],
-    createdBy: 'Sarah Chen',
-    createdAt: '2025-08-20',
-  },
-  {
-    id: '3',
-    name: 'Math Study Warriors',
-    description:
-      'Collaborative problem-solving for linear algebra, calculus, and discrete mathematics.',
-    course: 'Linear Algebra',
-    courseCode: 'MATH204',
-    members: 6,
-    member_count: 6,
-    maxMembers: 10,
-    isPublic: true,
-    tags: ['linear-algebra', 'calculus', 'proofs'],
-    createdBy: 'Maria Rodriguez',
-    createdAt: '2025-08-25',
-  },
-  {
-    id: '4',
-    name: 'Software Engineering Pros',
-    description:
-      'Best practices, design patterns, and agile methodologies for software development.',
-    course: 'Software Engineering',
-    courseCode: 'CS403',
-    members: 15,
-    member_count: 15,
-    maxMembers: 20,
-    isPublic: true,
-    tags: ['design-patterns', 'agile', 'testing'],
-    createdBy: 'David Kim',
-    createdAt: '2025-09-01',
-  },
-];
-
 export const FALLBACK_PARTNERS: StudyPartner[] = [
   {
     id: '1',
@@ -837,17 +705,20 @@ export class DataService {
   static async fetchSessions(opts?: {
     status?: 'upcoming' | 'ongoing' | 'completed' | 'cancelled';
     groupId?: string | number;
-    startDate?: string; // ISO or 'YYYY-MM-DD'
-    endDate?: string; // ISO or 'YYYY-MM-DD'
+    startDate?: string;
+    endDate?: string;
     limit?: number;
     offset?: number;
   }): Promise<StudySession[]> {
     try {
       if (!opts) {
-        // preserve incoming simple fetch behaviour
+        // preserve simple fetch behaviour, but no hardcoded fallback
         const res = await this.fetchWithRetry(buildApiUrl('/api/v1/sessions'));
+        if (!res.ok) return [];
         const data = await res.json();
-        return (data as any[]).map((s) => this.normalizeSession({ ...s, id: String(s.id) }));
+        return (Array.isArray(data) ? data : []).map((s) =>
+          this.normalizeSession({ ...s, id: String((s as any).id ?? (s as any).session_id) })
+        );
       }
 
       const p = new URLSearchParams();
@@ -860,12 +731,12 @@ export class DataService {
 
       const qs = p.toString();
       const res = await this.request(`/api/v1/sessions${qs ? `?${qs}` : ''}`, { method: 'GET' });
-      if (!res.ok) return FALLBACK_SESSIONS;
+      if (!res.ok) return [];
       const data = await this.safeJson<any[]>(res, []);
-      return data.map((row) => this.normalizeSession(row));
+      return (Array.isArray(data) ? data : []).map((row) => this.normalizeSession(row));
     } catch (error) {
       console.error('❌ fetchSessions error:', error);
-      return FALLBACK_SESSIONS;
+      return [];
     }
   }
 
@@ -1165,33 +1036,12 @@ export class DataService {
     try {
       const meId = await this.getMeIdCached();
       const res = await this.request('/api/v1/groups', { method: 'GET' });
-      if (res.ok) {
-        const data = await this.safeJson<any[]>(res, []);
-        return (data || []).map((g) => this.annotateOwnership(g, meId));
-      }
-    } catch {}
-    // map fallback to api-ish shape
-    return FALLBACK_GROUPS.map((g) => ({
-      id: g.id,
-      name: g.name,
-      description: g.description,
-      course: g.course,
-      courseCode: g.courseCode,
-      maxMembers: g.maxMembers ?? 10,
-      isPublic: g.isPublic,
-      createdBy: g.createdBy,
-      createdAt: g.createdAt,
-      lastActivity: g.lastActivity ?? g.createdAt,
-      group_type: g.group_type ?? 'study',
-      members: g.members ?? g.member_count,
-      member_count: g.member_count ?? g.members,
-      membersList: Array.from({ length: g.member_count ?? g.members ?? 0 }, (_, i) => ({
-        userId: String(i + 1),
-      })),
-      isOwner: false,
-      createdById: undefined,
-      createdByName: g.createdBy,
-    }));
+      if (!res.ok) return [];
+      const data = await this.safeJson<any[]>(res, []);
+      return (data || []).map((g) => this.annotateOwnership(g, meId));
+    } catch {
+      return [];
+    }
   }
 
   static async createGroup(payload: {
@@ -1394,19 +1244,24 @@ export class DataService {
 
   static async getGroupMembers(
     groupId: string
-  ): Promise<Array<{ userId: string; name?: string; role?: string }> | []> {
+  ): Promise<Array<{ userId: string; name: string; role?: string }>> {
     try {
       const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}/members`, {
         method: 'GET',
       });
       if (!res.ok) return [];
       const raw = await this.safeJson<any>(res, []);
-      // normalize to { userId, name?, role? }
       const rows = Array.isArray(raw?.members) ? raw.members : Array.isArray(raw) ? raw : [];
-      return rows.map((m: any) => ({
-        userId: String(m?.userId ?? m?.id ?? m?.user_id ?? ''),
-        name: m?.name ?? m?.display_name ?? m?.full_name,
-        role: m?.role ?? m?.member_role,
+      return rows.map((m: any, i: number) => ({
+        userId: String(m?.userId ?? m?.id ?? m?.user_id ?? i),
+        name:
+          m?.name ??
+          m?.display_name ??
+          m?.full_name ??
+          m?.username ??
+          m?.email ??
+          String(m?.userId ?? m?.id ?? `User ${i + 1}`),
+        role: m?.role ?? m?.member_role ?? undefined,
       }));
     } catch {
       return [];

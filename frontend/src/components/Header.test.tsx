@@ -128,4 +128,6 @@ describe('Header (basic, smoke tests)', () => {
     // Again, only assert that DOM exists; no assumptions about content/structure
     expect(container.firstElementChild).toBeTruthy();
   });
+
+  
 });

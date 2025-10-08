@@ -3,8 +3,8 @@ import { test, vi } from 'vitest';
 // Reset module registry and mock App to render a detectable element
 vi.resetModules();
 // ensure our mock is applied before the module under test is imported
-vi.doMock('react-dom/client', () => ({
-  default: {
+vi.doMock('react-dom/client', () => {
+  const stub = {
     createRoot: (_el: Element) => ({
       render: (_v: any) => {
         const m = document.createElement('div');
@@ -12,8 +12,14 @@ vi.doMock('react-dom/client', () => ({
         document.body.appendChild(m);
       },
     }),
-  },
-}));
+  };
+
+  return {
+    __esModule: true,   // important for ESM default interop
+    ...stub,            // named export createRoot
+    default: stub,      // default export with .createRoot
+  };
+});
 
 import { screen } from '@testing-library/react';
 

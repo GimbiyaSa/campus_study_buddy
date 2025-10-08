@@ -49,7 +49,9 @@ beforeAll(() => {
     observe() {}
     unobserve() {}
     disconnect() {}
-    takeRecords() { return []; }
+    takeRecords() {
+      return [];
+    }
     root = null;
     rootMargin = '';
     thresholds = [];
@@ -57,9 +59,10 @@ beforeAll(() => {
   global.IntersectionObserver = IO;
 
   // requestAnimationFrame (some transitions/tools rely on it)
-  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback) =>
-    // use setTimeout so we can flush via fake timers
-    setTimeout(() => cb(performance.now()), 0) as unknown as number
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation(
+    (cb: FrameRequestCallback) =>
+      // use setTimeout so we can flush via fake timers
+      setTimeout(() => cb(performance.now()), 0) as unknown as number
   );
   vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id: number) =>
     clearTimeout(id as unknown as number)

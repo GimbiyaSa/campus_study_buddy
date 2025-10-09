@@ -60,8 +60,15 @@ export default function Sidebar() {
     },
     {
       id: '7',
-      label: 'Profile',
+      label: 'Chat',
       icon: MessageSquare,
+      path: '/chat',
+      active: currentRoute === 'chat',
+    },
+    {
+      id: '8',
+      label: 'Profile',
+      icon: Users,
       path: '/profile',
       active: currentRoute === 'profile',
     },

@@ -96,6 +96,30 @@ export default function UpcomingSessions() {
     };
   }, []);
 
+  useEffect(() => {
+    const onUpdated = (e: Event) => {
+      const updated = (e as CustomEvent<SessionWithOwner>).detail;
+      if (!updated || !updated.id) return;
+      setSessions((prev) =>
+        filterUpcomingNext7Days(prev.map((s) => (s.id === updated.id ? { ...s, ...updated } : s)))
+      );
+    };
+
+    const onDeleted = (e: Event) => {
+      const { id } = (e as CustomEvent<{ id: string }>).detail || {};
+      if (!id) return;
+      setSessions((prev) => prev.filter((s) => s.id !== id));
+    };
+
+    window.addEventListener('session:updated', onUpdated as EventListener);
+    window.addEventListener('session:deleted', onDeleted as EventListener);
+
+    return () => {
+      window.removeEventListener('session:updated', onUpdated as EventListener);
+      window.removeEventListener('session:deleted', onDeleted as EventListener);
+    };
+  }, []);
+
   // --- Attend / Leave (optimistic, mirrors Sessions.tsx) ---
   const handleAttend = async (sessionId: string) => {
     setSessions((prev) =>

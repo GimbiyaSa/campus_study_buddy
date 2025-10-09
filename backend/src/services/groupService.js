@@ -27,7 +27,6 @@ const schema = {
     session_attendees: 'session_attendees',
   },
   groupsCols: {
-    // dynamic picks (actual column names or null)
     nameCol: null, // one of: name | group_name | title
     descriptionCol: null, // one of: description | details | group_description | desc
     created_at: true, // assumed
@@ -38,11 +37,12 @@ const schema = {
     course_code: false,
     creator_id: false,
     creator_id_required: false,
-    module_id: false, // NEW
-    module_id_required: false, // NEW
+    module_id: false,
+    module_id_required: false,
   },
   membersCols: {
     role: false,
+    role_required: false, // NEW: detect NOT NULL
     joined_at: false,
     created_at: false,
     idCol: null, // one of: member_id | id | group_member_id
@@ -119,13 +119,11 @@ async function firstExistingColumn(table, candidates) {
 }
 
 async function detectSchema() {
-  // pick groups table
   if (await hasTable('groups')) schema.tables.groups = 'groups';
   else if (await hasTable('study_groups')) schema.tables.groups = 'study_groups';
 
   const g = schema.tables.groups;
 
-  // groups: pick name/description columns
   schema.groupsCols.nameCol = await firstExistingColumn(g, ['name', 'group_name', 'title']);
   schema.groupsCols.descriptionCol = await firstExistingColumn(g, [
     'description',
@@ -142,13 +140,16 @@ async function detectSchema() {
   schema.groupsCols.creator_id_required = schema.groupsCols.creator_id
     ? await columnIsNotNullable(g, 'creator_id')
     : false;
-  schema.groupsCols.module_id = await hasColumn(g, 'module_id'); // NEW
-  schema.groupsCols.module_id_required = schema.groupsCols.module_id // NEW
+  schema.groupsCols.module_id = await hasColumn(g, 'module_id');
+  schema.groupsCols.module_id_required = schema.groupsCols.module_id
     ? await columnIsNotNullable(g, 'module_id')
     : false;
 
   // group_members
   schema.membersCols.role = await hasColumn('group_members', 'role');
+  schema.membersCols.role_required = schema.membersCols.role
+    ? await columnIsNotNullable('group_members', 'role')
+    : false;
   schema.membersCols.joined_at = await hasColumn('group_members', 'joined_at');
   schema.membersCols.created_at = await hasColumn('group_members', 'created_at');
   schema.membersCols.idCol = await firstExistingColumn('group_members', [
@@ -179,18 +180,300 @@ function groupsOrderBy(alias = 'g') {
   return `ORDER BY ${alias}.created_at DESC`;
 }
 
+// helper: build a consistent SELECT projection for group rows (id, name, description, etc.)
+function buildGroupSelectPieces(gc, alias = 'g') {
+  return [
+    `${alias}.group_id AS id`,
+    gc.nameCol ? `${alias}.${gc.nameCol} AS name` : `NULL AS name`,
+    gc.descriptionCol ? `${alias}.${gc.descriptionCol} AS description` : `NULL AS description`,
+    gc.course ? `${alias}.course` : 'NULL AS course',
+    gc.course_code ? `${alias}.course_code AS courseCode` : 'NULL AS courseCode',
+    gc.max_members ? `${alias}.max_members AS maxMembers` : 'NULL AS maxMembers',
+    gc.is_public ? `${alias}.is_public AS isPublic` : 'CAST(1 AS bit) AS isPublic',
+    `${alias}.created_at AS createdAt`,
+    gc.last_activity
+      ? `${alias}.last_activity AS lastActivity`
+      : `${alias}.created_at AS lastActivity`,
+    gc.creator_id ? `${alias}.creator_id AS createdBy` : 'NULL AS createdBy',
+    `(SELECT COUNT(*) FROM dbo.group_members gm WHERE gm.group_id = ${alias}.group_id) AS memberCount`,
+  ];
+}
+
+// helper: permission check for editing a group (owner or elevated member)
+async function canEditGroup(groupId, userId) {
+  const g = schema.tables.groups;
+  const q = await pool
+    .request()
+    .input('groupId', sql.Int, groupId)
+    .input('userId', sql.NVarChar(255), userId).query(`
+      SELECT TOP 1 1 AS ok
+      FROM dbo.${g} gx
+      WHERE gx.group_id=@groupId ${
+        schema.groupsCols.creator_id ? 'AND gx.creator_id=@userId' : 'AND 1=0'
+      }
+      UNION ALL
+      SELECT TOP 1 1
+      FROM dbo.group_members gm
+      WHERE gm.group_id=@groupId
+        ${schema.membersCols.role ? "AND gm.role IN ('owner','admin','moderator')" : ''}
+        AND gm.user_id=@userId
+    `);
+  return !!q.recordset.length;
+}
+
 // Utility: pick a fallback module_id from existing rows if needed
 async function pickFallbackModuleId() {
   const g = schema.tables.groups;
   if (!schema.groupsCols.module_id) return null;
-  const r = await pool.request().query(`
+
+  const r1 = await pool.request().query(`
     SELECT TOP 1 module_id AS mid
     FROM dbo.${g}
     WHERE module_id IS NOT NULL
     ORDER BY group_id ASC
   `);
-  return r.recordset.length ? r.recordset[0].mid : null;
+  if (r1.recordset.length) return r1.recordset[0].mid;
+
+  if (await hasTable('modules')) {
+    const r2 = await pool.request().query(`
+      SELECT TOP 1 module_id AS mid
+      FROM dbo.modules
+      ORDER BY module_id ASC
+    `);
+    if (r2.recordset.length) return r2.recordset[0].mid;
+  }
+
+  return null;
 }
+
+/* --------------------------- modules helper bits --------------------------- */
+async function modulesHasCol(col) {
+  return hasColumn('modules', col);
+}
+async function modulesColRequired(col) {
+  return columnIsNotNullable('modules', col);
+}
+
+/* Create/ensure a default module and return its id (runs inside the caller tx) */
+async function ensureDefaultModuleId(tx) {
+  if (process.env.DEFAULT_MODULE_ID) {
+    const r = new sql.Request(tx);
+    r.input('mid', sql.Int, Number(process.env.DEFAULT_MODULE_ID));
+    const ok = await r.query(`SELECT module_id FROM dbo.modules WHERE module_id=@mid`);
+    if (ok.recordset.length) return Number(ok.recordset[0].module_id);
+  }
+
+  const defCode = process.env.DEFAULT_MODULE_CODE || 'GEN-DEFAULT';
+  const defName = process.env.DEFAULT_MODULE_NAME || 'General';
+  const defUniEnv = process.env.DEFAULT_MODULE_UNIVERSITY || null;
+
+  {
+    const r = new sql.Request(tx);
+    r.input('code', sql.NVarChar(50), defCode);
+    r.input('name', sql.NVarChar(255), defName);
+    const hit = await r.query(`
+      SELECT TOP 1 module_id AS id
+      FROM dbo.modules
+      WHERE LOWER(module_code)=LOWER(@code) OR LOWER(module_name)=LOWER(@name)
+      ORDER BY module_id ASC
+    `);
+    if (hit.recordset.length) return Number(hit.recordset[0].id);
+  }
+
+  const hasUni = await modulesHasCol('university');
+  const uniRequired = hasUni ? await modulesColRequired('university') : false;
+
+  let uniToUse = defUniEnv;
+  if (uniRequired && !uniToUse) {
+    const uq = await new sql.Request(tx).query(`
+      SELECT TOP 1 university AS uni
+      FROM dbo.modules
+      WHERE university IS NOT NULL
+      ORDER BY module_id ASC
+    `);
+    uniToUse = uq.recordset[0]?.uni || 'General';
+  }
+
+  const hasIsActive = await modulesHasCol('is_active');
+  const hasCreatedAt = await modulesHasCol('created_at');
+  const hasUpdatedAt = await modulesHasCol('updated_at');
+
+  const r = new sql.Request(tx);
+  r.input('code', sql.NVarChar(50), defCode);
+  r.input('name', sql.NVarChar(255), defName);
+  r.input('desc', sql.NVarChar(sql.MAX), 'Default module');
+  if (hasUni && uniToUse) r.input('uni', sql.NVarChar(255), uniToUse);
+
+  const cols = ['module_code', 'module_name', 'description'];
+  const vals = ['@code', '@name', '@desc'];
+  if (hasUni && uniToUse) {
+    cols.push('university');
+    vals.push('@uni');
+  }
+  if (hasIsActive) {
+    cols.push('is_active');
+    vals.push('1');
+  }
+  if (hasCreatedAt) {
+    cols.push('created_at');
+    vals.push('SYSUTCDATETIME()');
+  }
+  if (hasUpdatedAt) {
+    cols.push('updated_at');
+    vals.push('SYSUTCDATETIME()');
+  }
+
+  const ins = await r.query(`
+    INSERT INTO dbo.modules (${cols.join(', ')})
+    OUTPUT inserted.module_id AS id
+    VALUES (${vals.join(', ')})
+  `);
+  return ins.recordset[0]?.id ? Number(ins.recordset[0].id) : null;
+}
+
+/* Resolve / create a modules.module_id for group creation */
+async function resolveModuleIdForGroupCreate({
+  tx,
+  moduleId,
+  module_id,
+  course,
+  courseCode,
+  university,
+}) {
+  const explicit = module_id ?? moduleId;
+
+  if (explicit != null) {
+    const r = new sql.Request(tx);
+    r.input('mid', sql.Int, Number(explicit));
+    const found = await r.query(
+      `SELECT module_id FROM dbo.modules WHERE module_id=@mid AND (is_active = 1 OR is_active IS NULL)`
+    );
+    return found.recordset.length ? Number(found.recordset[0].module_id) : null;
+  }
+
+  const code = courseCode ? String(courseCode).trim() : '';
+  const name = course ? String(course).trim() : '';
+  if (!code && !name) return null;
+
+  {
+    const r = new sql.Request(tx);
+    if (code) r.input('code', sql.NVarChar(50), code);
+    if (name) r.input('name', sql.NVarChar(255), name);
+    if (university) r.input('uni', sql.NVarChar(255), university);
+
+    const whereParts = [`(m.is_active = 1 OR m.is_active IS NULL)`];
+    if (code) whereParts.push(`LOWER(m.module_code) = LOWER(@code)`);
+    if (name) whereParts.push(`LOWER(m.module_name) = LOWER(@name)`);
+    if (university) whereParts.push(`m.university = @uni`);
+
+    const q = `
+      SELECT TOP 1 m.module_id AS id
+      FROM dbo.modules m
+      WHERE ${whereParts.join(' AND ')}
+      ORDER BY m.module_code ASC
+    `;
+    const hit = await r.query(q);
+    if (hit.recordset.length) return Number(hit.recordset[0].id);
+  }
+
+  const hasUni = await modulesHasCol('university');
+  const uniRequired = hasUni ? await modulesColRequired('university') : false;
+  let uniToUse = university || null;
+
+  if (uniRequired && !uniToUse) {
+    const uniQ = await new sql.Request(tx).query(`
+      SELECT TOP 1 university AS uni
+      FROM dbo.modules
+      WHERE university IS NOT NULL
+      ORDER BY module_id ASC
+    `);
+    uniToUse = uniQ.recordset[0]?.uni || 'General';
+  }
+
+  const hasIsActive = await modulesHasCol('is_active');
+  const hasCreatedAt = await modulesHasCol('created_at');
+  const hasUpdatedAt = await modulesHasCol('updated_at');
+
+  const r = new sql.Request(tx);
+  if (code) r.input('code', sql.NVarChar(50), code);
+  if (name) r.input('name', sql.NVarChar(255), name);
+  if (hasUni && uniToUse) r.input('uni', sql.NVarChar(255), uniToUse);
+  r.input('desc', sql.NVarChar(sql.MAX), null);
+
+  const cols = [];
+  const vals = [];
+
+  if (code) {
+    cols.push('module_code');
+    vals.push('@code');
+  }
+  if (name) {
+    cols.push('module_name');
+    vals.push('@name');
+  }
+  cols.push('description');
+  vals.push('@desc');
+  if (hasUni && uniToUse) {
+    cols.push('university');
+    vals.push('@uni');
+  }
+  if (hasIsActive) {
+    cols.push('is_active');
+    vals.push('1');
+  }
+  if (hasCreatedAt) {
+    cols.push('created_at');
+    vals.push('SYSUTCDATETIME()');
+  }
+  if (hasUpdatedAt) {
+    cols.push('updated_at');
+    vals.push('SYSUTCDATETIME()');
+  }
+
+  const nonTrivial = cols.some((c) => c === 'module_code' || c === 'module_name');
+  if (!nonTrivial) return null;
+
+  const ins = await r.query(`
+    INSERT INTO dbo.modules (${cols.join(', ')})
+    OUTPUT inserted.module_id AS id
+    VALUES (${vals.join(', ')})
+  `);
+  return ins.recordset[0]?.id ? Number(ins.recordset[0].id) : null;
+}
+
+/* -------------------------- role helper (NEW) -------------------------- */
+async function detectAllowedMemberRoles() {
+  if (!schema.membersCols.role) return [];
+  const q = `
+    SELECT cc.definition AS defn
+    FROM sys.check_constraints cc
+    JOIN sys.objects o ON o.object_id = cc.parent_object_id
+    WHERE o.name = 'group_members'
+  `;
+  const { recordset } = await pool.request().query(q);
+  const defs = (recordset || []).map((r) => String(r.defn || ''));
+
+  const roles = new Set();
+  for (const d of defs) {
+    const m = d.match(/role[^\)]*IN\s*\(([^)]+)\)/i);
+    if (m && m[1]) {
+      m[1]
+        .split(',')
+        .map((s) => s.replace(/['"\s]/g, ''))
+        .filter(Boolean)
+        .forEach((x) => roles.add(x.toLowerCase()));
+    }
+  }
+  return Array.from(roles);
+}
+
+function pickCreatorRole(allowed = []) {
+  const pref = ['owner', 'admin', 'leader', 'moderator', 'creator', 'organizer', 'member'];
+  for (const p of pref) if (allowed.includes(p)) return p;
+  return allowed[0] || null;
+}
+
+/* --------------------------------- Routes --------------------------------- */
 
 // ---------- GET /groups ----------
 router.get('/', authenticateToken, async (req, res) => {
@@ -283,6 +566,7 @@ router.get('/my-groups', authenticateToken, async (req, res) => {
       gc.is_public ? 'g.is_public AS isPublic' : 'CAST(1 AS bit) AS isPublic',
       'g.created_at AS createdAt',
       gc.last_activity ? 'g.last_activity AS lastActivity' : 'g.created_at AS lastActivity',
+      gc.creator_id ? 'g.creator_id AS createdBy' : 'NULL AS createdBy',
     ];
 
     const q = `
@@ -305,6 +589,7 @@ router.get('/my-groups', authenticateToken, async (req, res) => {
         courseCode: x.courseCode ?? null,
         maxMembers: x.maxMembers ?? null,
         isPublic: !!x.isPublic,
+        createdBy: x.createdBy ?? null,
         createdAt: x.createdAt,
         lastActivity: x.lastActivity,
       }))
@@ -312,6 +597,64 @@ router.get('/my-groups', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('GET /groups/my-groups error:', err);
     res.status(500).json({ error: 'Failed to fetch user groups' });
+  }
+});
+
+// ---------- GET /groups/:groupId/members ----------
+router.get('/:groupId/members', authenticateToken, async (req, res) => {
+  await getPool();
+  const groupId = Number(req.params.groupId);
+  if (Number.isNaN(groupId)) return res.status(400).json({ error: 'Invalid group id' });
+
+  const q = await pool.request().input('groupId', sql.Int, groupId).query(`
+      SELECT 
+        gm.user_id AS userId,
+        ${schema.membersCols.role ? 'gm.role' : 'NULL'} AS role,
+        COALESCE(u.first_name + ' ' + u.last_name, u.email) AS name
+      FROM dbo.group_members gm
+      LEFT JOIN dbo.users u ON u.user_id = gm.user_id
+      WHERE gm.group_id = @groupId
+      ORDER BY ${memberOrderExpr('gm')}
+    `);
+
+  res.json(q.recordset);
+});
+
+// ---------- (NEW) GET /groups/:groupId ----------
+router.get('/:groupId', authenticateToken, async (req, res) => {
+  try {
+    await getPool();
+    const groupId = Number(req.params.groupId);
+    if (Number.isNaN(groupId)) return res.status(400).json({ error: 'Invalid group id' });
+
+    const g = schema.tables.groups;
+    const gc = schema.groupsCols;
+
+    const { recordset } = await pool.request().input('groupId', sql.Int, groupId).query(`
+        SELECT ${buildGroupSelectPieces(gc, 'g').join(', ')}
+        FROM dbo.${g} g
+        WHERE g.group_id=@groupId
+      `);
+
+    if (!recordset.length) return res.status(404).json({ error: 'Group not found' });
+
+    const x = recordset[0];
+    res.json({
+      id: String(x.id),
+      name: x.name,
+      description: x.description,
+      course: x.course ?? null,
+      courseCode: x.courseCode ?? null,
+      maxMembers: x.maxMembers ?? null,
+      isPublic: !!x.isPublic,
+      createdBy: x.createdBy ?? null,
+      createdAt: x.createdAt,
+      lastActivity: x.lastActivity,
+      member_count: x.memberCount,
+    });
+  } catch (err) {
+    console.error('GET /groups/:groupId error:', err);
+    res.status(500).json({ error: 'Failed to fetch group' });
   }
 });
 
@@ -326,6 +669,7 @@ router.post('/', authenticateToken, async (req, res) => {
     courseCode,
     moduleId,
     module_id,
+    university,
   } = req.body;
 
   if (!name || typeof name !== 'string') {
@@ -348,14 +692,33 @@ router.post('/', authenticateToken, async (req, res) => {
   try {
     await tx.begin();
 
-    let finalModuleId = module_id ?? moduleId ?? null;
-    if (gc.module_id && finalModuleId == null && gc.module_id_required) {
-      finalModuleId = await pickFallbackModuleId();
-      if (finalModuleId == null) {
+    const explicitProvided = module_id != null || moduleId != null;
+    let finalModuleId = null;
+
+    if (gc.module_id) {
+      finalModuleId = await resolveModuleIdForGroupCreate({
+        tx,
+        moduleId,
+        module_id,
+        course,
+        courseCode,
+        university,
+      });
+
+      if (explicitProvided && finalModuleId == null) {
         await tx.rollback();
-        return res
-          .status(400)
-          .json({ error: 'module_id is required by schema and no fallback could be determined' });
+        return res.status(400).json({ error: 'Invalid module_id (module not found)' });
+      }
+
+      if (finalModuleId == null && gc.module_id_required) {
+        finalModuleId = await pickFallbackModuleId();
+        if (finalModuleId == null) finalModuleId = await ensureDefaultModuleId(tx);
+        if (finalModuleId == null) {
+          await tx.rollback();
+          return res.status(400).json({
+            error: 'module_id is required by schema and no fallback could be determined',
+          });
+        }
       }
     }
 
@@ -413,7 +776,6 @@ router.post('/', authenticateToken, async (req, res) => {
 
     const created = ins.recordset[0];
 
-    // add creator as member (prefer role column if present)
     const r2 = new sql.Request(tx);
     r2.input('groupId', sql.Int, created.id);
     r2.input('userId', sql.NVarChar(255), req.user.id);
@@ -427,9 +789,16 @@ router.post('/', authenticateToken, async (req, res) => {
       mmCols.push('created_at');
       mmVals.push('SYSUTCDATETIME()');
     }
+
     if (schema.membersCols.role) {
-      mmCols.push('role');
-      mmVals.push(`'owner'`);
+      const allowed = await detectAllowedMemberRoles();
+      const chosen = pickCreatorRole(allowed);
+      if (schema.membersCols.role_required || chosen) {
+        const roleToUse = chosen || 'member';
+        mmCols.push('role');
+        mmVals.push('@creatorRole');
+        r2.input('creatorRole', sql.NVarChar(50), roleToUse);
+      }
     }
 
     await r2.query(`
@@ -445,7 +814,9 @@ router.post('/', authenticateToken, async (req, res) => {
     res.status(201).json({
       id: String(created.id),
       name,
-      description: gc.descriptionCol ? created[gc.descriptionCol] : description ?? null,
+      description: schema.groupsCols.descriptionCol
+        ? created[schema.groupsCols.descriptionCol]
+        : description ?? null,
       course: gc.course ? created.course : null,
       courseCode: gc.course_code ? created.course_code : null,
       maxMembers: gc.max_members ? created.max_members : null,
@@ -455,11 +826,86 @@ router.post('/', authenticateToken, async (req, res) => {
       lastActivity: gc.last_activity ? created.last_activity : created.created_at,
     });
   } catch (err) {
-    await tx.rollback();
+    try {
+      await tx.rollback();
+    } catch {}
     console.error('POST /groups error:', err);
     res.status(500).json({ error: 'Failed to create group' });
   }
 });
+
+// ---------- (NEW) PATCH/PUT /groups/:groupId ----------
+async function updateGroupHandler(req, res) {
+  try {
+    await getPool();
+    const groupId = Number(req.params.groupId);
+    if (Number.isNaN(groupId)) return res.status(400).json({ error: 'Invalid group id' });
+
+    const allowed = await canEditGroup(groupId, req.user.id);
+    if (!allowed) {
+      return res.status(403).json({ error: 'Only the owner/admin can update this group' });
+    }
+
+    const g = schema.tables.groups;
+    const gc = schema.groupsCols;
+
+    const r = pool.request().input('groupId', sql.Int, groupId);
+
+    const sets = [];
+    const { name, description } = req.body;
+    const maxMembers = req.body.maxMembers ?? req.body.max_members;
+
+    if (gc.nameCol && typeof name === 'string') {
+      r.input('name', sql.NVarChar(255), name.trim());
+      sets.push(`g.${gc.nameCol}=@name`);
+    }
+    if (gc.descriptionCol && (description === null || typeof description === 'string')) {
+      r.input('description', sql.NVarChar(sql.MAX), description ?? null);
+      sets.push(`g.${gc.descriptionCol}=@description`);
+    }
+    if (gc.max_members && Number.isFinite(Number(maxMembers))) {
+      r.input('maxMembers', sql.Int, Number(maxMembers));
+      sets.push(`g.max_members=@maxMembers`);
+    }
+
+    if (!sets.length) return res.status(400).json({ error: 'No updatable fields provided' });
+    if (gc.last_activity) sets.push(`g.last_activity = SYSUTCDATETIME()`);
+
+    const upd = await r.query(`
+      UPDATE g
+      SET ${sets.join(', ')}
+      FROM dbo.${g} AS g
+      WHERE g.group_id=@groupId;
+
+      SELECT ${buildGroupSelectPieces(gc, 'g').join(', ')}
+      FROM dbo.${g} AS g
+      WHERE g.group_id=@groupId;
+    `);
+
+    const row = upd.recordset[0];
+    if (!row) return res.status(404).json({ error: 'Group not found' });
+
+    res.json({
+      id: String(row.id),
+      name: row.name,
+      description: row.description,
+      course: row.course ?? null,
+      courseCode: row.courseCode ?? null,
+      maxMembers: row.maxMembers ?? null,
+      isPublic: !!row.isPublic,
+      createdBy: row.createdBy ?? null,
+      createdAt: row.createdAt,
+      lastActivity: row.lastActivity,
+      member_count: row.memberCount,
+    });
+  } catch (err) {
+    console.error('PATCH/PUT /groups/:groupId error:', err);
+    res.status(500).json({ error: 'Failed to update group' });
+  }
+}
+
+router.patch('/:groupId', authenticateToken, updateGroupHandler);
+router.put('/:groupId', authenticateToken, updateGroupHandler);
 
 // ---------- DELETE /groups/:groupId ----------
 router.delete('/:groupId', authenticateToken, async (req, res) => {
@@ -474,7 +920,6 @@ router.delete('/:groupId', authenticateToken, async (req, res) => {
   try {
     await tx.begin();
 
-    // verify ownership via creator_id if present, else group_members
     const c = new sql.Request(tx);
     c.input('groupId', sql.Int, groupId);
     c.input('userId', sql.NVarChar(255), req.user.id);
@@ -495,7 +940,6 @@ router.delete('/:groupId', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Only the owner can delete this group' });
     }
 
-    // cascade deletes
     const r1 = new sql.Request(tx);
     r1.input('groupId', sql.Int, groupId);
     await r1.query(`
@@ -511,7 +955,9 @@ router.delete('/:groupId', authenticateToken, async (req, res) => {
     await tx.commit();
     res.status(204).end();
   } catch (err) {
-    await tx.rollback();
+    try {
+      await tx.rollback();
+    } catch {}
     console.error('DELETE /groups/:groupId error:', err);
     res.status(500).json({ error: 'Failed to delete group' });
   }
@@ -532,7 +978,6 @@ router.post('/:groupId/join', authenticateToken, async (req, res) => {
     const g = schema.tables.groups;
     const gc = schema.groupsCols;
 
-    // capacity check only if max_members exists
     if (gc.max_members) {
       const cap = await r.query(`
         SELECT g.max_members AS maxMembers,
@@ -549,7 +994,6 @@ router.post('/:groupId/join', authenticateToken, async (req, res) => {
       if (!exists.recordset.length) return res.status(404).json({ error: 'Group not found' });
     }
 
-    // upsert membership
     const mmCols = ['group_id', 'user_id'];
     const mmVals = ['@groupId', '@userId'];
     if (schema.membersCols.joined_at) {
@@ -581,6 +1025,316 @@ router.post('/:groupId/join', authenticateToken, async (req, res) => {
   }
 });
 
+// ---------- POST /groups/:groupId/invite ----------
+// Also supports /:groupId/invitations with { user_ids: [...] }
+router.post('/:groupId/invite', authenticateToken, handleInvite);
+router.post('/:groupId/invitations', authenticateToken, handleInvite);
+
+async function handleInvite(req, res) {
+  try {
+    await getPool();
+
+    const groupId = Number(req.params.groupId);
+    if (Number.isNaN(groupId)) {
+      return res.status(400).json({ error: 'Invalid group id' });
+    }
+
+    // Accept both body shapes
+    const inviteUserIds = Array.isArray(req.body?.inviteUserIds)
+      ? req.body.inviteUserIds
+      : Array.isArray(req.body?.user_ids)
+      ? req.body.user_ids
+      : [];
+
+    if (!inviteUserIds.length) {
+      return res.status(400).json({ error: 'inviteUserIds (or user_ids) is required' });
+    }
+
+    // Ensure group exists
+    const g = schema.tables.groups;
+    const exists = await pool
+      .request()
+      .input('groupId', sql.Int, groupId)
+      .query(`SELECT 1 FROM dbo.${g} WHERE group_id=@groupId`);
+    if (!exists.recordset.length) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    // Must be owner/admin/moderator OR the actual creator (if creator_id exists)
+    const authReq = pool.request();
+    authReq.input('groupId', sql.Int, groupId);
+    authReq.input('userId', sql.NVarChar(255), req.user.id);
+
+    const roleCheck = await authReq.query(`
+    SELECT TOP 1 1 AS ok
+    FROM dbo.group_members gm
+    LEFT JOIN ${tbl('groups')} gg ON gg.group_id = gm.group_id
+    WHERE gm.group_id=@groupId
+      AND gm.user_id=@userId
+      AND (
+        ${schema.membersCols.role ? `gm.role IN ('owner','admin','moderator')` : '1=1'}
+        ${schema.groupsCols.creator_id ? 'OR gg.creator_id = @userId' : ''}
+      )
+  `);
+
+    if (!roleCheck.recordset.length) {
+      return res.status(403).json({ error: 'Only owners/admins can invite members' });
+    }
+
+    // Prefer a dedicated invitations table if present
+    const hasInvTable = await hasTable('group_invitations');
+
+    if (hasInvTable) {
+      // Detect a few common columns
+      const invCols = {
+        status: await hasColumn('group_invitations', 'status'),
+        invited_by: await hasColumn('group_invitations', 'invited_by'),
+        created_at: await hasColumn('group_invitations', 'created_at'),
+      };
+
+      // Insert one row per invitee (ignore duplicates)
+      for (const uid of inviteUserIds) {
+        const r = pool.request();
+        r.input('groupId', sql.Int, groupId);
+        r.input('userId', sql.NVarChar(255), String(uid));
+        r.input('inviter', sql.NVarChar(255), req.user.id);
+
+        const cols = ['group_id', 'user_id'];
+        const vals = ['@groupId', '@userId'];
+
+        if (invCols.status) {
+          cols.push('status');
+          vals.push(`'pending'`);
+        }
+        if (invCols.invited_by) {
+          cols.push('invited_by');
+          vals.push('@inviter');
+        }
+        if (invCols.created_at) {
+          cols.push('created_at');
+          vals.push('SYSUTCDATETIME()');
+        }
+
+        await r.query(`
+          IF NOT EXISTS (
+            SELECT 1 FROM dbo.group_invitations 
+            WHERE group_id=@groupId AND user_id=@userId ${
+              invCols.status ? `AND status='pending'` : ''
+            }
+          )
+          BEGIN
+            INSERT INTO dbo.group_invitations (${cols.join(', ')})
+            VALUES (${vals.join(', ')});
+          END
+        `);
+      }
+
+      return res.status(200).json({ ok: true, invited: inviteUserIds.length });
+    }
+
+    // Fallback: use notifications table if available
+    const hasNotifications = await hasTable('notifications');
+    if (hasNotifications) {
+      const notifCols = {
+        user_id: await hasColumn('notifications', 'user_id'),
+        notification_type: await hasColumn('notifications', 'notification_type'),
+        title: await hasColumn('notifications', 'title'),
+        message: await hasColumn('notifications', 'message'),
+        metadata: await hasColumn('notifications', 'metadata'),
+        is_read: await hasColumn('notifications', 'is_read'),
+        created_at: await hasColumn('notifications', 'created_at'),
+      };
+
+      for (const uid of inviteUserIds) {
+        const r = pool.request();
+        r.input('uid', sql.NVarChar(255), String(uid));
+        r.input('type', sql.NVarChar(100), 'group_invite');
+        r.input('title', sql.NVarChar(255), 'Group invitation');
+        r.input('message', sql.NVarChar(sql.MAX), 'You have been invited to join a study group.');
+        r.input('meta', sql.NVarChar(sql.MAX), JSON.stringify({ group_id: groupId }));
+
+        const cols = [];
+        const vals = [];
+        if (notifCols.user_id) {
+          cols.push('user_id');
+          vals.push('@uid');
+        }
+        if (notifCols.notification_type) {
+          cols.push('notification_type');
+          vals.push('@type');
+        }
+        if (notifCols.title) {
+          cols.push('title');
+          vals.push('@title');
+        }
+        if (notifCols.message) {
+          cols.push('message');
+          vals.push('@message');
+        }
+        if (notifCols.metadata) {
+          cols.push('metadata');
+          vals.push('@meta');
+        }
+        if (notifCols.is_read) {
+          cols.push('is_read');
+          vals.push('0');
+        }
+        if (notifCols.created_at) {
+          cols.push('created_at');
+          vals.push('SYSUTCDATETIME()');
+        }
+
+        if (cols.length >= 2) {
+          await r.query(`
+            INSERT INTO dbo.notifications (${cols.join(', ')})
+            VALUES (${vals.join(', ')});
+          `);
+        } else {
+          console.warn('notifications table exists but lacks expected columns; skipping insert');
+        }
+      }
+
+      return res
+        .status(200)
+        .json({ ok: true, invited: inviteUserIds.length, via: 'notifications' });
+    }
+
+    // Nothing to persist to — acknowledge to avoid client retries
+    console.warn('No group_invitations or notifications table found; invite acknowledged only');
+    return res.status(200).json({ ok: true, invited: inviteUserIds.length, persisted: false });
+  } catch (err) {
+    console.error('POST /groups/:groupId/invite error:', err);
+    return res.status(500).json({ error: 'Failed to invite users to group' });
+  }
+}
+
+// ---------- (Group-scoped) POST /groups/:groupId/sessions ----------
+router.post('/:groupId/sessions', authenticateToken, async (req, res) => {
+  try {
+    await getPool();
+
+    const groupId = Number(req.params.groupId);
+    if (Number.isNaN(groupId)) {
+      return res.status(400).json({ error: 'Invalid group id' });
+    }
+
+    const { title, description, startTime, endTime, location, type } = req.body;
+
+    if (!title || !startTime || !endTime || !location) {
+      return res
+        .status(400)
+        .json({ error: 'title, startTime, endTime, and location are required' });
+    }
+    if (new Date(startTime) >= new Date(endTime)) {
+      return res.status(400).json({ error: 'endTime must be after startTime' });
+    }
+
+    const gq = await pool.request().input('groupId', sql.Int, groupId).query(`
+        SELECT 
+          g.group_id AS id,
+          ${schema.groupsCols.course ? 'g.course' : 'NULL'} AS course,
+          ${schema.groupsCols.course_code ? 'g.course_code' : 'NULL'} AS courseCode,
+          ${schema.groupsCols.max_members ? 'g.max_members' : 'NULL'} AS maxMembers
+        FROM ${tbl('groups')} g
+        WHERE g.group_id = @groupId
+      `);
+
+    if (!gq.recordset.length) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+    const grow = gq.recordset[0];
+
+    const tx = new sql.Transaction(pool);
+    await tx.begin();
+
+    const r = new sql.Request(tx);
+    r.input('groupId', sql.Int, groupId);
+    r.input('organizerId', sql.NVarChar(255), req.user.id);
+    r.input('sessionTitle', sql.NVarChar(255), String(title).trim());
+    r.input('description', sql.NVarChar(sql.MAX), description ?? null);
+    r.input('scheduledStart', sql.DateTime2, new Date(startTime));
+    r.input('scheduledEnd', sql.DateTime2, new Date(endTime));
+    r.input('location', sql.NVarChar(500), String(location).trim());
+    r.input('sessionType', sql.NVarChar(50), (type || 'study').toString());
+
+    const ins = await r.query(`
+      INSERT INTO dbo.study_sessions
+        (group_id, organizer_id, session_title, description, scheduled_start, scheduled_end, location, session_type, status, created_at, updated_at)
+      OUTPUT 
+        inserted.session_id AS id,
+        inserted.group_id   AS groupId,
+        inserted.session_title AS title,
+        CONVERT(VARCHAR(10), inserted.scheduled_start, 23) AS date,
+        LEFT(CONVERT(VARCHAR(8), inserted.scheduled_start, 108), 5) AS startTime,
+        LEFT(CONVERT(VARCHAR(8), inserted.scheduled_end, 108), 5)   AS endTime,
+        inserted.location,
+        inserted.session_type AS [type],
+        inserted.status AS status
+      VALUES (@groupId, @organizerId, @sessionTitle, @description, @scheduledStart, @scheduledEnd, @location, @sessionType, 'scheduled', SYSUTCDATETIME(), SYSUTCDATETIME())
+    `);
+
+    const created = ins.recordset[0];
+
+    const rsvp = new sql.Request(tx);
+    rsvp.input('sessionId', sql.Int, created.id);
+    rsvp.input('userId', sql.NVarChar(255), req.user.id);
+    await rsvp.query(`
+      IF NOT EXISTS (SELECT 1 FROM dbo.session_attendees WHERE session_id=@sessionId AND user_id=@userId)
+      BEGIN
+        INSERT INTO dbo.session_attendees (session_id, user_id, attendance_status, responded_at)
+        VALUES (@sessionId, @userId, 'attending', SYSUTCDATETIME());
+      END
+    `);
+
+    if (schema.groupsCols.last_activity) {
+      await new sql.Request(tx)
+        .input('groupId', sql.Int, groupId)
+        .query(
+          `UPDATE ${tbl('groups')} SET last_activity = SYSUTCDATETIME() WHERE group_id=@groupId`
+        );
+    }
+
+    await tx.commit();
+
+    const flags = await pool
+      .request()
+      .input('groupId', sql.Int, created.groupId)
+      .input('userId', sql.NVarChar(255), req.user.id).query(`
+        SELECT 
+          CASE
+            WHEN EXISTS (
+              SELECT 1 FROM dbo.group_members gm
+              WHERE gm.group_id=@groupId AND gm.user_id=@userId
+              ${schema.membersCols.role ? `AND gm.role IN ('owner','admin','moderator')` : ''}
+            ) THEN 1 ELSE 0
+          END AS isGroupOwner
+      `);
+
+    const isGroupOwner = !!flags.recordset[0]?.isGroupOwner;
+
+    res.status(201).json({
+      ...created,
+      id: String(created.id),
+      status: created.status === 'scheduled' ? 'upcoming' : created.status,
+      participants: 1,
+      maxParticipants: grow.maxMembers ?? null,
+      isCreator: true,
+      isAttending: true,
+      isGroupOwner,
+      course: grow.course ?? null,
+      courseCode: grow.courseCode ?? null,
+    });
+  } catch (err) {
+    try {
+      if (err && err.transaction && err.transaction._aborted !== true) {
+        await err.transaction.rollback();
+      }
+    } catch {}
+    console.error('POST /groups/:groupId/sessions error:', err);
+    res.status(500).json({ error: 'Failed to create session for group' });
+  }
+});
+
 // ---------- POST /groups/:groupId/leave ----------
 router.post('/:groupId/leave', authenticateToken, async (req, res) => {
   const groupId = Number(req.params.groupId);
@@ -593,7 +1347,6 @@ router.post('/:groupId/leave', authenticateToken, async (req, res) => {
     r.input('groupId', sql.Int, groupId);
     r.input('userId', sql.NVarChar(255), req.user.id);
 
-    // prevent owner from leaving if others exist
     const own = await r.query(`
       SELECT
         (SELECT COUNT(*) FROM dbo.group_members gm WHERE gm.group_id = g.group_id) AS memberCount,

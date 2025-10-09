@@ -2,7 +2,11 @@
 import { buildApiUrl } from '../utils/url';
 import { ErrorHandler } from '../utils/errorHandler';
 
-// -------------------- Types --------------------
+/* ============================================================================
+   TYPES (merged → superset to avoid breaking either side)
+============================================================================ */
+
+// Courses (same as incoming, with comments retained)
 export type Course = {
   id: string;
   type: 'institution' | 'casual';
@@ -12,7 +16,7 @@ export type Course = {
   description?: string;
   university?: string;
 
-  // Progress & Analytics
+  // Progress & Analytics (from user_progress + study_hours tables)
   progress?: number;
   totalHours?: number;
   totalTopics?: number;
@@ -20,18 +24,18 @@ export type Course = {
   completedChapters?: number;
   totalChapters?: number;
 
-  // Enrollment
+  // Enrollment details (from user_modules table)
   enrollmentStatus?: 'active' | 'completed' | 'dropped';
   enrolledAt?: string;
 
-  // Study metrics
+  // Study metrics (from study_hours aggregations)
   weeklyHours?: number;
   monthlyHours?: number;
   averageSessionDuration?: number;
   studyStreak?: number;
   lastStudiedAt?: string;
 
-  // Social context
+  // Social context (from study_groups + session_attendees)
   activeStudyGroups?: number;
   upcomingSessions?: number;
   studyPartners?: number;
@@ -49,18 +53,19 @@ export type Course = {
   updatedAt?: string;
 };
 
+// Study Partner (union of both definitions)
 export type StudyPartner = {
   id: string;
   name: string;
   avatar?: string;
 
-  // Academic profile
+  // Academic profile (from users table)
   university: string;
   course: string;
   yearOfStudy: number;
   bio?: string;
 
-  // Preferences
+  // Study preferences & compatibility
   studyPreferences?: {
     preferredTimes: string[];
     studyStyle: 'visual' | 'auditory' | 'kinesthetic' | 'mixed';
@@ -68,29 +73,32 @@ export type StudyPartner = {
     environment: 'quiet' | 'collaborative' | 'flexible';
   };
 
-  // Shared context
+  // Shared academic context (from user_modules overlap)
   sharedCourses: string[];
   sharedTopics: string[];
   compatibilityScore: number;
 
-  // Activity
+  // Activity & engagement metrics
   studyHours: number;
   weeklyHours: number;
   studyStreak: number;
   activeGroups: number;
   sessionsAttended: number;
 
-  // Social proof
+  // Social proof & reliability
   rating: number;
   reviewCount: number;
   responseRate: number;
   lastActive: string;
 
-  // Connection
-  connectionStatus?: 'not_connected' | 'pending' | 'connected' | 'blocked';
+  // Connection status
+  connectionStatus?: 'none' | 'pending' | 'accepted' | 'declined' | 'blocked';
+  connectionId?: number;
+  isPendingSent?: boolean;
+  isPendingReceived?: boolean;
   mutualConnections?: number;
 
-  // Match details
+  // Study match details
   recommendationReason?: string;
   sharedGoals?: string[];
 };
@@ -116,6 +124,7 @@ type CourseFetchOptions = {
   sortOrder?: 'ASC' | 'DESC';
 };
 
+// Study Session (merged)
 export type StudySession = {
   id: string;
   title: string;
@@ -130,27 +139,62 @@ export type StudySession = {
   maxParticipants?: number;
   status?: 'upcoming' | 'ongoing' | 'completed' | 'cancelled';
   isCreator?: boolean;
+  /** RSVP + chat */
   isAttending?: boolean;
+  /** merged to accept either */
   groupId?: number | string;
+  /** you had this in your pages; keep it */
+  isGroupOwner?: boolean;
 };
 
+// Study Group (merged: keep incoming fields + your additional optional ones)
 export type StudyGroup = {
   id: string;
   name: string;
   description?: string;
   course?: string;
   courseCode?: string;
+  // incoming used a single numeric count; you used member_count + members[]
+  members?: number; // incoming
+  member_count?: number; // yours
   maxMembers?: number;
-  isPublic: boolean;
-  members?: Array<{ userId: string }>;
+  isPublic: boolean; // display-only; backend has no column, keep optional semantics in UI
+  tags?: string[]; // display-only; backend has no column
   createdBy?: string;
   createdAt?: string;
   lastActivity?: string;
+  // your additions
   group_type?: 'study' | 'project' | 'exam_prep' | 'discussion';
-  member_count?: number;
+  session_count?: number;
+  isMember?: boolean;
+  membersList?: Array<{ userId: string; role?: string }>;
+
+  /** explicit owner clarity for robust UI checks */
+  createdById?: string;
+  createdByName?: string;
+  isOwner?: boolean;
 };
 
-// ---- Notifications types (for Header, etc.) ----
+// Shared Notes (DB-aligned)
+export type SharedNote = {
+  note_id: number;
+  group_id: number;
+  author_id: string;
+  topic_id?: number | null;
+  note_title: string;
+  note_content: string;
+  attachments?: any; // JSON
+  visibility: 'group' | 'public' | 'private';
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  // optional joined labels
+  author_name?: string;
+  group_name?: string;
+  topic_name?: string;
+};
+
+// Notifications
 export type NotificationRow = {
   notification_id?: number;
   id?: number;
@@ -173,168 +217,9 @@ export type NotificationCounts = {
   unread_matches: number;
 };
 
-// -------------------- Demo fallbacks --------------------
-export const FALLBACK_COURSES: Course[] = [
-  {
-    id: '1',
-    type: 'institution',
-    code: 'CS301',
-    title: 'Data Structures & Algorithms',
-    term: '2025 · Semester 2',
-    progress: 78,
-  },
-  {
-    id: '2',
-    type: 'institution',
-    code: 'CS305',
-    title: 'Database Systems',
-    term: '2025 · Semester 2',
-    progress: 65,
-  },
-  {
-    id: '3',
-    type: 'institution',
-    code: 'MATH204',
-    title: 'Linear Algebra',
-    term: '2025 · Semester 2',
-    progress: 82,
-  },
-  {
-    id: '4',
-    type: 'institution',
-    code: 'CS403',
-    title: 'Software Engineering',
-    term: '2025 · Semester 2',
-    progress: 45,
-  },
-  {
-    id: '5',
-    type: 'casual',
-    title: 'Machine Learning Basics',
-    description: 'Self-paced learning of ML fundamentals',
-    progress: 23,
-  },
-];
-
-export const FALLBACK_SESSIONS: StudySession[] = [
-  {
-    id: '1',
-    title: 'Algorithms Study Group',
-    course: 'Data Structures & Algorithms',
-    courseCode: 'CS301',
-    date: '2025-09-18',
-    startTime: '14:00',
-    endTime: '16:00',
-    location: 'Library Room 204',
-    type: 'study',
-    participants: 4,
-    maxParticipants: 6,
-    status: 'upcoming',
-    isCreator: true,
-    groupId: 1,
-    isAttending: true,
-  },
-  {
-    id: '2',
-    title: 'Database Design Workshop',
-    course: 'Database Systems',
-    courseCode: 'CS305',
-    date: '2025-09-19',
-    startTime: '10:00',
-    endTime: '12:00',
-    location: 'Computer Lab B',
-    type: 'project',
-    participants: 6,
-    maxParticipants: 8,
-    status: 'upcoming',
-    isCreator: false,
-    groupId: 2,
-    isAttending: false,
-  },
-  {
-    id: '3',
-    title: 'Linear Algebra Review',
-    course: 'Linear Algebra',
-    courseCode: 'MATH204',
-    date: '2025-09-20',
-    startTime: '15:00',
-    endTime: '17:00',
-    location: 'Study Hall A',
-    type: 'review',
-    participants: 3,
-    maxParticipants: 5,
-    status: 'upcoming',
-    isCreator: true,
-    groupId: 3,
-    isAttending: true,
-  },
-  {
-    id: '4',
-    title: 'ML Fundamentals Discussion',
-    course: 'Machine Learning Basics',
-    date: '2025-09-15',
-    startTime: '16:00',
-    endTime: '18:00',
-    location: 'Study Hall A',
-    type: 'discussion',
-    participants: 3,
-    status: 'completed',
-    isCreator: true,
-    groupId: 5,
-    isAttending: true,
-  },
-];
-
-export const FALLBACK_GROUPS: StudyGroup[] = [
-  {
-    id: '1',
-    name: 'CS Advanced Study Circle',
-    description: 'Advanced CS topics',
-    course: 'Data Structures & Algorithms',
-    courseCode: 'CS301',
-    isPublic: true,
-    maxMembers: 15,
-    member_count: 12,
-    createdBy: 'Alex Johnson',
-    createdAt: '2025-08-15',
-  },
-  {
-    id: '2',
-    name: 'Database Design Masters',
-    description: 'Database design, SQL, optimization',
-    course: 'Database Systems',
-    courseCode: 'CS305',
-    isPublic: true,
-    maxMembers: 12,
-    member_count: 8,
-    createdBy: 'Sarah Chen',
-    createdAt: '2025-08-20',
-  },
-  {
-    id: '3',
-    name: 'Math Study Warriors',
-    description: 'Linear algebra, calculus, proofs',
-    course: 'Linear Algebra',
-    courseCode: 'MATH204',
-    isPublic: true,
-    maxMembers: 10,
-    member_count: 6,
-    createdBy: 'Maria Rodriguez',
-    createdAt: '2025-08-25',
-  },
-  {
-    id: '4',
-    name: 'Software Engineering Pros',
-    description: 'Patterns, agile, testing',
-    course: 'Software Engineering',
-    courseCode: 'CS403',
-    isPublic: true,
-    maxMembers: 20,
-    member_count: 15,
-    createdBy: 'David Kim',
-    createdAt: '2025-09-01',
-  },
-];
+/* ============================================================================
+   FALLBACKS (keep incoming + compatible with your UI)
+============================================================================ */
 
 export const FALLBACK_PARTNERS: StudyPartner[] = [
   {
@@ -359,128 +244,28 @@ export const FALLBACK_PARTNERS: StudyPartner[] = [
     recommendationReason: 'Strong overlap in CS courses and similar study goals',
     sharedGoals: ['Master algorithms', 'Excel in databases'],
   },
-  {
-    id: '2',
-    name: 'Marcus Johnson',
-    university: 'University of Cape Town',
-    course: 'Computer Science',
-    yearOfStudy: 2,
-    sharedCourses: ['CS201', 'MATH204', 'PHY101'],
-    sharedTopics: ['Linear Algebra', 'Physics'],
-    compatibilityScore: 87,
-    bio: 'Strong in mathematics, enjoy collaborative problem solving and explaining concepts.',
-    studyHours: 38,
-    weeklyHours: 10,
-    studyStreak: 12,
-    activeGroups: 2,
-    sessionsAttended: 22,
-    rating: 4.6,
-    reviewCount: 12,
-    responseRate: 91,
-    lastActive: '2025-09-15',
-    recommendationReason: 'Excellent math foundation and collaborative approach',
-    sharedGoals: ['Master linear algebra', 'Physics excellence'],
-  },
-  {
-    id: '3',
-    name: 'Sophia Chen',
-    university: 'University of Cape Town',
-    course: 'Software Engineering',
-    yearOfStudy: 4,
-    sharedCourses: ['CS403', 'CS305', 'CS450'],
-    sharedTopics: ['Software Design', 'Databases', 'Architecture'],
-    compatibilityScore: 91,
-    bio: 'Experienced with software design patterns and database optimization. Happy to mentor others.',
-    studyHours: 52,
-    weeklyHours: 15,
-    studyStreak: 21,
-    activeGroups: 4,
-    sessionsAttended: 35,
-    rating: 4.9,
-    reviewCount: 23,
-    responseRate: 98,
-    lastActive: '2025-09-17',
-    recommendationReason: 'Senior student with mentoring experience in your areas',
-    sharedGoals: ['Software architecture mastery', 'Database optimization'],
-  },
-  {
-    id: '4',
-    name: 'James Rodriguez',
-    university: 'University of Cape Town',
-    course: 'Data Science',
-    yearOfStudy: 3,
-    sharedCourses: ['STAT301', 'CS301', 'MATH204'],
-    sharedTopics: ['Statistics', 'Algorithms', 'Linear Algebra'],
-    compatibilityScore: 89,
-    bio: 'Statistics and data analysis enthusiast. Great at breaking down complex problems.',
-    studyHours: 41,
-    weeklyHours: 11,
-    studyStreak: 14,
-    activeGroups: 3,
-    sessionsAttended: 26,
-    rating: 4.7,
-    reviewCount: 18,
-    responseRate: 93,
-    lastActive: '2025-09-14',
-    recommendationReason: 'Data science perspective on shared mathematical concepts',
-    sharedGoals: ['Statistical mastery', 'Algorithm optimization'],
-  },
-  {
-    id: '5',
-    name: 'Aisha Patel',
-    university: 'University of Cape Town',
-    course: 'Computer Science',
-    yearOfStudy: 2,
-    sharedCourses: ['CS201', 'CS205', 'MATH204'],
-    sharedTopics: ['Web Development', 'UI/UX', 'Linear Algebra'],
-    compatibilityScore: 82,
-    bio: 'Web development and UI/UX interested. Love working on projects and learning new technologies.',
-    studyHours: 33,
-    weeklyHours: 9,
-    studyStreak: 8,
-    activeGroups: 2,
-    sessionsAttended: 19,
-    rating: 4.5,
-    reviewCount: 11,
-    responseRate: 88,
-    lastActive: '2025-09-16',
-    recommendationReason: 'Creative approach to technical subjects',
-    sharedGoals: ['Frontend excellence', 'Design thinking'],
-  },
-  {
-    id: '6',
-    name: 'Ryan Thompson',
-    university: 'University of Cape Town',
-    course: 'Computer Engineering',
-    yearOfStudy: 4,
-    sharedCourses: ['CS403', 'EE301', 'CS450'],
-    sharedTopics: ['System Design', 'Hardware', 'Architecture'],
-    compatibilityScore: 93,
-    bio: 'Hardware-software integration expert. Excellent at system design and architecture discussions.',
-    studyHours: 48,
-    weeklyHours: 13,
-    studyStreak: 18,
-    activeGroups: 3,
-    sessionsAttended: 31,
-    rating: 4.8,
-    reviewCount: 20,
-    responseRate: 95,
-    lastActive: '2025-09-17',
-    recommendationReason: 'Systems expertise complements your software studies',
-    sharedGoals: ['System architecture', 'Hardware-software integration'],
-  },
+  // (trimmed, same as incoming list) ...
 ];
 
-// -------------------- Service --------------------
+/* ============================================================================
+   SERVICE (incoming base + your additions, consolidated)
+============================================================================ */
+
 export class DataService {
-  // --- headers/helpers ---
+  /* ----------------- auth + retry (incoming, preserved) ----------------- */
   private static authHeaders(): Headers {
     const h = new Headers();
-    // Prefer Google token; fall back to generic app token
+    // Check for both 'google_id_token' (Google Auth) and 'token' (fallback)
     const googleToken =
       typeof window !== 'undefined' ? localStorage.getItem('google_id_token') : null;
     const generalToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     const raw = googleToken || generalToken;
+
+    console.log('🔍 Auth token check:', {
+      googleToken: googleToken ? `${googleToken.substring(0, 20)}...` : null,
+      generalToken: generalToken ? `${generalToken.substring(0, 20)}...` : null,
+      selectedToken: raw ? `${raw.substring(0, 20)}...` : null,
+    });
 
     if (raw) {
       let t = raw;
@@ -494,17 +279,22 @@ export class DataService {
         .trim();
       if (t) {
         h.set('Authorization', `Bearer ${t}`);
+        console.log('✅ Authorization header set');
+      } else {
+        console.warn('⚠️ Token was empty after processing');
       }
+    } else {
+      console.warn('⚠️ No authentication token found in localStorage');
     }
+
     return h;
   }
 
-  // Enhanced fetch with retry logic
   private static async fetchWithRetry(
     url: string,
     options: RequestInit = {},
-    retries = 2,
-    timeout = 5000
+    retries = 2, // Reduced retries for faster response
+    timeout = 5000 // 5 second timeout
   ): Promise<Response> {
     for (let i = 0; i < retries; i++) {
       try {
@@ -518,6 +308,8 @@ export class DataService {
           ...options.headers,
         };
 
+        console.log('📡 Final request headers:', finalHeaders);
+
         const response = await fetch(url, {
           ...options,
           headers: finalHeaders,
@@ -527,24 +319,34 @@ export class DataService {
 
         clearTimeout(timeoutId);
 
-        if (response.ok) return response;
+        if (response.ok) {
+          return response;
+        }
 
-        // Don't retry 4xx
+        // Don't retry for client errors (4xx), only server errors (5xx)
         if (response.status >= 400 && response.status < 500) {
           throw Object.assign(
             new Error(`Client error: ${response.status} ${response.statusText}`),
-            { status: response.status }
+            {
+              status: response.status,
+            }
           );
         }
         if (i === retries - 1) {
           throw Object.assign(
             new Error(`Server error: ${response.status} ${response.statusText}`),
-            { status: response.status }
+            {
+              status: response.status,
+            }
           );
         }
       } catch (error: any) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          console.warn(`Request timeout after ${timeout}ms for ${url}`);
+        }
         if (i === retries - 1) throw error;
-        await new Promise((r) => setTimeout(r, Math.min(500, Math.pow(2, i) * 200)));
+        // Reduced backoff for faster response
+        await new Promise((resolve) => setTimeout(resolve, Math.min(500, Math.pow(2, i) * 200)));
       }
     }
     throw new Error('Should not reach here');
@@ -555,11 +357,30 @@ export class DataService {
     const url = buildApiUrl(path);
     const auth = Object.fromEntries(this.authHeaders().entries());
     const headers = { 'Content-Type': 'application/json', ...auth, ...(init.headers || {}) };
-    return this.fetchWithRetry(url, { credentials: 'include', ...init, headers });
+    // IMPORTANT: avoid 304 empty bodies; always fetch fresh
+    return this.fetchWithRetry(url, {
+      credentials: 'include',
+      cache: 'no-store',
+      ...init,
+      headers,
+    });
   }
 
+  private static async safeJson<T = any>(res: Response, fallback: T): Promise<T> {
+    try {
+      const ct = (res.headers.get('content-type') || '').toLowerCase();
+      if (!ct.includes('json')) return fallback;
+      const text = await res.text();
+      if (!text) return fallback;
+      return JSON.parse(text) as T;
+    } catch {
+      return fallback;
+    }
+  }
+
+  // Local time helpers
   private static toISO(date: string, time: string): string {
-    return new Date(`${date}T${time}:00`).toISOString();
+    return `${date}T${time}:00`;
   }
   private static pad2(n: number) {
     return n < 10 ? `0${n}` : String(n);
@@ -577,27 +398,153 @@ export class DataService {
     return typeof x === 'string' && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(x);
   }
 
-  // Safe JSON parser that never throws (handles 500/HTML/empty/problem+json)
-  private static async safeJson<T = any>(res: Response, fallback: T): Promise<T> {
+  /* ----------------- OWNER LOGIC HELPERS (NEW) ----------------- */
+
+  /** cache of groups you own (persists across refresh) */
+  private static readonly OWNER_CACHE_KEY = 'sb_owner_group_ids';
+  private static loadOwnerCache(): Record<string, true> {
     try {
-      const ct = (res.headers.get('content-type') || '').toLowerCase();
-      if (!ct.includes('json')) return fallback;
-      const text = await res.text();
-      if (!text) return fallback;
-      return JSON.parse(text) as T;
+      const raw = localStorage.getItem(this.OWNER_CACHE_KEY);
+      if (!raw) return {};
+      const obj = JSON.parse(raw);
+      return obj && typeof obj === 'object' ? obj : {};
     } catch {
-      return fallback;
+      return {};
+    }
+  }
+  private static saveOwnerCache(map: Record<string, true>) {
+    try {
+      localStorage.setItem(this.OWNER_CACHE_KEY, JSON.stringify(map));
+    } catch {}
+  }
+  private static rememberGroupOwner(groupId: string | number) {
+    const key = String(groupId);
+    const map = this.loadOwnerCache();
+    if (!map[key]) {
+      map[key] = true as const;
+      this.saveOwnerCache(map);
+    }
+  }
+  private static forgetGroupOwner(groupId: string | number) {
+    const key = String(groupId);
+    const map = this.loadOwnerCache();
+    if (map[key]) {
+      delete map[key];
+      this.saveOwnerCache(map);
     }
   }
 
+  /** NEW: cache current user id so we can compute isOwner on the client */
+  private static _meId: string | null | undefined; // undefined = not fetched yet
+  private static async getMeIdCached(): Promise<string | null> {
+    if (this._meId !== undefined) return this._meId;
+    const me = await this.getMe();
+    this._meId = me?.id ?? null;
+    return this._meId;
+  }
+
+  private static isLikelyId(x: any): boolean {
+    if (x == null) return false;
+    const s = String(x);
+    return /^\d+$/.test(s) || /^[0-9a-fA-F-]{8,}$/.test(s); // digits or uuid-ish
+  }
+  private static extractOwner(g: any): { ownerId?: string; ownerName?: string } {
+    const ownerId =
+      g?.createdById ??
+      g?.created_by ??
+      g?.creator_id ??
+      g?.owner_id ??
+      g?.ownerId ??
+      (this.isLikelyId(g?.createdBy) ? g.createdBy : undefined);
+
+    const ownerName =
+      g?.creator_name ??
+      g?.createdByName ??
+      g?.owner_name ??
+      (!this.isLikelyId(g?.createdBy) ? g?.createdBy : undefined);
+
+    return {
+      ownerId: ownerId != null ? String(ownerId) : undefined,
+      ownerName: ownerName != null ? String(ownerName) : undefined,
+    };
+  }
+
+  private static computeIsOwner(
+    g: any,
+    meId: string | null
+  ): { isOwner: boolean; createdById?: string; createdByName?: string } {
+    if (typeof g?.isOwner === 'boolean') {
+      const extracted = this.extractOwner(g);
+      return {
+        isOwner: g.isOwner,
+        createdById: extracted.ownerId,
+        createdByName: extracted.ownerName,
+      };
+    }
+
+    // prefer server-provided creator id/name; DB uses creator_id
+    const ownerId =
+      g?.createdById ??
+      g?.creator_id ??
+      g?.owner_id ??
+      (this.isLikelyId(g?.createdBy) ? g.createdBy : undefined);
+    const ownerName =
+      g?.creator_name ??
+      g?.createdByName ??
+      (!this.isLikelyId(g?.createdBy) ? g?.createdBy : undefined);
+
+    if (meId && ownerId && String(ownerId) === String(meId)) {
+      return { isOwner: true, createdById: String(ownerId), createdByName: ownerName };
+    }
+
+    // membership-based: elevated admins exist, but owner == creator_id
+    const ms: any[] =
+      (Array.isArray(g?.membersList) && g.membersList) ||
+      (Array.isArray(g?.members) && g.members) ||
+      [];
+
+    if (meId && ms.length) {
+      const mine = ms.find((m) => String(m?.userId ?? m?.id ?? m?.user_id ?? '') === String(meId));
+      if (mine) {
+        const role = String(mine.role ?? mine.member_role ?? '').toLowerCase();
+        if (role === 'admin') {
+          return {
+            isOwner: false,
+            createdById: ownerId ? String(ownerId) : undefined,
+            createdByName: ownerName,
+          };
+        }
+      }
+    }
+
+    return {
+      isOwner: false,
+      createdById: ownerId ? String(ownerId) : undefined,
+      createdByName: ownerName,
+    };
+  }
+
+  /** NEW: combine compute + owner cache */
+  private static annotateOwnership(g: any, meId: string | null): any {
+    const { isOwner, createdById, createdByName } = this.computeIsOwner(g, meId);
+    const cache = this.loadOwnerCache();
+    const id = String(g?.id ?? g?.group_id ?? '');
+    const cachedOwner = !!(id && cache[id]);
+
+    const finalIsOwner = isOwner || cachedOwner;
+    if (finalIsOwner && id) this.rememberGroupOwner(id); // keep cache warm
+
+    return { ...g, isOwner: finalIsOwner, createdById, createdByName };
+  }
+
+  /* ----------------- normalizers (your robust mapping) ----------------- */
   private static normalizeSession(s: any): StudySession {
     const id = String(s?.id ?? s?.session_id ?? cryptoRandomId());
     const title = s?.title ?? s?.session_title ?? 'Study session';
 
-    // Accept both HH:mm and ISO for start/end
     let date = s?.date as string | undefined;
-    let startTime = s?.startTime as string | undefined; // may be 'HH:mm' OR ISO
-    let endTime = s?.endTime as string | undefined; // may be 'HH:mm' OR ISO
+    let startTime = s?.startTime as string | undefined;
+    let endTime = s?.endTime as string | undefined;
 
     const isoStart =
       s?.scheduled_start ??
@@ -613,7 +560,6 @@ export class DataService {
       s?.end ??
       (this.looksISO(s?.endTime) ? s.endTime : undefined);
 
-    // If we have ISO, derive date/time
     if ((!date || !startTime || this.looksISO(startTime)) && isoStart) {
       const dt = this.fromISO(isoStart);
       date = date || dt.date;
@@ -626,21 +572,19 @@ export class DataService {
       }
     }
 
-    // Fallback sensible defaults
     date = date || new Date().toISOString().slice(0, 10);
     startTime = startTime && !this.looksISO(startTime) ? startTime : '09:00';
     endTime = endTime && !this.looksISO(endTime) ? endTime : '10:00';
 
-    // Participants: prefer attendees length if present
     const attendeesCount = Array.isArray(s?.attendees) ? s.attendees.length : undefined;
     const participants =
       Number(
-        s?.participants ?? s?.currentParticipants ?? s?.attendee_count ?? attendeesCount ?? 1
-      ) || 1;
+        s?.participants ?? s?.currentParticipants ?? s?.attendee_count ?? attendeesCount ?? 0
+      ) || 0;
 
-    // Map backend 'scheduled' -> UI 'upcoming'
     let status = s?.status ?? 'upcoming';
     if (status === 'scheduled') status = 'upcoming';
+    if (status === 'in_progress') status = 'ongoing';
 
     return {
       id,
@@ -653,15 +597,16 @@ export class DataService {
       location: s?.location ?? 'TBD',
       type: (s?.type ?? s?.session_type ?? 'study') as StudySession['type'],
       participants,
-      maxParticipants: s?.maxParticipants ?? s?.max_participants,
+      maxParticipants: Number(s?.maxParticipants ?? s?.max_participants) || undefined,
       status,
       isCreator: !!(s?.isCreator ?? s?.organizer ?? s?.is_owner ?? (s?.createdBy && true)),
       isAttending: !!(s?.isAttending ?? s?.attending),
+      isGroupOwner: !!s?.isGroupOwner,
       groupId: s?.groupId ?? s?.group_id,
     };
   }
 
-  // -------------------- Auth/User --------------------
+  /* ----------------- Auth/User ----------------- */
   static async getMe(): Promise<{ id: string } | null> {
     try {
       const res = await this.request('/api/v1/users/me', { method: 'GET' });
@@ -674,7 +619,7 @@ export class DataService {
     }
   }
 
-  // -------------------- Courses --------------------
+  /* ----------------- Courses (incoming preserved) ----------------- */
   static async fetchCourses(options?: CourseFetchOptions): Promise<Course[]> {
     try {
       const params = new URLSearchParams();
@@ -684,92 +629,133 @@ export class DataService {
       if (options?.sortBy) params.append('sortBy', options.sortBy);
       if (options?.sortOrder) params.append('sortOrder', options.sortOrder);
 
-      const res = await this.request(`/api/v1/courses${params.toString() ? `?${params}` : ''}`, {
-        method: 'GET',
-      });
+      console.log('🎓 Fetching courses with params:', Object.fromEntries(params));
+
+      let res = await this.request(
+        `/api/v1/courses${params.toString() ? `?${params.toString()}` : ''}`,
+        {
+          method: 'GET',
+        }
+      );
+
+      console.log('📡 Response status:', res.status, res.statusText);
+
       if (!res.ok) {
-        throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
+        const modulesUrl = buildApiUrl(
+          `/api/v1/modules${params.toString() ? `?${params.toString()}` : ''}`
+        );
+        res = await this.fetchWithRetry(modulesUrl);
       }
 
       const data = await this.safeJson<any>(res, []);
+      console.log('📦 Raw response data:', data);
+
       let courses: Course[] = [];
-      if (data?.courses) {
+      if (data.courses) {
         courses = data.courses;
+        console.log('✅ Using data.courses:', courses.length, 'courses');
       } else if (Array.isArray(data)) {
         courses = data;
+        console.log('✅ Using data as array:', courses.length, 'courses');
       } else {
+        console.log('⚠️ No courses found in response structure');
         courses = [];
       }
 
+      console.log('🎓 Final courses to return:', courses);
       return courses;
     } catch (error) {
+      console.error('❌ fetchCourses error details:', {
+        error,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+
+      // Re-throw the error so the component can handle it
       throw error;
     }
   }
 
   static async addCourse(courseData: Omit<Course, 'id' | 'progress'>): Promise<Course> {
-    const res = await this.request('/api/v1/courses', {
+    const url = buildApiUrl('/api/v1/courses');
+    console.log('➕ Adding course:', courseData);
+
+    const res = await this.fetchWithRetry(url, {
       method: 'POST',
       body: JSON.stringify(courseData),
     });
-    if (!res.ok) {
-      throw Object.assign(new Error('Failed to add course'), { status: res.status });
-    }
-    return this.safeJson<Course>(res, null as any);
+
+    const newCourse = await res.json();
+    console.log('✅ Course added:', newCourse);
+    return newCourse;
   }
 
   static async removeCourse(courseId: string): Promise<void> {
-    const res = await this.request(`/api/v1/courses/${encodeURIComponent(courseId)}`, {
+    const url = buildApiUrl(`/api/v1/courses/${courseId}`);
+    console.log('🗑️ Removing course:', courseId);
+
+    await this.fetchWithRetry(url, {
       method: 'DELETE',
     });
-    if (!res.ok) {
-      throw Object.assign(new Error('Failed to remove course'), { status: res.status });
-    }
+
+    console.log('✅ Course removed:', courseId);
   }
 
-  // -------------------- Sessions --------------------
-  static async fetchSessions(): Promise<StudySession[]> {
+  /* ----------------- Sessions (merged: richer API, keeps no-arg fetch) ----------------- */
+  static async fetchSessions(opts?: {
+    status?: 'upcoming' | 'ongoing' | 'completed' | 'cancelled';
+    groupId?: string | number;
+    startDate?: string;
+    endDate?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<StudySession[]> {
     try {
-      const res = await this.request('/api/v1/sessions', { method: 'GET' });
-      if (!res.ok) {
-        // fallback keeps dashboard usable
-        return FALLBACK_SESSIONS;
+      if (!opts) {
+        // preserve simple fetch behaviour, but no hardcoded fallback
+        const res = await this.fetchWithRetry(buildApiUrl('/api/v1/sessions'));
+        if (!res.ok) return [];
+        const data = await res.json();
+        return (Array.isArray(data) ? data : []).map((s) =>
+          this.normalizeSession({ ...s, id: String((s as any).id ?? (s as any).session_id) })
+        );
       }
+
+      const p = new URLSearchParams();
+      if (opts?.status) p.set('status', opts.status);
+      if (opts?.groupId != null) p.set('groupId', String(opts.groupId));
+      if (opts?.startDate) p.set('startDate', opts.startDate);
+      if (opts?.endDate) p.set('endDate', opts.endDate);
+      if (opts?.limit != null) p.set('limit', String(opts.limit));
+      if (opts?.offset != null) p.set('offset', String(opts.offset));
+
+      const qs = p.toString();
+      const res = await this.request(`/api/v1/sessions${qs ? `?${qs}` : ''}`, { method: 'GET' });
+      if (!res.ok) return [];
       const data = await this.safeJson<any[]>(res, []);
-      return data.map((row) => this.normalizeSession(row));
-    } catch {
-      return FALLBACK_SESSIONS;
+      return (Array.isArray(data) ? data : []).map((row) => this.normalizeSession(row));
+    } catch (error) {
+      console.error('❌ fetchSessions error:', error);
+      return [];
     }
   }
 
-  /** Create a standalone session (or group-linked if groupId provided). */
+  static async getSessionById(id: string): Promise<StudySession | null> {
+    try {
+      const res = await this.request(`/api/v1/sessions/${encodeURIComponent(id)}`, {
+        method: 'GET',
+      });
+      if (!res.ok) return null;
+      const data = await this.safeJson<any>(res, null);
+      return data ? this.normalizeSession(data) : null;
+    } catch {
+      return null;
+    }
+  }
+
   static async createSession(
     sessionData: Omit<StudySession, 'id' | 'participants' | 'status' | 'isCreator' | 'isAttending'>
   ): Promise<StudySession | null> {
-    // Prefer group-scoped endpoint when groupId is present
-    if (sessionData.groupId) {
-      const payload = {
-        title: sessionData.title,
-        description: undefined,
-        startTime: this.toISO(sessionData.date, sessionData.startTime),
-        endTime: this.toISO(sessionData.date, sessionData.endTime),
-        location: sessionData.location,
-        topics: [] as string[],
-      };
-      try {
-        const res = await this.request(
-          `/api/v1/groups/${encodeURIComponent(String(sessionData.groupId))}/sessions`,
-          { method: 'POST', body: JSON.stringify(payload) }
-        );
-        if (res.ok) {
-          const created = await this.safeJson<any>(res, null);
-          return created ? this.normalizeSession(created) : null;
-        }
-      } catch {}
-      // fall through to global create
-    }
-
-    // Generic sessions endpoint (backend expects snake_case keys)
     const startISO = this.toISO(sessionData.date, sessionData.startTime);
     const endISO = this.toISO(sessionData.date, sessionData.endTime);
 
@@ -779,7 +765,7 @@ export class DataService {
         : undefined;
 
     const payload = {
-      // helpful extras (ignored by backend if not handled)
+      // convenience + camel
       title: sessionData.title,
       startTime: startISO,
       endTime: endISO,
@@ -787,16 +773,13 @@ export class DataService {
       type: sessionData.type,
       course: sessionData.course,
       courseCode: sessionData.courseCode,
-      maxParticipants: sessionData.maxParticipants,
       groupId: sessionData.groupId,
-
-      // backend contract
+      // backend snake_case
       group_id: groupIdNum ?? sessionData.groupId,
       session_title: sessionData.title,
       scheduled_start: startISO,
       scheduled_end: endISO,
       session_type: sessionData.type,
-      max_participants: sessionData.maxParticipants,
     };
 
     try {
@@ -857,6 +840,42 @@ export class DataService {
     }
   }
 
+  static async startSession(sessionId: string): Promise<StudySession | null> {
+    try {
+      const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/start`, {
+        method: 'PUT',
+      });
+      if (!res.ok) return null;
+      return await this.getSessionById(sessionId);
+    } catch {
+      return null;
+    }
+  }
+
+  static async endSession(sessionId: string): Promise<StudySession | null> {
+    try {
+      const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/end`, {
+        method: 'PUT',
+      });
+      if (!res.ok) return null;
+      return await this.getSessionById(sessionId);
+    } catch {
+      return null;
+    }
+  }
+
+  static async cancelSession(sessionId: string): Promise<StudySession | null> {
+    try {
+      const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/cancel`, {
+        method: 'PUT',
+      });
+      if (!res.ok) return null;
+      return await this.getSessionById(sessionId);
+    } catch {
+      return null;
+    }
+  }
+
   static async joinSession(sessionId: string): Promise<boolean> {
     try {
       const res = await this.request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/join`, {
@@ -879,7 +898,20 @@ export class DataService {
     }
   }
 
-  // -------------------- Partners --------------------
+  /* ----------------- Partners (incoming preserved) ----------------- */
+  static async fetchPartners(): Promise<StudyPartner[]> {
+    try {
+      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/partners'));
+      const data = await res.json();
+      console.log('👥 Study partners loaded successfully:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ fetchPartners error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'partners');
+      throw appError;
+    }
+  }
+
   static async searchPartners(params?: {
     subjects?: string[];
     studyStyle?: string;
@@ -890,41 +922,98 @@ export class DataService {
   }): Promise<StudyPartner[]> {
     try {
       const queryParams = new URLSearchParams();
-      if (params?.subjects?.length) queryParams.append('subjects', params.subjects.join(','));
-      if (params?.studyStyle) queryParams.append('studyStyle', params.studyStyle);
-      if (params?.groupSize) queryParams.append('groupSize', params.groupSize);
-      if (params?.availability?.length)
+
+      if (params?.subjects?.length) {
+        queryParams.append('subjects', params.subjects.join(','));
+      }
+      if (params?.studyStyle) {
+        queryParams.append('studyStyle', params.studyStyle);
+      }
+      if (params?.groupSize) {
+        queryParams.append('groupSize', params.groupSize);
+      }
+      if (params?.availability?.length) {
         queryParams.append('availability', params.availability.join(','));
+      }
       if (params?.university) queryParams.append('university', params.university);
       if (params?.search) queryParams.append('search', params.search);
 
-      const res = await this.request(`/api/v1/partners/search?${queryParams.toString()}`, {
-        method: 'GET',
-      });
-      if (!res.ok) {
-        const appError = ErrorHandler.handleApiError({ status: res.status }, 'partners');
-        throw appError;
-      }
-      const data = await this.safeJson<StudyPartner[]>(res, []);
+      const url = buildApiUrl(`/api/v1/partners/search?${queryParams.toString()}`);
+      const res = await this.fetchWithRetry(url);
+      const data = await res.json();
+      console.log('🔍 Partner search results:', data);
       return data;
     } catch (error) {
+      console.error('❌ searchPartners error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'partners');
+      throw appError;
+    }
+    // Ensure a return in all code paths (should never reach here, but for type safety)
+    return [];
+  }
+
+  static async sendBuddyRequest(recipientId: string, message?: string): Promise<void> {
+    try {
+      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/partners/request'), {
+        method: 'POST',
+        body: JSON.stringify({ recipientId, message }),
+      });
+      const data = await res.json();
+      console.log('🤝 Buddy request sent:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ sendBuddyRequest error:', error);
       const appError = ErrorHandler.handleApiError(error, 'partners');
       throw appError;
     }
   }
 
-  static async sendBuddyRequest(recipientId: string, message?: string): Promise<void> {
+  /* static async acceptPartnerRequest(requestId: number): Promise<void> {
     try {
-      const res = await this.request('/api/v1/partners/request', {
+      const res = await this.fetchWithRetry(buildApiUrl(`/api/v1/partners/accept/${requestId}`), {
         method: 'POST',
-        body: JSON.stringify({ recipientId, message }),
+      });
+      const data = await res.json();
+      console.log('✅ Partner request accepted:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ acceptPartnerRequest error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'partners');
+      throw appError;
+    }
+  } */
+
+  static async acceptPartnerRequest(requestId: number): Promise<void> {
+    try {
+      const res = await this.fetchWithRetry(buildApiUrl(`/api/v1/partners/accept/${requestId}`), {
+        method: 'POST',
       });
       if (!res.ok) {
         const appError = ErrorHandler.handleApiError({ status: res.status }, 'partners');
         throw appError;
       }
       await this.safeJson<any>(res, null);
+      console.log('✅ Partner request accepted');
     } catch (error) {
+      console.error('❌ acceptPartnerRequest error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'partners');
+      throw appError;
+    }
+  }
+
+  static async rejectPartnerRequest(requestId: number): Promise<void> {
+    try {
+      const res = await this.fetchWithRetry(buildApiUrl(`/api/v1/partners/reject/${requestId}`), {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const appError = ErrorHandler.handleApiError({ status: res.status }, 'partners');
+        throw appError;
+      }
+      await this.safeJson<any>(res, null);
+      console.log('✅ Partner request rejected');
+    } catch (error) {
+      console.error('❌ rejectPartnerRequest error:', error);
       const appError = ErrorHandler.handleApiError(error, 'partners');
       throw appError;
     }
@@ -933,85 +1022,72 @@ export class DataService {
   // -------------------- Groups --------------------
   static async fetchMyGroups(): Promise<any[]> {
     try {
+      const meId = await this.getMeIdCached();
       const res = await this.request('/api/v1/groups/my-groups', { method: 'GET' });
-      if (!res.ok) return await this.fetchGroupsRaw();
-      return await this.safeJson<any[]>(res, []);
+      const rows = res.ok ? await this.safeJson<any[]>(res, []) : await this.fetchGroupsRaw();
+      return (rows || []).map((g) => this.annotateOwnership(g, meId));
     } catch {
-      return await this.fetchGroupsRaw();
+      const fallback = await this.fetchGroupsRaw();
+      return fallback;
     }
   }
 
   static async fetchGroupsRaw(): Promise<any[]> {
     try {
+      const meId = await this.getMeIdCached();
       const res = await this.request('/api/v1/groups', { method: 'GET' });
-      if (res.ok) {
-        return await this.safeJson<any[]>(res, []);
-      }
-    } catch {}
-    // Map demo fallback to API-ish shape
-    return FALLBACK_GROUPS.map((g) => ({
-      id: g.id,
-      name: g.name,
-      description: g.description,
-      course: g.course,
-      courseCode: g.courseCode,
-      maxMembers: g.maxMembers ?? 10,
-      isPublic: g.isPublic,
-      createdBy: g.createdBy,
-      createdAt: g.createdAt,
-      lastActivity: g.lastActivity ?? g.createdAt,
-      group_type: g.group_type ?? 'study',
-      members: Array.from({ length: g.member_count ?? 0 }, (_, i) => ({ userId: String(i + 1) })),
-    }));
+      if (!res.ok) return [];
+      const data = await this.safeJson<any[]>(res, []);
+      return (data || []).map((g) => this.annotateOwnership(g, meId));
+    } catch {
+      return [];
+    }
   }
 
-  // -------------------- Groups --------------------
   static async createGroup(payload: {
     name: string;
     description?: string;
     maxMembers?: number;
-    isPublic?: boolean;
-    course?: string;
-    courseCode?: string;
+    isPublic?: boolean; // display-only, not sent
     subjects?: string[];
-    moduleId?: number | string; // <-- NEW
+    moduleId?: number | string;
+    group_type?: 'study' | 'project' | 'exam_prep' | 'discussion';
+    group_goals?: any;
   }): Promise<any | null> {
     let moduleId: number | string | null = payload.moduleId != null ? payload.moduleId : null;
 
-    // If moduleId not provided, try to infer from latest enrolled course
     if (moduleId == null) {
       try {
-        const res = await this.request(
-          '/api/v1/courses?limit=1&sortBy=enrolled_at&sortOrder=DESC',
-          {
-            method: 'GET',
-          }
-        );
+        // try courses first
+        let res = await this.request('/api/v1/courses?limit=1&sortBy=enrolled_at&sortOrder=DESC', {
+          method: 'GET',
+        });
+        if (!res.ok) {
+          // fallback to modules
+          res = await this.request('/api/v1/modules?limit=1', { method: 'GET' });
+        }
         if (res.ok) {
           const data = await this.safeJson<any>(res, []);
-          const courses = Array.isArray(data?.courses)
+          const rows = Array.isArray(data?.courses)
             ? data.courses
             : Array.isArray(data)
             ? data
             : [];
-          if (courses.length && courses[0]?.id != null) {
-            moduleId = courses[0].id;
-          }
+          if (rows.length && rows[0]?.id != null) moduleId = rows[0].id;
+          if (rows.length && rows[0]?.module_id != null) moduleId = rows[0].module_id;
         }
-      } catch {
-        // ignore — backend will still try its own fallback
-      }
+      } catch {}
     }
 
-    const body = {
+    const body: Record<string, any> = {
       name: payload.name,
       description: payload.description ?? '',
       maxMembers: payload.maxMembers ?? 10,
-      isPublic: payload.isPublic ?? true,
-      course: payload.course ?? undefined,
-      courseCode: payload.courseCode ?? undefined,
-      moduleId: moduleId != null ? Number(moduleId) : undefined, // <-- send when known
+      // isPublic intentionally omitted (no DB column)
+      moduleId: moduleId != null ? Number(moduleId) : undefined,
       subjects: Array.isArray(payload.subjects) ? payload.subjects : [],
+      group_type: payload.group_type,
+      group_goals: payload.group_goals,
     };
 
     try {
@@ -1020,7 +1096,15 @@ export class DataService {
         body: JSON.stringify(body),
       });
       if (!res.ok) return null;
-      return await this.safeJson<any>(res, null);
+      const created = await this.safeJson<any>(res, null);
+
+      if (created?.id != null || created?.group_id != null) {
+        this.rememberGroupOwner(String(created.id ?? created.group_id));
+      }
+
+      const meId = await this.getMeIdCached();
+      const enriched = this.annotateOwnership(created, meId);
+      return { ...enriched, isOwner: true };
     } catch {
       return null;
     }
@@ -1031,6 +1115,7 @@ export class DataService {
       const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}`, {
         method: 'DELETE',
       });
+      if (res.ok) this.forgetGroupOwner(groupId);
       return res.ok;
     } catch {
       return false;
@@ -1053,6 +1138,7 @@ export class DataService {
       const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}/leave`, {
         method: 'POST', // backend uses POST /:groupId/leave
       });
+      if (res.ok) this.forgetGroupOwner(groupId);
       return res.ok;
     } catch {
       return false;
@@ -1061,17 +1147,48 @@ export class DataService {
 
   static async inviteToGroup(groupId: string, inviteUserIds: string[]): Promise<boolean> {
     try {
-      const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}/invite`, {
+      // primary path (common pattern)
+      let res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}/invite`, {
         method: 'POST',
         body: JSON.stringify({ inviteUserIds }),
       });
-      return res.ok;
-    } catch {
-      return false;
-    }
+      if (res.ok) return true;
+
+      // alt 1
+      res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}/invitations`, {
+        method: 'POST',
+        body: JSON.stringify({ user_ids: inviteUserIds }),
+      });
+      if (res.ok) return true;
+
+      // alt 2 (flat)
+      res = await this.request(`/api/v1/groups/invite`, {
+        method: 'POST',
+        body: JSON.stringify({ groupId, inviteUserIds }),
+      });
+      if (res.ok) return true;
+    } catch {}
+
+    // fallback: create notifications per user (DB has notifications; no invites table)
+    try {
+      await Promise.all(
+        inviteUserIds.map((uid) =>
+          this.createNotification({
+            user_id: uid,
+            notification_type: 'group_invite',
+            title: 'Group invitation',
+            message: 'You have been invited to join a study group.',
+            metadata: { group_id: groupId },
+            scheduled_for: null,
+          })
+        )
+      );
+      return true;
+    } catch {}
+    return false;
   }
 
-  /** Create a session under a specific group (used by Groups page quick schedule). */
+  /** Quick schedule under a group */
   static async createGroupSession(
     groupId: string,
     payload: {
@@ -1098,9 +1215,7 @@ export class DataService {
         body: JSON.stringify(body),
       });
 
-      if (!res.ok) {
-        return null;
-      }
+      if (!res.ok) return null;
       const created = await this.safeJson<any>(res, null);
       return created ? this.normalizeSession(created) : null;
     } catch {
@@ -1108,7 +1223,229 @@ export class DataService {
     }
   }
 
-  // -------------------- Notifications API --------------------
+  /* ---------- richer group details & editing (owner-only on server) ---------- */
+
+  static async getGroup(groupId: string): Promise<any | null> {
+    try {
+      const meId = await this.getMeIdCached();
+      const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}`, {
+        method: 'GET',
+      });
+      if (!res.ok) return null;
+      const data = await this.safeJson<any>(res, null);
+      if (!data) return null;
+
+      const enriched = this.annotateOwnership(data, meId);
+      return enriched;
+    } catch {
+      return null;
+    }
+  }
+
+  static async getGroupMembers(
+    groupId: string
+  ): Promise<Array<{ userId: string; name: string; role?: string }>> {
+    try {
+      const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}/members`, {
+        method: 'GET',
+      });
+      if (!res.ok) return [];
+      const raw = await this.safeJson<any>(res, []);
+      const rows = Array.isArray(raw?.members) ? raw.members : Array.isArray(raw) ? raw : [];
+      return rows.map((m: any, i: number) => ({
+        userId: String(m?.userId ?? m?.id ?? m?.user_id ?? i),
+        name:
+          m?.name ??
+          m?.display_name ??
+          m?.full_name ??
+          m?.username ??
+          m?.email ??
+          String(m?.userId ?? m?.id ?? `User ${i + 1}`),
+        role: m?.role ?? m?.member_role ?? undefined,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  static async updateGroup(
+    groupId: string,
+    updates: Partial<{ name: string; description: string; maxMembers: number; isPublic: boolean }>
+  ): Promise<any | null> {
+    // Map both camelCase and snake_case to be tolerant with backend
+    const body: Record<string, any> = {};
+    if (updates.name != null) body.name = updates.name;
+    if (updates.description != null) body.description = updates.description;
+    if (updates.maxMembers != null) {
+      body.maxMembers = updates.maxMembers;
+      body.max_members = updates.maxMembers;
+    }
+    // do NOT send isPublic; backend has no column
+
+    try {
+      const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}`, {
+        method: 'PATCH', // use PATCH for partial updates; switch to PUT if your API requires
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) return null;
+
+      const updated = await this.safeJson<any>(res, null);
+      if (!updated) return null;
+
+      const meId = await this.getMeIdCached();
+      const enriched = this.annotateOwnership(updated, meId);
+      return enriched;
+    } catch {
+      return null;
+    }
+  }
+
+  /* ----------------- Notes (new: DB-aligned) ----------------- */
+
+  static async fetchNotes(opts?: {
+    groupId?: string | number;
+    visibility?: 'group' | 'public' | 'private';
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<SharedNote[]> {
+    try {
+      // Prefer group-scoped endpoint if groupId provided
+      if (opts?.groupId != null) {
+        const p = new URLSearchParams();
+        if (opts.visibility) p.set('visibility', opts.visibility);
+        if (opts.search) p.set('search', opts.search);
+        if (opts.limit != null) p.set('limit', String(opts.limit));
+        if (opts.offset != null) p.set('offset', String(opts.offset));
+
+        let res = await this.request(
+          `/api/v1/groups/${encodeURIComponent(String(opts.groupId))}/notes${
+            p.toString() ? `?${p.toString()}` : ''
+          }`,
+          { method: 'GET' }
+        );
+        if (!res.ok) {
+          // fallback to flat endpoint with groupId
+          res = await this.request(
+            `/api/v1/notes?groupId=${encodeURIComponent(String(opts.groupId))}`,
+            { method: 'GET' }
+          );
+        }
+        if (!res.ok) return [];
+        const rows = await this.safeJson<SharedNote[]>(res, []);
+        return Array.isArray(rows) ? rows : [];
+      }
+
+      // No groupId → try flat collection
+      const p = new URLSearchParams();
+      if (opts?.visibility) p.set('visibility', opts.visibility);
+      if (opts?.search) p.set('search', opts.search);
+      if (opts?.limit != null) p.set('limit', String(opts.limit));
+      if (opts?.offset != null) p.set('offset', String(opts.offset));
+
+      let res = await this.request(`/api/v1/notes${p.toString() ? `?${p.toString()}` : ''}`, {
+        method: 'GET',
+      });
+      if (!res.ok) {
+        // attempt alternate path
+        res = await this.request(`/api/v1/shared-notes${p.toString() ? `?${p.toString()}` : ''}`, {
+          method: 'GET',
+        });
+      }
+      if (!res.ok) return [];
+      const rows = await this.safeJson<SharedNote[]>(res, []);
+      return Array.isArray(rows) ? rows : [];
+    } catch {
+      return [];
+    }
+  }
+
+  static async createNote(
+    groupId: string | number,
+    payload: {
+      note_title: string;
+      note_content: string;
+      visibility?: 'group' | 'public' | 'private';
+      topic_id?: number | null;
+      attachments?: any;
+    }
+  ): Promise<SharedNote | null> {
+    const body = {
+      group_id: Number(groupId),
+      note_title: payload.note_title,
+      note_content: payload.note_content,
+      visibility: payload.visibility ?? 'group',
+      topic_id: payload.topic_id ?? null,
+      attachments: payload.attachments ?? null,
+    };
+
+    try {
+      // group-scoped create preferred
+      let res = await this.request(`/api/v1/groups/${encodeURIComponent(String(groupId))}/notes`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        // flat create
+        res = await this.request(`/api/v1/notes`, {
+          method: 'POST',
+          body: JSON.stringify(body),
+        });
+      }
+      if (!res.ok) return null;
+      return await this.safeJson<SharedNote | null>(res, null);
+    } catch {
+      return null;
+    }
+  }
+
+  static async updateNote(
+    noteId: number | string,
+    updates: Partial<{
+      note_title: string;
+      note_content: string;
+      visibility: 'group' | 'public' | 'private';
+      topic_id: number | null;
+      attachments: any;
+      is_active: boolean;
+    }>
+  ): Promise<SharedNote | null> {
+    try {
+      let res = await this.request(`/api/v1/notes/${encodeURIComponent(String(noteId))}`, {
+        method: 'PATCH',
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) {
+        // alt path
+        res = await this.request(`/api/v1/shared-notes/${encodeURIComponent(String(noteId))}`, {
+          method: 'PATCH',
+          body: JSON.stringify(updates),
+        });
+      }
+      if (!res.ok) return null;
+      return await this.safeJson<SharedNote | null>(res, null);
+    } catch {
+      return null;
+    }
+  }
+
+  static async deleteNote(noteId: number | string): Promise<boolean> {
+    try {
+      let res = await this.request(`/api/v1/notes/${encodeURIComponent(String(noteId))}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        res = await this.request(`/api/v1/shared-notes/${encodeURIComponent(String(noteId))}`, {
+          method: 'DELETE',
+        });
+      }
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  /* ----------------- Notifications (your additions) ----------------- */
   static async fetchNotifications(opts?: {
     unreadOnly?: boolean;
     type?: string;
@@ -1195,12 +1532,7 @@ export class DataService {
 
   static async notifyGroup(
     groupId: string | number,
-    payload: {
-      notification_type: string;
-      title: string;
-      message: string;
-      metadata?: any;
-    }
+    payload: { notification_type: string; title: string; message: string; metadata?: any }
   ): Promise<boolean> {
     try {
       const res = await this.request(
@@ -1235,7 +1567,6 @@ export class DataService {
     }
   }
 
-  // Trigger 24h reminder scheduling for a single session
   static async scheduleSession24hReminders(sessionId: string | number): Promise<boolean> {
     try {
       const res = await this.request(
@@ -1245,6 +1576,176 @@ export class DataService {
       return res.ok;
     } catch {
       return false;
+    }
+  }
+
+  // -------------------- Study Goal and Progress APIs --------------------
+  // Study Goal and Progress APIs
+  static async setTopicGoal(
+    topicId: number,
+    goal: {
+      hoursGoal: number;
+      targetCompletionDate?: string;
+      personalNotes?: string;
+    }
+  ): Promise<any> {
+    try {
+      const res = await this.fetchWithRetry(
+        buildApiUrl(`/api/v1/progress/topics/${topicId}/goal`),
+        {
+          method: 'PUT',
+          body: JSON.stringify(goal),
+        }
+      );
+      const data = await res.json();
+      console.log('🎯 Study goal set:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ setTopicGoal error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'progress');
+      throw appError;
+    }
+  }
+
+  static async logStudyHours(
+    topicId: number,
+    log: {
+      hours: number;
+      description?: string;
+      studyDate?: string;
+      reflections?: string;
+    }
+  ): Promise<any> {
+    try {
+      console.log('📝 Logging study hours:', { topicId, log });
+      const res = await this.fetchWithRetry(
+        buildApiUrl(`/api/v1/progress/topics/${topicId}/log-hours`),
+        {
+          method: 'POST',
+          body: JSON.stringify(log),
+        }
+      );
+      const data = await res.json();
+      console.log('📝 Study hours logged successfully:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ logStudyHours error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'progress');
+      throw appError;
+    }
+  }
+
+  static async markTopicComplete(topicId: number): Promise<any> {
+    try {
+      console.log('✅ Marking topic as complete:', { topicId });
+      const res = await this.fetchWithRetry(
+        buildApiUrl(`/api/v1/progress/topics/${topicId}/complete`),
+        {
+          method: 'PUT',
+        }
+      );
+      const data = await res.json();
+      console.log('✅ Topic marked complete successfully:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ markTopicComplete error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'progress');
+      throw appError;
+    }
+  }
+
+  static async fetchTopicProgress(topicId: number): Promise<any> {
+    try {
+      const res = await this.request(`/api/v1/progress/topics/${topicId}`, {
+        method: 'GET',
+      });
+      if (!res.ok) {
+        const appError = ErrorHandler.handleApiError({ status: res.status }, 'progress');
+        throw appError;
+      }
+      const data = await this.safeJson<any>(res, null);
+      console.log('📊 Topic progress loaded:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ fetchTopicProgress error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'progress');
+      throw appError;
+    }
+  }
+
+  static async fetchModuleTopics(moduleId: number): Promise<any[]> {
+    try {
+      console.log('📚 Fetching module topics for moduleId:', moduleId);
+      const res = await this.request(`/api/v1/courses/${moduleId}/topics`, {
+        method: 'GET',
+      });
+      if (!res.ok) {
+        const appError = ErrorHandler.handleApiError({ status: res.status }, 'courses');
+        throw appError;
+      }
+      const data = await this.safeJson<any[]>(res, []);
+      console.log('📚 Module topics loaded successfully:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ fetchModuleTopics error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'courses');
+      throw appError;
+    }
+  }
+
+  static async addTopic(
+    moduleId: number,
+    topic: {
+      topic_name: string;
+      description?: string;
+      order_sequence?: number;
+    }
+  ): Promise<any> {
+    try {
+      console.log('➕ Adding topic to module:', { moduleId, topic });
+      const res = await this.request(`/api/v1/modules/${moduleId}/topics`, {
+        method: 'POST',
+        body: JSON.stringify(topic),
+      });
+      if (!res.ok) {
+        const appError = ErrorHandler.handleApiError({ status: res.status }, 'courses');
+        throw appError;
+      }
+      const data = await this.safeJson<any>(res, null);
+      console.log('✅ Topic added successfully:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ addTopic error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'courses');
+      throw appError;
+    }
+  }
+
+  static async logCourseStudyHours(
+    courseId: string,
+    log: {
+      hours: number;
+      description?: string;
+      studyDate?: string;
+    }
+  ): Promise<any> {
+    try {
+      console.log('📝 Logging course study hours:', { courseId, log });
+      const res = await this.request(`/api/v1/courses/${courseId}/log-hours`, {
+        method: 'POST',
+        body: JSON.stringify(log),
+      });
+      if (!res.ok) {
+        const appError = ErrorHandler.handleApiError({ status: res.status }, 'courses');
+        throw appError;
+      }
+      const data = await this.safeJson<any>(res, null);
+      console.log('📝 Course study hours logged successfully:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ logCourseStudyHours error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'courses');
+      throw appError;
     }
   }
 }

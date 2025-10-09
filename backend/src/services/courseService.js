@@ -113,7 +113,6 @@ router.get('/', authenticateToken, async (req, res) => {
 
     // Build search conditions
     let searchCondition = '';
-    let searchParams = [];
     if (search && search.trim() !== '') {
       const searchTerm = `%${search.trim()}%`;
       request.input('search', sql.NVarChar(255), searchTerm);
@@ -125,7 +124,6 @@ router.get('/', authenticateToken, async (req, res) => {
           )
         `;
       console.log('🔍 Applied search condition for term:', search.trim());
-      searchParams.push(`search="${searchTerm}"`);
     }
 
     // Validate sort parameters
@@ -136,57 +134,57 @@ router.get('/', authenticateToken, async (req, res) => {
       ? sortOrder.toUpperCase()
       : 'DESC';
 
-    // Build the base query
-    let baseQuery = `
-            SELECT 
-                m.module_id as id,
-                m.module_code as code,
-                m.module_name as title,
-                m.description,
-                m.university,
-                um.enrollment_status as status,
-                um.enrolled_at as createdAt,
-                um.enrolled_at as updatedAt,
-                -- Calculate progress based on completed topics (topic-level progress only)
-                ISNULL(
-                    (SELECT COUNT(*) 
-                     FROM dbo.user_progress up 
-                     INNER JOIN dbo.topics t ON up.topic_id = t.topic_id 
-                     WHERE up.user_id = @userId 
-                     AND t.module_id = m.module_id 
-                     AND up.chapter_id IS NULL
-                     AND up.completion_status = 'completed'
-                    ) * 100.0 / 
-                    NULLIF((SELECT COUNT(*) FROM dbo.topics t WHERE t.module_id = m.module_id AND t.is_active = 1), 0), 
-                    0
-                ) as progress,
-                -- Get total study hours for this module
-                ISNULL(
-                    (SELECT SUM(hours_logged) 
-                     FROM dbo.study_hours sh 
-                     WHERE sh.user_id = @userId AND sh.module_id = m.module_id
-                    ), 
-                    0
-                ) as totalHours,
-                -- Get topic counts
-                (SELECT COUNT(*) FROM dbo.topics t WHERE t.module_id = m.module_id AND t.is_active = 1) as total_topics,
-                (SELECT COUNT(*) 
-                 FROM dbo.user_progress up 
-                 INNER JOIN dbo.topics t ON up.topic_id = t.topic_id 
-                 WHERE up.user_id = @userId 
-                 AND t.module_id = m.module_id 
-                 AND up.chapter_id IS NULL
-                 AND up.completion_status = 'completed'
-                ) as completed_topics
-            FROM dbo.modules m
-            INNER JOIN dbo.user_modules um ON m.module_id = um.module_id
-            WHERE um.user_id = @userId 
-            AND m.is_active = 1`;
+    // Enhanced query with comprehensive progress data
+    const baseQuery = `
+        SELECT 
+          m.module_id as id,
+          m.module_code as code,
+          m.module_name as title,
+          m.description,
+          m.university,
+          um.enrollment_status as status,
+          um.enrolled_at as createdAt,
+          um.enrolled_at as updatedAt,
+          
+          -- Progress calculation (completed topics / total topics)
+          ISNULL(
+            (SELECT COUNT(*) 
+             FROM dbo.user_progress up 
+             INNER JOIN dbo.topics t ON up.topic_id = t.topic_id 
+             WHERE up.user_id = @userId 
+             AND t.module_id = m.module_id 
+             AND up.chapter_id IS NULL
+             AND up.completion_status = 'completed'
+            ) * 100.0 / 
+            NULLIF((SELECT COUNT(*) FROM dbo.topics t WHERE t.module_id = m.module_id AND t.is_active = 1), 0), 
+            0
+          ) as progress,
+          
+          -- Total study hours (from study_hours table only to avoid double counting)
+          ISNULL(
+            (SELECT SUM(hours_logged) FROM dbo.study_hours sh WHERE sh.user_id = @userId AND sh.module_id = m.module_id), 0
+          ) as totalHours,
+          
+          -- Topic counts
+          (SELECT COUNT(*) FROM dbo.topics t WHERE t.module_id = m.module_id AND t.is_active = 1) as totalTopics,
+          (SELECT COUNT(*) FROM dbo.user_progress up 
+           INNER JOIN dbo.topics t ON up.topic_id = t.topic_id 
+           WHERE up.user_id = @userId AND t.module_id = m.module_id 
+           AND up.chapter_id IS NULL AND up.completion_status = 'completed') as completedTopics,
+          
+          -- Study metrics
+          (SELECT COUNT(DISTINCT sh.study_date) FROM dbo.study_hours sh 
+           WHERE sh.user_id = @userId AND sh.module_id = m.module_id 
+           AND sh.study_date >= DATEADD(day, -7, GETUTCDATE())) as weeklyStudyDays,
+          
+          (SELECT MAX(sh.study_date) FROM dbo.study_hours sh 
+           WHERE sh.user_id = @userId AND sh.module_id = m.module_id) as lastStudiedAt
 
-    // Add search condition
-    if (searchCondition) {
-      baseQuery += searchCondition;
-    }
+        FROM dbo.modules m
+        INNER JOIN dbo.user_modules um ON m.module_id = um.module_id
+        WHERE um.user_id = @userId AND m.is_active = 1
+        ${searchCondition}
+      `;
 
     // Add ordering and pagination
     const getOrderByClause = (sortField) => {
@@ -196,28 +194,41 @@ router.get('/', authenticateToken, async (req, res) => {
         case 'module_name':
           return 'm.module_name';
         case 'enrolled_at':
+          return 'um.enrolled_at';
         default:
           return 'um.enrolled_at';
       }
     };
 
-    baseQuery += `
-            ORDER BY ${getOrderByClause(safeSortBy)} ${safeSortOrder}
-            OFFSET @offset ROWS
-            FETCH NEXT @limit ROWS ONLY
+    const fullQuery = `
+        ${baseQuery}
+        ORDER BY ${getOrderByClause(safeSortBy)} ${safeSortOrder}
+        OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
       `;
 
-    console.log('🔍 Executing SQL query with search params:', searchParams);
-    console.log('🔍 Search condition applied:', !!searchCondition);
+    console.log('📊 Executing enhanced courses query...');
+    const result = await request.query(fullQuery);
 
-    let result;
-    try {
-      result = await request.query(baseQuery);
-      console.log('✅ Query executed successfully, got', result.recordset.length, 'results');
-    } catch (queryError) {
-      console.error('❌ Query execution failed:', queryError);
-      throw queryError;
-    }
+    // Transform data for frontend
+    const courses = result.recordset.map((row) => ({
+      id: row.id.toString(),
+      type:
+        row.university === 'Custom' || row.code?.startsWith('CASUAL_') ? 'casual' : 'institution',
+      code: row.university === 'Custom' || row.code?.startsWith('CASUAL_') ? undefined : row.code,
+      title: row.title,
+      description: row.description,
+      university: row.university,
+      status: row.status,
+      enrollmentStatus: row.status,
+      progress: Math.round(row.progress),
+      totalHours: parseFloat(row.totalHours.toFixed(1)),
+      totalTopics: row.totalTopics,
+      completedTopics: row.completedTopics,
+      weeklyStudyDays: row.weeklyStudyDays,
+      lastStudiedAt: row.lastStudiedAt,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    }));
 
     // Get total count for pagination
     const countRequest = pool.request();
@@ -226,71 +237,34 @@ router.get('/', authenticateToken, async (req, res) => {
       countRequest.input('search', sql.NVarChar(255), `%${search.trim()}%`);
     }
 
-    let countQuery = `
+    const countResult = await countRequest.query(`
         SELECT COUNT(*) as total
         FROM dbo.modules m
         INNER JOIN dbo.user_modules um ON m.module_id = um.module_id
         WHERE um.user_id = @userId AND m.is_active = 1
-      `;
+        ${searchCondition}
+      `);
 
-    // Add search condition to count query too
-    if (searchCondition) {
-      countQuery += searchCondition;
-    }
-
-    const countResult = await countRequest.query(countQuery);
     const totalCount = countResult.recordset[0].total;
 
-    console.log(`📊 Found ${result.recordset.length} courses (page ${page}, total: ${totalCount})`);
+    console.log('✅ Enhanced courses loaded:', courses.length, 'courses');
 
-    // Log each course for debugging
-    result.recordset.forEach((row, index) => {
-      console.log(
-        `  ${index + 1}. ${row.title} (ID: ${row.id}, Progress: ${Math.round(row.progress)}%)`
-      );
+    res.json({
+      courses,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: totalCount,
+        pages: Math.ceil(totalCount / limit),
+        hasNext: page * limit < totalCount,
+        hasPrev: page > 1,
+      },
     });
-
-    // Transform data to match expected frontend format
-    const courses = result.recordset.map((row) => ({
-      id: row.id.toString(),
-      type: row.university === 'Custom' ? 'casual' : 'institution',
-      code: row.university === 'Custom' ? undefined : row.code,
-      title: row.title,
-      description: row.description,
-      university: row.university,
-      status: row.status,
-      progress: Math.round(row.progress),
-      totalHours: row.totalHours,
-      totalTopics: row.total_topics || 0,
-      completedTopics: row.completed_topics || 0,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-    }));
-
-    // Return paginated response or simple array for backward compatibility
-    if (req.query.page || req.query.search || req.query.sortBy) {
-      // Return paginated format when explicitly requested
-      res.json({
-        courses,
-        pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total: totalCount,
-          pages: Math.ceil(totalCount / parseInt(limit)),
-          hasNext: offset + parseInt(limit) < totalCount,
-          hasPrev: parseInt(page) > 1,
-        },
-      });
-    } else {
-      // Return simple array for backward compatibility
-      res.json(courses);
-    }
   } catch (err) {
     console.error('GET /courses error:', err);
     res.status(500).json({ error: 'Failed to fetch courses' });
   }
 });
-
 // POST /courses - enroll in existing module or create custom study group
 router.post('/', authenticateToken, async (req, res) => {
   try {
@@ -844,6 +818,161 @@ router.get('/:id/topics', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('GET /courses/:id/topics error:', err);
     res.status(500).json({ error: 'Failed to fetch course topics' });
+  }
+});
+
+// New endpoint: Get course details with topics and progress
+router.get('/:id/details', authenticateToken, async (req, res) => {
+  try {
+    const moduleId = parseInt(req.params.id);
+    const pool = await getPool();
+    const request = pool.request();
+    request.input('userId', sql.NVarChar(255), req.user.id);
+    request.input('moduleId', sql.Int, moduleId);
+
+    // Get course details
+    const courseQuery = `
+      SELECT 
+        m.module_id as id,
+        m.module_code as code,
+        m.module_name as title,
+        m.description,
+        m.university,
+        um.enrollment_status as status,
+        um.enrolled_at as enrolledAt
+      FROM dbo.modules m
+      INNER JOIN dbo.user_modules um ON m.module_id = um.module_id
+      WHERE um.user_id = @userId AND m.module_id = @moduleId
+    `;
+
+    const courseResult = await request.query(courseQuery);
+    if (courseResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Course not found' });
+    }
+
+    const course = courseResult.recordset[0];
+
+    // Get topics with progress
+    const topicsQuery = `
+      SELECT 
+        t.topic_id as id,
+        t.topic_name as name,
+        t.description,
+        t.order_sequence as orderSequence,
+        ISNULL(t.estimated_hours, 0) as estimatedHours,
+        ISNULL(up.completion_status, 'not_started') as completionStatus,
+        ISNULL(up.hours_spent, 0) as hoursSpent,
+        up.started_at as startedAt,
+        up.completed_at as completedAt,
+        up.notes,
+        -- Total hours from study_hours table only
+        ISNULL(
+          (SELECT SUM(hours_logged) FROM dbo.study_hours sh 
+           WHERE sh.topic_id = t.topic_id AND sh.user_id = @userId), 0
+        ) as totalHours
+      FROM dbo.topics t
+      LEFT JOIN dbo.user_progress up ON t.topic_id = up.topic_id 
+        AND up.user_id = @userId AND up.chapter_id IS NULL
+      WHERE t.module_id = @moduleId AND t.is_active = 1
+      ORDER BY t.order_sequence ASC, t.topic_name ASC
+    `;
+
+    const topicsResult = await request.query(topicsQuery);
+
+    res.json({
+      course: {
+        id: course.id.toString(),
+        code: course.code,
+        title: course.title,
+        description: course.description,
+        university: course.university,
+        status: course.status,
+        enrolledAt: course.enrolledAt,
+      },
+      topics: topicsResult.recordset.map((topic) => ({
+        id: topic.id,
+        name: topic.name,
+        description: topic.description,
+        orderSequence: topic.orderSequence,
+        estimatedHours: topic.estimatedHours,
+        completionStatus: topic.completionStatus,
+        hoursSpent: parseFloat(topic.hoursSpent.toFixed(1)),
+        totalHours: parseFloat(topic.totalHours.toFixed(1)),
+        startedAt: topic.startedAt,
+        completedAt: topic.completedAt,
+        notes: topic.notes,
+      })),
+    });
+  } catch (err) {
+    console.error('GET /courses/:id/details error:', err);
+    res.status(500).json({ error: 'Failed to fetch course details' });
+  }
+});
+
+// Module-level study logging endpoint
+router.post('/:id/log-hours', authenticateToken, async (req, res) => {
+  try {
+    const moduleId = parseInt(req.params.id);
+    const { hours, description, studyDate } = req.body;
+
+    if (!hours || hours <= 0) {
+      return res.status(400).json({ error: 'Hours must be greater than 0' });
+    }
+
+    const pool = await getPool();
+    const transaction = new sql.Transaction(pool);
+
+    try {
+      await transaction.begin();
+
+      const request = new sql.Request(transaction);
+      request.input('userId', sql.NVarChar(255), req.user.id);
+      request.input('moduleId', sql.Int, moduleId);
+
+      // Verify user is enrolled in this module
+      const enrollmentCheck = await request.query(`
+        SELECT user_module_id 
+        FROM dbo.user_modules 
+        WHERE user_id = @userId AND module_id = @moduleId AND enrollment_status = 'active'
+      `);
+
+      if (enrollmentCheck.recordset.length === 0) {
+        await transaction.rollback();
+        return res.status(404).json({ error: 'Module not found or not enrolled' });
+      }
+
+      // Log in study_hours table (module-level, no specific topic)
+      request.input('hoursLogged', sql.Decimal(5, 2), hours);
+      request.input('description', sql.NText, description || '');
+      request.input('studyDate', sql.Date, studyDate || new Date());
+
+      const studyHoursResult = await request.query(`
+        INSERT INTO dbo.study_hours (user_id, module_id, topic_id, session_id, hours_logged, description, study_date, logged_at)
+        OUTPUT inserted.*
+        VALUES (@userId, @moduleId, NULL, NULL, @hoursLogged, @description, @studyDate, GETUTCDATE())
+      `);
+
+      await transaction.commit();
+
+      const studyHour = studyHoursResult.recordset[0];
+
+      res.json({
+        success: true,
+        studyLog: {
+          hourId: studyHour.hour_id,
+          hours: studyHour.hours_logged,
+          description: studyHour.description,
+          studyDate: studyHour.study_date,
+          loggedAt: studyHour.logged_at,
+        },
+      });
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error logging module hours:', error);
+    res.status(500).json({ error: 'Failed to log study hours' });
   }
 });
 

@@ -1,15 +1,15 @@
-// frontend/src/pages/Groups.tsx
-import { useState, useEffect, useId, useLayoutEffect, useRef } from 'react';
+import { useState, useEffect, useId, useLayoutEffect, useRef, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { Users, Plus, MessageSquare, Calendar, Trash2, X } from 'lucide-react';
+import { Users, Plus, MessageSquare, Calendar, Trash2, X, Pencil } from 'lucide-react';
 import { buildApiUrl } from '../utils/url';
-import { DataService, type StudyPartner, FALLBACK_PARTNERS } from '../services/dataService';
+import { DataService, FALLBACK_PARTNERS, type StudyPartner } from '../services/dataService';
+import { navigate } from '../router';
 
 type StudyGroup = {
   group_id: number;
   group_name: string;
   description?: string;
-  creator_id: number;
+  creator_id: string;
   module_id: number;
   max_members: number;
   group_type: 'study' | 'project' | 'exam_prep' | 'discussion';
@@ -20,6 +20,9 @@ type StudyGroup = {
   member_count?: number;
   module_name?: string;
   creator_name?: string;
+  // optional passthroughs
+  members?: Array<any>;
+  isOwner?: boolean;
 };
 
 export default function Groups() {
@@ -31,91 +34,47 @@ export default function Groups() {
   const [openInvite, setOpenInvite] = useState<{ open: boolean; groupId?: string }>({
     open: false,
   });
+
+  // NEW: edit modal state
+  const [openEdit, setOpenEdit] = useState<{
+    open: boolean;
+    backendId?: string; // /api id for this group
+    groupLocalId?: number;
+    defaults?: Partial<{
+      name: string;
+      description: string;
+      maxMembers: number;
+      isPublic: boolean;
+    }>;
+  }>({ open: false });
+
   const [connections, setConnections] = useState<StudyPartner[]>([]);
   const [connLoading, setConnLoading] = useState(false);
 
   const [meId, setMeId] = useState<string>('');
   const [owners, setOwners] = useState<Record<number, string>>({});
-  const [idMap, setIdMap] = useState<Record<number, string>>({}); // local numeric → cosmos id
-  const [usingFallback, setUsingFallback] = useState<boolean>(false);
+  const [idMap, setIdMap] = useState<Record<number, string>>({}); // local numeric → backend id
 
   // join/leave UI state
   const [joiningId, setJoiningId] = useState<number | null>(null);
   const [pendingAction, setPendingAction] = useState<'join' | 'leave' | null>(null);
   const [joinedByMe, setJoinedByMe] = useState<Record<number, boolean>>({});
 
-  // schedule-session modal state (new)
+  // schedule-session modal state
   const [openSchedule, setOpenSchedule] = useState<{
     open: boolean;
-    groupId?: string; // cosmos id
+    groupId?: string; // backend id
     groupLocalId?: number;
     groupName?: string;
     course?: string;
     courseCode?: string;
   }>({ open: false });
 
-  const fallbackGroups: StudyGroup[] = [
-    {
-      group_id: 1,
-      group_name: 'CS Advanced Study Group',
-      description: 'Advanced computer science topics and algorithms',
-      creator_id: 1,
-      module_id: 1,
-      max_members: 8,
-      group_type: 'study',
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      member_count: 5,
-      module_name: 'CS 201 - Data Structures',
-      creator_name: 'John Doe',
-    },
-    {
-      group_id: 2,
-      group_name: 'Math Warriors',
-      description: 'Tackling linear algebra together',
-      creator_id: 2,
-      module_id: 2,
-      max_members: 6,
-      group_type: 'exam_prep',
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      member_count: 4,
-      module_name: 'MATH 204 - Linear Algebra',
-      creator_name: 'Jane Smith',
-    },
-    {
-      group_id: 3,
-      group_name: 'Physics Lab Partners',
-      description: 'Lab work and problem solving',
-      creator_id: 3,
-      module_id: 3,
-      max_members: 4,
-      group_type: 'project',
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      member_count: 3,
-      module_name: 'PHY 101 - Mechanics',
-      creator_name: 'Alex Johnson',
-    },
-    {
-      group_id: 4,
-      group_name: 'Fallback Group',
-      description: 'Fallback group for testing',
-      creator_id: 4,
-      module_id: 4,
-      max_members: 10,
-      group_type: 'discussion',
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      member_count: 1,
-      module_name: 'GEN 101 - General',
-      creator_name: 'Fallback User',
-    },
-  ];
+  // members UI state
+  const [expandedMembers, setExpandedMembers] = useState<Record<number, boolean>>({});
+  const [membersByGroup, setMembersByGroup] = useState<Record<number, any[]>>({});
+  const [membersLoading, setMembersLoading] = useState<Record<number, boolean>>({});
+  const [membersError, setMembersError] = useState<Record<number, string | null>>({});
 
   // ---- headers consistent with DataService ----
   function authHeadersJSON(): Headers {
@@ -141,6 +100,34 @@ export default function Groups() {
     }
     return h;
   }
+
+  // --- safe group notifier (feature-detected) ---
+  async function notifyGroupSafe(
+    groupId: string,
+    payload: {
+      title: string;
+      message: string;
+      notification_type?: string;
+      metadata?: Record<string, any>;
+    }
+  ) {
+    if (!groupId) return;
+    const fn = (DataService as any)?.notifyGroup;
+    if (typeof fn !== 'function') return;
+    const { title, message, metadata, notification_type } = payload;
+    try {
+      await fn(groupId, {
+        notification_type: notification_type || 'message',
+        title,
+        message,
+        metadata: metadata || {},
+      });
+    } catch (e) {
+      console.warn('notifyGroupSafe failed (non-fatal)', e);
+    }
+  }
+
+  const canEditGroup = typeof (DataService as any)?.updateGroup === 'function';
 
   // --- broadcast helpers so other views can react in real-time ---
   function broadcastGroupCreated(group: any) {
@@ -169,7 +156,7 @@ export default function Groups() {
     } catch {}
   }
 
-  // map API → local card shape; capture owner + cosmos id + my membership
+  // map API → local card shape; capture owner + backend id + my membership
   function toStudyGroup(g: any): StudyGroup {
     const idStr = String(g?.id ?? g?.group_id ?? '');
     let hash = 0;
@@ -182,13 +169,23 @@ export default function Groups() {
         : g?.creator_id != null
         ? String(g.creator_id)
         : '';
-    setOwners((prev) => (prev[numericId] ? prev : { ...prev, [numericId]: createdBy }));
-    if (g?.id)
-      setIdMap((prev) => (prev[numericId] ? prev : { ...prev, [numericId]: String(g.id) }));
+
+    // keep owner map fresh in case backend transfers ownership
+    setOwners((prev) =>
+      prev[numericId] === createdBy ? prev : { ...prev, [numericId]: createdBy }
+    );
+
+    // ✅ NEW: accept either id or group_id as the backend id
+    if (g?.id != null || g?.group_id != null) {
+      const backendId = String(g.id ?? g.group_id);
+      setIdMap((prev) => (prev[numericId] ? prev : { ...prev, [numericId]: backendId }));
+    }
 
     // membership hint from API if available
     if (Array.isArray(g?.members) && meId) {
-      const iAmIn = g.members.some((m: any) => String(m?.userId ?? m?.id) === String(meId));
+      const iAmIn = g.members.some(
+        (m: any) => String(m?.userId ?? m?.id ?? m?.user_id) === String(meId)
+      );
       setJoinedByMe((prev) =>
         prev[numericId] === undefined ? { ...prev, [numericId]: iAmIn } : prev
       );
@@ -198,7 +195,11 @@ export default function Groups() {
       );
     }
 
-    const membersCount = Array.isArray(g?.members) ? g.members.length : g?.member_count ?? 0;
+    const membersCount = Array.isArray(g?.members)
+      ? g.members.length
+      : typeof g?.member_count === 'number'
+      ? g.member_count
+      : undefined;
     const createdAt = g?.createdAt || g?.created_at || new Date().toISOString();
     const updatedAt = g?.lastActivity || g?.updated_at || createdAt;
 
@@ -209,11 +210,11 @@ export default function Groups() {
         ? [courseCode, course].filter(Boolean).join(' - ')
         : g?.module_name ?? undefined;
 
-    return {
+    const base: any = {
       group_id: numericId,
       group_name: g?.name ?? g?.group_name ?? 'Untitled group',
       description: g?.description ?? '',
-      creator_id: Number.isFinite(g?.creator_id) ? g.creator_id : 0,
+      creator_id: createdBy, // normalized to string
       module_id: Number.isFinite(g?.module_id) ? g.module_id : 0,
       max_members: Number.isFinite(g?.maxMembers) ? g.maxMembers : g?.max_members ?? 10,
       group_type: (g?.group_type ?? 'study') as StudyGroup['group_type'],
@@ -225,13 +226,39 @@ export default function Groups() {
       module_name: moduleName,
       creator_name: g?.createdByName || g?.creator_name,
     };
+    // carry through useful server hints when present
+    if (typeof g?.isOwner === 'boolean') base.isOwner = !!g.isOwner;
+    if (Array.isArray(g?.members)) base.members = g.members;
+
+    // If I'm the creator, reflect membership immediately
+    if (meId && String(createdBy || '') === String(meId)) {
+      base.member_count = Math.max(1, Number(base.member_count || 0));
+      setJoinedByMe((prev) =>
+        prev[numericId] === undefined ? { ...prev, [numericId]: true } : prev
+      );
+    }
+
+    return base as StudyGroup;
   }
 
   function isOwner(group: StudyGroup): boolean {
-    const owner =
-      owners[group.group_id] || (group.creator_id != null ? String(group.creator_id) : '');
-    if (!owner || !meId) return false;
-    return String(owner) === String(meId);
+    if (!meId) return false;
+    // 1) prefer explicit server signal when available
+    if ((group as any).isOwner === true) return true;
+    // 2) Fallback to createdBy/creator_id logic
+    const ownerId =
+      owners[group.group_id] ?? (group.creator_id != null ? String(group.creator_id) : '');
+    if (ownerId && String(ownerId) === String(meId)) return true;
+    // 3) Last resort: if members array is present, accept owner-by-role
+    const m = (group as any).members;
+    if (Array.isArray(m)) {
+      const mine = m.find((x: any) => String(x?.userId ?? x?.id ?? x?.user_id) === String(meId));
+      if (mine) {
+        const role = String(mine.role || '').toLowerCase();
+        if (role === 'owner' || role === 'admin') return true;
+      }
+    }
+    return false;
   }
 
   useEffect(() => {
@@ -248,10 +275,10 @@ export default function Groups() {
             data?.user_id != null ? String(data.user_id) : data?.id != null ? String(data.id) : '';
           if (mounted) setMeId(id);
         } else {
-          if (mounted) setMeId('1');
+          if (mounted) setMeId(''); // don't guess; prevents accidental owner UI
         }
       } catch {
-        if (mounted) setMeId('1');
+        if (mounted) setMeId(''); // keep empty if unknown
       }
     })();
     return () => {
@@ -293,13 +320,6 @@ export default function Groups() {
     }
   }
 
-  function mergeGroups(prev: StudyGroup[], incoming: StudyGroup[]): StudyGroup[] {
-    const byId = new Map<number, StudyGroup>();
-    for (const g of prev) byId.set(g.group_id, g);
-    for (const g of incoming) byId.set(g.group_id, g); // prefer incoming
-    return Array.from(byId.values());
-  }
-
   async function refreshGroups(): Promise<boolean> {
     try {
       let data: any[] = [];
@@ -308,15 +328,13 @@ export default function Groups() {
       } catch {
         data = await DataService.fetchGroupsRaw();
       }
-      const mapped = (Array.isArray(data) ? data : []).map((g) => toStudyGroup(g));
-      setGroups((prev) =>
-        mapped.length > 0 ? mergeGroups(prev, mapped) : prev.length ? prev : fallbackGroups
-      );
-      setUsingFallback(false);
+      const mapped = (Array.isArray(data) ? data : []).map((g: any) => toStudyGroup(g));
+      setGroups(mapped); // <- just set what the backend gives you
+      setError(null);
       return true;
     } catch {
-      setGroups((prev) => (prev.length ? prev : fallbackGroups));
-      setUsingFallback(true);
+      setGroups([]); // <- empty; your “No study groups found” UI kicks in
+      setError('Showing demo groups'); // surface fallback state to UI
       return false;
     }
   }
@@ -326,6 +344,31 @@ export default function Groups() {
     setError(null);
     refreshGroups().finally(() => setLoading(false));
   }, []);
+
+  // --- members fetcher (feature-detected) ---
+  const membersFn =
+    (DataService as any)?.getGroupMembers ||
+    (DataService as any)?.fetchGroupMembers ||
+    (DataService as any)?.listGroupMembers ||
+    (DataService as any)?.getMembers;
+
+  async function loadMembersFor(group: StudyGroup) {
+    const backendId = idMap[group.group_id] ?? String(group.group_id); // ✅ fallback
+    if (!backendId || typeof membersFn !== 'function') return;
+
+    setMembersLoading((p) => ({ ...p, [group.group_id]: true }));
+    setMembersError((p) => ({ ...p, [group.group_id]: null }));
+    try {
+      const list = await membersFn(backendId);
+      const arr = Array.isArray(list) ? list : [];
+      setMembersByGroup((p) => ({ ...p, [group.group_id]: arr }));
+    } catch (e) {
+      console.warn('loadMembersFor failed', e);
+      setMembersError((p) => ({ ...p, [group.group_id]: 'Could not load members' }));
+    } finally {
+      setMembersLoading((p) => ({ ...p, [group.group_id]: false }));
+    }
+  }
 
   const joinGroup = async (groupId: number) => {
     const realId = idMap[groupId]; // undefined => fallback/demo
@@ -352,6 +395,11 @@ export default function Groups() {
       const ok = await DataService.joinGroup(realId);
       if (!ok) throw new Error('join failed');
       await refreshGroups();
+      // refresh member list if expanded
+      if (expandedMembers[groupId]) {
+        const g = groups.find((x) => x.group_id === groupId);
+        if (g) await loadMembersFor(g);
+      }
     } catch (err) {
       console.error('Error joining group:', err);
       // revert on hard error
@@ -394,6 +442,10 @@ export default function Groups() {
       const ok = await DataService.leaveGroup(realId);
       if (!ok) throw new Error('leave failed');
       await refreshGroups();
+      if (expandedMembers[groupId]) {
+        const g = groups.find((x) => x.group_id === groupId);
+        if (g) await loadMembersFor(g);
+      }
     } catch (err) {
       console.error('Error leaving group:', err);
       // revert
@@ -413,15 +465,26 @@ export default function Groups() {
     const realId = idMap[groupId] || String(groupId);
     if (!window.confirm('Delete this group? This action cannot be undone.')) return;
 
-    const snapshot = groups;
+    const snap = groups;
+    const target = groups.find((g) => g.group_id === groupId);
+    // Optional pre-notify (members still see it even as card disappears)
+    if (target) {
+      await notifyGroupSafe(realId, {
+        title: 'Group deleted',
+        message: `“${target.group_name}” was deleted by the owner.`,
+        metadata: { group_id: realId },
+      });
+    }
+
     setGroups((prev) => prev.filter((g) => g.group_id !== groupId));
     try {
       const ok = await DataService.deleteGroup(realId);
       if (!ok) throw new Error('delete failed');
+      window.dispatchEvent(new Event('groups:invalidate'));
       await refreshGroups();
     } catch (err) {
       console.error('Error deleting group:', err);
-      setGroups(snapshot);
+      setGroups(snap);
     }
   };
 
@@ -429,8 +492,6 @@ export default function Groups() {
   const handleCreateGroup = async (form: {
     name: string;
     description?: string;
-    course?: string;
-    courseCode?: string;
     maxMembers?: number;
     isPublic?: boolean;
   }) => {
@@ -441,15 +502,33 @@ export default function Groups() {
         subjects: [],
         maxMembers: form.maxMembers ?? 8,
         isPublic: form.isPublic ?? true,
-        course: form.course || '',
-        courseCode: form.courseCode || '',
       });
 
       if (created) {
         const sg = toStudyGroup(created);
+
+        // Ensure the creator is actually a member on the server too
+        try {
+          const newId = String((created as any)?.id ?? idMap[sg.group_id]);
+          if (newId && (DataService as any)?.joinGroup) {
+            await (DataService as any).joinGroup(newId);
+          }
+        } catch (e) {
+          console.warn('joinGroup right after create failed (non-fatal)', e);
+        }
+
+        // Ensure the UI immediately reflects creator membership + ownership
         setJoinedByMe((prev) => ({ ...prev, [sg.group_id]: true }));
-        setGroups((prev) => [sg, ...prev]);
-        broadcastGroupCreated(sg);
+        setOwners((prev) => ({ ...prev, [sg.group_id]: meId }));
+        if ((created as any)?.id) {
+          setIdMap((prev) => ({ ...prev, [sg.group_id]: String((created as any).id) }));
+        }
+
+        // Seed visible count to at least 1 (creator)
+        setGroups((prev) => [{ ...sg, member_count: Math.max(1, sg.member_count || 0) }, ...prev]);
+
+        broadcastGroupCreated({ ...sg, member_count: Math.max(1, sg.member_count || 0) });
+
         await refreshGroups();
         return;
       }
@@ -457,7 +536,7 @@ export default function Groups() {
       console.error('Error creating group:', err);
     }
 
-    // Optimistic fallback
+    // ---- Fallback optimistic create (no API) ----
     const localId = Date.now();
     const localGroup = toStudyGroup({
       id: String(localId),
@@ -465,8 +544,6 @@ export default function Groups() {
       description: form.description || '',
       maxMembers: form.maxMembers ?? 8,
       isPublic: form.isPublic ?? true,
-      course: form.course || '',
-      courseCode: form.courseCode || '',
       createdBy: meId,
       members: [{ userId: meId, role: 'admin', joinedAt: new Date().toISOString() }],
       createdAt: new Date().toISOString(),
@@ -475,14 +552,15 @@ export default function Groups() {
     });
 
     setJoinedByMe((prev) => ({ ...prev, [localGroup.group_id]: true }));
+    setOwners((prev) => ({ ...prev, [localGroup.group_id]: meId }));
     setGroups((prev) => [localGroup, ...prev]);
     broadcastGroupCreated(localGroup);
   };
 
-  // --- schedule a session for a group (type-safe; no 'description' in payload) ---
+  // --- schedule a session for a group ---
   const handleScheduleSession = async (
     groupCtx: {
-      groupId: string; // same type used in Sessions.tsx (string)
+      groupId: string; // backend id
       groupLocalId: number;
       groupName: string;
       course?: string;
@@ -494,29 +572,9 @@ export default function Groups() {
       startTime: string;
       endTime: string;
       location: string;
-      description?: string; // still allowed in UI, just not sent to createSession
+      description?: string;
     }
   ) => {
-    // Optimistic broadcast (keeps local date/time so Calendar feels instant)
-    const optimistic = {
-      id: String(Date.now()),
-      title: form.title,
-      date: form.date,
-      startTime: form.startTime,
-      endTime: form.endTime,
-      location: form.location,
-      type: 'study',
-      participants: 1,
-      status: 'upcoming',
-      isCreator: true,
-      isAttending: true,
-      groupId: groupCtx.groupId,
-      course: groupCtx.course,
-      courseCode: groupCtx.courseCode,
-    };
-    broadcastSessionCreated(optimistic);
-
-    // If there's no real group id (demo/fallback), stop after optimistic update
     if (!groupCtx.groupId) return;
 
     try {
@@ -529,31 +587,91 @@ export default function Groups() {
         endTime: form.endTime,
         location: form.location,
         type: 'study',
-        groupId: groupCtx.groupId, // keep as string; DataService handles coercion
-        // maxParticipants: optional if you want to include it
+        groupId: groupCtx.groupId,
       });
 
       if (created) {
-        // Re-broadcast using same local date/time to avoid timezone jumps
         broadcastSessionCreated({
-          id: String(created.id ?? Date.now()),
-          title: created.title ?? form.title,
+          id: String((created as any).id ?? Date.now()),
+          title: (created as any).title ?? form.title,
           date: form.date,
           startTime: form.startTime,
           endTime: form.endTime,
-          location: created.location ?? form.location,
-          type: created.type ?? 'study',
-          participants: created.participants ?? 1,
-          status: created.status ?? 'upcoming',
+          location: (created as any).location ?? form.location,
+          type: (created as any).type ?? 'study',
+          participants: (created as any).participants ?? 1,
+          status: (created as any).status ?? 'upcoming',
           isCreator: true,
           isAttending: true,
-          groupId: String(created.groupId ?? groupCtx.groupId),
-          course: created.course ?? groupCtx.course,
-          courseCode: created.courseCode ?? groupCtx.courseCode,
+          groupId: String((created as any).groupId ?? groupCtx.groupId),
+          course: (created as any).course ?? groupCtx.course,
+          courseCode: (created as any).courseCode ?? groupCtx.courseCode,
         });
+
+        const sessionId = (created as any).id;
+        const whenLocal = new Date(`${form.date}T${form.startTime}`).toLocaleString();
+        try {
+          if (sessionId && (DataService as any)?.scheduleSession24hReminders) {
+            await (DataService as any).scheduleSession24hReminders(sessionId);
+          }
+        } catch (e) {
+          console.warn('scheduleSession24hReminders failed (non-fatal)', e);
+        }
+        try {
+          await notifyGroupSafe(groupCtx.groupId, {
+            notification_type: 'message',
+            title: 'New study session',
+            message: `“${form.title.trim()}” at ${whenLocal} • ${form.location.trim()}`,
+            metadata: { session_id: sessionId, group_id: groupCtx.groupId },
+          });
+        } catch {}
       }
     } catch (err) {
       console.error('Error scheduling session:', err);
+    }
+  };
+
+  // --- update group (API-first; optimistic update; notify; refresh) ---
+  const handleUpdateGroup = async (
+    ctx: { backendId: string; groupLocalId: number; originalName: string },
+    form: { name: string; description?: string; maxMembers?: number; isPublic?: boolean }
+  ) => {
+    // Optimistic update in the grid
+    setGroups((prev) =>
+      prev.map((g) =>
+        g.group_id === ctx.groupLocalId
+          ? {
+              ...g,
+              group_name: form.name,
+              description: form.description ?? g.description,
+              max_members: typeof form.maxMembers === 'number' ? form.maxMembers : g.max_members,
+            }
+          : g
+      )
+    );
+
+    try {
+      const payload: any = { name: form.name };
+      if ('description' in form) payload.description = form.description ?? '';
+      if ('maxMembers' in form) payload.maxMembers = form.maxMembers;
+      if ('isPublic' in form) payload.isPublic = form.isPublic;
+
+      await (DataService as any).updateGroup(ctx.backendId, payload);
+
+      await notifyGroupSafe(ctx.backendId, {
+        title: 'Group updated',
+        message:
+          ctx.originalName !== form.name
+            ? `“${ctx.originalName}” was renamed to “${form.name}”.`
+            : `“${form.name}” details were updated.`,
+        metadata: { group_id: ctx.backendId },
+      });
+
+      await refreshGroups();
+    } catch (e) {
+      console.error('Update group failed', e);
+      alert('Could not update the group.');
+      await refreshGroups(); // restore authoritative state
     }
   };
 
@@ -573,11 +691,44 @@ export default function Groups() {
   // helper: derive course + code from module_name like "CS 201 - Data Structures"
   function splitModuleName(mod?: string): { courseCode?: string; course?: string } {
     if (!mod) return {};
-    const parts = String(mod).split(' - ');
+    const parts: string[] = String(mod).split(' - ');
     if (parts.length >= 2) {
       return { courseCode: parts[0], course: parts.slice(1).join(' - ') };
     }
     return { course: mod };
+  }
+
+  // small helper to render a user chip from various API shapes
+  function renderMemberChip(m: any, idx: number) {
+    const name: string =
+      m?.name ??
+      m?.displayName ??
+      m?.fullName ??
+      m?.username ??
+      m?.email ??
+      m?.id ??
+      m?.userId ??
+      `User ${idx + 1}`;
+    const initials = String(name)
+      .trim()
+      .split(/\s+/)
+      .map((n) => n[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
+
+    return (
+      <div
+        key={`${(m?.id ?? m?.userId ?? name) as string}:${idx}`}
+        className="inline-flex items-center gap-2 rounded-full bg-slate-100 text-slate-700 px-2 py-1 text-xs"
+        title={name}
+      >
+        <span className="inline-grid place-items-center w-5 h-5 rounded-full bg-emerald-200 text-emerald-800 text-[10px] font-semibold">
+          {initials}
+        </span>
+        <span className="max-w-[140px] truncate">{name}</span>
+      </div>
+    );
   }
 
   return (
@@ -588,7 +739,7 @@ export default function Groups() {
           <h1 className="text-2xl font-bold text-gray-900">Study Groups</h1>
           <p className="text-gray-600">
             Join or create study groups to collaborate with peers
-            {usingFallback && <span className="ml-2 text-xs text-gray-500">(demo data)</span>}
+            {error && <span className="ml-2 text-xs text-gray-500">(demo data)</span>}
           </p>
         </div>
         <button
@@ -616,6 +767,14 @@ export default function Groups() {
 
             const realId = idMap[group.group_id] || String(group.group_id);
             const coursePieces = splitModuleName(group.module_name);
+
+            // prefer members already provided by API; else use fetched; else empty
+            const immediateMembers =
+              (group as any).members && Array.isArray((group as any).members)
+                ? (group as any).members
+                : membersByGroup[group.group_id] || [];
+
+            const isExpanded = !!expandedMembers[group.group_id];
 
             return (
               <div
@@ -652,15 +811,57 @@ export default function Groups() {
                     <span>
                       {group.member_count || 0}/{group.max_members} members
                     </span>
+                    {/* Members toggle (only if we have or can fetch members) */}
+                    {(Array.isArray((group as any).members) ||
+                      Array.isArray((group as any).membersList) ||
+                      (typeof membersFn === 'function' &&
+                        (idMap[group.group_id] ?? group.group_id))) && (
+                      <button
+                        onClick={async () => {
+                          const next = !isExpanded;
+                          setExpandedMembers((p) => ({ ...p, [group.group_id]: next }));
+                          if (
+                            next &&
+                            !Array.isArray((group as any).members) &&
+                            !Array.isArray((group as any).membersList)
+                          ) {
+                            if (!membersByGroup[group.group_id]) {
+                              await loadMembersFor(group);
+                            }
+                          }
+                        }}
+                        className="ml-2 text-xs px-2 py-1 rounded border border-gray-300 hover:bg-gray-50"
+                      >
+                        {isExpanded ? 'Hide members' : 'View members'}
+                      </button>
+                    )}
                   </div>
                   {group.module_name && (
                     <div className="text-xs text-gray-500">{group.module_name}</div>
                   )}
                 </div>
 
+                {/* Members list */}
+                {isExpanded && (
+                  <div className="mb-4">
+                    {membersLoading[group.group_id] ? (
+                      <div className="text-xs text-gray-500">Loading members…</div>
+                    ) : membersError[group.group_id] ? (
+                      <div className="text-xs text-red-600">{membersError[group.group_id]}</div>
+                    ) : immediateMembers.length === 0 ? (
+                      <div className="text-xs text-gray-500">No members listed.</div>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {immediateMembers.map((m: any, i: number) => renderMemberChip(m, i))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex items-center gap-2">
                   {owner ? (
                     <>
+                      {/* Invite */}
                       <button
                         onClick={async () => {
                           await loadConnections();
@@ -671,6 +872,31 @@ export default function Groups() {
                       >
                         <Users className="w-4 h-4" />
                       </button>
+
+                      {/* Edit (now opens the full edit modal) */}
+                      {canEditGroup && (
+                        <button
+                          onClick={() => {
+                            setOpenEdit({
+                              open: true,
+                              backendId: realId,
+                              groupLocalId: group.group_id,
+                              defaults: {
+                                name: group.group_name,
+                                description: group.description || '',
+                                maxMembers: group.max_members ?? 8,
+                                isPublic: true, // fallback if server doesn't surface it on list
+                              },
+                            });
+                          }}
+                          className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
+                          title="Edit group"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                      )}
+
+                      {/* Delete (pre-notifies members) */}
                       <button
                         onClick={() => deleteGroup(group.group_id)}
                         className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
@@ -678,12 +904,19 @@ export default function Groups() {
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
+
+                      {/* Open chat (placeholder) */}
                       <button
+                        type="button"
+                        onClick={() => navigate('/chat')} // or '/chats' if that’s your route
                         className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
                         title="Open chat"
+                        aria-label="Open chat"
                       >
                         <MessageSquare className="w-4 h-4" />
                       </button>
+
+                      {/* Schedule session */}
                       <button
                         onClick={() =>
                           setOpenSchedule({
@@ -725,11 +958,15 @@ export default function Groups() {
                         </button>
                       )}
                       <button
+                        type="button"
+                        onClick={() => navigate('/chat')}
                         className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
                         title="Open chat"
+                        aria-label="Open chat"
                       >
                         <MessageSquare className="w-4 h-4" />
                       </button>
+
                       <button
                         onClick={() =>
                           setOpenSchedule({
@@ -769,14 +1006,33 @@ export default function Groups() {
         </div>
       )}
 
-      {/* Create Group Modal (Sessions-style) */}
+      {/* Create Group Modal */}
       <GroupModal
         open={openCreate}
         onClose={() => setOpenCreate(false)}
         onSubmit={handleCreateGroup}
       />
 
-      {/* NEW: Schedule Session Modal */}
+      {/* Edit Group Modal */}
+      <GroupModal
+        open={openEdit.open}
+        onClose={() => setOpenEdit({ open: false })}
+        mode="edit"
+        onSubmit={(form) => {
+          if (!openEdit.backendId || !openEdit.groupLocalId) return;
+          handleUpdateGroup(
+            {
+              backendId: openEdit.backendId,
+              groupLocalId: openEdit.groupLocalId,
+              originalName: openEdit.defaults?.name || '',
+            },
+            form
+          );
+        }}
+        defaults={openEdit.defaults}
+      />
+
+      {/* Schedule Session Modal */}
       <ScheduleSessionModal
         open={openSchedule.open}
         onClose={() => setOpenSchedule({ open: false })}
@@ -810,6 +1066,7 @@ export default function Groups() {
           onClose={() => setOpenInvite({ open: false })}
           groupId={openInvite.groupId!}
           connections={connections}
+          currentUserId={meId}
         />
       )}
     </div>
@@ -822,49 +1079,41 @@ function GroupModal({
   onClose,
   onSubmit,
   defaults,
+  mode = 'create',
 }: {
   open: boolean;
   onClose: () => void;
   onSubmit: (g: {
     name: string;
     description?: string;
-    course?: string;
-    courseCode?: string;
     maxMembers?: number;
     isPublic?: boolean;
   }) => void;
   defaults?: Partial<{
     name: string;
     description: string;
-    course: string;
-    courseCode: string;
     maxMembers: number;
     isPublic: boolean;
   }>;
+  mode?: 'create' | 'edit';
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
 
   const [name, setName] = useState(defaults?.name || '');
   const [description, setDescription] = useState(defaults?.description || '');
-  const [course, setCourse] = useState(defaults?.course || '');
-  const [courseCode, setCourseCode] = useState(defaults?.courseCode || '');
   const [maxMembers, setMaxMembers] = useState<number>(defaults?.maxMembers ?? 8);
   const [isPublic, setIsPublic] = useState<boolean>(defaults?.isPublic ?? true);
 
   const titleId = useId();
   const nameId = useId();
   const descId = useId();
-  const courseId = useId();
-  const codeId = useId();
   const maxId = useId();
 
   useEffect(() => {
     if (!open) return;
     setName(defaults?.name || '');
     setDescription(defaults?.description || '');
-    setCourse(defaults?.course || '');
-    setCourseCode(defaults?.courseCode || '');
     setMaxMembers(defaults?.maxMembers ?? 8);
     setIsPublic(defaults?.isPublic ?? true);
   }, [open, defaults]);
@@ -891,14 +1140,12 @@ function GroupModal({
 
   if (!open) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
     onSubmit({
       name: name.trim(),
       description: description.trim() || undefined,
-      course: course.trim() || undefined,
-      courseCode: courseCode.trim() || undefined,
       maxMembers,
       isPublic,
     });
@@ -921,9 +1168,13 @@ function GroupModal({
           <div className="flex items-start justify-between mb-6">
             <div>
               <h2 id={titleId} className="text-lg font-semibold text-slate-900">
-                Create new group
+                {mode === 'edit' ? 'Edit group' : 'Create new group'}
               </h2>
-              <p className="text-sm text-slate-600">Organize a study group with your peers</p>
+              <p className="text-sm text-slate-600">
+                {mode === 'edit'
+                  ? 'Update details for your study group'
+                  : 'Organize a study group with your peers'}
+              </p>
             </div>
             <button
               ref={closeBtnRef}
@@ -964,33 +1215,6 @@ function GroupModal({
                   className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
                 />
               </div>
-
-              <div>
-                <label htmlFor={codeId} className="block mb-1 text-sm font-medium text-slate-800">
-                  Course code
-                </label>
-                <input
-                  id={codeId}
-                  value={courseCode}
-                  onChange={(e) => setCourseCode(e.target.value)}
-                  placeholder="e.g., CS301"
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label htmlFor={courseId} className="block mb-1 text-sm font-medium text-slate-800">
-                  Course name
-                </label>
-                <input
-                  id={courseId}
-                  value={course}
-                  onChange={(e) => setCourse(e.target.value)}
-                  placeholder="e.g., Data Structures"
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
-                />
-              </div>
-
               <div>
                 <label htmlFor={maxId} className="block mb-1 text-sm font-medium text-slate-800">
                   Max members
@@ -1032,7 +1256,7 @@ function GroupModal({
                 type="submit"
                 className="rounded-xl bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
               >
-                Create group
+                {mode === 'edit' ? 'Save changes' : 'Create group'}
               </button>
             </div>
           </form>
@@ -1043,7 +1267,7 @@ function GroupModal({
   );
 }
 
-/* --------------- NEW: Schedule Session Modal (Sessions-style) --------------- */
+/* --------------- Schedule Session Modal --------------- */
 function ScheduleSessionModal({
   open,
   onClose,
@@ -1115,7 +1339,7 @@ function ScheduleSessionModal({
 
   if (!open) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !date || !startTime || !endTime || !location.trim()) return;
     onSubmit({
@@ -1276,10 +1500,13 @@ function InviteMembersModal({
   onClose,
   groupId,
   connections,
+  currentUserId,
 }: {
   onClose: () => void;
   groupId: string;
   connections: StudyPartner[];
+  /** used to send "group invite sent" notification back to the inviter */
+  currentUserId: string;
 }) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
@@ -1295,6 +1522,33 @@ function InviteMembersModal({
     try {
       const ok = await DataService.inviteToGroup(groupId, selectedIds);
       if (!ok) throw new Error('invite failed');
+
+      // Notify inviter (you)
+      if (currentUserId) {
+        await DataService.createNotification({
+          user_id: currentUserId,
+          notification_type: 'group_invite',
+          title: 'Group invites sent',
+          message: `You invited ${selectedIds.length} ${
+            selectedIds.length === 1 ? 'person' : 'people'
+          } to join your group.`,
+          metadata: { group_id: groupId, invitee_ids: selectedIds, direction: 'sent' },
+        });
+      }
+
+      // Notify each invitee
+      await Promise.all(
+        selectedIds.map((uid) =>
+          DataService.createNotification({
+            user_id: uid,
+            notification_type: 'group_invite',
+            title: 'You’ve been invited to a study group',
+            message: 'Open the app to accept or view the group details.',
+            metadata: { group_id: groupId, invited_by: currentUserId, direction: 'received' },
+          }).catch(() => null)
+        )
+      );
+
       setSent(true);
     } catch (err) {
       console.error('Error sending invites:', err);

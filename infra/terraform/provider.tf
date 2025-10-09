@@ -20,18 +20,13 @@ terraform {
 # Configure the Azure Provider
 provider "azurerm" {
   features {}
-  # For local development, uncomment and add your values:
-  subscription_id = "7db47e1f-79a2-4a18-9797-c803ca806c29"
-  tenant_id       = "4b1b908c-5582-4377-ba07-a36d65e34934"
-  # 
-  # For CI/CD, these values come from environment variables:
-  # ARM_SUBSCRIPTION_ID and ARM_TENANT_ID
+  # Subscription and tenant will be provided via environment variables or CLI
+  # subscription_id = var.azure_subscription_id != "" ? var.azure_subscription_id : null
+  # tenant_id       = var.azure_tenant_id != "" ? var.azure_tenant_id : null
 }
 
 # Configure the Azure AD Provider
 provider "azuread" {
-  # For local development, uncomment and add your value:
-  tenant_id = "4b1b908c-5582-4377-ba07-a36d65e34934"
-  #
-  # For CI/CD, this value comes from environment variable: ARM_TENANT_ID
+  # Tenant will be provided via environment variables or CLI
+  # tenant_id = var.azure_tenant_id != "" ? var.azure_tenant_id : null
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bell, User, Shield, Palette, Globe, /*Clock,*/ Save, Eye, EyeOff } from 'lucide-react';
+import { Bell, User, Shield, Palette, Globe, Save, Eye, EyeOff } from 'lucide-react';
 import { buildApiUrl } from '../utils/url';
 
 type UserProfile = {

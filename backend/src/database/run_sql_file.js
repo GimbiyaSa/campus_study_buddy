@@ -51,7 +51,7 @@ async function runSqlFile(sqlFilePath) {
 
 if (require.main === module) {
   // Default to azure_sql_script.sql in the same folder
-  const sqlFile = path.join(__dirname, 'azure_sql_script.sql');
+  const sqlFile = path.join(__dirname, '../../src/database/azure_sql_script.sql');
   runSqlFile(sqlFile);
 }
 

@@ -2,17 +2,52 @@ import '@testing-library/jest-dom';
 import { afterEach, beforeEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 
+// Mock Azure Web PubSub Client to prevent connection errors
+vi.mock('@azure/web-pubsub-client', () => ({
+  WebPubSubClient: vi.fn().mockImplementation(() => ({
+    start: vi.fn().mockResolvedValue(undefined),
+    stop: vi.fn().mockResolvedValue(undefined),
+    sendEvent: vi.fn().mockResolvedValue(undefined),
+    on: vi.fn(),
+    off: vi.fn(),
+  })),
+}));
+
+// Mock localStorage
+const localStorageMock = {
+  getItem: vi.fn(),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
+  length: 0,
+  key: vi.fn(),
+};
+
+// Set up localStorage mock before tests
+Object.defineProperty(window, 'localStorage', {
+  value: localStorageMock,
+  writable: true,
+});
+
 // Mock fetch globally for all tests
 beforeEach(() => {
+  // Clear all mocks before each test
+  vi.clearAllMocks();
+
+  // Ensure a valid auth token is set for all tests
+  localStorageMock.getItem.mockImplementation((key) => {
+    if (key === 'token') return 'test-token';
+    return null;
+  });
+
   global.fetch = vi.fn((input: string | URL | Request) => {
     const url = typeof input === 'string' ? input : input.toString();
 
     // Users
     if (url.includes('/api/v1/users/me')) {
-      return Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
             user_id: 1,
             email: 'test@example.com',
             first_name: 'Test',
@@ -21,14 +56,17 @@ beforeEach(() => {
             course: 'Computer Science',
             year_of_study: 2,
             is_active: true,
+            role: 'student',
+            permissions: ['create:course'],
           }),
-      }) as Promise<Response>;
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
     }
     if (url.includes('/api/v1/users')) {
-      return Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve([
+      return Promise.resolve(
+        new Response(
+          JSON.stringify([
             {
               user_id: 1,
               email: 'test@example.com',
@@ -50,21 +88,65 @@ beforeEach(() => {
               is_active: true,
             },
           ]),
-      }) as Promise<Response>;
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
     }
 
-    // Partners
+    // Partners search
+    if (url.includes('/api/v1/partners/search')) {
+      return Promise.resolve(
+        new Response(
+          JSON.stringify([
+            {
+              id: '2',
+              name: 'Alice Smith',
+              course: 'Mathematics',
+              university: 'Test University',
+              bio: 'Love early mornings and group study!',
+              sharedCourses: ['Calculus II', 'Linear Algebra'],
+              studyPreferences: {
+                preferredTimes: ['Morning'],
+                environment: 'On-campus',
+                studyStyle: 'Group',
+              },
+              compatibilityScore: 95,
+              initials: 'AS',
+            },
+            {
+              id: '3',
+              name: 'Bob Lee',
+              course: 'Physics',
+              university: 'Test University',
+              bio: 'Night owl, prefers solo sessions.',
+              sharedCourses: ['Physics I'],
+              studyPreferences: {
+                preferredTimes: ['Evening'],
+                environment: 'Remote',
+                studyStyle: 'Solo',
+              },
+              compatibilityScore: 80,
+              initials: 'BL',
+            },
+          ]),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
+    }
+
+    // Partners (fallback for /api/v1/partners)
     if (url.includes('/api/v1/partners')) {
       if (input instanceof Request && input.method === 'POST') {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({ success: true, message: 'Invite sent' }),
-        }) as Promise<Response>;
+        return Promise.resolve(
+          new Response(JSON.stringify({ success: true, message: 'Invite sent' }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        );
       }
-      return Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve([
+      return Promise.resolve(
+        new Response(
+          JSON.stringify([
             {
               id: '2',
               name: 'Alice Smith',
@@ -82,15 +164,16 @@ beforeEach(() => {
               initials: 'BL',
             },
           ]),
-      }) as Promise<Response>;
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
     }
 
     // Notes (group/shared notes)
     if (url.includes('/api/v1/groups/notes')) {
-      return Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve([
+      return Promise.resolve(
+        new Response(
+          JSON.stringify([
             {
               note_id: 1,
               group_id: 1,
@@ -124,15 +207,16 @@ beforeEach(() => {
               topic_name: 'Linear Algebra',
             },
           ]),
-      }) as Promise<Response>;
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
     }
 
     // Groups
     if (url.includes('/api/v1/groups')) {
-      return Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve([
+      return Promise.resolve(
+        new Response(
+          JSON.stringify([
             {
               group_id: 1,
               group_name: 'CS Advanced Study Group',
@@ -179,15 +263,16 @@ beforeEach(() => {
               creator_name: 'Alex Johnson',
             },
           ]),
-      }) as Promise<Response>;
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
     }
 
     // Sessions
     if (url.includes('/api/v1/sessions')) {
-      return Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve([
+      return Promise.resolve(
+        new Response(
+          JSON.stringify([
             {
               id: '1',
               title: 'Algorithms Study Group',
@@ -217,106 +302,96 @@ beforeEach(() => {
               status: 'upcoming',
             },
           ]),
-      }) as Promise<Response>;
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
     }
 
     // Courses
     if (url.includes('/api/v1/courses')) {
-      return Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve([
-            {
-              id: 'CS101',
-              title: 'Intro to Computer Science',
-              code: 'CS101',
-              progress: 80,
-              totalHours: 40,
-              weeklyHours: 5,
-              lastStudied: '2025-09-20',
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            courses: [
+              {
+                id: 'CS101',
+                title: 'Intro to Computer Science',
+                code: 'CS101',
+                progress: 80,
+                totalHours: 40,
+                weeklyHours: 5,
+                lastStudied: '2025-09-20',
+              },
+              {
+                id: 'MATH201',
+                title: 'Calculus II',
+                code: 'MATH201',
+                progress: 60,
+                totalHours: 30,
+                weeklyHours: 3,
+                lastStudied: '2025-09-18',
+              },
+            ],
+            pagination: {
+              page: 1,
+              limit: 20,
+              total: 2,
+              pages: 1,
+              hasNext: false,
+              hasPrev: false,
             },
-            {
-              id: 'MATH201',
-              title: 'Calculus II',
-              code: 'MATH201',
-              progress: 60,
-              totalHours: 30,
-              weeklyHours: 3,
-              lastStudied: '2025-09-18',
-            },
-          ]),
-      }) as Promise<Response>;
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
     }
 
     // Progress
     if (url.includes('/api/v1/user/progress')) {
-      return Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
             totalStudyHours: 120,
             weeklyStudyHours: 12,
             coursesCompleted: 3,
-            totalCourses: 5,
-            weeklyGoal: 15,
-            currentStreak: 4,
-            longestStreak: 10,
-          }),
-      }) as Promise<Response>;
-    }
-    if (url.includes('/api/v1/user/course-progress')) {
-      return Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve([
-            {
-              id: 'CS101',
-              title: 'Intro to Computer Science',
-              progress: 80,
-              totalHours: 40,
-              weeklyHours: 5,
-              lastStudied: '2025-09-20',
-            },
-          ]),
-      }) as Promise<Response>;
-    }
-    if (url.includes('/api/v1/user/weekly-study-hours')) {
-      return Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve([
-            { day: 'Mon', hours: 2 },
-            { day: 'Tue', hours: 3 },
-            { day: 'Wed', hours: 2 },
-            { day: 'Thu', hours: 1 },
-            { day: 'Fri', hours: 2 },
-            { day: 'Sat', hours: 1 },
-            { day: 'Sun', hours: 1 },
-          ]),
-      }) as Promise<Response>;
-    }
-
-    // Settings/profile
-    if (url.includes('/api/v1/user/profile')) {
-      return Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            name: 'Test User',
-            email: 'test@example.com',
-            avatar: '',
-            bio: 'I love studying!',
-            institution: 'Test University',
-            year: '2',
             major: 'Computer Science',
+            courses: [
+              {
+                id: 'CS101',
+                title: 'Intro to Computer Science',
+                code: 'CS101',
+                progress: 80,
+                totalHours: 40,
+                weeklyHours: 5,
+                lastStudied: '2025-09-20',
+              },
+              {
+                id: 'MATH201',
+                title: 'Calculus II',
+                code: 'MATH201',
+                progress: 60,
+                totalHours: 30,
+                weeklyHours: 3,
+                lastStudied: '2025-09-18',
+              },
+            ],
+            pagination: {
+              page: 1,
+              limit: 20,
+              total: 2,
+              pages: 1,
+              hasNext: false,
+              hasPrev: false,
+            },
           }),
-      }) as Promise<Response>;
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
     }
     if (url.includes('/api/v1/user/notifications')) {
-      return Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
             sessionReminders: true,
             newMessages: true,
             partnerRequests: true,
@@ -324,45 +399,52 @@ beforeEach(() => {
             weeklyProgress: true,
             emailNotifications: false,
           }),
-      }) as Promise<Response>;
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
     }
     if (url.includes('/api/v1/user/privacy')) {
-      return Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
             profileVisibility: 'public',
             groupVisibility: 'private',
           }),
-      }) as Promise<Response>;
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
     }
     if (url.includes('/api/v1/user/preferences')) {
-      return Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
             studyTimes: ['Morning', 'Evening'],
             preferredModules: ['CS101', 'MATH201'],
           }),
-      }) as Promise<Response>;
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
     }
 
     if (url.includes('/api/v1/modules')) {
-      return Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve([
+      return Promise.resolve(
+        new Response(
+          JSON.stringify([
             { module_id: 1, module_code: 'CS101', module_name: 'Intro to Computer Science' },
             { module_id: 2, module_code: 'MATH201', module_name: 'Calculus II' },
           ]),
-      }) as Promise<Response>;
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
     }
 
     // Default: empty success
-    return Promise.resolve({
-      ok: true,
-      json: () => Promise.resolve([]),
-    }) as Promise<Response>;
+    return Promise.resolve(
+      new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
   }) as any;
 });
 

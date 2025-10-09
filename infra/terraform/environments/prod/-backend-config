@@ -1,4 +1,4 @@
-resource_group_name  = "terraform-state-rg"
-storage_account_name = "stcampusstudytfstate"
+resource_group_name  = "csb-tfstate-rg"
+storage_account_name = "csbprodtfstate"
 container_name       = "tfstate"
-key                  = "prod/terraform.tfstate"
+key                  = "terraform.tfstate"

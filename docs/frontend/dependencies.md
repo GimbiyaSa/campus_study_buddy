@@ -2,8 +2,6 @@
 
 This reference is generated from `frontend/package.json` and explains why each dependency exists in the Campus Study Buddy UI. Use it to evaluate updates, remove unused libraries, and onboard new contributors.
 
-> **Tip:** Versions are shown as declared ranges. Run `npm ls <package-name>` or inspect `package-lock.json` to see the exact resolved versions in your workspace.
-
 ## Runtime dependencies
 
 | Library | Version | Purpose in the app |

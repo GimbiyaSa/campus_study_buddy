@@ -2,8 +2,6 @@
 
 This document summarizes the key libraries that power the Campus Study Buddy API. It is derived from `backend/package.json` and is intended to help new contributors understand why each package is in place and where it is typically used.
 
-> **Tip:** Versions shown reflect the current ranges in `package.json`. Check the lockfile for the exact resolved version or run `npm ls <package-name>`.
-
 ## Runtime dependencies
 
 | Library | Version | Purpose in the API |

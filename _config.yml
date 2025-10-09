@@ -1,0 +1,57 @@
+# Site settings
+title: Campus Study Buddy Documentation
+description: >-
+  Comprehensive documentation for the Campus Study Buddy application -
+  a student collaboration platform for study groups, progress tracking, and academic success.
+
+# GitHub Pages settings
+url: "https://gimbiyasa.github.io"
+baseurl: "/campus_study_buddy"
+repository: "GimbiyaSa/campus_study_buddy"
+
+# Build settings
+markdown: kramdown
+highlighter: rouge
+theme: jekyll-theme-minimal
+
+# Plugin settings
+plugins:
+  - jekyll-feed
+  - jekyll-sitemap
+
+# Exclude files from processing
+exclude:
+  - node_modules/
+  - package*.json
+  - README.md
+  - .gitignore
+
+# Include additional files
+include:
+  - _pages
+  - docs/
+  - testing/
+
+# Collections
+collections:
+  backend:
+    output: true
+    permalink: /:collection/:name/
+  frontend:
+    output: true
+    permalink: /:collection/:name/
+
+# Navigation
+navigation:
+  - title: "Overview"
+    url: /overview/
+  - title: "Backend API"
+    url: /backend/api/
+  - title: "Frontend"
+    url: /frontend/
+  - title: "API Testing"
+    url: /testing/
+  - title: "Architecture"
+    url: /architecture/
+  - title: "Swagger API"
+    url: /docs/swagger/

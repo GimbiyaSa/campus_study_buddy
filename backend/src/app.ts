@@ -38,13 +38,20 @@ app.use(
 
       // If no origin (same-origin or curl), allow it
       if (!origin) return callback(null, true);
-      if (allowed.includes(origin)) return callback(null, true);
+      if (allowed.includes(origin)) {
+        console.log('✅ CORS: Allowed origin:', origin);
+        return callback(null, true);
+      }
 
       // In production, you may want to reject unknown origins.
-      console.warn('Blocked CORS request from origin:', origin);
+      console.warn('❌ CORS: Blocked request from origin:', origin);
+      console.warn('📝 CORS: Allowed origins:', allowed);
       callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    optionsSuccessStatus: 200, // For legacy browser support
   })
 );
 

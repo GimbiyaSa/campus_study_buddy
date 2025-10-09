@@ -250,6 +250,10 @@ export class AzureConfigService {
           .filter(Boolean)
       );
     }
+    
+    // Always allow GitHub Pages documentation site for Swagger UI
+    origins.push('https://gimbiyasa.github.io');
+    
     if (!this.isRunningInAzure()) {
       origins.push(
         'http://localhost:5173',

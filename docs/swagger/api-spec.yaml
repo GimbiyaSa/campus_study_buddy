@@ -2964,41 +2964,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  # System Statistics
-  /stats/system:
-    get:
-      tags:
-        - System
-      summary: Get system statistics
-      description: Retrieve overall system statistics (admin use)
-      responses:
-        '200':
-          description: System statistics retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  total_users:
-                    type: integer
-                    description: Total number of active users
-                  total_modules:
-                    type: integer
-                    description: Total number of active modules
-                  total_groups:
-                    type: integer
-                    description: Total number of active study groups
-                  total_sessions:
-                    type: integer
-                    description: Total number of study sessions
-                  completed_sessions:
-                    type: integer
-                    description: Number of completed sessions
-                  total_study_hours:
-                    type: number
-                    format: float
-                    description: Total study hours logged across all users
-
 tags:
   - name: System
     description: System health and statistics

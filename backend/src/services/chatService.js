@@ -63,10 +63,10 @@ function generateId() {
 router.post('/negotiate', authenticateToken, async (req, res) => {
   try {
     const { groupId, partnerId } = req.body;
-    
+
     // For initial connection, allow without specific group/partner
     let groups = [`user_${req.user.id}`]; // User's personal channel for notifications
-    
+
     // For partner chat, create a group ID from user IDs
     if (partnerId) {
       const userIds = [req.user.id, partnerId].sort();
@@ -90,7 +90,7 @@ router.post('/negotiate', authenticateToken, async (req, res) => {
     res.json({
       url: token.url,
       accessToken: token.token,
-      groups: groups
+      groups: groups,
     });
   } catch (error) {
     console.error('Error negotiating chat connection:', error);
@@ -300,7 +300,7 @@ router.get('/partner/:partnerId/messages', authenticateToken, async (req, res) =
     const messageRequest = pool.request();
     messageRequest.input('roomId', sql.Int, roomId);
     messageRequest.input('limit', sql.Int, parseInt(limit));
-    
+
     let query = `
       SELECT TOP (@limit)
         cm.message_id,
@@ -314,19 +314,19 @@ router.get('/partner/:partnerId/messages', authenticateToken, async (req, res) =
       WHERE cm.room_id = @roomId
       AND cm.is_deleted = 0
     `;
-    
+
     if (before) {
       messageRequest.input('before', sql.DateTime2, before);
       query += ` AND cm.created_at < @before`;
     }
-    
+
     query += ` ORDER BY cm.created_at DESC`;
 
     const result = await messageRequest.query(query);
-    
+
     // Reverse to get chronological order (oldest first)
     const messages = result.recordset.reverse();
-    
+
     console.log(`📨 Found ${messages.length} messages for room ${roomId}`);
     res.json(messages);
   } catch (error) {
@@ -346,7 +346,11 @@ router.post('/partner/:partnerId/message', authenticateToken, async (req, res) =
       return res.status(400).json({ error: 'Message content is required' });
     }
 
-    console.log('💬 Sending partner message:', { userId, partnerId, content: content.substring(0, 50) + '...' });
+    console.log('💬 Sending partner message:', {
+      userId,
+      partnerId,
+      content: content.substring(0, 50) + '...',
+    });
 
     // Create consistent room name from user IDs
     const userIds = [userId, partnerId].sort();
@@ -411,8 +415,8 @@ router.post('/partner/:partnerId/message', authenticateToken, async (req, res) =
         senderId: userId,
         senderName,
         timestamp: newMessage.created_at,
-        messageId: newMessage.message_id
-      }
+        messageId: newMessage.message_id,
+      },
     };
 
     try {
@@ -426,7 +430,7 @@ router.post('/partner/:partnerId/message', authenticateToken, async (req, res) =
     res.json({
       messageId: newMessage.message_id,
       timestamp: newMessage.created_at,
-      success: true
+      success: true,
     });
   } catch (error) {
     console.error('❌ Error sending partner message:', error);

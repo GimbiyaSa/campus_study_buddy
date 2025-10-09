@@ -402,7 +402,7 @@ describe('Partner Service API', () => {
           requesterEmail: 'john@example.com',
           requesterUniversity: 'Test University',
           requesterCourse: 'Computer Science',
-          timestamp: '2025-01-01T00:00:00.000Z'
+          timestamp: '2025-01-01T00:00:00.000Z',
         },
         {
           requestId: 2,
@@ -411,31 +411,27 @@ describe('Partner Service API', () => {
           requesterEmail: 'jane@example.com',
           requesterUniversity: 'Test University',
           requesterCourse: 'Data Science',
-          timestamp: '2025-01-02T00:00:00.000Z'
-        }
+          timestamp: '2025-01-02T00:00:00.000Z',
+        },
       ];
 
       mockQuery.mockResolvedValueOnce({ recordset: mockInvitations });
 
-      const res = await request(app)
-        .get('/partners/pending-invitations')
-        .expect(200);
+      const res = await request(app).get('/partners/pending-invitations').expect(200);
 
       expect(res.body).toEqual(mockInvitations);
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining('WHERE pm.matched_user_id = @userId')
       );
       expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('AND pm.match_status = \'pending\'')
+        expect.stringContaining("AND pm.match_status = 'pending'")
       );
     });
 
     test('returns empty array when no pending invitations', async () => {
       mockQuery.mockResolvedValueOnce({ recordset: [] });
 
-      const res = await request(app)
-        .get('/partners/pending-invitations')
-        .expect(200);
+      const res = await request(app).get('/partners/pending-invitations').expect(200);
 
       expect(res.body).toEqual([]);
     });
@@ -443,22 +439,16 @@ describe('Partner Service API', () => {
     test('handles database error', async () => {
       mockQuery.mockRejectedValueOnce(new Error('Database connection failed'));
 
-      await request(app)
-        .get('/partners/pending-invitations')
-        .expect(500);
+      await request(app).get('/partners/pending-invitations').expect(500);
     });
 
     test('logs pending invitations count', async () => {
-      const mockInvitations = [
-        { requestId: 1, requesterName: 'Test User' }
-      ];
+      const mockInvitations = [{ requestId: 1, requesterName: 'Test User' }];
       mockQuery.mockResolvedValueOnce({ recordset: mockInvitations });
 
       const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
 
-      await request(app)
-        .get('/partners/pending-invitations')
-        .expect(200);
+      await request(app).get('/partners/pending-invitations').expect(200);
 
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('📋 Found 1 pending invitations')
@@ -1011,7 +1001,8 @@ describe('Partner Service API', () => {
         .mockResolvedValueOnce({ recordset: [] });
 
       // Mock WebPubSub to fail
-      const mockGetWebPubSubClient = require('../config/azureConfig').azureConfig.getWebPubSubClient;
+      const mockGetWebPubSubClient =
+        require('../config/azureConfig').azureConfig.getWebPubSubClient;
       mockGetWebPubSubClient.mockRejectedValueOnce(new Error('WebPubSub error'));
 
       const res = await request(app).post('/partners/accept/123');
@@ -1033,7 +1024,8 @@ describe('Partner Service API', () => {
         .mockResolvedValueOnce({ recordset: [] });
 
       // Mock WebPubSub to fail
-      const mockGetWebPubSubClient = require('../config/azureConfig').azureConfig.getWebPubSubClient;
+      const mockGetWebPubSubClient =
+        require('../config/azureConfig').azureConfig.getWebPubSubClient;
       mockGetWebPubSubClient.mockRejectedValueOnce(new Error('WebPubSub error'));
 
       const res = await request(app).post('/partners/reject/123');
@@ -1072,9 +1064,9 @@ describe('Partner Service API', () => {
             requesterLastName: null,
             requesterEmail: 'test@example.com',
             message: 'Hi there!',
-            created_at: '2025-01-01T10:00:00Z'
-          }
-        ]
+            created_at: '2025-01-01T10:00:00Z',
+          },
+        ],
       });
 
       const res = await request(app).get('/partners/pending-invitations');
@@ -1122,7 +1114,7 @@ describe('Partner Service API', () => {
     test('should handle missing user context in middleware', async () => {
       // Import the router
       const partnerRouter = require('./partnerService');
-      
+
       // Test route without proper user context
       const expressApp = express();
       expressApp.use(express.json());
@@ -1137,11 +1129,13 @@ describe('Partner Service API', () => {
     test('should handle compatibility calculation edge cases', async () => {
       mockQuery
         .mockResolvedValueOnce({
-          recordset: [{ 
-            university: 'MIT', 
-            course: 'CS', 
-            study_preferences: '{"studyTime": "morning", "location": "library"}' 
-          }],
+          recordset: [
+            {
+              university: 'MIT',
+              course: 'CS',
+              study_preferences: '{"studyTime": "morning", "location": "library"}',
+            },
+          ],
         })
         .mockResolvedValueOnce({
           recordset: [
@@ -1180,11 +1174,13 @@ describe('Partner Service API', () => {
     test('should handle study preferences with invalid JSON', async () => {
       mockQuery
         .mockResolvedValueOnce({
-          recordset: [{ 
-            university: 'MIT', 
-            course: 'CS', 
-            study_preferences: 'invalid json' 
-          }],
+          recordset: [
+            {
+              university: 'MIT',
+              course: 'CS',
+              study_preferences: 'invalid json',
+            },
+          ],
         })
         .mockResolvedValueOnce({
           recordset: [
@@ -1217,7 +1213,7 @@ describe('Partner Service API', () => {
           recordset: [{ university: 'MIT', course: 'CS', study_preferences: '{}' }],
         })
         .mockResolvedValueOnce({
-          recordset: []  // No partners found
+          recordset: [], // No partners found
         });
 
       const res = await request(app).get('/partners/search');
@@ -1228,9 +1224,7 @@ describe('Partner Service API', () => {
     test('should handle request/match endpoints with proper error flow', async () => {
       mockQuery.mockRejectedValueOnce(new Error('Database timeout'));
 
-      const res = await request(app)
-        .post('/partners/request')
-        .send({ recipientId: 'target-user' });
+      const res = await request(app).post('/partners/request').send({ recipientId: 'target-user' });
 
       expect(res.statusCode).toBe(500);
       expect(res.body.error).toBe('Failed to send buddy request');

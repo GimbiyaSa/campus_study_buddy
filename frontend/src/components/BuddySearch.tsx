@@ -22,12 +22,34 @@ export default function BuddySearch() {
 
   // Fetch study partners using centralized data service with unified error handling
   useEffect(() => {
-    async function fetchSuggestions() {
+    async function fetchData() {
       setLoading(true);
       setError(null);
       try {
-        const partners = await DataService.searchPartners(); // Use search for suggestions, not existing partners
-        setSuggestions(partners.slice(0, 4)); // Show top 4 suggestions
+        // Get suggestions (new people to connect with)
+        const allPartners = await DataService.searchPartners();
+        console.log(
+          '🔍 BuddySearch raw data:',
+          allPartners.map((p) => ({ name: p.name, connectionStatus: p.connectionStatus }))
+        );
+
+        const newSuggestions = allPartners
+          .filter(
+            (partner) =>
+              !partner.connectionStatus ||
+              partner.connectionStatus === 'none' ||
+              partner.connectionStatus === undefined ||
+              partner.connectionStatus !== 'accepted'
+          )
+          .slice(0, 4);
+
+        console.log(
+          '🔍 BuddySearch filtered suggestions:',
+          newSuggestions.length,
+          'out of',
+          allPartners.length
+        );
+        setSuggestions(newSuggestions);
       } catch (err) {
         const appError = ErrorHandler.handleApiError(err, 'partners');
         setError(appError);
@@ -36,7 +58,7 @@ export default function BuddySearch() {
       }
     }
 
-    fetchSuggestions();
+    fetchData();
 
     // Listen for partner request status updates
     const handlePartnerAccepted = (data: any) => {
@@ -47,8 +69,8 @@ export default function BuddySearch() {
         newSet.delete(data.acceptedBy);
         return newSet;
       });
-      // Refresh suggestions
-      fetchSuggestions();
+      // Refresh data
+      fetchData();
     };
 
     const handlePartnerRejected = (data: any) => {
@@ -63,7 +85,7 @@ export default function BuddySearch() {
 
     // Listen for general partner updates
     const handleBuddiesInvalidate = () => {
-      fetchSuggestions();
+      fetchData();
     };
 
     const unsubscribeAccepted = azureIntegrationService.onConnectionEvent(

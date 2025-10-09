@@ -106,9 +106,6 @@ async function detectSchema() {
   schema.notesCols.attachments = await hasColumn(n, 'attachments');
   schema.notesCols.visibility = await hasColumn(n, 'visibility');
   schema.notesCols.is_active = await hasColumn(n, 'is_active');
-
-  console.log('📐 (notes) groups table:', g, 'nameCol:', schema.groupCols.nameCol);
-  console.log('📒 shared_notes table:', n, 'cols:', schema.notesCols);
 }
 
 const tbl = (name) => `dbo.${schema.tables[name]}`;

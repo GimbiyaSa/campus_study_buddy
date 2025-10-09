@@ -1,4 +1,5 @@
 import { WebPubSubClient } from '@azure/web-pubsub-client';
+import { buildApiUrl } from '../utils/url';
 
 class AzureIntegrationService {
   private static instance: AzureIntegrationService;
@@ -30,15 +31,29 @@ class AzureIntegrationService {
     await this.initializeRealTimeConnection();
   }
 
+  public async retryConnection() {
+    if (!this.webPubSubClient && this.currentUser) {
+      await this.initializeRealTimeConnection();
+    }
+  }
+
   public clearAuth() {
     this.currentUser = null;
     this.disconnectRealTime();
   }
 
   private getHeaders(): HeadersInit {
-    return {
+    const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
+
+    // Add authorization header if we have a token
+    const token = localStorage.getItem('google_id_token');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    return headers;
   }
 
   public async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -78,15 +93,25 @@ class AzureIntegrationService {
     if (!this.currentUser || this.webPubSubClient) return;
 
     try {
-      // Get connection token from backend
-      const tokenResponse = await this.request<{ token: string; url: string }>(
-        '/api/v1/chat/connection-token'
-      );
+      console.log('🔗 Initializing WebPubSub connection for user:', this.currentUser?.user_id);
+
+      // Get connection token from backend (general connection)
+      const tokenResponse = await this.request<{
+        url: string;
+        accessToken: string;
+        groups: string[];
+      }>('/api/v1/chat/negotiate', {
+        method: 'POST',
+        body: JSON.stringify({
+          // Initial connection without specific group
+        }),
+      });
 
       this.webPubSubClient = new WebPubSubClient(tokenResponse.url);
 
       this.webPubSubClient.on('connected', () => {
         console.log('✅ Connected to Azure Web PubSub');
+        console.log('🔗 User ID:', this.currentUser?.user_id);
         this.handleConnectionEvent('connected', {});
       });
 
@@ -96,6 +121,7 @@ class AzureIntegrationService {
       });
 
       this.webPubSubClient.on('server-message', (message) => {
+        console.log('📨 Received server message:', message);
         this.handleIncomingMessage(message as any);
       });
 
@@ -103,8 +129,11 @@ class AzureIntegrationService {
 
       // Join user-specific channel for notifications
       await this.webPubSubClient.joinGroup(`user-${this.currentUser.id}`);
+      console.log('✅ Joined user notification group');
     } catch (error) {
       console.error('Failed to initialize real-time connection:', error);
+      // Reset webPubSubClient on failure so retryConnection can try again
+      this.webPubSubClient = null;
     }
   }
 
@@ -249,6 +278,39 @@ class AzureIntegrationService {
       },
       'json'
     );
+  }
+
+  // Join a partner chat
+  public async joinPartnerChat(partnerId: number): Promise<string> {
+    if (!this.webPubSubClient) {
+      throw new Error('Real-time connection not established');
+    }
+
+    // Create consistent chat room ID
+    const userIds = [this.currentUser?.id, partnerId].sort();
+    const chatRoomId = `partner_${userIds.join('_')}`;
+
+    try {
+      await this.webPubSubClient.joinGroup(chatRoomId);
+      return chatRoomId;
+    } catch (error) {
+      console.error('Failed to join partner chat:', error);
+      throw error;
+    }
+  }
+
+  // Leave a partner chat
+  public async leavePartnerChat(partnerId: number): Promise<void> {
+    if (!this.webPubSubClient) return;
+
+    const userIds = [this.currentUser?.id, partnerId].sort();
+    const chatRoomId = `partner_${userIds.join('_')}`;
+
+    try {
+      await this.webPubSubClient.leaveGroup(chatRoomId);
+    } catch (error) {
+      console.error('Failed to leave partner chat:', error);
+    }
   }
 
   // File Upload API

@@ -116,15 +116,32 @@ export default function Partners() {
       setLoading(true);
       setError(null);
       try {
-        // Use search endpoint to find potential new partners
+        // Use search endpoint to find potential new partners (not connected yet)
         const data = await DataService.searchPartners();
         if (mounted) {
+          // Log the actual data to debug
+          console.log(
+            '🔍 Raw partner data:',
+            data.map((p) => ({ name: p.name, connectionStatus: p.connectionStatus }))
+          );
+
+          // Filter to only show people not connected yet (be more permissive)
+          const newPartners = data.filter(
+            (partner) =>
+              !partner.connectionStatus ||
+              partner.connectionStatus === 'none' ||
+              partner.connectionStatus === undefined ||
+              partner.connectionStatus !== 'accepted'
+          );
+
+          console.log('🔍 Filtered partners:', newPartners.length, 'out of', data.length);
+
           // Top suggestions based on compatibility score
-          const topSuggestions = data
+          const topSuggestions = newPartners
             .sort((a, b) => (b.compatibilityScore || 0) - (a.compatibilityScore || 0))
             .slice(0, 4);
           setSuggestions(topSuggestions);
-          setAllPartners(data);
+          setAllPartners(newPartners); // Only show available partners for connection
           setLoading(false);
         }
       } catch (err) {
@@ -141,10 +158,11 @@ export default function Partners() {
       setPartnersError(null);
       try {
         // Fetch existing buddies (accepted connections)
-        const data = await DataService.searchPartners();
+        const data = await DataService.fetchPartners();
         if (mounted) {
-          // These are already connected buddies from the backend
-          setBuddies(data);
+          // Filter to only show accepted connections
+          const acceptedBuddies = data.filter((partner) => partner.connectionStatus === 'accepted');
+          setBuddies(acceptedBuddies);
         }
       } catch (err) {
         if (mounted) {

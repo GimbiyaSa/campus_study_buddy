@@ -215,7 +215,7 @@ export class AzureConfigService {
     const connectionString = await this.getSecret('web-pubsub-connection-string');
     this.webPubSubClient = new WebPubSubServiceClient(
       connectionString,
-      process.env.WEB_PUBSUB_HUB || 'chat-hub'
+      process.env.WEB_PUBSUB_HUB || 'studybuddy'
     );
     return this.webPubSubClient;
   }

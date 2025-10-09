@@ -280,10 +280,10 @@ describe('BuddySearch', () => {
     const inviteBtn = within(dialog).getByRole('button', { name: /send invite/i });
     await userEvent.click(inviteBtn);
 
-    // Wait for modal to close
+    // Wait for modal to close (there's a 1 second delay after showing "Invite sent")
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    });
+    }, { timeout: 2000 });
 
     // Button should now show pending state
     await waitFor(() => {

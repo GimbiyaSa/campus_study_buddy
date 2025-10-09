@@ -129,7 +129,7 @@ describe('Chat page', () => {
       return () => {};
     });
     vi.spyOn(azureIntegrationService, 'joinPartnerChat').mockResolvedValue(chatRoomId);
-    const { container } = renderWithUser(<Chat />);
+    renderWithUser(<Chat />);
     const buddy = await screen.findByText('Alice Smith');
     fireEvent.click(buddy);
     await waitFor(() =>

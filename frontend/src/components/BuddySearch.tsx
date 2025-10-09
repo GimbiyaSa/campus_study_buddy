@@ -14,7 +14,6 @@ export default function BuddySearch() {
 
   // Enhanced state management with unified error handling
   const [suggestions, setSuggestions] = useState<StudyPartner[]>([]);
-  const [connections, setConnections] = useState<StudyPartner[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<AppError | null>(null);
 
@@ -51,13 +50,6 @@ export default function BuddySearch() {
           allPartners.length
         );
         setSuggestions(newSuggestions);
-
-        // Get existing connections
-        const existingConnections = await DataService.fetchPartners();
-        const acceptedConnections = existingConnections.filter(
-          (partner) => partner.connectionStatus === 'accepted'
-        );
-        setConnections(acceptedConnections);
       } catch (err) {
         const appError = ErrorHandler.handleApiError(err, 'partners');
         setError(appError);

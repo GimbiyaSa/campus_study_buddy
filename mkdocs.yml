@@ -81,6 +81,8 @@ nav:
       - Overview: infrastructure/index.md
       - Environments: infrastructure/environments.md
       - CI/CD: infrastructure/ci-cd.md
+      - Google Auth: infrastructure/google_auth.md
+      - Testing: infrastructure/testing.md
   - Design System:
       - Overview: design-system/index.md
       - Tokens: design-system/tokens.md

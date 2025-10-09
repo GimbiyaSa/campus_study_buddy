@@ -11,7 +11,14 @@
 cd frontend
 npm i
 npm run dev
-# http://localhost:5173
+```
+
+### Additional documentation
+
+- [Dependencies](./dependencies.md) — summary of runtime and tooling libraries from `package.json`.
+- [Components](./components.md) — breakdown of key reusable UI building blocks.
+- [Pages](./pages.md) — overview of major routes and page layouts.
+- [State management](./state-management.md) — data flow and state handling patterns.
 
 # Frontend Documentation
 

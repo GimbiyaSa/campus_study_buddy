@@ -21,46 +21,52 @@ This document explains how to run, write, and report on automated tests for Camp
 
 ## How to Write New Tests
 
-**Test files live next to components/pages:**
-  - Example: `src/components/Sidebar.test.tsx`, `src/pages/Dashboard.test.tsx`
-**Use React Testing Library and Vitest:**
-  - Import from `@testing-library/react` and `vitest`
-**Mock API calls:**
-  - All API endpoints are mocked in `src/setupTests.ts`.
-**Best practices:**
-  - Test loading, error, and success states
-  - Simulate user interactions with `fireEvent` or `userEvent`
-  - Use `await screen.findBy...` for async UI
+#### Test files live next to components/pages
+- Example: `src/components/Sidebar.test.tsx`, `src/pages/Dashboard.test.tsx`
+
+#### Use React Testing Library and Vitest
+- Import from `@testing-library/react` and `vitest`
+
+#### Mock API calls
+- All API endpoints are mocked in `src/setupTests.ts`.
+
+#### Best practices
+- Test loading, error, and success states
+- Simulate user interactions with `fireEvent` or `userEvent`
+- Use `await screen.findBy...` for async UI
 
 ---
 
 ## How to Report Issues or Flakey Tests
 
-**If a test fails unexpectedly:**
-  1. Check the error message and stack trace.
-  2. Re-run the test to confirm if it is flakey.
-  3. Document the issue in the project issue tracker (GitHub Issues or your team's system).
-  4. Include:
-     - Test file and test name
-     - Error output
-     - Steps to reproduce
-     - Any recent code changes
-**Feedback process:**
-  - All team members can report test issues.
-  - Assign issues to the responsible developer or QA lead.
-  - Track resolution and document fixes in the issue comments.
+#### If a test fails unexpectedly
+1. Check the error message and stack trace.
+2. Re-run the test to confirm if it is flakey.
+3. Document the issue in the project issue tracker (GitHub Issues or your team's system).
+4. Include:
+  - Test file and test name
+  - Error output
+  - Steps to reproduce
+  - Any recent code changes
+
+#### Feedback process
+- All team members can report test issues.
+- Assign issues to the responsible developer or QA lead.
+- Track resolution and document fixes in the issue comments.
 
 ---
 
 ## How to Use Automated Tests
 
-**Before merging code:**
-  - Run all tests and ensure 100% pass rate.
-  - Check coverage report for regressions.
-**When adding new features:**
-  - Add tests for new UI, API, and edge cases.
-**When refactoring:**
-  - Update or add tests to cover new logic.
+#### Before merging code
+- Run all tests and ensure 100% pass rate.
+- Check coverage report for regressions.
+
+#### When adding new features
+- Add tests for new UI, API, and edge cases.
+
+#### When refactoring
+- Update or add tests to cover new logic.
 
 ---
 

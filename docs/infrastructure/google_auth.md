@@ -2,20 +2,20 @@
 
 ### High-level flow
 
-1. **Frontend (Google Identity Services)**  
-   - `GOOGLE_CLIENT_ID` from `.env` is passed to Google Identity Services when rendering the sign-in button.  
-   - After a user selects an account, Google returns a JWT credential (ID token) via the callback defined in `google.accounts.id.initialize`.  
-   - The frontend stores that token (e.g., `google_id_token`).
+#### Step 1 – Frontend (Google Identity Services)
+- `GOOGLE_CLIENT_ID` from `.env` is passed to Google Identity Services when rendering the sign-in button.
+- After a user selects an account, Google returns a JWT credential (ID token) via the callback defined in `google.accounts.id.initialize`.
+- The frontend stores that token (for example, `google_id_token`).
 
-2. **Backend verification (`/api/v1/auth/google`)**  
-   - Uses the Google Auth Library’s `OAuth2Client` with the same `GOOGLE_CLIENT_ID` to call `verifyIdToken`.  
-   - Extracts the payload (Google user ID, email, names, picture).  
-   - Checks whether the user already exists; if not, creates a new record.  
-   - Issues an authenticated session (HTTP-only cookie plus JSON payload with the user profile) that the frontend stores in context.
+#### Step 2 – Backend verification (`/api/v1/auth/google`)
+- Uses the Google Auth Library’s `OAuth2Client` with the same `GOOGLE_CLIENT_ID` to call `verifyIdToken`.
+- Extracts the payload (Google user ID, email, names, picture).
+- Checks whether the user already exists; if not, creates a new record.
+- Issues an authenticated session (HTTP-only cookie plus JSON payload with the user profile) that the frontend stores in context.
 
-3. **Session usage**  
-   - Subsequent API calls rely on the session cookie set during login; no Google token is sent again.  
-   - Logout (`POST /api/v1/auth/logout`) clears the session and the cached Google token on the client.
+#### Step 3 – Session usage
+- Subsequent API calls rely on the session cookie set during login; no Google token is sent again.
+- Logout (`POST /api/v1/auth/logout`) clears the session and the cached Google token on the client.
 
 ### Error handling
 

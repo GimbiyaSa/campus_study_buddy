@@ -881,11 +881,11 @@ router.get('/pending-invitations', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     console.log('📋 Fetching pending invitations for user:', userId);
-    
+
     // Get all pending requests where current user is the recipient
     const request = pool.request();
     request.input('userId', sql.NVarChar(255), userId);
-    
+
     const result = await request.query(`
       SELECT 
         pm.match_id as requestId,
@@ -901,7 +901,7 @@ router.get('/pending-invitations', authenticateToken, async (req, res) => {
       AND pm.match_status = 'pending'
       ORDER BY pm.created_at DESC
     `);
-    
+
     console.log(`📋 Found ${result.recordset.length} pending invitations`);
     res.json(result.recordset);
   } catch (error) {

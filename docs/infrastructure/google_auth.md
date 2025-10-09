@@ -28,7 +28,7 @@
 - For local testing over `http://localhost:5173`, add that URL as an authorized origin in the Google OAuth configuration.  
 - If you rotate credentials, restart both backend and frontend so the new environment variable is picked up.
 
-### Why Google:
+### Why Google
 - **User familiarity:** Most students already have Google accounts, so sign-in is quicker and frictionless.
 - **Security posture:** Google Identity Services handles MFA, password recovery, and suspicious login detection so we inherit their security investments.
 - **Reduced maintenance:** No need to store or hash passwords, cutting operational overhead and breach risk.

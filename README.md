@@ -272,6 +272,19 @@ curl -X POST http://localhost:5000/api/users \
 - `npm run test:coverage` - Run test with coverage report
 - `npm run eject` - Eject from Create React App (irreversible)
 
+### Security & Auditing
+- `npm run audit:deps` - Run dependency security checks across `backend` and `frontend`
+
+The audit script produces a consolidated report at `reports/security/dependency-audit.json` and exits with a non-zero status when vulnerabilities at `AUDIT_FAIL_LEVEL` (defaults to `moderate`) or higher are present. You can change the threshold temporarily when running locally:
+
+```powershell
+$env:AUDIT_FAIL_LEVEL = 'high'
+npm run audit:deps
+$env:AUDIT_FAIL_LEVEL = $null # optional cleanup
+```
+
+A dedicated **Dependency Security Audit** workflow executes automatically for pushes, pull requests, and every Monday at 04:00 UTC. The workflow surface results as an artifact named `dependency-audit-report` for easy review.
+
 ## 🌟 Features Walkthrough
 
 ### User Management

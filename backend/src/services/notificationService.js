@@ -188,10 +188,7 @@ const notifySessionCancelled = async (sessionId, cancelledByUserId = null) => {
   const pool = await getPool();
 
   // Grab attendees + basic session info
-  const rs = await pool
-    .request()
-    .input('sid', sql.Int, sessionId)
-    .query(`
+  const rs = await pool.request().input('sid', sql.Int, sessionId).query(`
       SELECT 
         sa.user_id       AS userId,
         ss.session_id    AS sessionId,
@@ -225,7 +222,6 @@ const notifySessionCancelled = async (sessionId, cancelledByUserId = null) => {
     }
   }
 };
-
 
 // Batch scheduler (run via worker/cron)
 const scheduleDaily24hReminders = async () => {

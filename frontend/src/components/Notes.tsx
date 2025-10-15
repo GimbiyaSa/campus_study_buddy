@@ -14,6 +14,8 @@ export default function Notes() {
   const [visibilityFilter, setVisibilityFilter] = useState<string>(''); // group|public|private
   const [openNote, setOpenNote] = useState<SharedNote | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [dateWindow, setDateWindow] = useState<'7d' | '30d' | 'all'>('7d');
+
 
   // demo fallback when API unavailable
   const fallbackNotes: SharedNote[] = [
@@ -141,21 +143,35 @@ export default function Notes() {
     load();
   }, []);
 
-  const filteredNotes = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    return notes.filter((note) => {
-      if (!note || !note.note_title || !note.note_content) return false;
-      const matchesSearch =
-        !term ||
-        note.note_title.toLowerCase().includes(term) ||
-        note.note_content.toLowerCase().includes(term) ||
-        (note.author_name ?? '').toLowerCase().includes(term) ||
-        (note.group_name ?? '').toLowerCase().includes(term);
-      const matchesGroup = !selectedGroup || String(note.group_id) === selectedGroup;
-      const matchesVisibility = !visibilityFilter || note.visibility === visibilityFilter;
-      return matchesSearch && matchesGroup && matchesVisibility && note.is_active;
+const filteredNotes = useMemo(() => {
+  const term = searchTerm.trim().toLowerCase();
+
+  const cutoff = (() => {
+    if (dateWindow === 'all') return null;
+    const now = Date.now();
+    const days = dateWindow === '7d' ? 7 : 30;
+    return new Date(now - days * 24 * 60 * 60 * 1000);
+  })();
+
+  return notes.filter((note) => {
+    if (!note || !note.note_title || !note.note_content) return false;
+    const updatedAt = new Date(note.updated_at || note.created_at || 0);
+    if (cutoff && !(updatedAt >= cutoff)) return false;
+
+    const matchesSearch =
+      !term ||
+      note.note_title.toLowerCase().includes(term) ||
+      note.note_content.toLowerCase().includes(term) ||
+      (note.author_name ?? '').toLowerCase().includes(term) ||
+      (note.group_name ?? '').toLowerCase().includes(term);
+
+    const matchesGroup = !selectedGroup || String(note.group_id) === selectedGroup;
+    const matchesVisibility = !visibilityFilter || note.visibility === visibilityFilter;
+
+    return matchesSearch && matchesGroup && matchesVisibility && note.is_active;
     });
-  }, [notes, searchTerm, selectedGroup, visibilityFilter]);
+    }, [notes, searchTerm, selectedGroup, visibilityFilter, dateWindow]);
+
 
   const getVisibilityIcon = (visibility: string) => {
     switch (visibility) {
@@ -223,6 +239,17 @@ export default function Notes() {
           <option value="group">Group</option>
           <option value="private">Private</option>
         </select>
+
+        <select
+        value={dateWindow}
+        onChange={(e) => setDateWindow(e.target.value as any)}
+        className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500"
+        >
+          <option value="7d">Last 7 days</option>
+          <option value="30d">Last 30 days</option>
+          <option value="all">All time</option>
+        </select>
+
       </div>
 
       {/* Error message */}
@@ -260,7 +287,15 @@ export default function Notes() {
                   </p>
                 )}
               </div>
-
+              
+              {/* attachments badge ABOVE the excerpt */}
+              {Array.isArray(note.attachments) && note.attachments.length > 0 && (
+                <div className="mb-2">
+                  <span className="inline-block text-[11px] px-2 py-0.5 bg-gray-100 text-gray-700 rounded">
+                    {note.attachments.length} attachment{note.attachments.length > 1 ? 's' : ''}
+                  </span>
+                </div>
+              )}
               <p className="text-sm text-gray-700 mb-4 line-clamp-3">
                 {note.note_content.length > 150
                   ? `${note.note_content.substring(0, 150)}...`
@@ -268,6 +303,7 @@ export default function Notes() {
               </p>
 
               <div className="flex items-center justify-between text-xs text-gray-500">
+
                 <span>Updated: {new Date(note.updated_at).toLocaleDateString()}</span>
                 <button
                   onClick={() => setOpenNote(note)}
@@ -287,18 +323,70 @@ export default function Notes() {
 
       <NoteModal note={openNote} onClose={() => setOpenNote(null)} />
       <CreateNoteModal
-        open={showCreate}
-        groups={groups}
-        onClose={() => setShowCreate(false)}
-        onCreated={(n) => setNotes((prev) => [n, ...prev])}
-        defaultGroupId={selectedGroup || (groups[0]?.id ?? '')}
-      />
+      open={showCreate}
+      groups={groups}
+      onClose={() => setShowCreate(false)}
+      onCreated={(n) => {
+      setNotes((prev) => [n, ...prev]); // instant
+
+      DataService.fetchNotes(
+        selectedGroup ? { groupId: selectedGroup } : undefined
+      ).then((fresh) => {
+        if (Array.isArray(fresh) && fresh.length) setNotes(fresh);
+      }).catch(() => {});
+      }}
+
+      defaultGroupId={selectedGroup || (groups[0]?.id ?? '')}
+    />
+
     </div>
   );
 }
 
+function normalizeAttachments(raw: any): Array<{ name: string; url?: string; container?: string; blob?: string }> {
+  // stringified JSON -> parse
+  let att = raw;
+  if (typeof raw === 'string') {
+    try { att = JSON.parse(raw); } catch { att = []; }
+  }
+  // { attachments: [...] } or { files: [...] }
+  if (att && typeof att === 'object' && !Array.isArray(att)) {
+    if (Array.isArray(att.attachments)) att = att.attachments;
+    else if (Array.isArray(att.files)) att = att.files;
+    else att = [att];
+  }
+  if (!Array.isArray(att)) att = [];
+
+  return att.map((a: any, i: number) => {
+    const name = a?.fileName || a?.filename || a?.name || a?.blob || a?.key || `File ${i + 1}`;
+    const url = a?.url; // if backend already provided
+    const container = a?.container || a?.bucket || 'user-files';
+    const blob = a?.blob || a?.key || a?.path || a?.url || '';
+    return { name, url, container, blob };
+  });
+}
+
+
 function NoteModal({ note, onClose }: { note: SharedNote | null; onClose: () => void }) {
   if (!note) return null;
+
+  const attachments = normalizeAttachments(note.attachments);
+
+  const openUrl = (u: string) => {
+    const a = document.createElement('a');
+    a.href = u;
+    a.rel = 'noopener';
+    a.target = '_blank';
+    a.click();
+  };
+
+  const handleDownload = async (att: { url?: string; container?: string; blob?: string }) => {
+    if (att.url) return openUrl(att.url);
+    if (!att.blob) return;
+    const url = await DataService.getNoteAttachmentUrl(note!.note_id, att.container!, att.blob);
+    if (url) openUrl(url);
+  };
+
   return createPortal(
     <div className="fixed inset-0 z-[9999]">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
@@ -310,13 +398,50 @@ function NoteModal({ note, onClose }: { note: SharedNote | null; onClose: () => 
               <X className="w-5 h-5 text-gray-500" />
             </button>
           </div>
+
           <div className="text-sm text-gray-600 whitespace-pre-wrap">{note.note_content}</div>
+
+          {attachments.length > 0 && (
+            <div className="mt-4 border-t border-gray-100 pt-4">
+              <h4 className="text-sm font-semibold text-gray-800 mb-2">Attachments</h4>
+              <ul className="space-y-2">
+                {attachments.map((att, idx) => (
+                  <li key={idx} className="flex items-center justify-between text-sm">
+                    <span className="truncate mr-3">{att.name}</span>
+
+                    {/* If URL exists, render a real link; else render a button that mints a URL */}
+                    {att.url ? (
+                      <a
+                        href={att.url}
+                        target="_blank"
+                        rel="noopener"
+                        className="px-3 py-1 rounded-md bg-brand-600 text-white hover:bg-brand-700 text-xs"
+                        // optional: force download instead of viewing
+                        // download
+                      >
+                        Download
+                      </a>
+                    ) : (
+                      <button
+                        onClick={() => handleDownload(att)}
+                        className="px-3 py-1 rounded-md bg-brand-600 text-white hover:bg-brand-700 text-xs"
+                      >
+                        Download
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </div>
     </div>,
     document.body
   );
 }
+
+
 
 function CreateNoteModal({
   open,
@@ -337,6 +462,9 @@ function CreateNoteModal({
   const [visibility, setVisibility] = useState<'group' | 'public' | 'private'>('group');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // top of CreateNoteModal
+  const [files, setFiles] = useState<File[]>([]);
+
 
   useEffect(() => {
     setGroupId(defaultGroupId ?? '');
@@ -351,6 +479,7 @@ function CreateNoteModal({
     setSaving(true);
     setErr(null);
     try {
+      // 1) create note
       const created = await DataService.createNote(groupId, {
         note_title: title.trim(),
         note_content: content.trim(),
@@ -358,20 +487,31 @@ function CreateNoteModal({
       });
       if (!created) {
         setErr('Failed to create note');
-      } else {
-        onCreated(created);
-        onClose();
-        // reset
-        setTitle('');
-        setContent('');
-        setVisibility('group');
+        return;
       }
+
+      let finalNote = created;
+
+      // 2) optional attachments upload
+      if (files.length) {
+        const updated = await DataService.uploadNoteAttachments(created.note_id, files);
+        if (updated) finalNote = updated;
+      }
+
+      // 3) add to list & reset
+      onCreated(finalNote);
+      onClose();
+      setTitle('');
+      setContent('');
+      setVisibility('group');
+      setFiles([]);
     } catch {
       setErr('Failed to create note');
     } finally {
       setSaving(false);
     }
   }
+
 
   return createPortal(
     <div className="fixed inset-0 z-[10000]">
@@ -443,6 +583,17 @@ function CreateNoteModal({
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500"
               />
             </div>
+            <div>
+            <label className="block text-sm text-gray-700 mb-1">Attachments (optional)</label>
+            <input
+              type="file"
+              multiple
+              onChange={(e) => setFiles(e.target.files ? Array.from(e.target.files) : [])}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">PDFs, images, etc. You can leave this empty.</p>
+            </div>
+
           </div>
 
           <div className="p-6 border-t border-gray-100 flex items-center justify-end gap-2">

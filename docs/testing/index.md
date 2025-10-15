@@ -18,7 +18,7 @@ This page provides tools to help you test the Campus Study Buddy API endpoints. 
 ## Testing Options
 
 ### 🌐 Interactive Testing Page  
-**[→ Interactive Testing Tool](api-testing-template.html)** - Configure your Google Client ID and test endpoints
+**[→ Interactive Testing Tool](api-testing-template.html)** - Configure your Google Client ID and test api endpoints
 
 **Alternative Options:**
 - **[Static Version](api-testing.html)** - Requires manual Client ID configuration  

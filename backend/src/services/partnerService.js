@@ -113,6 +113,9 @@ router.get('/', authenticateToken, async (req, res) => {
       email: u.email,
       university: u.university,
       course: u.course,
+      yearOfStudy: u.year_of_study,
+      bio: u.bio,
+      connectionStatus: 'accepted', // Since this endpoint only returns accepted connections
       profile: u.profile || null,
       statistics: u.statistics || null,
     }));
@@ -824,8 +827,29 @@ router.post('/request', authenticateToken, async (req, res) => {
     const newRequest = result.recordset[0];
     console.log('✅ Buddy request inserted with ID:', newRequest.match_id);
 
-    // Skip WebPubSub for now to isolate the issue
-    console.log('⚠️ Skipping WebPubSub notification for debugging');
+    // Send Web PubSub notification to recipient
+    if (webPubSubClient) {
+      try {
+        await webPubSubClient.sendToUser(matched_user_id, {
+          type: 'partner_request',
+          data: {
+            requestId: newRequest.match_id,
+            requesterId: requester_id,
+            requesterName: requesterInfo.first_name + ' ' + requesterInfo.last_name,
+            requesterUniversity: requesterInfo.university,
+            requesterCourse: requesterInfo.course,
+            message: message,
+            timestamp: new Date().toISOString(),
+          },
+        });
+        console.log('✅ Web PubSub notification sent to user:', matched_user_id);
+      } catch (pubsubError) {
+        console.warn('⚠️ Failed to send Web PubSub notification:', pubsubError);
+        // Don't fail the request if notification fails
+      }
+    } else {
+      console.warn('⚠️ Web PubSub client not available, skipping notification');
+    }
 
     console.log('✅ Buddy request sent successfully');
 
@@ -849,6 +873,40 @@ router.post('/request', authenticateToken, async (req, res) => {
       error: 'Failed to send buddy request',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
+  }
+});
+
+// Get pending invitations for current user
+router.get('/pending-invitations', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    console.log('📋 Fetching pending invitations for user:', userId);
+
+    // Get all pending requests where current user is the recipient
+    const request = pool.request();
+    request.input('userId', sql.NVarChar(255), userId);
+
+    const result = await request.query(`
+      SELECT 
+        pm.match_id as requestId,
+        pm.requester_id as requesterId,
+        u.first_name + ' ' + u.last_name as requesterName,
+        u.email as requesterEmail,
+        u.university as requesterUniversity,
+        u.course as requesterCourse,
+        pm.created_at as timestamp
+      FROM partner_matches pm
+      INNER JOIN users u ON pm.requester_id = u.user_id
+      WHERE pm.matched_user_id = @userId 
+      AND pm.match_status = 'pending'
+      ORDER BY pm.created_at DESC
+    `);
+
+    console.log(`📋 Found ${result.recordset.length} pending invitations`);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('❌ Error fetching pending invitations:', error);
+    res.status(500).json({ error: 'Failed to fetch pending invitations' });
   }
 });
 

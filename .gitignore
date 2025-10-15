@@ -69,6 +69,7 @@ temp/
 *.bak
 *.backup
 node_modules/
+reports/
 
 # ==============================================================================
 # OS GENERATED FILES

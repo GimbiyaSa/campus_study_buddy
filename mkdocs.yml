@@ -65,6 +65,7 @@ nav:
       - Roadmap: overview/roadmap.md
   - Frontend:
       - Overview: frontend/index.md
+      - Dependencies: frontend/dependencies.md
       - Pages: frontend/pages.md
       - Components: frontend/components.md
       - State management: frontend/state-management.md
@@ -72,6 +73,7 @@ nav:
       - Overview: backend/index.md
       - API: backend/api.md
       - Data models: backend/data-models.md
+      - Dependencies: backend/dependencies.md
       - Services: backend/services.md
       - API Documentation: backend/swagger.md
   - Architecture:
@@ -81,6 +83,8 @@ nav:
       - Overview: infrastructure/index.md
       - Environments: infrastructure/environments.md
       - CI/CD: infrastructure/ci-cd.md
+      - Google Auth: infrastructure/google_auth.md
+      - Testing: infrastructure/testing.md
   - Design System:
       - Overview: design-system/index.md
       - Tokens: design-system/tokens.md

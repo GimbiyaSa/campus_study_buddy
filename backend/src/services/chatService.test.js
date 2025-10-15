@@ -363,3 +363,395 @@ describe('Chat service', () => {
     });
   });
 });
+
+describe('Partner Chat Endpoints', () => {
+  describe('GET /partner/:partnerId/room', () => {
+    test('should return chat room for connected partners', async () => {
+      // Mock partner connection check
+      mockQuery.mockResolvedValueOnce({
+        recordset: [{ count: 1 }],
+      });
+
+      // Mock existing room
+      mockQuery.mockResolvedValueOnce({
+        recordset: [{ room_id: 123 }],
+      });
+
+      const res = await request(app).get('/api/v1/chat/partner/partner123/room').expect(200);
+
+      expect(res.body).toEqual({
+        roomId: 123,
+        roomName: 'partner_partner123_u1',
+      });
+    });
+
+    test('should create new room if none exists', async () => {
+      // Mock partner connection check
+      mockQuery.mockResolvedValueOnce({
+        recordset: [{ count: 1 }],
+      });
+
+      // Mock no existing room
+      mockQuery.mockResolvedValueOnce({
+        recordset: [],
+      });
+
+      // Mock room creation
+      mockQuery.mockResolvedValueOnce({
+        recordset: [{ room_id: 456 }],
+      });
+
+      const res = await request(app).get('/api/v1/chat/partner/partner123/room').expect(200);
+
+      expect(res.body).toEqual({
+        roomId: 456,
+        roomName: 'partner_partner123_u1',
+      });
+    });
+
+    test('should return 403 if users are not connected as partners', async () => {
+      // Mock no partner connection
+      mockQuery.mockResolvedValueOnce({
+        recordset: [{ count: 0 }],
+      });
+
+      const res = await request(app).get('/api/v1/chat/partner/partner123/room').expect(403);
+
+      expect(res.body.error).toBe('Not connected as study partners');
+    });
+
+    test('should handle database errors', async () => {
+      mockQuery.mockRejectedValueOnce(new Error('DB error'));
+
+      const res = await request(app).get('/api/v1/chat/partner/partner123/room').expect(500);
+
+      expect(res.body.error).toBe('Failed to get chat room');
+    });
+  });
+
+  describe('GET /partner/:partnerId/messages', () => {
+    test('should return message history for existing room', async () => {
+      // Mock room lookup
+      mockQuery.mockResolvedValueOnce({
+        recordset: [{ room_id: 123 }],
+      });
+
+      // Mock messages
+      mockQuery.mockResolvedValueOnce({
+        recordset: [
+          {
+            message_id: 1,
+            sender_id: 'u1',
+            content: 'Hello',
+            message_type: 'text',
+            timestamp: '2025-01-01T10:00:00Z',
+            senderName: 'User One',
+          },
+          {
+            message_id: 2,
+            sender_id: 'partner123',
+            content: 'Hi there!',
+            message_type: 'text',
+            timestamp: '2025-01-01T10:01:00Z',
+            senderName: 'Partner One',
+          },
+        ],
+      });
+
+      const res = await request(app).get('/api/v1/chat/partner/partner123/messages').expect(200);
+
+      expect(res.body).toHaveLength(2);
+      expect(res.body[0].content).toBe('Hi there!'); // Messages are returned in reverse chronological order
+      expect(res.body[1].content).toBe('Hello');
+    });
+
+    test('should return empty array if room does not exist', async () => {
+      // Mock no room found
+      mockQuery.mockResolvedValueOnce({
+        recordset: [],
+      });
+
+      const res = await request(app).get('/api/v1/chat/partner/partner123/messages').expect(200);
+
+      expect(res.body).toEqual([]);
+    });
+
+    test('should handle limit parameter', async () => {
+      // Mock room lookup
+      mockQuery.mockResolvedValueOnce({
+        recordset: [{ room_id: 123 }],
+      });
+
+      // Mock messages with limit
+      mockQuery.mockResolvedValueOnce({
+        recordset: [
+          {
+            message_id: 1,
+            sender_id: 'u1',
+            content: 'Hello',
+            message_type: 'text',
+            timestamp: '2025-01-01T10:00:00Z',
+            senderName: 'User One',
+          },
+        ],
+      });
+
+      const res = await request(app)
+        .get('/api/v1/chat/partner/partner123/messages?limit=10')
+        .expect(200);
+
+      expect(res.body).toHaveLength(1);
+    });
+
+    test('should handle before parameter for pagination', async () => {
+      // Mock room lookup
+      mockQuery.mockResolvedValueOnce({
+        recordset: [{ room_id: 123 }],
+      });
+
+      // Mock messages with before filter
+      mockQuery.mockResolvedValueOnce({
+        recordset: [],
+      });
+
+      const res = await request(app)
+        .get('/api/v1/chat/partner/partner123/messages?before=2025-01-01T09:00:00Z')
+        .expect(200);
+
+      expect(res.body).toEqual([]);
+    });
+
+    test('should handle database errors', async () => {
+      mockQuery.mockRejectedValueOnce(new Error('DB error'));
+
+      const res = await request(app).get('/api/v1/chat/partner/partner123/messages').expect(500);
+
+      expect(res.body.error).toBe('Failed to get messages');
+    });
+  });
+
+  describe('POST /partner/:partnerId/message', () => {
+    test('should send message and save to database', async () => {
+      // Mock room lookup
+      mockQuery.mockResolvedValueOnce({
+        recordset: [{ room_id: 123 }],
+      });
+
+      // Mock message creation
+      mockQuery.mockResolvedValueOnce({
+        recordset: [{ message_id: 456, created_at: '2025-01-01T10:00:00Z' }],
+      });
+
+      // Mock sender lookup
+      mockQuery.mockResolvedValueOnce({
+        recordset: [{ senderName: 'User One' }],
+      });
+
+      const res = await request(app)
+        .post('/api/v1/chat/partner/partner123/message')
+        .send({ content: 'Hello there!', messageType: 'text' })
+        .expect(200);
+
+      expect(res.body).toEqual({
+        messageId: 456,
+        timestamp: '2025-01-01T10:00:00Z',
+        success: true,
+      });
+    });
+
+    test('should create room if it does not exist', async () => {
+      // Mock no existing room
+      mockQuery.mockResolvedValueOnce({
+        recordset: [],
+      });
+
+      // Mock room creation
+      mockQuery.mockResolvedValueOnce({
+        recordset: [{ room_id: 789 }],
+      });
+
+      // Mock message creation
+      mockQuery.mockResolvedValueOnce({
+        recordset: [{ message_id: 456, created_at: '2025-01-01T10:00:00Z' }],
+      });
+
+      // Mock sender lookup
+      mockQuery.mockResolvedValueOnce({
+        recordset: [{ senderName: 'User One' }],
+      });
+
+      const res = await request(app)
+        .post('/api/v1/chat/partner/partner123/message')
+        .send({ content: 'Hello there!' })
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+    });
+
+    test('should return 400 for empty content', async () => {
+      const res = await request(app)
+        .post('/api/v1/chat/partner/partner123/message')
+        .send({ content: '' })
+        .expect(400);
+
+      expect(res.body.error).toBe('Message content is required');
+    });
+
+    test('should return 400 for missing content', async () => {
+      const res = await request(app)
+        .post('/api/v1/chat/partner/partner123/message')
+        .send({})
+        .expect(400);
+
+      expect(res.body.error).toBe('Message content is required');
+    });
+
+    test('should return 400 for whitespace-only content', async () => {
+      const res = await request(app)
+        .post('/api/v1/chat/partner/partner123/message')
+        .send({ content: '   ' })
+        .expect(400);
+
+      expect(res.body.error).toBe('Message content is required');
+    });
+
+    test('should handle WebPubSub send failure gracefully', async () => {
+      // Mock successful database operations
+      mockQuery.mockResolvedValueOnce({ recordset: [{ room_id: 123 }] });
+      mockQuery.mockResolvedValueOnce({
+        recordset: [{ message_id: 456, created_at: '2025-01-01T10:00:00Z' }],
+      });
+      mockQuery.mockResolvedValueOnce({ recordset: [{ senderName: 'User One' }] });
+
+      // Mock WebPubSub failure
+      const mockWebPubSub = require('../config/azureConfig').azureConfig.getWebPubSubClient;
+      const mockSendToGroup = jest.fn().mockRejectedValueOnce(new Error('PubSub error'));
+      mockWebPubSub.mockResolvedValueOnce({ sendToGroup: mockSendToGroup });
+
+      const res = await request(app)
+        .post('/api/v1/chat/partner/partner123/message')
+        .send({ content: 'Hello there!' })
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+    });
+
+    test('should handle WebPubSub initialization error gracefully', async () => {
+      // Mock WebPubSub config to throw error
+      const mockGetWebPubSubClient =
+        require('../config/azureConfig').azureConfig.getWebPubSubClient;
+      mockGetWebPubSubClient.mockRejectedValueOnce(new Error('WebPubSub init error'));
+
+      const res = await request(app)
+        .post('/api/v1/chat/partner/partner123/message')
+        .send({ content: 'Hello there!' })
+        .expect(500);
+
+      expect(res.body.error).toBe('Failed to send message');
+    });
+
+    test('should handle database errors', async () => {
+      mockQuery.mockRejectedValueOnce(new Error('DB error'));
+
+      const res = await request(app)
+        .post('/api/v1/chat/partner/partner123/message')
+        .send({ content: 'Hello there!' })
+        .expect(500);
+
+      expect(res.body.error).toBe('Failed to send message');
+    });
+  });
+
+  // Additional coverage tests for original endpoints
+  describe('Additional Coverage Tests', () => {
+    test('POST /api/v1/chat/groups/:groupId/messages should handle missing serviceClient', async () => {
+      // Temporarily remove serviceClient
+      const chatService = require('./chatService');
+      const originalServiceClient = chatService.serviceClient;
+      chatService.serviceClient = null;
+
+      const res = await request(app)
+        .post('/api/v1/chat/groups/g1/messages')
+        .send({ content: 'test message' })
+        .expect(201);
+
+      expect(res.body).toHaveProperty('content', 'test message');
+
+      // Restore serviceClient
+      chatService.serviceClient = originalServiceClient;
+    });
+
+    test('GET /api/v1/chat/groups/:groupId/messages should handle missing global.__testMessages', async () => {
+      const originalTestMessages = global.__testMessages;
+      global.__testMessages = undefined;
+
+      const res = await request(app).get('/api/v1/chat/groups/g1/messages').expect(500);
+
+      expect(res.body.error).toBe('Failed to fetch messages');
+
+      // Restore
+      global.__testMessages = originalTestMessages;
+    });
+
+    test('POST /api/v1/chat/groups/:groupId/messages should handle null serviceClient gracefully', async () => {
+      const chatService = require('./chatService');
+      const originalServiceClient = chatService.serviceClient;
+
+      // Set serviceClient to null
+      chatService.serviceClient = null;
+
+      const res = await request(app)
+        .post('/api/v1/chat/groups/g1/messages')
+        .send({ content: 'test with null client' })
+        .expect(201);
+
+      expect(res.body.content).toBe('test with null client');
+
+      // Restore
+      chatService.serviceClient = originalServiceClient;
+    });
+
+    test('POST /api/v1/chat/negotiate should handle undefined groupId', async () => {
+      const res = await request(app).post('/api/v1/chat/negotiate').send({}).expect(200);
+
+      expect(res.body).toHaveProperty('accessToken');
+    });
+
+    test('POST /api/v1/chat/negotiate should handle null groupId', async () => {
+      const res = await request(app)
+        .post('/api/v1/chat/negotiate')
+        .send({ groupId: null })
+        .expect(200);
+
+      expect(res.body).toHaveProperty('accessToken');
+    });
+
+    test('POST /api/v1/chat/groups/:groupId/messages should handle very long content', async () => {
+      const longContent = 'a'.repeat(1000);
+
+      const res = await request(app)
+        .post('/api/v1/chat/groups/g1/messages')
+        .send({ content: longContent })
+        .expect(201);
+
+      expect(res.body.content).toBe(longContent);
+    });
+
+    test('POST /api/v1/chat/groups/:groupId/messages should handle special characters in content', async () => {
+      const specialContent = '🚀 Hello! #test @user $money & more ★';
+
+      const res = await request(app)
+        .post('/api/v1/chat/groups/g1/messages')
+        .send({ content: specialContent })
+        .expect(201);
+
+      expect(res.body.content).toBe(specialContent);
+    });
+
+    test('GET /api/v1/chat/groups/:groupId/messages should return empty array for unknown group', async () => {
+      const res = await request(app).get('/api/v1/chat/groups/unknown-group/messages').expect(200);
+
+      expect(res.body).toEqual([]);
+    });
+  });
+});

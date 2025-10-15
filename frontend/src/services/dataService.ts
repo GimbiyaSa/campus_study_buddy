@@ -1001,6 +1001,20 @@ export class DataService {
     }
   }
 
+  static async getPendingInvitations(): Promise<any[]> {
+    try {
+      console.log('🔍 Fetching pending invitations from API...');
+      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/partners/pending-invitations'));
+      const data = await this.safeJson<any[]>(res, []);
+      console.log('✅ Pending invitations fetched:', data.length, data);
+      return data;
+    } catch (error) {
+      console.error('❌ getPendingInvitations error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'partners');
+      throw appError;
+    }
+  }
+
   static async rejectPartnerRequest(requestId: number): Promise<void> {
     try {
       const res = await this.fetchWithRetry(buildApiUrl(`/api/v1/partners/reject/${requestId}`), {

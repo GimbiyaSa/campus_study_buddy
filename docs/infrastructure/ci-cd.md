@@ -3,7 +3,7 @@
 ## Docs
 - Workflow builds MkDocs & deploys to GitHub Pages.
 
-## App (future)
+## App
 - Lint/test → build → deploy to hosting (e.g., Azure Web Apps)
 
 ## Azure Deployment Workflow

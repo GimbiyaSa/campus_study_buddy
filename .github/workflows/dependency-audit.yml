@@ -1,0 +1,38 @@
+name: Dependency Security Audit
+
+on:
+  push:
+    branches: [ "**" ]
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+jobs:
+  audit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Run dependency security audit
+        run: npm run audit:deps
+        env:
+          AUDIT_FAIL_LEVEL: low
+
+      - name: Upload audit report
+        if: always() && hashFiles('reports/security/dependency-audit.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-audit-report
+          path: reports/security/dependency-audit.json

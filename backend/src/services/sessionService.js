@@ -132,15 +132,14 @@ router.get('/', authenticateToken, async (req, res) => {
       request.input('endDate', sql.DateTime2, endDate);
       whereClause += ' AND ss.scheduled_start <= @endDate';
     }
-    
+
     // Visibility: by default, only sessions I organize, I’m attending, or my group's sessions
-    if(!scope || String(scope).toLowerCase() === 'mine') {
+    if (!scope || String(scope).toLowerCase() === 'mine') {
       whereClause += `  AND ( 
         ss.organizer_id = @userId
         OR my_sa.user_id IS NOT NULL
         OR gm.user_id IS NOT NULL
       )`;
-
     }
 
     const q = await request.query(`

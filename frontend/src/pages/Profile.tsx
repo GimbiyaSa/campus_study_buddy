@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState, useId, cloneElement, isValidElemen
 import { User, Mail, CheckCircle2, AlertCircle } from 'lucide-react';
 import { DataService } from '../services/dataService';
 
-
 type StudentProfile = {
   fullName: string;
   email: string;
@@ -49,21 +48,22 @@ export default function ProfilePage() {
   }, [form.fullName, form.email]);
 
   useEffect(() => {
-  let alive = true;
-  (async () => {
-    const u = await DataService.getUserProfile();
-    if (!alive) return;
-    if (u) {
-      // map backend → StudentProfile
-      const mapped = DataService.mapUserToStudentProfile(u);
-      setForm((prev) => ({ ...prev, ...mapped }));
-      // optional: cache to localStorage as a fallback
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
-    }
-  })();
-  return () => { alive = false; };
-}, []);
-
+    let alive = true;
+    (async () => {
+      const u = await DataService.getUserProfile();
+      if (!alive) return;
+      if (u) {
+        // map backend → StudentProfile
+        const mapped = DataService.mapUserToStudentProfile(u);
+        setForm((prev) => ({ ...prev, ...mapped }));
+        // optional: cache to localStorage as a fallback
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const initials = useMemo(() => {
     const parts = form.fullName.trim().split(/\s+/);
@@ -80,31 +80,30 @@ export default function ProfilePage() {
   }
 
   async function handleSave(e: React.FormEvent) {
-  e.preventDefault();
-  if (!isValid) return;
-  setSaving(true);
-  try {
-    // map form → backend patch shape
-    const patch = DataService.mapFormToUserUpdate(form);
-    const updated = await DataService.updateUserProfile(patch);
+    e.preventDefault();
+    if (!isValid) return;
+    setSaving(true);
+    try {
+      // map form → backend patch shape
+      const patch = DataService.mapFormToUserUpdate(form);
+      const updated = await DataService.updateUserProfile(patch);
 
-    // reflect what server returns (or keep the form if null)
-    if (updated) {
-      const mapped = DataService.mapUserToStudentProfile(updated);
-      setForm(mapped);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped)); // keep cache warm
-    } else {
-      // backend down? keep local fallback up-to-date
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(form));
+      // reflect what server returns (or keep the form if null)
+      if (updated) {
+        const mapped = DataService.mapUserToStudentProfile(updated);
+        setForm(mapped);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped)); // keep cache warm
+      } else {
+        // backend down? keep local fallback up-to-date
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(form));
+      }
+
+      setSavedAt(Date.now());
+      setTimeout(() => setSavedAt(null), 2500);
+    } finally {
+      setSaving(false);
     }
-
-    setSavedAt(Date.now());
-    setTimeout(() => setSavedAt(null), 2500);
-  } finally {
-    setSaving(false);
   }
-}
-
 
   return (
     <div className="w-full min-h-[calc(100vh-64px)] bg-gradient-to-b from-white to-slate-50">

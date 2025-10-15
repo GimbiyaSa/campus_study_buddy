@@ -231,8 +231,6 @@ export type UserProfile = {
   study_preferences?: any | null; // { preferredTimes, studyStyle, groupSize, ... }
 };
 
-
-
 /* ============================================================================
    FALLBACKS (keep incoming + compatible with your UI)
 ============================================================================ */
@@ -635,7 +633,7 @@ export class DataService {
     }
   }
 
-    /** Full current-user profile from backend */
+  /** Full current-user profile from backend */
   static async getUserProfile(): Promise<UserProfile | null> {
     try {
       const res = await this.request('/api/v1/users/me', { method: 'GET' });
@@ -687,62 +685,60 @@ export class DataService {
   }
 
   // inside class DataService, e.g. after uploadProfileImage()
-/** Backend → UI mapping for the profile page */
-static mapUserToStudentProfile(u: UserProfile): {
-  fullName: string;
-  email: string;
-  studentId: string;
-  bio: string;
-  availableForStudyPartners: boolean;
-  notifyReminders: boolean;
-  avatarUrl?: string;
-} {
-  const fullName = [u.first_name, u.last_name].filter(Boolean).join(' ').trim();
-  return {
-    fullName: fullName || u.email,
-    email: u.email,
-    studentId: u.user_id,
-    bio: (u.bio ?? '') as string,
-    availableForStudyPartners: true,
-    notifyReminders: true,
-    avatarUrl: u.profile_image_url ?? undefined,
-  };
-}
+  /** Backend → UI mapping for the profile page */
+  static mapUserToStudentProfile(u: UserProfile): {
+    fullName: string;
+    email: string;
+    studentId: string;
+    bio: string;
+    availableForStudyPartners: boolean;
+    notifyReminders: boolean;
+    avatarUrl?: string;
+  } {
+    const fullName = [u.first_name, u.last_name].filter(Boolean).join(' ').trim();
+    return {
+      fullName: fullName || u.email,
+      email: u.email,
+      studentId: u.user_id,
+      bio: (u.bio ?? '') as string,
+      availableForStudyPartners: true,
+      notifyReminders: true,
+      avatarUrl: u.profile_image_url ?? undefined,
+    };
+  }
 
-/** UI form → backend update payload */
-static mapFormToUserUpdate(form: {
-  fullName: string;
-  email: string;
-  studentId: string;
-  bio: string;
-  availableForStudyPartners: boolean;
-  notifyReminders: boolean;
-  avatarUrl?: string;
-}): Partial<UserProfile> {
-  // split name safely
-  const parts = (form.fullName || '').trim().split(/\s+/);
-  const first = parts.shift() ?? '';
-  const last  = parts.join(' ') || null;
+  /** UI form → backend update payload */
+  static mapFormToUserUpdate(form: {
+    fullName: string;
+    email: string;
+    studentId: string;
+    bio: string;
+    availableForStudyPartners: boolean;
+    notifyReminders: boolean;
+    avatarUrl?: string;
+  }): Partial<UserProfile> {
+    // split name safely
+    const parts = (form.fullName || '').trim().split(/\s+/);
+    const first = parts.shift() ?? '';
+    const last = parts.join(' ') || null;
 
-  return {
-    // email/user_id are not updated here; server owns them
-    first_name: first || undefined,
-    last_name: last || undefined,
-    bio: form.bio ?? null,
-    profile_image_url: form.avatarUrl ?? undefined,
-    // keep prefs in a single JSON column if you want
-    study_preferences: {
-      preferredTimes: [],
-      studyStyle: 'visual',
-      groupSize: 'medium',
-      // you can add availableForStudyPartners/notifyReminders here if you’ll read them back
-      availableForStudyPartners: !!form.availableForStudyPartners,
-      notifyReminders: !!form.notifyReminders,
-    },
-  };
-}
-
-  
+    return {
+      // email/user_id are not updated here; server owns them
+      first_name: first || undefined,
+      last_name: last || undefined,
+      bio: form.bio ?? null,
+      profile_image_url: form.avatarUrl ?? undefined,
+      // keep prefs in a single JSON column if you want
+      study_preferences: {
+        preferredTimes: [],
+        studyStyle: 'visual',
+        groupSize: 'medium',
+        // you can add availableForStudyPartners/notifyReminders here if you’ll read them back
+        availableForStudyPartners: !!form.availableForStudyPartners,
+        notifyReminders: !!form.notifyReminders,
+      },
+    };
+  }
 
   /* ----------------- Courses (incoming preserved) ----------------- */
   static async fetchCourses(options?: CourseFetchOptions): Promise<Course[]> {
@@ -1989,4 +1985,3 @@ function cryptoRandomId() {
   } catch {}
   return String(Date.now());
 }
-

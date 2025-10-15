@@ -160,10 +160,9 @@ export default function Sessions() {
       }
     } catch (err) {
       console.warn('Join request error (keeping optimistic state):', err);
-    }
-    finally {
+    } finally {
       try {
-         // notify other widgets (Calendar, Upcoming) to refetch counts/flags
+        // notify other widgets (Calendar, Upcoming) to refetch counts/flags
         window.dispatchEvent(new Event('sessions:invalidate'));
       } catch {}
     }
@@ -201,10 +200,9 @@ export default function Sessions() {
       }
     } catch (err) {
       console.warn('Leave request error (keeping optimistic state):', err);
-    }
-    finally {
+    } finally {
       try {
-         // notify other widgets (Calendar, Upcoming) to refetch counts/flags
+        // notify other widgets (Calendar, Upcoming) to refetch counts/flags
         window.dispatchEvent(new Event('sessions:invalidate'));
       } catch {}
     }

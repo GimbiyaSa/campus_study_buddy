@@ -158,10 +158,9 @@ export default function UpcomingSessions() {
       }
     } catch (err) {
       console.warn('Attend request error (keeping optimistic state):', err);
-    }
-    finally {
+    } finally {
       try {
-         // notify other widgets (Calendar, Upcoming) to refetch counts/flags
+        // notify other widgets (Calendar, Upcoming) to refetch counts/flags
         window.dispatchEvent(new Event('sessions:invalidate'));
       } catch {}
     }
@@ -205,11 +204,9 @@ export default function UpcomingSessions() {
       }
     } catch (err) {
       console.warn('Leave request error (keeping optimistic state):', err);
-    }
-
-    finally {
+    } finally {
       try {
-         // notify other widgets (Calendar, Upcoming) to refetch counts/flags
+        // notify other widgets (Calendar, Upcoming) to refetch counts/flags
         window.dispatchEvent(new Event('sessions:invalidate'));
       } catch {}
     }
@@ -242,7 +239,6 @@ export default function UpcomingSessions() {
       window.dispatchEvent(new Event('sessions:invalidate'));
     }
   };
-
 
   const getTimeUntilSession = (session: StudySession) => {
     const now = new Date();
@@ -370,7 +366,6 @@ export default function UpcomingSessions() {
                       <div className="flex items-center gap-2">
                         <Clock className="w-4 h-4" />
                         <span>{session.date}</span>
-
                       </div>
 
                       <div className="flex items-center gap-2">

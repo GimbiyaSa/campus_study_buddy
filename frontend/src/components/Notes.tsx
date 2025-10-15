@@ -16,7 +16,6 @@ export default function Notes() {
   const [showCreate, setShowCreate] = useState(false);
   const [dateWindow, setDateWindow] = useState<'7d' | '30d' | 'all'>('7d');
 
-
   // demo fallback when API unavailable
   const fallbackNotes: SharedNote[] = [
     {
@@ -143,35 +142,34 @@ export default function Notes() {
     load();
   }, []);
 
-const filteredNotes = useMemo(() => {
-  const term = searchTerm.trim().toLowerCase();
+  const filteredNotes = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
 
-  const cutoff = (() => {
-    if (dateWindow === 'all') return null;
-    const now = Date.now();
-    const days = dateWindow === '7d' ? 7 : 30;
-    return new Date(now - days * 24 * 60 * 60 * 1000);
-  })();
+    const cutoff = (() => {
+      if (dateWindow === 'all') return null;
+      const now = Date.now();
+      const days = dateWindow === '7d' ? 7 : 30;
+      return new Date(now - days * 24 * 60 * 60 * 1000);
+    })();
 
-  return notes.filter((note) => {
-    if (!note || !note.note_title || !note.note_content) return false;
-    const updatedAt = new Date(note.updated_at || note.created_at || 0);
-    if (cutoff && !(updatedAt >= cutoff)) return false;
+    return notes.filter((note) => {
+      if (!note || !note.note_title || !note.note_content) return false;
+      const updatedAt = new Date(note.updated_at || note.created_at || 0);
+      if (cutoff && !(updatedAt >= cutoff)) return false;
 
-    const matchesSearch =
-      !term ||
-      note.note_title.toLowerCase().includes(term) ||
-      note.note_content.toLowerCase().includes(term) ||
-      (note.author_name ?? '').toLowerCase().includes(term) ||
-      (note.group_name ?? '').toLowerCase().includes(term);
+      const matchesSearch =
+        !term ||
+        note.note_title.toLowerCase().includes(term) ||
+        note.note_content.toLowerCase().includes(term) ||
+        (note.author_name ?? '').toLowerCase().includes(term) ||
+        (note.group_name ?? '').toLowerCase().includes(term);
 
-    const matchesGroup = !selectedGroup || String(note.group_id) === selectedGroup;
-    const matchesVisibility = !visibilityFilter || note.visibility === visibilityFilter;
+      const matchesGroup = !selectedGroup || String(note.group_id) === selectedGroup;
+      const matchesVisibility = !visibilityFilter || note.visibility === visibilityFilter;
 
-    return matchesSearch && matchesGroup && matchesVisibility && note.is_active;
+      return matchesSearch && matchesGroup && matchesVisibility && note.is_active;
     });
-    }, [notes, searchTerm, selectedGroup, visibilityFilter, dateWindow]);
-
+  }, [notes, searchTerm, selectedGroup, visibilityFilter, dateWindow]);
 
   const getVisibilityIcon = (visibility: string) => {
     switch (visibility) {
@@ -241,15 +239,14 @@ const filteredNotes = useMemo(() => {
         </select>
 
         <select
-        value={dateWindow}
-        onChange={(e) => setDateWindow(e.target.value as any)}
-        className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500"
+          value={dateWindow}
+          onChange={(e) => setDateWindow(e.target.value as any)}
+          className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500"
         >
           <option value="7d">Last 7 days</option>
           <option value="30d">Last 30 days</option>
           <option value="all">All time</option>
         </select>
-
       </div>
 
       {/* Error message */}
@@ -287,7 +284,7 @@ const filteredNotes = useMemo(() => {
                   </p>
                 )}
               </div>
-              
+
               {/* attachments badge ABOVE the excerpt */}
               {Array.isArray(note.attachments) && note.attachments.length > 0 && (
                 <div className="mb-2">
@@ -303,7 +300,6 @@ const filteredNotes = useMemo(() => {
               </p>
 
               <div className="flex items-center justify-between text-xs text-gray-500">
-
                 <span>Updated: {new Date(note.updated_at).toLocaleDateString()}</span>
                 <button
                   onClick={() => setOpenNote(note)}
@@ -323,22 +319,20 @@ const filteredNotes = useMemo(() => {
 
       <NoteModal note={openNote} onClose={() => setOpenNote(null)} />
       <CreateNoteModal
-      open={showCreate}
-      groups={groups}
-      onClose={() => setShowCreate(false)}
-      onCreated={(n) => {
-      setNotes((prev) => [n, ...prev]); // instant
+        open={showCreate}
+        groups={groups}
+        onClose={() => setShowCreate(false)}
+        onCreated={(n) => {
+          setNotes((prev) => [n, ...prev]); // instant
 
-      DataService.fetchNotes(
-        selectedGroup ? { groupId: selectedGroup } : undefined
-      ).then((fresh) => {
-        if (Array.isArray(fresh) && fresh.length) setNotes(fresh);
-      }).catch(() => {});
-      }}
-
-      defaultGroupId={selectedGroup || (groups[0]?.id ?? '')}
-    />
-
+          DataService.fetchNotes(selectedGroup ? { groupId: selectedGroup } : undefined)
+            .then((fresh) => {
+              if (Array.isArray(fresh) && fresh.length) setNotes(fresh);
+            })
+            .catch(() => {});
+        }}
+        defaultGroupId={selectedGroup || (groups[0]?.id ?? '')}
+      />
     </div>
   );
 }
@@ -362,14 +356,17 @@ function parseAzureBlobUrl(u?: string): { container?: string; blob?: string } {
   }
 }
 
-
 function normalizeAttachments(
   raw: any
 ): Array<{ name: string; url?: string; container?: string; blob?: string }> {
   // stringified JSON -> parse
   let att = raw;
   if (typeof raw === 'string') {
-    try { att = JSON.parse(raw); } catch { att = []; }
+    try {
+      att = JSON.parse(raw);
+    } catch {
+      att = [];
+    }
   }
   // { attachments: [...] } or { files: [...] } or single object
   if (att && typeof att === 'object' && !Array.isArray(att)) {
@@ -380,8 +377,7 @@ function normalizeAttachments(
   if (!Array.isArray(att)) att = [];
 
   return att.map((a: any, i: number) => {
-    const name =
-      a?.fileName || a?.filename || a?.name || a?.blob || a?.key || `File ${i + 1}`;
+    const name = a?.fileName || a?.filename || a?.name || a?.blob || a?.key || `File ${i + 1}`;
 
     const url: string | undefined = a?.url;
 
@@ -403,50 +399,47 @@ function normalizeAttachments(
   });
 }
 
-
-
 function NoteModal({ note, onClose }: { note: SharedNote | null; onClose: () => void }) {
   if (!note) return null;
 
   const attachments = normalizeAttachments(note.attachments);
 
   const openUrl = (u: string) => {
-  const a = document.createElement('a');
-  a.href = u;
-  a.rel = 'noopener';
-  a.target = '_blank';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-};
+    const a = document.createElement('a');
+    a.href = u;
+    a.rel = 'noopener';
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
 
-const handleDownload = async (att: { url?: string; container?: string; blob?: string }) => {
-  // If url already has a SAS, open directly
-  if (hasSAS(att.url)) return openUrl(att.url!);
+  const handleDownload = async (att: { url?: string; container?: string; blob?: string }) => {
+    // If url already has a SAS, open directly
+    if (hasSAS(att.url)) return openUrl(att.url!);
 
-  // If we already have container/blob, mint SAS
-  if (att.container && att.blob) {
-    const sas = await DataService.getNoteAttachmentUrl(note!.note_id, att.container, att.blob);
-    if (sas) return openUrl(sas);
-  }
-
-  // If there is a bare url (no SAS), try parsing container/blob and minting
-  if (att.url) {
-    const parsed = parseAzureBlobUrl(att.url);
-    if (parsed.container && parsed.blob) {
-      const sas = await DataService.getNoteAttachmentUrl(
-        note!.note_id,
-        parsed.container,
-        parsed.blob
-      );
+    // If we already have container/blob, mint SAS
+    if (att.container && att.blob) {
+      const sas = await DataService.getNoteAttachmentUrl(note!.note_id, att.container, att.blob);
       if (sas) return openUrl(sas);
     }
-  }
 
-  // Nothing workable; silently do nothing or show a toast if you have one
-  // toast.error('Could not download file.');
-};
+    // If there is a bare url (no SAS), try parsing container/blob and minting
+    if (att.url) {
+      const parsed = parseAzureBlobUrl(att.url);
+      if (parsed.container && parsed.blob) {
+        const sas = await DataService.getNoteAttachmentUrl(
+          note!.note_id,
+          parsed.container,
+          parsed.blob
+        );
+        if (sas) return openUrl(sas);
+      }
+    }
 
+    // Nothing workable; silently do nothing or show a toast if you have one
+    // toast.error('Could not download file.');
+  };
 
   return createPortal(
     <div className="fixed inset-0 z-[9999]">
@@ -472,23 +465,22 @@ const handleDownload = async (att: { url?: string; container?: string; blob?: st
 
                     {/* If URL exists, render a real link; else render a button that mints a URL */}
                     {hasSAS(att.url) ? (
-                    <a
-                      href={att.url}
-                      target="_blank"
-                      rel="noopener"
-                      className="px-3 py-1 rounded-md bg-brand-600 text-white hover:bg-brand-700 text-xs"
-                    >
-                      Download
-                    </a>
+                      <a
+                        href={att.url}
+                        target="_blank"
+                        rel="noopener"
+                        className="px-3 py-1 rounded-md bg-brand-600 text-white hover:bg-brand-700 text-xs"
+                      >
+                        Download
+                      </a>
                     ) : (
-                    <button
-                      onClick={() => handleDownload(att)}
-                      className="px-3 py-1 rounded-md bg-brand-600 text-white hover:bg-brand-700 text-xs"
-                    >
-                      Download
-                    </button>
+                      <button
+                        onClick={() => handleDownload(att)}
+                        className="px-3 py-1 rounded-md bg-brand-600 text-white hover:bg-brand-700 text-xs"
+                      >
+                        Download
+                      </button>
                     )}
-
                   </li>
                 ))}
               </ul>
@@ -500,8 +492,6 @@ const handleDownload = async (att: { url?: string; container?: string; blob?: st
     document.body
   );
 }
-
-
 
 function CreateNoteModal({
   open,
@@ -524,7 +514,6 @@ function CreateNoteModal({
   const [err, setErr] = useState<string | null>(null);
   // top of CreateNoteModal
   const [files, setFiles] = useState<File[]>([]);
-
 
   useEffect(() => {
     setGroupId(defaultGroupId ?? '');
@@ -571,7 +560,6 @@ function CreateNoteModal({
       setSaving(false);
     }
   }
-
 
   return createPortal(
     <div className="fixed inset-0 z-[10000]">
@@ -644,16 +632,17 @@ function CreateNoteModal({
               />
             </div>
             <div>
-            <label className="block text-sm text-gray-700 mb-1">Attachments (optional)</label>
-            <input
-              type="file"
-              multiple
-              onChange={(e) => setFiles(e.target.files ? Array.from(e.target.files) : [])}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500"
-            />
-            <p className="text-xs text-gray-500 mt-1">PDFs, images, etc. You can leave this empty.</p>
+              <label className="block text-sm text-gray-700 mb-1">Attachments (optional)</label>
+              <input
+                type="file"
+                multiple
+                onChange={(e) => setFiles(e.target.files ? Array.from(e.target.files) : [])}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                PDFs, images, etc. You can leave this empty.
+              </p>
             </div>
-
           </div>
 
           <div className="p-6 border-t border-gray-100 flex items-center justify-end gap-2">

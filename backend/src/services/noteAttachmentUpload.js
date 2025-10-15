@@ -70,6 +70,38 @@ async function updateAttachments(noteId, attachmentsArr) {
   `);
 }
 
+// ---- place this BELOW updateAttachments(...) and ABOVE the routes ----
+async function readNoteRow(noteId) {
+  const p = await getPool();
+  const r = p.request();
+  r.input('noteId', sql.Int, noteId);
+
+  const q = `
+    SELECT
+      n.note_id,
+      n.group_id,
+      n.author_id,
+      n.topic_id,
+      n.note_title,
+      n.note_content,
+      n.attachments,
+      n.visibility,
+      n.is_active,
+      n.created_at,
+      n.updated_at,
+      COALESCE(u.first_name + ' ' + u.last_name, u.email) AS author_name,
+      -- adjust "name" below if your groups table uses group_name/title
+      g.name AS group_name
+    FROM dbo.shared_notes n
+    LEFT JOIN dbo.users u        ON u.user_id  = n.author_id
+    LEFT JOIN dbo.study_groups g ON g.group_id = n.group_id
+    WHERE n.note_id = @noteId
+  `;
+  const { recordset } = await r.query(q);
+  return recordset[0] || null;
+}
+
+
 // --------------- Routes ---------------
 
 // POST /api/v1/notes/:noteId/attachments
@@ -134,6 +166,11 @@ router.post('/:noteId/attachments', authenticateToken, upload.array('files'), as
 
     await updateAttachments(noteId, merged);
 
+    // After: await updateAttachments(noteId, merged);
+    const full = await readNoteRow(noteId);
+    return res.status(201).json(full || { attachments: merged, added: uploaded.length });
+
+
     res.status(201).json({ attachments: merged, added: uploaded.length });
   } catch (e) {
     console.error('note attachment upload error:', e);
@@ -144,6 +181,46 @@ router.post('/:noteId/attachments', authenticateToken, upload.array('files'), as
     res.status(500).json({ error: 'Upload failed' });
   }
 });
+
+// --- add near the other routes in noteAttachmentUpload.js ---
+
+// GET /api/v1/notes/:noteId/attachments/url?container=...&blob=...
+router.get('/:noteId/attachments/url', authenticateToken, async (req, res) => {
+  try {
+    const noteId = Number(req.params.noteId);
+    if (Number.isNaN(noteId)) return res.status(400).json({ error: 'Invalid note id' });
+
+    const container = String(req.query.container || 'user-files');
+    const blobRaw = String(req.query.blob || '');
+    if (!blobRaw) return res.status(400).json({ error: 'blob is required' });
+
+    // Important: frontend sends URL-encoded paths (notes%2F...%2Ffile.pdf)
+    const blob = decodeURIComponent(blobRaw);
+
+    // Verify the note exists (and optionally authorize user to view it)
+    const exists = await noteExists(noteId);
+    if (!exists.ok) return res.status(404).json({ error: 'Note not found' });
+
+    // Mint a short-lived read URL
+    // Try whichever helper your azureStorage wrapper exposes.
+    let url;
+    if (azureStorage.getFileSASUrl) {
+      url = await azureStorage.getFileSASUrl(container, blob, { permissions: 'r', expiresInMinutes: 5 });
+    } else if (azureStorage.getSignedUrl) {
+      url = await azureStorage.getSignedUrl(container, blob, { permissions: 'r', expiresInMinutes: 5 });
+    } else if (azureStorage.getFileUrl) {
+      // fallback (public container scenarios)
+      url = await azureStorage.getFileUrl(container, blob);
+    }
+
+    if (!url) return res.status(500).json({ error: 'Failed to mint SAS URL' });
+    return res.json({ url });
+  } catch (e) {
+    console.error('GET attachments/url error:', e);
+    return res.status(500).json({ error: 'Failed to mint SAS URL' });
+  }
+});
+
 
 // (Optional) DELETE attachment
 // body: { container, blob }
@@ -174,6 +251,11 @@ router.delete('/:noteId/attachments', authenticateToken, express.json(), async (
     }
     const next = current.filter((a) => !(a.container === container && a.blob === blob));
     await updateAttachments(noteId, next);
+
+    // After: await updateAttachments(noteId, next);
+    const full = await readNoteRow(noteId);
+    return res.json(full || { attachments: next });
+
 
     res.json({ attachments: next });
   } catch (e) {

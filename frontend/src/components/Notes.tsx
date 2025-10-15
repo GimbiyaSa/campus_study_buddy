@@ -343,13 +343,35 @@ const filteredNotes = useMemo(() => {
   );
 }
 
-function normalizeAttachments(raw: any): Array<{ name: string; url?: string; container?: string; blob?: string }> {
+// --- helpers for Azure blob URLs ---
+function hasSAS(u?: string) {
+  return !!u && /[?&](sv|se|sp|sig)=/i.test(u);
+}
+
+/** Parses https://{acct}.blob.core.windows.net/{container}/{blob...}[?sas] */
+function parseAzureBlobUrl(u?: string): { container?: string; blob?: string } {
+  if (!u) return {};
+  try {
+    const url = new URL(u);
+    const parts = url.pathname.replace(/^\/+/, '').split('/');
+    const container = parts.shift();
+    const blob = parts.join('/');
+    return { container, blob };
+  } catch {
+    return {};
+  }
+}
+
+
+function normalizeAttachments(
+  raw: any
+): Array<{ name: string; url?: string; container?: string; blob?: string }> {
   // stringified JSON -> parse
   let att = raw;
   if (typeof raw === 'string') {
     try { att = JSON.parse(raw); } catch { att = []; }
   }
-  // { attachments: [...] } or { files: [...] }
+  // { attachments: [...] } or { files: [...] } or single object
   if (att && typeof att === 'object' && !Array.isArray(att)) {
     if (Array.isArray(att.attachments)) att = att.attachments;
     else if (Array.isArray(att.files)) att = att.files;
@@ -358,13 +380,29 @@ function normalizeAttachments(raw: any): Array<{ name: string; url?: string; con
   if (!Array.isArray(att)) att = [];
 
   return att.map((a: any, i: number) => {
-    const name = a?.fileName || a?.filename || a?.name || a?.blob || a?.key || `File ${i + 1}`;
-    const url = a?.url; // if backend already provided
-    const container = a?.container || a?.bucket || 'user-files';
-    const blob = a?.blob || a?.key || a?.path || a?.url || '';
+    const name =
+      a?.fileName || a?.filename || a?.name || a?.blob || a?.key || `File ${i + 1}`;
+
+    const url: string | undefined = a?.url;
+
+    // DO NOT set blob = url; only take explicit blob/key/path,
+    // or parse it *from* the url if present.
+    let container: string | undefined = a?.container || a?.bucket;
+    let blob: string | undefined = a?.blob || a?.key || a?.path;
+
+    if ((!container || !blob) && url) {
+      const parsed = parseAzureBlobUrl(url);
+      container = container || parsed.container || 'user-files';
+      blob = blob || parsed.blob;
+    }
+
+    // default container only if we have a blob path
+    if (!container && blob) container = 'user-files';
+
     return { name, url, container, blob };
   });
 }
+
 
 
 function NoteModal({ note, onClose }: { note: SharedNote | null; onClose: () => void }) {
@@ -373,19 +411,42 @@ function NoteModal({ note, onClose }: { note: SharedNote | null; onClose: () => 
   const attachments = normalizeAttachments(note.attachments);
 
   const openUrl = (u: string) => {
-    const a = document.createElement('a');
-    a.href = u;
-    a.rel = 'noopener';
-    a.target = '_blank';
-    a.click();
-  };
+  const a = document.createElement('a');
+  a.href = u;
+  a.rel = 'noopener';
+  a.target = '_blank';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+};
 
-  const handleDownload = async (att: { url?: string; container?: string; blob?: string }) => {
-    if (att.url) return openUrl(att.url);
-    if (!att.blob) return;
-    const url = await DataService.getNoteAttachmentUrl(note!.note_id, att.container!, att.blob);
-    if (url) openUrl(url);
-  };
+const handleDownload = async (att: { url?: string; container?: string; blob?: string }) => {
+  // If url already has a SAS, open directly
+  if (hasSAS(att.url)) return openUrl(att.url!);
+
+  // If we already have container/blob, mint SAS
+  if (att.container && att.blob) {
+    const sas = await DataService.getNoteAttachmentUrl(note!.note_id, att.container, att.blob);
+    if (sas) return openUrl(sas);
+  }
+
+  // If there is a bare url (no SAS), try parsing container/blob and minting
+  if (att.url) {
+    const parsed = parseAzureBlobUrl(att.url);
+    if (parsed.container && parsed.blob) {
+      const sas = await DataService.getNoteAttachmentUrl(
+        note!.note_id,
+        parsed.container,
+        parsed.blob
+      );
+      if (sas) return openUrl(sas);
+    }
+  }
+
+  // Nothing workable; silently do nothing or show a toast if you have one
+  // toast.error('Could not download file.');
+};
+
 
   return createPortal(
     <div className="fixed inset-0 z-[9999]">
@@ -410,25 +471,24 @@ function NoteModal({ note, onClose }: { note: SharedNote | null; onClose: () => 
                     <span className="truncate mr-3">{att.name}</span>
 
                     {/* If URL exists, render a real link; else render a button that mints a URL */}
-                    {att.url ? (
-                      <a
-                        href={att.url}
-                        target="_blank"
-                        rel="noopener"
-                        className="px-3 py-1 rounded-md bg-brand-600 text-white hover:bg-brand-700 text-xs"
-                        // optional: force download instead of viewing
-                        // download
-                      >
-                        Download
-                      </a>
+                    {hasSAS(att.url) ? (
+                    <a
+                      href={att.url}
+                      target="_blank"
+                      rel="noopener"
+                      className="px-3 py-1 rounded-md bg-brand-600 text-white hover:bg-brand-700 text-xs"
+                    >
+                      Download
+                    </a>
                     ) : (
-                      <button
-                        onClick={() => handleDownload(att)}
-                        className="px-3 py-1 rounded-md bg-brand-600 text-white hover:bg-brand-700 text-xs"
-                      >
-                        Download
-                      </button>
+                    <button
+                      onClick={() => handleDownload(att)}
+                      className="px-3 py-1 rounded-md bg-brand-600 text-white hover:bg-brand-700 text-xs"
+                    >
+                      Download
+                    </button>
                     )}
+
                   </li>
                 ))}
               </ul>

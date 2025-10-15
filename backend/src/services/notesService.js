@@ -207,6 +207,69 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
+router.get('/:noteId', authenticateToken, async (req, res) => {
+  try {
+    await getPool();
+    if (!(await hasTable(schema.tables.notes))) {
+      return res.status(404).json({ error: 'Notes not supported' });
+    }
+
+    const noteId = Number(req.params.noteId);
+    if (Number.isNaN(noteId)) return res.status(400).json({ error: 'Invalid note id' });
+
+    const r = pool.request();
+    r.input('noteId', sql.Int, noteId);
+
+    const q = `
+      SELECT
+        n.note_id,
+        n.group_id,
+        n.author_id,
+        ${schema.notesCols.topic_id ? 'n.topic_id' : 'NULL AS topic_id'},
+        n.note_title,
+        n.note_content,
+        ${schema.notesCols.attachments ? 'n.attachments' : 'NULL AS attachments'},
+        ${schema.notesCols.visibility ? 'n.visibility' : "CAST('group' AS NVARCHAR(50)) AS visibility"},
+        ${schema.notesCols.is_active ? 'n.is_active' : 'CAST(1 AS bit) AS is_active'},
+        n.created_at,
+        n.updated_at,
+        COALESCE(u.first_name + ' ' + u.last_name, u.email) AS author_name,
+        ${schema.groupCols.nameCol ? `g.${schema.groupCols.nameCol}` : 'NULL'} AS group_name,
+        ${schema.notesCols.topic_id ? 't.topic_name' : 'NULL'} AS topic_name
+      FROM ${tbl('notes')} n
+      LEFT JOIN ${tbl('groups')} g ON g.group_id = n.group_id
+      LEFT JOIN dbo.users u ON u.user_id = n.author_id
+      ${schema.notesCols.topic_id ? 'LEFT JOIN dbo.topics t ON t.topic_id = n.topic_id' : ''}
+      WHERE n.note_id = @noteId
+    `;
+
+    const { recordset } = await r.query(q);
+    if (!recordset.length) return res.status(404).json({ error: 'Note not found' });
+
+    const row = recordset[0];
+    res.json({
+      note_id: row.note_id,
+      group_id: row.group_id,
+      author_id: row.author_id,
+      topic_id: row.topic_id,
+      note_title: row.note_title,
+      note_content: row.note_content,
+      attachments: row.attachments,
+      visibility: row.visibility,
+      is_active: !!row.is_active,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      author_name: row.author_name || null,
+      group_name: row.group_name || null,
+      topic_name: row.topic_name || null,
+    });
+  } catch (err) {
+    console.error('GET /notes/:noteId error:', err);
+    res.status(500).json({ error: 'Failed to fetch note' });
+  }
+});
+
+
 // ---------- POST /notes ----------
 router.post('/', authenticateToken, async (req, res) => {
   try {

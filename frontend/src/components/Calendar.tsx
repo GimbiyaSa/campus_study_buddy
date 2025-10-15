@@ -124,7 +124,7 @@ export default function Calendar() {
     async function fetchSessions() {
       setLoading(true);
       try {
-        const data = await DataService.fetchSessions();
+        const data = await DataService.fetchSessions({ status: 'upcoming' });
         setSessions(data);
       } catch (error) {
         console.error('Error fetching sessions:', error);
@@ -145,9 +145,12 @@ export default function Calendar() {
   };
 
   const getSessionsForDate = (date: Date) => {
-    const dateStr = dateKey(date); // local date
-    return sessions.filter((session) => session.date === dateStr);
-  };
+  const dateStr = dateKey(date); // local date
+  return sessions.filter(
+    (s) => s.date === dateStr && s.status !== 'cancelled' // optionally: && s.status !== 'completed'
+  );
+};
+
 
  function navigate(direction: 'prev' | 'next') {    
    const step = view === 'day' ? 1 : view === 'week' ? 7 : 30; // month ≈ 30d is fine for stepping

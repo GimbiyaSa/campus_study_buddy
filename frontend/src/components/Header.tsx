@@ -7,7 +7,6 @@ import { buildApiUrl } from '../utils/url';
 import NotificationHandler from './NotificationHandler';
 import { DataService } from '../services/dataService';
 
-
 export default function Header() {
   const { currentUser, loading, logout } = useUser();
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -180,11 +179,10 @@ export default function Header() {
 
       {/* Settings Modal */}
       <SettingsModal
-      open={showSettingsModal}
-      onClose={() => setShowSettingsModal(false)}
-      currentUser={currentUser}
+        open={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        currentUser={currentUser}
       />
-
     </>
   );
 }
@@ -202,12 +200,16 @@ function SettingsModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const initialPush =
-    !!(currentUser?.study_preferences?.push_enabled ??
-       currentUser?.notifyReminders ?? false);
-  const initialEmail =
-    !!(currentUser?.study_preferences?.email_updates ??
-       currentUser?.notifyReminders ?? false);
+  const initialPush = !!(
+    currentUser?.study_preferences?.push_enabled ??
+    currentUser?.notifyReminders ??
+    false
+  );
+  const initialEmail = !!(
+    currentUser?.study_preferences?.email_updates ??
+    currentUser?.notifyReminders ??
+    false
+  );
 
   const [pushEnabled, setPushEnabled] = useState(initialPush);
   const [emailEnabled, setEmailEnabled] = useState(initialEmail);
@@ -283,7 +285,9 @@ function SettingsModal({
         <div className="w-full max-w-md rounded-2xl bg-white shadow-xl border border-gray-100 p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900">Settings</h2>
-            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">×</button>
+            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
+              ×
+            </button>
           </div>
 
           <div className="space-y-4">
@@ -317,7 +321,9 @@ function SettingsModal({
 
             {error && <p className="text-sm text-rose-600">{error}</p>}
             {!('Notification' in window) && (
-              <p className="text-xs text-gray-500">Your browser doesn’t support push notifications.</p>
+              <p className="text-xs text-gray-500">
+                Your browser doesn’t support push notifications.
+              </p>
             )}
           </div>
 

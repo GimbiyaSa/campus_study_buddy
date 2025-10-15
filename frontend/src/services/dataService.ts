@@ -217,6 +217,22 @@ export type NotificationCounts = {
   unread_matches: number;
 };
 
+// --- Profile shapes the page expects (optional: keep inline if you prefer)
+export type UserProfile = {
+  user_id: string;
+  email: string;
+  first_name?: string;
+  last_name?: string;
+  university?: string;
+  course?: string;
+  year_of_study?: number | null;
+  bio?: string | null;
+  profile_image_url?: string | null;
+  study_preferences?: any | null; // { preferredTimes, studyStyle, groupSize, ... }
+};
+
+
+
 /* ============================================================================
    FALLBACKS (keep incoming + compatible with your UI)
 ============================================================================ */
@@ -618,6 +634,115 @@ export class DataService {
       return null;
     }
   }
+
+    /** Full current-user profile from backend */
+  static async getUserProfile(): Promise<UserProfile | null> {
+    try {
+      const res = await this.request('/api/v1/users/me', { method: 'GET' });
+      if (!res.ok) return null;
+      return this.safeJson<UserProfile | null>(res, null);
+    } catch {
+      return null;
+    }
+  }
+
+  /** Update current-user profile (partial patch) */
+  static async updateUserProfile(
+    patch: Partial<UserProfile> & { study_preferences?: any }
+  ): Promise<UserProfile | null> {
+    try {
+      const res = await this.request('/api/v1/users/me', {
+        method: 'PUT',
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) return null;
+      return this.safeJson<UserProfile | null>(res, null);
+    } catch {
+      return null;
+    }
+  }
+
+  /** Upload a profile image, returns the URL (and you can follow up with PUT /me if needed) */
+  static async uploadProfileImage(file: File): Promise<string | null> {
+    try {
+      const url = buildApiUrl('/api/v1/users/files/upload');
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('uploadType', 'profile-image');
+
+      // IMPORTANT: do not set Content-Type for FormData; only send auth
+      const auth = Object.fromEntries(this.authHeaders().entries());
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: auth,
+        body: fd,
+        credentials: 'include',
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data?.file?.url ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  // inside class DataService, e.g. after uploadProfileImage()
+/** Backend → UI mapping for the profile page */
+static mapUserToStudentProfile(u: UserProfile): {
+  fullName: string;
+  email: string;
+  studentId: string;
+  bio: string;
+  availableForStudyPartners: boolean;
+  notifyReminders: boolean;
+  avatarUrl?: string;
+} {
+  const fullName = [u.first_name, u.last_name].filter(Boolean).join(' ').trim();
+  return {
+    fullName: fullName || u.email,
+    email: u.email,
+    studentId: u.user_id,
+    bio: (u.bio ?? '') as string,
+    availableForStudyPartners: true,
+    notifyReminders: true,
+    avatarUrl: u.profile_image_url ?? undefined,
+  };
+}
+
+/** UI form → backend update payload */
+static mapFormToUserUpdate(form: {
+  fullName: string;
+  email: string;
+  studentId: string;
+  bio: string;
+  availableForStudyPartners: boolean;
+  notifyReminders: boolean;
+  avatarUrl?: string;
+}): Partial<UserProfile> {
+  // split name safely
+  const parts = (form.fullName || '').trim().split(/\s+/);
+  const first = parts.shift() ?? '';
+  const last  = parts.join(' ') || null;
+
+  return {
+    // email/user_id are not updated here; server owns them
+    first_name: first || undefined,
+    last_name: last || undefined,
+    bio: form.bio ?? null,
+    profile_image_url: form.avatarUrl ?? undefined,
+    // keep prefs in a single JSON column if you want
+    study_preferences: {
+      preferredTimes: [],
+      studyStyle: 'visual',
+      groupSize: 'medium',
+      // you can add availableForStudyPartners/notifyReminders here if you’ll read them back
+      availableForStudyPartners: !!form.availableForStudyPartners,
+      notifyReminders: !!form.notifyReminders,
+    },
+  };
+}
+
+  
 
   /* ----------------- Courses (incoming preserved) ----------------- */
   static async fetchCourses(options?: CourseFetchOptions): Promise<Course[]> {
@@ -1858,3 +1983,4 @@ function cryptoRandomId() {
   } catch {}
   return String(Date.now());
 }
+

@@ -2,8 +2,7 @@
 const express = require('express');
 const sql = require('mssql');
 const { authenticateToken } = require('../middleware/authMiddleware');
-const { notifySessionCancelled } = require('./notificationService'); 
-
+const { notifySessionCancelled } = require('./notificationService');
 
 const router = express.Router();
 
@@ -849,7 +848,6 @@ router.delete('/:sessionId', authenticateToken, async (req, res) => {
     notifySessionCancelled(Number(req.params.sessionId), req.user.id).catch((e) =>
       console.warn('notifySessionCancelled failed:', e)
     );
-
 
     res.json({
       ...row,

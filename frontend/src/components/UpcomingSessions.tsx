@@ -159,6 +159,12 @@ export default function UpcomingSessions() {
     } catch (err) {
       console.warn('Attend request error (keeping optimistic state):', err);
     }
+    finally {
+      try {
+         // notify other widgets (Calendar, Upcoming) to refetch counts/flags
+        window.dispatchEvent(new Event('sessions:invalidate'));
+      } catch {}
+    }
   };
 
   const handleLeave = async (sessionId: string) => {
@@ -199,6 +205,13 @@ export default function UpcomingSessions() {
       }
     } catch (err) {
       console.warn('Leave request error (keeping optimistic state):', err);
+    }
+
+    finally {
+      try {
+         // notify other widgets (Calendar, Upcoming) to refetch counts/flags
+        window.dispatchEvent(new Event('sessions:invalidate'));
+      } catch {}
     }
   };
 

@@ -101,7 +101,7 @@ async function bumpStatuses() {
 /* ---------- GET / (list) ---------- */
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const { groupId, status, startDate, endDate, limit = 50, offset = 0 } = req.query;
+    const { groupId, status, startDate, endDate, scope, limit = 50, offset = 0 } = req.query;
 
     const pool = await getPool();
     await bumpStatuses(); // keep statuses fresh on read
@@ -132,15 +132,25 @@ router.get('/', authenticateToken, async (req, res) => {
       request.input('endDate', sql.DateTime2, endDate);
       whereClause += ' AND ss.scheduled_start <= @endDate';
     }
+    
+    // Visibility: by default, only sessions I organize, I’m attending, or my group's sessions
+    if(!scope || String(scope).toLowerCase() === 'mine') {
+      whereClause += `  AND ( 
+        ss.organizer_id = @userId
+        OR my_sa.user_id IS NOT NULL
+        OR gm.user_id IS NOT NULL
+      )`;
+
+    }
 
     const q = await request.query(`
       SELECT
         ss.session_id AS id,
         ss.group_id   AS groupId,
         ss.session_title AS title,
-        ${ymd('ss.scheduled_start')} AS date,
-        ${hhmm('ss.scheduled_start')} AS startTime,
-        ${hhmm('ss.scheduled_end')}   AS endTime,
+        ${ymd('ss.scheduled_start')} AS startISO,
+        ${hhmm('ss.scheduled_start')} AS startISO,
+        ${hhmm('ss.scheduled_end')}   AS endISO,
         ss.location,
         ss.session_type AS [type],
         sg.max_members AS maxParticipants,
@@ -167,8 +177,12 @@ router.get('/', authenticateToken, async (req, res) => {
         AND my_sa.user_id = @userId 
         AND my_sa.attendance_status = 'attending'
       LEFT JOIN group_members go ON go.group_id = ss.group_id
-        AND go.user_id = @userId
-        AND go.role IN ('admin','moderator')
+      AND go.user_id = @userId
+      AND go.role IN ('admin','moderator')
+      /* NEW: any active membership signals visibility */
+      LEFT JOIN group_members gm ON gm.group_id = ss.group_id
+      AND gm.user_id = @userId
+      AND gm.status = 'active'
       ${whereClause}
       GROUP BY 
         ss.session_id, ss.group_id, ss.session_title, ss.scheduled_start, ss.scheduled_end, ss.location,
@@ -209,9 +223,9 @@ router.get('/:sessionId', authenticateToken, async (req, res) => {
         ss.session_id AS id,
         ss.group_id   AS groupId,
         ss.session_title AS title,
-        ${ymd('ss.scheduled_start')} AS date,
-        ${hhmm('ss.scheduled_start')} AS startTime,
-        ${hhmm('ss.scheduled_end')}   AS endTime,
+        ${ymd('ss.scheduled_start')} AS startISO,
+        ${hhmm('ss.scheduled_start')} AS startISO,
+        ${hhmm('ss.scheduled_end')}   AS endISO,
         ss.location,
         ss.session_type AS [type],
         sg.max_members AS maxParticipants,
@@ -516,9 +530,9 @@ router.put('/:sessionId', authenticateToken, async (req, res) => {
           ss.session_id AS id,
           ss.group_id   AS groupId,
           ss.session_title AS title,
-          ${ymd('ss.scheduled_start')} AS date,
-          ${hhmm('ss.scheduled_start')} AS startTime,
-          ${hhmm('ss.scheduled_end')}   AS endTime,
+          ${ymd('ss.scheduled_start')} AS startISO,
+          ${hhmm('ss.scheduled_start')} AS startISO,
+          ${hhmm('ss.scheduled_end')}   AS endISO,
           ss.location,
           ss.session_type AS [type],
           ss.status AS status

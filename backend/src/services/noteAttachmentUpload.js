@@ -101,7 +101,6 @@ async function readNoteRow(noteId) {
   return recordset[0] || null;
 }
 
-
 // --------------- Routes ---------------
 
 // POST /api/v1/notes/:noteId/attachments
@@ -170,7 +169,6 @@ router.post('/:noteId/attachments', authenticateToken, upload.array('files'), as
     const full = await readNoteRow(noteId);
     return res.status(201).json(full || { attachments: merged, added: uploaded.length });
 
-
     res.status(201).json({ attachments: merged, added: uploaded.length });
   } catch (e) {
     console.error('note attachment upload error:', e);
@@ -205,9 +203,15 @@ router.get('/:noteId/attachments/url', authenticateToken, async (req, res) => {
     // Try whichever helper your azureStorage wrapper exposes.
     let url;
     if (azureStorage.getFileSASUrl) {
-      url = await azureStorage.getFileSASUrl(container, blob, { permissions: 'r', expiresInMinutes: 5 });
+      url = await azureStorage.getFileSASUrl(container, blob, {
+        permissions: 'r',
+        expiresInMinutes: 5,
+      });
     } else if (azureStorage.getSignedUrl) {
-      url = await azureStorage.getSignedUrl(container, blob, { permissions: 'r', expiresInMinutes: 5 });
+      url = await azureStorage.getSignedUrl(container, blob, {
+        permissions: 'r',
+        expiresInMinutes: 5,
+      });
     } else if (azureStorage.getFileUrl) {
       // fallback (public container scenarios)
       url = await azureStorage.getFileUrl(container, blob);
@@ -220,7 +224,6 @@ router.get('/:noteId/attachments/url', authenticateToken, async (req, res) => {
     return res.status(500).json({ error: 'Failed to mint SAS URL' });
   }
 });
-
 
 // (Optional) DELETE attachment
 // body: { container, blob }
@@ -255,7 +258,6 @@ router.delete('/:noteId/attachments', authenticateToken, express.json(), async (
     // After: await updateAttachments(noteId, next);
     const full = await readNoteRow(noteId);
     return res.json(full || { attachments: next });
-
 
     res.json({ attachments: next });
   } catch (e) {

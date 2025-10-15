@@ -163,7 +163,6 @@ router.put('/me', authenticateToken, async (req, res) => {
     WHERE user_id = @userId AND is_active = 1;
   `);
 
-
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }

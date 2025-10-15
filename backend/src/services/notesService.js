@@ -229,7 +229,11 @@ router.get('/:noteId', authenticateToken, async (req, res) => {
         n.note_title,
         n.note_content,
         ${schema.notesCols.attachments ? 'n.attachments' : 'NULL AS attachments'},
-        ${schema.notesCols.visibility ? 'n.visibility' : "CAST('group' AS NVARCHAR(50)) AS visibility"},
+        ${
+          schema.notesCols.visibility
+            ? 'n.visibility'
+            : "CAST('group' AS NVARCHAR(50)) AS visibility"
+        },
         ${schema.notesCols.is_active ? 'n.is_active' : 'CAST(1 AS bit) AS is_active'},
         n.created_at,
         n.updated_at,
@@ -268,7 +272,6 @@ router.get('/:noteId', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch note' });
   }
 });
-
 
 // ---------- POST /notes ----------
 router.post('/', authenticateToken, async (req, res) => {

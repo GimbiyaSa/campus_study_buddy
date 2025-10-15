@@ -1459,87 +1459,93 @@ export class DataService {
     }
   }
 
-      // ---------- Notes: attachments upload/download ----------
+  // ---------- Notes: attachments upload/download ----------
 
-    /**
-     * Upload one or more files to a note. Expects backend route:
-     * POST /api/v1/notes/:noteId/attachments (multer form field name: "files")
-     * Returns the updated note (with attachments JSON).
-     */
-    static async uploadNoteAttachments(
-      noteId: number | string,
-      files: File[]
-    ): Promise<SharedNote | null> {
-      if (!files?.length) return this.getNoteById(noteId);
+  /**
+   * Upload one or more files to a note. Expects backend route:
+   * POST /api/v1/notes/:noteId/attachments (multer form field name: "files")
+   * Returns the updated note (with attachments JSON).
+   */
+  static async uploadNoteAttachments(
+    noteId: number | string,
+    files: File[]
+  ): Promise<SharedNote | null> {
+    if (!files?.length) return this.getNoteById(noteId);
 
-      const url = buildApiUrl(`/api/v1/notes/${encodeURIComponent(String(noteId))}/attachments`);
-      const fd = new FormData();
-      for (const f of files) fd.append('files', f);
+    const url = buildApiUrl(`/api/v1/notes/${encodeURIComponent(String(noteId))}/attachments`);
+    const fd = new FormData();
+    for (const f of files) fd.append('files', f);
 
-      // Auth header only (do NOT set Content-Type for FormData)
-      const auth = Object.fromEntries(this.authHeaders().entries());
+    // Auth header only (do NOT set Content-Type for FormData)
+    const auth = Object.fromEntries(this.authHeaders().entries());
 
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: auth,
-        body: fd,
-        credentials: 'include',
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: auth,
+      body: fd,
+      credentials: 'include',
+    });
+
+    if (!res.ok) return null;
+    return this.safeJson<SharedNote | null>(res, null);
+  }
+
+  /** Optionally delete a single attachment record + blob on the server. */
+  static async deleteNoteAttachment(params: {
+    noteId: number | string;
+    container: string;
+    blob: string;
+  }): Promise<boolean> {
+    const url = buildApiUrl(
+      `/api/v1/notes/${encodeURIComponent(String(params.noteId))}/attachments`
+    );
+    const res = await this.fetchWithRetry(url, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...Object.fromEntries(this.authHeaders().entries()),
+      },
+      body: JSON.stringify({ container: params.container, blob: params.blob }),
+    });
+    return res.ok;
+  }
+
+  /**
+   * Get a short-lived download URL when the stored attachment object has no `url`.
+   * Expects backend route:
+   * GET /api/v1/notes/:noteId/attachments/url?container=...&blob=...
+   */
+  static async getNoteAttachmentUrl(
+    noteId: number | string,
+    container: string,
+    blob: string
+  ): Promise<string | null> {
+    try {
+      const qs = new URLSearchParams({ container, blob });
+      const res = await this.request(
+        `/api/v1/notes/${encodeURIComponent(String(noteId))}/attachments/url?${qs.toString()}`,
+        { method: 'GET' }
+      );
+      if (!res.ok) return null;
+      const data = await this.safeJson<{ url?: string }>(res, {});
+      return data?.url ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Convenience to fetch a single note if needed */
+  static async getNoteById(noteId: number | string): Promise<SharedNote | null> {
+    try {
+      const res = await this.request(`/api/v1/notes/${encodeURIComponent(String(noteId))}`, {
+        method: 'GET',
       });
-
       if (!res.ok) return null;
       return this.safeJson<SharedNote | null>(res, null);
+    } catch {
+      return null;
     }
-
-    /** Optionally delete a single attachment record + blob on the server. */
-    static async deleteNoteAttachment(params: {
-      noteId: number | string;
-      container: string;
-      blob: string;
-    }): Promise<boolean> {
-      const url = buildApiUrl(`/api/v1/notes/${encodeURIComponent(String(params.noteId))}/attachments`);
-      const res = await this.fetchWithRetry(url, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', ...Object.fromEntries(this.authHeaders().entries()) },
-        body: JSON.stringify({ container: params.container, blob: params.blob }),
-      });
-      return res.ok;
-    }
-
-    /**
-     * Get a short-lived download URL when the stored attachment object has no `url`.
-     * Expects backend route:
-     * GET /api/v1/notes/:noteId/attachments/url?container=...&blob=...
-     */
-    static async getNoteAttachmentUrl(
-      noteId: number | string,
-      container: string,
-      blob: string
-    ): Promise<string | null> {
-      try {
-        const qs = new URLSearchParams({ container, blob });
-        const res = await this.request(
-          `/api/v1/notes/${encodeURIComponent(String(noteId))}/attachments/url?${qs.toString()}`,
-          { method: 'GET' }
-        );
-        if (!res.ok) return null;
-        const data = await this.safeJson<{ url?: string }>(res, {});
-        return data?.url ?? null;
-      } catch {
-        return null;
-      }
-    }
-
-    /** Convenience to fetch a single note if needed */
-    static async getNoteById(noteId: number | string): Promise<SharedNote | null> {
-      try {
-        const res = await this.request(`/api/v1/notes/${encodeURIComponent(String(noteId))}`, { method: 'GET' });
-        if (!res.ok) return null;
-        return this.safeJson<SharedNote | null>(res, null);
-      } catch {
-        return null;
-      }
-    }
-
+  }
 
   /* ----------------- Notifications (your additions) ----------------- */
   static async fetchNotifications(opts?: {

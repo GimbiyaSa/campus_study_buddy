@@ -24,27 +24,29 @@ function startOfWeek(d: Date) {
   return x;
 }
 function addDays(d: Date, n: number) {
-  const x = new Date(d); x.setDate(x.getDate() + n); return x;
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
 }
 
-  const getDaysInMonth = (date: Date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const startDate = new Date(firstDay);
-    startDate.setDate(startDate.getDate() - firstDay.getDay()); // Start from Sunday
+const getDaysInMonth = (date: Date) => {
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const startDate = new Date(firstDay);
+  startDate.setDate(startDate.getDate() - firstDay.getDay()); // Start from Sunday
 
-    const days: Date[] = [];
-    const current = new Date(startDate);
+  const days: Date[] = [];
+  const current = new Date(startDate);
 
-    // Generate 42 days (6 weeks) for calendar grid
-    for (let i = 0; i < 42; i++) {
-      days.push(new Date(current));
-      current.setDate(current.getDate() + 1);
-    }
+  // Generate 42 days (6 weeks) for calendar grid
+  for (let i = 0; i < 42; i++) {
+    days.push(new Date(current));
+    current.setDate(current.getDate() + 1);
+  }
 
-    return days;
-  };
+  return days;
+};
 
 function getVisibleDates(view: ViewMode, anchor: Date): Date[] {
   if (view === 'day') return [new Date(anchor)];
@@ -55,7 +57,6 @@ function getVisibleDates(view: ViewMode, anchor: Date): Date[] {
   // month
   return getDaysInMonth(anchor); // your existing generator (6x7)
 }
-
 
 //listen for broadcast events for session creation/invalidation
 export default function Calendar() {
@@ -145,18 +146,17 @@ export default function Calendar() {
   };
 
   const getSessionsForDate = (date: Date) => {
-  const dateStr = dateKey(date); // local date
-  return sessions.filter(
-    (s) => s.date === dateStr && s.status !== 'cancelled' // optionally: && s.status !== 'completed'
-  );
-};
+    const dateStr = dateKey(date); // local date
+    return sessions.filter(
+      (s) => s.date === dateStr && s.status !== 'cancelled' // optionally: && s.status !== 'completed'
+    );
+  };
 
-
- function navigate(direction: 'prev' | 'next') {    
-   const step = view === 'day' ? 1 : view === 'week' ? 7 : 30; // month ≈ 30d is fine for stepping
-   const factor = direction === 'next' ? 1 : -1;
-   setCurrentDate((d) => addDays(d, step * factor));
- }
+  function navigate(direction: 'prev' | 'next') {
+    const step = view === 'day' ? 1 : view === 'week' ? 7 : 30; // month ≈ 30d is fine for stepping
+    const factor = direction === 'next' ? 1 : -1;
+    setCurrentDate((d) => addDays(d, step * factor));
+  }
 
   const handleDateClick = (date: Date) => {
     setSelectedDate(date);
@@ -241,15 +241,21 @@ export default function Calendar() {
         </button>
 
         <h3 className="text-xl font-semibold text-slate-900">
-        {view === 'month' && `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`}
-        {view === 'week' && (() => {
-          const days = getVisibleDates('week', currentDate);
-          const a = days[0], b = days[6];
-          return `${monthNames[a.getMonth()]} ${a.getDate()} – ${monthNames[b.getMonth()]} ${b.getDate()}, ${b.getFullYear()}`;
-        })()}
-        {view === 'day' && `${monthNames[currentDate.getMonth()]} ${currentDate.getDate()}, ${currentDate.getFullYear()}`}
+          {view === 'month' && `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`}
+          {view === 'week' &&
+            (() => {
+              const days = getVisibleDates('week', currentDate);
+              const a = days[0],
+                b = days[6];
+              return `${monthNames[a.getMonth()]} ${a.getDate()} – ${
+                monthNames[b.getMonth()]
+              } ${b.getDate()}, ${b.getFullYear()}`;
+            })()}
+          {view === 'day' &&
+            `${
+              monthNames[currentDate.getMonth()]
+            } ${currentDate.getDate()}, ${currentDate.getFullYear()}`}
         </h3>
-
 
         <button
           onClick={() => navigate('next')}
@@ -260,15 +266,17 @@ export default function Calendar() {
       </div>
 
       {/* Calendar Grid */}
-      <div className={`grid ${view === 'day' ? 'grid-cols-1' : 'grid-cols-7'} gap-1 bg-slate-50 p-4 rounded-xl`}>
-
+      <div
+        className={`grid ${
+          view === 'day' ? 'grid-cols-1' : 'grid-cols-7'
+        } gap-1 bg-slate-50 p-4 rounded-xl`}
+      >
         {/* Day Headers */}
         {(view === 'day' ? [dayNames[currentDate.getDay()]] : dayNames).map((day) => (
-        <div key={day} className="text-center text-sm font-medium text-slate-600 p-2">
-          {day}
-        </div>
+          <div key={day} className="text-center text-sm font-medium text-slate-600 p-2">
+            {day}
+          </div>
         ))}
-
 
         {/* Calendar Days */}
         {calendarDays.map((date, index) => {

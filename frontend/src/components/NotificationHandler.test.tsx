@@ -393,46 +393,44 @@ describe('NotificationHandler', () => {
     });
   });
 
- test('displays notification timestamp correctly', async () => {
-  render(<NotificationHandler />);
+  test('displays notification timestamp correctly', async () => {
+    render(<NotificationHandler />);
 
-  await waitFor(() => {
-    expect(screen.getByText('2')).toBeInTheDocument();
-  });
-
-  const bellButton = screen.getByLabelText(/notifications/i);
-  fireEvent.click(bellButton);
-
-  const tsA = new Date('2025-01-01T12:00:00Z'); // Alice
-  const tsB = new Date('2025-01-01T10:00:00Z'); // Bob
-
-  const fmt = (timeZone?: string) =>
-    new Intl.DateTimeFormat(undefined, {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      timeZone,
+    await waitFor(() => {
+      expect(screen.getByText('2')).toBeInTheDocument();
     });
 
-  const expectedA_JOH = fmt('Africa/Johannesburg').format(tsA);
-  const expectedB_JOH = fmt('Africa/Johannesburg').format(tsB);
-  const expectedA_UTC = fmt('UTC').format(tsA);
-  const expectedB_UTC = fmt('UTC').format(tsB);
+    const bellButton = screen.getByLabelText(/notifications/i);
+    fireEvent.click(bellButton);
 
-  const matchAny = (a: string, b: string) => (_: string, node?: Element | null) => {
-    const txt = (node?.textContent ?? '').replace(/\s+/g, ' ');
-    return txt.includes(a) || txt.includes(b);
-  };
+    const tsA = new Date('2025-01-01T12:00:00Z'); // Alice
+    const tsB = new Date('2025-01-01T10:00:00Z'); // Bob
 
-  // Use getAllByText to avoid "multiple elements found" error
-  expect(screen.getAllByText(matchAny(expectedA_JOH, expectedA_UTC)).length).toBeGreaterThan(0);
-  expect(screen.getAllByText(matchAny(expectedB_JOH, expectedB_UTC)).length).toBeGreaterThan(0);
-});
+    const fmt = (timeZone?: string) =>
+      new Intl.DateTimeFormat(undefined, {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        timeZone,
+      });
 
+    const expectedA_JOH = fmt('Africa/Johannesburg').format(tsA);
+    const expectedB_JOH = fmt('Africa/Johannesburg').format(tsB);
+    const expectedA_UTC = fmt('UTC').format(tsA);
+    const expectedB_UTC = fmt('UTC').format(tsB);
 
+    const matchAny = (a: string, b: string) => (_: string, node?: Element | null) => {
+      const txt = (node?.textContent ?? '').replace(/\s+/g, ' ');
+      return txt.includes(a) || txt.includes(b);
+    };
+
+    // Use getAllByText to avoid "multiple elements found" error
+    expect(screen.getAllByText(matchAny(expectedA_JOH, expectedA_UTC)).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(matchAny(expectedB_JOH, expectedB_UTC)).length).toBeGreaterThan(0);
+  });
 
   test('handles unknown notification type gracefully', async () => {
     let notificationHandler: ((notification: any) => void) | undefined;

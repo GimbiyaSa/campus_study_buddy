@@ -343,4 +343,5 @@ CREATE TRIGGER tr_shared_notes_updated_at ON dbo.shared_notes
     UPDATE dbo.shared_notes SET updated_at = GETUTCDATE()
     FROM dbo.shared_notes sn INNER JOIN inserted i ON sn.note_id = i.note_id;
 
+
 PRINT 'Campus Study Buddy database schema created successfully!';

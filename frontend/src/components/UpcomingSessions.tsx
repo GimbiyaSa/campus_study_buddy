@@ -158,6 +158,11 @@ export default function UpcomingSessions() {
       }
     } catch (err) {
       console.warn('Attend request error (keeping optimistic state):', err);
+    } finally {
+      try {
+        // notify other widgets (Calendar, Upcoming) to refetch counts/flags
+        window.dispatchEvent(new Event('sessions:invalidate'));
+      } catch {}
     }
   };
 
@@ -199,6 +204,11 @@ export default function UpcomingSessions() {
       }
     } catch (err) {
       console.warn('Leave request error (keeping optimistic state):', err);
+    } finally {
+      try {
+        // notify other widgets (Calendar, Upcoming) to refetch counts/flags
+        window.dispatchEvent(new Event('sessions:invalidate'));
+      } catch {}
     }
   };
 
@@ -207,6 +217,11 @@ export default function UpcomingSessions() {
     // Optimistic removal from upcoming list
     setSessions((prev) => prev.filter((s) => s.id !== sessionId));
 
+    // 🔔 tell listeners (Calendar) right away
+    try {
+      window.dispatchEvent(new CustomEvent('session:deleted', { detail: { id: sessionId } }));
+    } catch {}
+
     try {
       const res = await fetch(buildApiUrl(`/api/v1/sessions/${sessionId}`), {
         method: 'DELETE', // backend treats as soft cancel -> status='cancelled'
@@ -214,9 +229,11 @@ export default function UpcomingSessions() {
       });
       if (!res.ok) {
         console.warn('Cancel failed:', res.status);
+        // optional: re-add to list on hard failure
       }
     } catch (err) {
       console.warn('Cancel request error:', err);
+      // optional: re-add to list on hard failure
     } finally {
       // Re-sync other widgets (Calendar, etc.)
       window.dispatchEvent(new Event('sessions:invalidate'));
@@ -348,9 +365,7 @@ export default function UpcomingSessions() {
                     <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
                       <div className="flex items-center gap-2">
                         <Clock className="w-4 h-4" />
-                        <span>
-                          {new Date(session.date).toLocaleDateString()} at {session.startTime}
-                        </span>
+                        <span>{session.date}</span>
                       </div>
 
                       <div className="flex items-center gap-2">

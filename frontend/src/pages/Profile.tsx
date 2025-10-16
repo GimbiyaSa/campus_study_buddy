@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useId, cloneElement, isValidElement } from 'react';
 import { User, Mail, CheckCircle2, AlertCircle } from 'lucide-react';
+import { DataService } from '../services/dataService';
 
 type StudentProfile = {
   fullName: string;
@@ -33,10 +34,6 @@ function loadProfile(): StudentProfile {
   }
 }
 
-function saveProfile(p: StudentProfile) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
-}
-
 export default function ProfilePage() {
   const [form, setForm] = useState<StudentProfile>(loadProfile());
   const [saving, setSaving] = useState(false);
@@ -49,6 +46,24 @@ export default function ProfilePage() {
     if (!/^\S+@\S+\.\S+$/.test(form.email)) e.email = 'Please enter a valid email.';
     setErrors(e);
   }, [form.fullName, form.email]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const u = await DataService.getUserProfile();
+      if (!alive) return;
+      if (u) {
+        // map backend → StudentProfile
+        const mapped = DataService.mapUserToStudentProfile(u);
+        setForm((prev) => ({ ...prev, ...mapped }));
+        // optional: cache to localStorage as a fallback
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const initials = useMemo(() => {
     const parts = form.fullName.trim().split(/\s+/);
@@ -68,12 +83,26 @@ export default function ProfilePage() {
     e.preventDefault();
     if (!isValid) return;
     setSaving(true);
-    // Simulate async save; replace with API call when backend is ready
-    await new Promise((r) => setTimeout(r, 600));
-    saveProfile(form);
-    setSaving(false);
-    setSavedAt(Date.now());
-    setTimeout(() => setSavedAt(null), 2500);
+    try {
+      // map form → backend patch shape
+      const patch = DataService.mapFormToUserUpdate(form);
+      const updated = await DataService.updateUserProfile(patch);
+
+      // reflect what server returns (or keep the form if null)
+      if (updated) {
+        const mapped = DataService.mapUserToStudentProfile(updated);
+        setForm(mapped);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped)); // keep cache warm
+      } else {
+        // backend down? keep local fallback up-to-date
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(form));
+      }
+
+      setSavedAt(Date.now());
+      setTimeout(() => setSavedAt(null), 2500);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (

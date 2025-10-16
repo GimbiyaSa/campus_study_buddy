@@ -93,7 +93,6 @@ router.get('/me', authenticateToken, async (req, res) => {
 
       const insertResult = await insertRequest.query(`
         INSERT INTO users (user_id, email, password_hash, first_name, last_name, university, course, study_preferences)
-        OUTPUT inserted.*
         VALUES (@user_id, @email, @passwordHash, @firstName, @lastName, @university, @course, @studyPreferences)
       `);
 
@@ -151,11 +150,18 @@ router.put('/me', authenticateToken, async (req, res) => {
     }
 
     const result = await request.query(`
-      UPDATE users 
-      SET ${updateFields.join(', ')}, updated_at = GETUTCDATE()
-      OUTPUT inserted.*
-      WHERE user_id = @userId AND is_active = 1
-    `);
+    SET NOCOUNT ON;
+
+    UPDATE users 
+    SET ${updateFields.join(', ')}, updated_at = GETUTCDATE()
+    WHERE user_id = @userId AND is_active = 1;
+
+    SELECT TOP 1
+      user_id, email, first_name, last_name, university, course, year_of_study,
+      bio, profile_image_url, study_preferences, is_active, created_at, updated_at
+    FROM users
+    WHERE user_id = @userId AND is_active = 1;
+  `);
 
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'User not found' });

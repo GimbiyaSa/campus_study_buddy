@@ -25,6 +25,7 @@ const schema = {
     group_members: 'group_members',
     study_sessions: 'study_sessions',
     session_attendees: 'session_attendees',
+    invitations: null, // <-- CHANGE to null
   },
   groupsCols: {
     nameCol: null, // one of: name | group_name | title
@@ -46,6 +47,13 @@ const schema = {
     joined_at: false,
     created_at: false,
     idCol: null, // one of: member_id | id | group_member_id
+    status: false, // <-- ADD THIS
+  },
+  // <--- NEW
+  invCols: {
+    status: false,
+    invited_by: false,
+    created_at: false,
   },
 };
 
@@ -146,6 +154,7 @@ async function detectSchema() {
     : false;
 
   // group_members
+  schema.membersCols.status = await hasColumn('group_members', 'status'); // <-- ADD
   schema.membersCols.role = await hasColumn('group_members', 'role');
   schema.membersCols.role_required = schema.membersCols.role
     ? await columnIsNotNullable('group_members', 'role')
@@ -157,9 +166,27 @@ async function detectSchema() {
     'id',
     'group_member_id',
   ]);
+
+  // invitations table (forced on)
+  // If you want to discover columns you can keep the hasColumn() calls:
+  schema.tables.invitations = (await hasTable('group_invitations')) ? 'group_invitations' : null;
+  schema.invCols.status =
+    schema.tables.invitations && (await hasColumn('group_invitations', 'status'));
+  schema.invCols.invited_by =
+    schema.tables.invitations && (await hasColumn('group_invitations', 'invited_by'));
+  schema.invCols.created_at =
+    schema.tables.invitations && (await hasColumn('group_invitations', 'created_at'));
 }
 
-const tbl = (name) => `dbo.${schema.tables[name]}`;
+const tbl = (name) => {
+  const t = schema.tables[name];
+  if (!t) throw new Error(`Table not available: ${name}`);
+  return `dbo.${t}`;
+};
+
+function invitationsSupported() {
+  return !!schema.tables.invitations;
+}
 
 // helper: pick an ORDER BY column for membership chronology
 function memberOrderExpr(alias = 'gm') {
@@ -191,7 +218,10 @@ function buildGroupSelectPieces(gc, alias = 'g') {
       ? `${alias}.last_activity AS lastActivity`
       : `${alias}.created_at AS lastActivity`,
     gc.creator_id ? `${alias}.creator_id AS createdBy` : 'NULL AS createdBy',
-    `(SELECT COUNT(*) FROM dbo.group_members gm WHERE gm.group_id = ${alias}.group_id) AS memberCount`,
+    `(SELECT COUNT(*) FROM dbo.group_members gm
+      WHERE gm.group_id = ${alias}.group_id
+      ${schema.membersCols.status ? `AND gm.status='active'` : ''}
+    ) AS memberCount`,
   ];
 }
 
@@ -491,6 +521,20 @@ router.get('/', authenticateToken, async (req, res) => {
         ORDER BY ${memberOrderExpr('gm_owner')}
       )`;
 
+    const isInvitedExpr = invitationsSupported()
+      ? `CASE WHEN EXISTS (
+          SELECT 1 FROM dbo.${schema.tables.invitations} gi
+          WHERE gi.group_id = g.group_id
+            AND gi.user_id = @userId
+            ${schema.invCols.status ? `AND gi.status = 'pending'` : ''}
+        ) THEN 1 ELSE 0 END AS isInvited`
+      : `CASE WHEN EXISTS (
+          SELECT 1 FROM dbo.group_members gm
+          WHERE gm.group_id = g.group_id
+            AND gm.user_id = @userId
+            ${schema.membersCols.status ? `AND gm.status='pending'` : ''}
+        ) THEN 1 ELSE 0 END AS isInvited`;
+
     const selectPieces = [
       'g.group_id AS id',
       gc.nameCol ? `g.${gc.nameCol} AS name` : `NULL AS name`,
@@ -504,9 +548,7 @@ router.get('/', authenticateToken, async (req, res) => {
       `${createdByExpr} AS createdBy`,
       `(SELECT COUNT(*) FROM dbo.group_members gm WHERE gm.group_id = g.group_id) AS memberCount`,
       `(SELECT COUNT(*) FROM dbo.study_sessions s WHERE s.group_id = g.group_id) AS sessionCount`,
-      `CASE WHEN EXISTS (
-         SELECT 1 FROM dbo.group_members gm2 WHERE gm2.group_id = g.group_id AND gm2.user_id = @userId
-       ) THEN 1 ELSE 0 END AS isMember`,
+      isInvitedExpr,
     ];
 
     const q = `
@@ -533,6 +575,7 @@ router.get('/', authenticateToken, async (req, res) => {
         member_count: x.memberCount,
         session_count: x.sessionCount,
         isMember: !!x.isMember,
+        isInvited: !!x.isInvited,
       }))
     );
   } catch (err) {
@@ -615,6 +658,108 @@ router.get('/:groupId/members', authenticateToken, async (req, res) => {
 
   res.json(q.recordset);
 });
+
+// ---------- GET /groups/:groupId/invitations (owner/admin only) ----------
+router.get('/:groupId/invitations', authenticateToken, async (req, res) => {
+  try {
+    await getPool();
+
+    const groupId = Number(req.params.groupId);
+    if (Number.isNaN(groupId)) return res.status(400).json({ error: 'Invalid group id' });
+
+    // Only owners/admins/moderators (or creator) can list group invites
+    const allowed = await canEditGroup(groupId, req.user.id);
+    if (!allowed) return res.status(403).json({ error: 'Forbidden' });
+
+    const status = String(req.query.status || 'pending').toLowerCase();
+
+    if (invitationsSupported()) {
+      const t = schema.tables.invitations;
+      const cols = [
+        'user_id',
+        schema.invCols.invited_by ? 'invited_by' : 'CAST(NULL AS NVARCHAR(255)) AS invited_by',
+        schema.invCols.status ? 'status' : "'pending' AS status",
+        schema.invCols.created_at ? 'created_at' : 'SYSUTCDATETIME() AS created_at',
+      ].join(', ');
+
+      const r = await pool
+        .request()
+        .input('gid', sql.Int, groupId)
+        .input('status', sql.NVarChar(20), status).query(`
+          SELECT ${cols}
+          FROM ${tbl('invitations')}
+          WHERE group_id=@gid AND (@status='all' OR ${
+            schema.invCols.status ? 'status' : "'pending'"
+          }=@status)
+          ORDER BY ${schema.invCols.created_at ? 'created_at' : '(SELECT 1)'} DESC
+        `);
+
+      const rows = (r.recordset || []).map((row) => ({
+        user_id: String(row.user_id),
+        invited_by: row.invited_by ? String(row.invited_by) : undefined,
+        status: String(row.status),
+        created_at: row.created_at ? new Date(row.created_at).toISOString() : undefined,
+      }));
+      return res.json(rows);
+    }
+
+    // Fallback: invitations via group_members.status='pending'
+    const r = await pool
+      .request()
+      .input('gid', sql.Int, groupId)
+      .input('status', sql.NVarChar(20), status).query(`
+        SELECT
+          gm.user_id AS user_id,
+          ${schema.membersCols.status ? `gm.status` : `'pending'`} AS status,
+          ${
+            schema.membersCols.joined_at
+              ? `gm.joined_at`
+              : schema.membersCols.created_at
+              ? `gm.created_at`
+              : `SYSUTCDATETIME()`
+          } AS created_at,
+          CAST(NULL AS NVARCHAR(255)) AS invited_by
+        FROM dbo.group_members gm
+        WHERE gm.group_id = @gid
+          ${
+            schema.membersCols.status
+              ? `AND (@status='all' OR gm.status=@status)`
+              : `AND (@status='all' OR 'pending'=@status)`
+          }
+          ${schema.membersCols.status ? `` : `AND 1=0`} -- if no status column, nothing is pending
+        ORDER BY ${
+          schema.membersCols.joined_at
+            ? 'gm.joined_at'
+            : schema.membersCols.created_at
+            ? 'gm.created_at'
+            : '(SELECT 1)'
+        } DESC
+      `);
+
+    const rows = (r.recordset || []).map((row) => ({
+      user_id: String(row.user_id),
+      invited_by: undefined,
+      status: String(row.status),
+      created_at: row.created_at ? new Date(row.created_at).toISOString() : undefined,
+    }));
+    return res.json(rows);
+  } catch (err) {
+    console.error('GET /groups/:groupId/invitations error:', err);
+    return res.status(500).json({ error: 'Failed to fetch invitations' });
+  }
+});
+
+// ---------- alias: GET /groups/:groupId/invites ----------
+router.get(
+  '/:groupId/invites',
+  authenticateToken,
+  (req, res, next) => {
+    // forward to /invitations keeping the query string (e.g., ?status=pending)
+    req.url = req.url.replace('/invites', '/invitations');
+    next();
+  },
+  (req, res, next) => router.handle(req, res, next)
+);
 
 // ---------- (NEW) GET /groups/:groupId ----------
 router.get('/:groupId', authenticateToken, async (req, res) => {
@@ -977,8 +1122,12 @@ router.post('/:groupId/join', authenticateToken, async (req, res) => {
     if (gc.max_members) {
       const cap = await r.query(`
         SELECT g.max_members AS maxMembers,
-               (SELECT COUNT(*) FROM dbo.group_members gm WHERE gm.group_id = g.group_id) AS memberCount
-        FROM dbo.${g} g WHERE g.group_id = @groupId
+       (SELECT COUNT(*) FROM dbo.group_members gm
+        WHERE gm.group_id = g.group_id
+          ${schema.membersCols.status ? `AND gm.status='active'` : ''}
+       ) AS memberCount
+      FROM dbo.${g} g WHERE g.group_id = @groupId
+
       `);
       if (!cap.recordset.length) return res.status(404).json({ error: 'Group not found' });
       const { maxMembers, memberCount } = cap.recordset[0];
@@ -1025,6 +1174,165 @@ router.post('/:groupId/join', authenticateToken, async (req, res) => {
 // Also supports /:groupId/invitations with { user_ids: [...] }
 router.post('/:groupId/invite', authenticateToken, handleInvite);
 router.post('/:groupId/invitations', authenticateToken, handleInvite);
+
+// ---------- POST /groups/:groupId/invitations/accept (invitee) ----------
+router.post('/:groupId/invitations/accept', authenticateToken, async (req, res) => {
+  try {
+    await getPool();
+    const groupId = Number(req.params.groupId);
+    if (Number.isNaN(groupId)) return res.status(400).json({ error: 'Invalid group id' });
+
+    if (invitationsSupported()) {
+      // Existing accepted flow using invitations table
+      const inv = await pool
+        .request()
+        .input('gid', sql.Int, groupId)
+        .input('uid', sql.NVarChar(255), req.user.id).query(`
+          SELECT TOP 1 invitation_id
+          FROM ${tbl('invitations')}
+          WHERE group_id=@gid AND user_id=@uid
+            ${schema.invCols.status ? "AND status='pending'" : ''}
+          ORDER BY ${schema.invCols.created_at ? 'created_at' : 'invitation_id'} DESC
+        `);
+      if (!inv.recordset.length) return res.status(404).json({ error: 'No pending invite' });
+
+      const tx = new sql.Transaction(pool);
+      await tx.begin();
+      try {
+        await new sql.Request(tx).input('iid', sql.Int, inv.recordset[0].invitation_id).query(`
+            UPDATE ${tbl('invitations')}
+            SET ${schema.invCols.status ? "status='accepted'," : ''} updated_at=SYSUTCDATETIME()
+            WHERE invitation_id=@iid
+          `);
+
+        const mmReq = new sql.Request(tx);
+        mmReq.input('gid', sql.Int, groupId);
+        mmReq.input('uid', sql.NVarChar(255), req.user.id);
+
+        const mmCols = ['group_id', 'user_id'];
+        const mmVals = ['@gid', '@uid'];
+        if (schema.membersCols.joined_at) {
+          mmCols.push('joined_at');
+          mmVals.push('SYSUTCDATETIME()');
+        } else if (schema.membersCols.created_at) {
+          mmCols.push('created_at');
+          mmVals.push('SYSUTCDATETIME()');
+        }
+        if (schema.membersCols.role && schema.membersCols.role_required) {
+          mmCols.push('role');
+          mmVals.push(`'member'`);
+        }
+        if (schema.membersCols.status) {
+          mmCols.push('status');
+          mmVals.push(`'active'`);
+        }
+
+        await mmReq.query(`
+          IF NOT EXISTS (SELECT 1 FROM dbo.group_members WHERE group_id=@gid AND user_id=@uid)
+            INSERT INTO dbo.group_members (${mmCols.join(',')})
+            VALUES (${mmVals.join(',')});
+          ELSE
+            UPDATE dbo.group_members
+            SET ${schema.membersCols.role ? "role = COALESCE(role,'member')," : ''} ${
+          schema.membersCols.status ? "status='active'," : ''
+        } updated_at=SYSUTCDATETIME()
+            WHERE group_id=@gid AND user_id=@uid;
+        `);
+
+        await tx.commit();
+        return res.json({ ok: true });
+      } catch (e) {
+        await tx.rollback();
+        console.error('accept invite tx error:', e);
+        return res.status(500).json({ error: 'Accept failed' });
+      }
+    }
+
+    // Fallback: update group_members pending -> active
+    const r = await pool
+      .request()
+      .input('gid', sql.Int, groupId)
+      .input('uid', sql.NVarChar(255), req.user.id).query(`
+        UPDATE dbo.group_members
+        SET ${schema.membersCols.status ? "status='active'," : ''} updated_at=SYSUTCDATETIME()
+        WHERE group_id=@gid AND user_id=@uid
+          ${schema.membersCols.status ? "AND status='pending'" : ''}
+      `);
+
+    if (!r.rowsAffected?.[0]) return res.status(404).json({ error: 'No pending invite' });
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('POST /groups/:groupId/invitations/accept error:', err);
+    return res.status(500).json({ error: 'Failed to accept invitation' });
+  }
+});
+
+// ---------- alias: POST /groups/:groupId/accept-invite ----------
+router.post(
+  '/:groupId/accept-invite',
+  authenticateToken,
+  (req, res, next) => {
+    req.url = req.url.replace('/accept-invite', '/invitations/accept');
+    next();
+  },
+  (req, res, next) => router.handle(req, res, next)
+);
+
+// ---------- POST /groups/:groupId/invitations/decline (invitee) ----------
+router.post('/:groupId/invitations/decline', authenticateToken, async (req, res) => {
+  try {
+    await getPool();
+    const groupId = Number(req.params.groupId);
+    if (Number.isNaN(groupId)) return res.status(400).json({ error: 'Invalid group id' });
+
+    if (invitationsSupported()) {
+      const r = await pool
+        .request()
+        .input('gid', sql.Int, groupId)
+        .input('uid', sql.NVarChar(255), req.user.id).query(`
+          UPDATE ${tbl('invitations')}
+          SET ${schema.invCols.status ? "status='declined'," : ''} updated_at=SYSUTCDATETIME()
+          WHERE group_id=@gid AND user_id=@uid
+            ${schema.invCols.status ? "AND status='pending'" : ''}
+        `);
+      return res.json({ ok: true, updated: r.rowsAffected?.[0] || 0 });
+    }
+
+    // Fallback: delete/mark removed pending membership
+    const r = await pool
+      .request()
+      .input('gid', sql.Int, groupId)
+      .input('uid', sql.NVarChar(255), req.user.id).query(`
+        ${
+          schema.membersCols.status
+            ? `
+            UPDATE dbo.group_members
+            SET status='removed', updated_at=SYSUTCDATETIME()
+            WHERE group_id=@gid AND user_id=@uid AND status='pending'
+          `
+            : `
+            DELETE FROM dbo.group_members
+            WHERE group_id=@gid AND user_id=@uid
+          `
+        }
+      `);
+    return res.json({ ok: true, updated: r.rowsAffected?.[0] || 0 });
+  } catch (err) {
+    console.error('POST /groups/:groupId/invitations/decline error:', err);
+    return res.status(500).json({ error: 'Failed to decline invitation' });
+  }
+});
+
+// ---------- alias: POST /groups/:groupId/decline-invite ----------
+router.post(
+  '/:groupId/decline-invite',
+  authenticateToken,
+  (req, res, next) => {
+    req.url = req.url.replace('/decline-invite', '/invitations/decline');
+    next();
+  },
+  (req, res, next) => router.handle(req, res, next)
+);
 
 async function handleInvite(req, res) {
   try {
@@ -1078,26 +1386,17 @@ async function handleInvite(req, res) {
     }
 
     // Prefer a dedicated invitations table if present
-    const hasInvTable = await hasTable('group_invitations');
+    const hasInvTable = invitationsSupported();
 
     if (hasInvTable) {
-      // Detect a few common columns
-      const invCols = {
-        status: await hasColumn('group_invitations', 'status'),
-        invited_by: await hasColumn('group_invitations', 'invited_by'),
-        created_at: await hasColumn('group_invitations', 'created_at'),
-      };
-
-      // Insert one row per invitee (ignore duplicates)
+      const invCols = schema.invCols;
       for (const uid of inviteUserIds) {
         const r = pool.request();
         r.input('groupId', sql.Int, groupId);
         r.input('userId', sql.NVarChar(255), String(uid));
         r.input('inviter', sql.NVarChar(255), req.user.id);
-
         const cols = ['group_id', 'user_id'];
         const vals = ['@groupId', '@userId'];
-
         if (invCols.status) {
           cols.push('status');
           vals.push(`'pending'`);
@@ -1112,21 +1411,67 @@ async function handleInvite(req, res) {
         }
 
         await r.query(`
-          IF NOT EXISTS (
-            SELECT 1 FROM dbo.group_invitations 
-            WHERE group_id=@groupId AND user_id=@userId ${
-              invCols.status ? `AND status='pending'` : ''
-            }
-          )
-          BEGIN
-            INSERT INTO dbo.group_invitations (${cols.join(', ')})
-            VALUES (${vals.join(', ')});
-          END
-        `);
+      IF NOT EXISTS (
+        SELECT 1 FROM ${tbl('invitations')}
+        WHERE group_id=@groupId AND user_id=@userId ${invCols.status ? `AND status='pending'` : ''}
+      )
+      BEGIN
+        INSERT INTO ${tbl('invitations')} (${cols.join(', ')})
+        VALUES (${vals.join(', ')});
+      END
+    `);
+      }
+      return res.status(200).json({ ok: true, invited: inviteUserIds.length, via: 'invitations' });
+    }
+
+    // Fallback: use group_members.status='pending'
+    for (const uidRaw of inviteUserIds) {
+      const uid = String(uidRaw);
+      const reqQ = pool.request();
+      reqQ.input('gid', sql.Int, groupId);
+      reqQ.input('uid', sql.NVarChar(255), uid);
+
+      const mmCols = ['group_id', 'user_id'];
+      const mmVals = ['@gid', '@uid'];
+      if (schema.membersCols.joined_at) {
+        mmCols.push('joined_at');
+        mmVals.push('SYSUTCDATETIME()');
+      } else if (schema.membersCols.created_at) {
+        mmCols.push('created_at');
+        mmVals.push('SYSUTCDATETIME()');
+      }
+      if (schema.membersCols.role && schema.membersCols.role_required) {
+        mmCols.push('role');
+        mmVals.push(`'member'`);
+      }
+      if (schema.membersCols.status) {
+        mmCols.push('status');
+        mmVals.push(`'pending'`);
       }
 
-      return res.status(200).json({ ok: true, invited: inviteUserIds.length });
+      await reqQ.query(`
+    IF NOT EXISTS (SELECT 1 FROM dbo.group_members WHERE group_id=@gid AND user_id=@uid)
+    BEGIN
+      INSERT INTO dbo.group_members (${mmCols.join(', ')})
+      VALUES (${mmVals.join(', ')});
+    END
+    ELSE
+    BEGIN
+      ${
+        schema.membersCols.status
+          ? `
+          UPDATE dbo.group_members
+          SET status = CASE WHEN status IN ('inactive','removed') THEN 'pending' ELSE status END,
+              updated_at=SYSUTCDATETIME()
+          WHERE group_id=@gid AND user_id=@uid
+        `
+          : `-- no status column, nothing to do`
+      }
+    END
+  `);
     }
+
+    return res.status(200).json({ ok: true, invited: inviteUserIds.length, via: 'group_members' });
 
     // Fallback: use notifications table if available
     const hasNotifications = await hasTable('notifications');

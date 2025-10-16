@@ -183,6 +183,46 @@ const schedule24hRemindersForSession = async (sessionId) => {
   }
 };
 
+// Notify all attendees that a session was cancelled (system notification + metadata)
+const notifySessionCancelled = async (sessionId, cancelledByUserId = null) => {
+  const pool = await getPool();
+
+  // Grab attendees + basic session info
+  const rs = await pool.request().input('sid', sql.Int, sessionId).query(`
+      SELECT 
+        sa.user_id       AS userId,
+        ss.session_id    AS sessionId,
+        ss.session_title AS title,
+        ss.group_id      AS groupId
+      FROM dbo.session_attendees sa
+      JOIN dbo.study_sessions   ss ON ss.session_id = sa.session_id
+      WHERE sa.session_id = @sid
+        AND sa.attendance_status IN ('attending','attended','pending')
+    `);
+
+  // (Optional) avoid dupes within the last day
+  // If you want to suppress re-sends, uncomment and use this NOT EXISTS check per-user.
+
+  for (const row of rs.recordset) {
+    try {
+      await createNotification(
+        String(row.userId),
+        'system',
+        'Session cancelled',
+        `The session "${row.title}" has been cancelled.`,
+        {
+          kind: 'session_cancelled',
+          session_id: row.sessionId,
+          group_id: row.groupId ?? null,
+          cancelled_by: cancelledByUserId ?? null,
+        }
+      );
+    } catch (e) {
+      console.error('notifySessionCancelled: failed for user', row.userId, e);
+    }
+  }
+};
+
 // Batch scheduler (run via worker/cron)
 const scheduleDaily24hReminders = async () => {
   try {
@@ -541,3 +581,4 @@ module.exports.createNotification = createNotification;
 module.exports.sendSessionReminders = sendSessionReminders;
 module.exports.schedule24hRemindersForSession = schedule24hRemindersForSession;
 module.exports.scheduleDaily24hReminders = scheduleDaily24hReminders;
+module.exports.notifySessionCancelled = notifySessionCancelled;

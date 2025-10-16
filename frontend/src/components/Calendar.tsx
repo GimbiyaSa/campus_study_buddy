@@ -17,6 +17,47 @@ function dateKey(d: Date) {
   return formatDateLocal(d);
 }
 
+/* ---------- view helpers (day/week/month) ---------- */
+function startOfWeek(d: Date) {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  x.setDate(x.getDate() - x.getDay()); // Sunday start
+  return x;
+}
+function addDays(d: Date, n: number) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+}
+
+const getDaysInMonth = (date: Date) => {
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const startDate = new Date(firstDay);
+  startDate.setDate(startDate.getDate() - firstDay.getDay()); // Start from Sunday
+
+  const days: Date[] = [];
+  const current = new Date(startDate);
+
+  // Generate 42 days (6 weeks) for calendar grid
+  for (let i = 0; i < 42; i++) {
+    days.push(new Date(current));
+    current.setDate(current.getDate() + 1);
+  }
+
+  return days;
+};
+
+function getVisibleDates(view: ViewMode, anchor: Date): Date[] {
+  if (view === 'day') return [new Date(anchor)];
+  if (view === 'week') {
+    const start = startOfWeek(anchor);
+    return Array.from({ length: 7 }, (_, i) => addDays(start, i));
+  }
+  // month
+  return getDaysInMonth(anchor); // your existing generator (6x7)
+}
+
 //listen for broadcast events for session creation/invalidation
 export default function Calendar() {
   const [sessions, setSessions] = useState<StudySession[]>([]);
@@ -84,7 +125,7 @@ export default function Calendar() {
     async function fetchSessions() {
       setLoading(true);
       try {
-        const data = await DataService.fetchSessions();
+        const data = await DataService.fetchSessions({ status: 'upcoming' });
         setSessions(data);
       } catch (error) {
         console.error('Error fetching sessions:', error);
@@ -106,33 +147,16 @@ export default function Calendar() {
 
   const getSessionsForDate = (date: Date) => {
     const dateStr = dateKey(date); // local date
-    return sessions.filter((session) => session.date === dateStr);
+    return sessions.filter(
+      (s) => s.date === dateStr && s.status !== 'cancelled' // optionally: && s.status !== 'completed'
+    );
   };
 
-  const getDaysInMonth = (date: Date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const startDate = new Date(firstDay);
-    startDate.setDate(startDate.getDate() - firstDay.getDay()); // Start from Sunday
-
-    const days: Date[] = [];
-    const current = new Date(startDate);
-
-    // Generate 42 days (6 weeks) for calendar grid
-    for (let i = 0; i < 42; i++) {
-      days.push(new Date(current));
-      current.setDate(current.getDate() + 1);
-    }
-
-    return days;
-  };
-
-  const navigateMonth = (direction: 'prev' | 'next') => {
-    const newDate = new Date(currentDate);
-    newDate.setMonth(currentDate.getMonth() + (direction === 'next' ? 1 : -1));
-    setCurrentDate(newDate);
-  };
+  function navigate(direction: 'prev' | 'next') {
+    const step = view === 'day' ? 1 : view === 'week' ? 7 : 30; // month ≈ 30d is fine for stepping
+    const factor = direction === 'next' ? 1 : -1;
+    setCurrentDate((d) => addDays(d, step * factor));
+  }
 
   const handleDateClick = (date: Date) => {
     setSelectedDate(date);
@@ -160,7 +184,7 @@ export default function Calendar() {
   const isToday = (date: Date) => date.toDateString() === today.toDateString();
   const isCurrentMonth = (date: Date) => date.getMonth() === currentDate.getMonth();
 
-  const calendarDays = getDaysInMonth(currentDate);
+  const calendarDays = getVisibleDates(view, currentDate);
 
   if (loading) {
     return (
@@ -210,18 +234,31 @@ export default function Calendar() {
       {/* Month Navigation */}
       <div className="flex items-center justify-between">
         <button
-          onClick={() => navigateMonth('prev')}
+          onClick={() => navigate('prev')}
           className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
         >
           <ChevronLeft className="h-5 w-5 text-slate-600" />
         </button>
 
         <h3 className="text-xl font-semibold text-slate-900">
-          {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
+          {view === 'month' && `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`}
+          {view === 'week' &&
+            (() => {
+              const days = getVisibleDates('week', currentDate);
+              const a = days[0],
+                b = days[6];
+              return `${monthNames[a.getMonth()]} ${a.getDate()} – ${
+                monthNames[b.getMonth()]
+              } ${b.getDate()}, ${b.getFullYear()}`;
+            })()}
+          {view === 'day' &&
+            `${
+              monthNames[currentDate.getMonth()]
+            } ${currentDate.getDate()}, ${currentDate.getFullYear()}`}
         </h3>
 
         <button
-          onClick={() => navigateMonth('next')}
+          onClick={() => navigate('next')}
           className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
         >
           <ChevronRight className="h-5 w-5 text-slate-600" />
@@ -229,9 +266,13 @@ export default function Calendar() {
       </div>
 
       {/* Calendar Grid */}
-      <div className="grid grid-cols-7 gap-1 bg-slate-50 p-4 rounded-xl">
+      <div
+        className={`grid ${
+          view === 'day' ? 'grid-cols-1' : 'grid-cols-7'
+        } gap-1 bg-slate-50 p-4 rounded-xl`}
+      >
         {/* Day Headers */}
-        {dayNames.map((day) => (
+        {(view === 'day' ? [dayNames[currentDate.getDay()]] : dayNames).map((day) => (
           <div key={day} className="text-center text-sm font-medium text-slate-600 p-2">
             {day}
           </div>

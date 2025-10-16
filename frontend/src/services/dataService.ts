@@ -1227,9 +1227,7 @@ export class DataService {
   }
 
   /** Owner/admin: list pending invites for a specific group */
-  static async getGroupPendingInvites(
-    groupId: string | number
-  ): Promise<
+  static async getGroupPendingInvites(groupId: string | number): Promise<
     Array<{
       user_id: string;
       status: 'pending' | 'accepted' | 'declined' | 'expired';

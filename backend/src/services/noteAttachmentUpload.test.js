@@ -141,7 +141,10 @@ vi.mock('mssql', () => {
         }
 
         // readNoteRow() full SELECT + joins
-        if (/FROM\s+dbo\.shared_notes\s+n/i.test(sql) && /WHERE\s+n\.note_id\s*=\s*@noteId/i.test(sql)) {
+        if (
+          /FROM\s+dbo\.shared_notes\s+n/i.test(sql) &&
+          /WHERE\s+n\.note_id\s*=\s*@noteId/i.test(sql)
+        ) {
           if (dbMode.emptyReadNoteRow) return { recordset: [] };
           const id = params.noteId;
           const row = findNote(id);

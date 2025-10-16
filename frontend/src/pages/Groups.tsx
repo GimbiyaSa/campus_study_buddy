@@ -62,10 +62,9 @@ export default function Groups() {
   const [pendingAction, setPendingAction] = useState<'join' | 'leave' | null>(null);
   const [joinedByMe, setJoinedByMe] = useState<Record<number, boolean>>({});
 
-    // invite accept/decline UI state
+  // invite accept/decline UI state
   const [respondingId, setRespondingId] = useState<number | null>(null);
   const [respondingAction, setRespondingAction] = useState<'accept' | 'decline' | null>(null);
-
 
   // schedule-session modal state
   const [openSchedule, setOpenSchedule] = useState<{
@@ -361,7 +360,7 @@ export default function Groups() {
     (DataService as any)?.listGroupMembers ||
     (DataService as any)?.getMembers;
 
-      // --- optional invite endpoints (feature-detected) ---
+  // --- optional invite endpoints (feature-detected) ---
   const acceptInviteFn =
     (DataService as any)?.acceptGroupInvite ||
     (DataService as any)?.acceptInvitation ||
@@ -371,7 +370,6 @@ export default function Groups() {
     (DataService as any)?.declineGroupInvite ||
     (DataService as any)?.declineInvitation ||
     (DataService as any)?.groupsDeclineInvite;
-
 
   async function loadMembersFor(group: StudyGroup) {
     const backendId = idMap[group.group_id] ?? String(group.group_id); // ✅ fallback
@@ -398,8 +396,8 @@ export default function Groups() {
 
     // optimistic UI
     // in joinGroup optimistic update
-    setGroups(prev =>
-      prev.map(g =>
+    setGroups((prev) =>
+      prev.map((g) =>
         g.group_id === groupId
           ? { ...g, member_count: (g.member_count || 0) + 1, isInvited: false as any }
           : g
@@ -486,7 +484,7 @@ export default function Groups() {
     }
   };
 
-    const acceptInvite = async (groupId: number) => {
+  const acceptInvite = async (groupId: number) => {
     const realId = idMap[groupId] ?? String(groupId);
     if (typeof acceptInviteFn !== 'function') {
       // fallback: if no dedicated endpoint, try a plain join
@@ -506,7 +504,11 @@ export default function Groups() {
       setGroups((prev) =>
         prev.map((g) =>
           g.group_id === groupId
-            ? { ...g, member_count: Math.max(1, (g.member_count || 0) + 1), isInvited: false as any }
+            ? {
+                ...g,
+                member_count: Math.max(1, (g.member_count || 0) + 1),
+                isInvited: false as any,
+              }
             : g
         )
       );
@@ -550,7 +552,6 @@ export default function Groups() {
       setRespondingAction(null);
     }
   };
-
 
   const deleteGroup = async (groupId: number) => {
     const realId = idMap[groupId] || String(groupId);
@@ -881,12 +882,13 @@ export default function Groups() {
                           Owner
                         </span>
                       )}
-                      {!owner && (group as any).isInvited === true && !joinedByMe[group.group_id] && (
-                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
-                        Invited
-                      </span>
-                      )}
-
+                      {!owner &&
+                        (group as any).isInvited === true &&
+                        !joinedByMe[group.group_id] && (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                            Invited
+                          </span>
+                        )}
                     </div>
                     <span
                       className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getGroupTypeColor(
@@ -1032,79 +1034,89 @@ export default function Groups() {
                       </button>
                     </>
                   ) : (
-                  <>
-                    {(group as any).isInvited === true && !iJoined ? (
-                      <>
-                        <button
-                          onClick={() => acceptInvite(group.group_id)}
-                          disabled={respondingId === group.group_id && respondingAction === 'accept'}
-                          className="flex-1 px-3 py-2 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 transition disabled:opacity-60"
-                        >
-                          {respondingId === group.group_id && respondingAction === 'accept' ? 'Accepting…' : 'Accept Invite'}
-                        </button>
-                        <button
-                          onClick={() => declineInvite(group.group_id)}
-                          disabled={respondingId === group.group_id && respondingAction === 'decline'}
-                          className="px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition disabled:opacity-60"
-                        >
-                          {respondingId === group.group_id && respondingAction === 'decline' ? 'Declining…' : 'Decline'}
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        {iJoined ? (
+                    <>
+                      {(group as any).isInvited === true && !iJoined ? (
+                        <>
                           <button
-                            onClick={() => leaveGroup(group.group_id)}
-                            disabled={joiningId === group.group_id}
-                            className="flex-1 px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition disabled:opacity-60"
+                            onClick={() => acceptInvite(group.group_id)}
+                            disabled={
+                              respondingId === group.group_id && respondingAction === 'accept'
+                            }
+                            className="flex-1 px-3 py-2 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 transition disabled:opacity-60"
                           >
-                            {joiningId === group.group_id && pendingAction === 'leave' ? 'Leaving…' : 'Leave Group'}
+                            {respondingId === group.group_id && respondingAction === 'accept'
+                              ? 'Accepting…'
+                              : 'Accept Invite'}
                           </button>
-                        ) : (
                           <button
-                            onClick={() => joinGroup(group.group_id)}
-                            disabled={joiningId === group.group_id}
-                            className="flex-1 px-3 py-2 bg-brand-500 text-white text-sm rounded-lg hover:bg-brand-600 transition disabled:opacity-60"
+                            onClick={() => declineInvite(group.group_id)}
+                            disabled={
+                              respondingId === group.group_id && respondingAction === 'decline'
+                            }
+                            className="px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition disabled:opacity-60"
                           >
-                            {joiningId === group.group_id && pendingAction === 'join' ? 'Joining…' : 'Join Group'}
+                            {respondingId === group.group_id && respondingAction === 'decline'
+                              ? 'Declining…'
+                              : 'Decline'}
                           </button>
-                        )}
-                      </>
-                    )}
+                        </>
+                      ) : (
+                        <>
+                          {iJoined ? (
+                            <button
+                              onClick={() => leaveGroup(group.group_id)}
+                              disabled={joiningId === group.group_id}
+                              className="flex-1 px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition disabled:opacity-60"
+                            >
+                              {joiningId === group.group_id && pendingAction === 'leave'
+                                ? 'Leaving…'
+                                : 'Leave Group'}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => joinGroup(group.group_id)}
+                              disabled={joiningId === group.group_id}
+                              className="flex-1 px-3 py-2 bg-brand-500 text-white text-sm rounded-lg hover:bg-brand-600 transition disabled:opacity-60"
+                            >
+                              {joiningId === group.group_id && pendingAction === 'join'
+                                ? 'Joining…'
+                                : 'Join Group'}
+                            </button>
+                          )}
+                        </>
+                      )}
 
-                    {/* Chat */}
-                    <button
-                      type="button"
-                      onClick={() => navigate('/chat')}
-                      className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
-                      title="Open chat"
-                      aria-label="Open chat"
-                    >
-                      <MessageSquare className="w-4 h-4" />
-                    </button>
-
-                    {/* Schedule (optional: show only to members/owner) */}
-                    {(iJoined || owner) && (
+                      {/* Chat */}
                       <button
-                        onClick={() =>
-                          setOpenSchedule({
-                            open: true,
-                            groupId: realId,
-                            groupLocalId: group.group_id,
-                            groupName: group.group_name,
-                            course: coursePieces.course,
-                            courseCode: coursePieces.courseCode,
-                          })
-                        }
+                        type="button"
+                        onClick={() => navigate('/chat')}
                         className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
-                        title="Schedule a session"
+                        title="Open chat"
+                        aria-label="Open chat"
                       >
-                        <Calendar className="w-4 h-4" />
+                        <MessageSquare className="w-4 h-4" />
                       </button>
-                    )}
-                  </>
 
-
+                      {/* Schedule (optional: show only to members/owner) */}
+                      {(iJoined || owner) && (
+                        <button
+                          onClick={() =>
+                            setOpenSchedule({
+                              open: true,
+                              groupId: realId,
+                              groupLocalId: group.group_id,
+                              groupName: group.group_name,
+                              course: coursePieces.course,
+                              courseCode: coursePieces.courseCode,
+                            })
+                          }
+                          className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
+                          title="Schedule a session"
+                        >
+                          <Calendar className="w-4 h-4" />
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -1421,8 +1433,8 @@ function ScheduleSessionModal({
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
 
-  const headingId = useId();     // for <h2 id=...> and aria-labelledby
-  const titleInputId = useId();  // for label/htmlFor + input id
+  const headingId = useId(); // for <h2 id=...> and aria-labelledby
+  const titleInputId = useId(); // for label/htmlFor + input id
   const dateId = useId();
   const stId = useId();
   const etId = useId();
@@ -1492,7 +1504,6 @@ function ScheduleSessionModal({
             <div>
               <h2 id={headingId} className="text-lg font-semibold text-slate-900">
                 Schedule a session
-                
               </h2>
               <p className="text-sm text-slate-600">
                 {groupName ? `For ${groupName}` : 'Plan a study session'}
@@ -1511,7 +1522,10 @@ function ScheduleSessionModal({
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
-                <label htmlFor={titleInputId} className="block mb-1 text-sm font-medium text-slate-800">
+                <label
+                  htmlFor={titleInputId}
+                  className="block mb-1 text-sm font-medium text-slate-800"
+                >
                   Session title <span className="text-emerald-700">*</span>
                 </label>
                 <input
@@ -1645,22 +1659,22 @@ function InviteMembersModal({
         const rows = await DataService.getGroupPendingInvites(groupId);
         // rows: [{ user_id, status, ... }]
         const ids = (Array.isArray(rows) ? rows : [])
-          .filter(r => String(r.status).toLowerCase() === 'pending')
-          .map(r => String(r.user_id));
+          .filter((r) => String(r.status).toLowerCase() === 'pending')
+          .map((r) => String(r.user_id));
         if (mounted) setPendingIds(new Set(ids));
       } catch {
         if (mounted) setPendingIds(new Set());
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [groupId]);
 
-
-    const toggle = (id: string) => {
+  const toggle = (id: string) => {
     if (pendingIds.has(id)) return; // already invited → block
-    setSelectedIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
-
 
   async function invite() {
     if (selectedIds.length === 0 || sending || sent) return;
@@ -1677,7 +1691,9 @@ function InviteMembersModal({
               user_id: currentUserId,
               notification_type: 'group_invite',
               title: 'Group invites sent',
-              message: `You invited ${selectedIds.length} ${selectedIds.length === 1 ? 'person' : 'people'} to join your group.`,
+              message: `You invited ${selectedIds.length} ${
+                selectedIds.length === 1 ? 'person' : 'people'
+              } to join your group.`,
               metadata: { group_id: groupId, invitee_ids: selectedIds, direction: 'sent' },
             });
           }
@@ -1699,15 +1715,14 @@ function InviteMembersModal({
       setSent(true);
 
       // merge selected into pending so you can’t re-invite in this session or on reopen
-      setPendingIds(prev => {
+      setPendingIds((prev) => {
         const next = new Set(prev);
-        selectedIds.forEach(id => next.add(id));
+        selectedIds.forEach((id) => next.add(id));
         return next;
       });
 
       // clear the selection so the CTA disables
       setSelectedIds([]);
-
 
       // Tell the rest of the app to refresh (your Groups view already listens)
       window.dispatchEvent(new Event('groups:invalidate'));
@@ -1716,7 +1731,10 @@ function InviteMembersModal({
       try {
         window.dispatchEvent(
           new CustomEvent('toast', {
-            detail: { type: 'success', message: `Sent ${selectedIds.length} invite${selectedIds.length === 1 ? '' : 's'}` },
+            detail: {
+              type: 'success',
+              message: `Sent ${selectedIds.length} invite${selectedIds.length === 1 ? '' : 's'}`,
+            },
           })
         );
       } catch {}
@@ -1742,50 +1760,50 @@ function InviteMembersModal({
             <div className="p-3 text-sm text-gray-500">No connections to invite.</div>
           ) : (
             <ul className="divide-y divide-gray-100">
-          {connections.map((p) => {
-            const initials = (p.name || '')
-              .trim()
-              .split(/\s+/)
-              .map((n) => n[0])
-              .join('')
-              .slice(0, 2)
-              .toUpperCase();
+              {connections.map((p) => {
+                const initials = (p.name || '')
+                  .trim()
+                  .split(/\s+/)
+                  .map((n) => n[0])
+                  .join('')
+                  .slice(0, 2)
+                  .toUpperCase();
 
-            // belt & suspenders: also respect any partner-level pending hints
-            const partnerSaysPending = p.connectionStatus === 'pending' || (p as any).isPendingSent;
-            const isPending = pendingIds.has(p.id) || partnerSaysPending;
+                // belt & suspenders: also respect any partner-level pending hints
+                const partnerSaysPending =
+                  p.connectionStatus === 'pending' || (p as any).isPendingSent;
+                const isPending = pendingIds.has(p.id) || partnerSaysPending;
 
-            return (
-              <li key={p.id} className="flex items-center justify-between p-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 grid place-items-center text-xs font-semibold">
-                    {initials}
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
-                      {p.name}
-                      {isPending && (
-                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700">
-                          Pending
-                        </span>
-                      )}
+                return (
+                  <li key={p.id} className="flex items-center justify-between p-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 grid place-items-center text-xs font-semibold">
+                        {initials}
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                          {p.name}
+                          {isPending && (
+                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700">
+                              Pending
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-500">{(p as any).major}</div>
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-500">{(p as any).major}</div>
-                  </div>
-                </div>
 
-                <input
-                  type="checkbox"
-                  className="h-4 w-4"
-                  checked={selectedIds.includes(p.id)}
-                  onChange={() => toggle(p.id)}
-                  disabled={sent || isPending}
-                  title={isPending ? 'Invite already sent' : undefined}
-                />
-              </li>
-            );
-          })}
-
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4"
+                      checked={selectedIds.includes(p.id)}
+                      onChange={() => toggle(p.id)}
+                      disabled={sent || isPending}
+                      title={isPending ? 'Invite already sent' : undefined}
+                    />
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
@@ -1803,12 +1821,9 @@ function InviteMembersModal({
             disabled={selectedIds.length === 0 || sending || sent}
             className="rounded-xl bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
           >
-            {sent ? 'Invites sent ✓' : (sending ? 'Sending…' : 'Send Invites')}
+            {sent ? 'Invites sent ✓' : sending ? 'Sending…' : 'Send Invites'}
           </button>
         </div>
-
-
-
       </div>
     </div>
   );

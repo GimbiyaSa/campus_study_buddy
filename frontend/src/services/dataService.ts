@@ -167,6 +167,7 @@ export type StudyGroup = {
   group_type?: 'study' | 'project' | 'exam_prep' | 'discussion';
   session_count?: number;
   isMember?: boolean;
+  isInvited?: boolean;
   membersList?: Array<{ userId: string; role?: string }>;
 
   /** explicit owner clarity for robust UI checks */
@@ -1178,6 +1179,100 @@ export class DataService {
       return [];
     }
   }
+
+    /** List my group invitations (recipient side) */
+  static async getMyGroupInvites(status: 'pending' | 'accepted' | 'declined' | 'expired' = 'pending'):
+    Promise<Array<{ group_id: number; group_name?: string; invited_by?: string; status: string; created_at?: string }>> {
+    // Try a few likely endpoints; all are optional and fail-soft
+    const candidates = [
+      `/api/v1/groups/invitations?status=${encodeURIComponent(status)}`,
+      `/api/v1/users/me/group-invitations?status=${encodeURIComponent(status)}`
+    ];
+    for (const path of candidates) {
+      try {
+        const res = await this.request(path, { method: 'GET' });
+        if (!res.ok) continue;
+        const rows = await this.safeJson<any[]>(res, []);
+        if (Array.isArray(rows)) return rows;
+      } catch {}
+    }
+    // Fallback: infer from notifications (less precise; no per-invite status)
+    try {
+      const notes = await this.fetchNotifications({ type: 'group_invite' });
+      return (notes || [])
+        .map(n => {
+          const gid = n?.metadata?.group_id;
+          return gid ? { group_id: Number(gid), group_name: n?.title, status: 'pending', created_at: n?.created_at } : null;
+        })
+        .filter(Boolean) as any[];
+    } catch {
+      return [];
+    }
+  }
+
+    /** Owner/admin: list pending invites for a specific group */
+  static async getGroupPendingInvites(groupId: string | number):
+    Promise<Array<{ user_id: string; status: 'pending' | 'accepted' | 'declined' | 'expired'; invited_by?: string; created_at?: string }>> {
+    const gid = encodeURIComponent(String(groupId));
+    const paths = [
+      `/api/v1/groups/${gid}/invitations?status=pending`,
+      `/api/v1/groups/${gid}/invites?status=pending`
+    ];
+    for (const p of paths) {
+      try {
+        const res = await this.request(p, { method: 'GET' });
+        if (!res.ok) continue;
+        const rows = await this.safeJson<any[]>(res, []);
+        if (Array.isArray(rows)) return rows.map(r => ({
+          user_id: String(r.user_id ?? r.uid ?? r.id),
+          status: (r.status ?? 'pending') as any,
+          invited_by: r.invited_by ?? r.inviter_id ?? undefined,
+          created_at: r.created_at ?? undefined,
+        }));
+      } catch {}
+    }
+    return [];
+  }
+
+    static async acceptGroupInvite(groupId: string | number): Promise<boolean> {
+    const gid = encodeURIComponent(String(groupId));
+    const paths = [
+      `/api/v1/groups/${gid}/invitations/accept`,
+      `/api/v1/groups/${gid}/accept-invite`,
+      `/api/v1/groups/invitations/${gid}/accept`, // id-as-invitation id fallback
+    ];
+    for (const p of paths) {
+      try {
+        const res = await this.request(p, { method: 'POST' });
+        if (res.ok) return true;
+      } catch {}
+    }
+    // final fallback: try joining directly (for public groups)
+    try {
+      return await this.joinGroup(String(groupId));
+    } catch {
+      return false;
+    }
+  }
+
+  static async declineGroupInvite(groupId: string | number): Promise<boolean> {
+    const gid = encodeURIComponent(String(groupId));
+    const paths = [
+      `/api/v1/groups/${gid}/invitations/decline`,
+      `/api/v1/groups/${gid}/decline-invite`,
+      `/api/v1/groups/invitations/${gid}/decline`,
+    ];
+    for (const p of paths) {
+      try {
+        const res = await this.request(p, { method: 'POST' });
+        if (res.ok) return true;
+      } catch {}
+    }
+    return false;
+  }
+
+  
+
 
   static async createGroup(payload: {
     name: string;

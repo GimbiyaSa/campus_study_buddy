@@ -120,6 +120,12 @@ const membersCountEl = (scope: HTMLElement) =>
     );
   });
 
+// ── NEW: helper because component refreshes twice on mount (initial + after meId)
+const seedInitialGroupsTwice = (list: any[]) => {
+  ds.fetchMyGroups.mockResolvedValueOnce(list);
+  ds.fetchMyGroups.mockResolvedValueOnce(list);
+};
+
 beforeEach(() => {
   vi.useRealTimers();
 
@@ -137,7 +143,7 @@ beforeEach(() => {
     return Promise.resolve({ ok: true, json: async () => ({}) });
   });
 
-  // Default “smoke” data
+  // Default “smoke” data (use mockResolvedValue so both initial calls return)
   ds.fetchMyGroups.mockResolvedValue([
     mkSrvGroup({
       id: 'srv-owner',
@@ -221,10 +227,11 @@ describe('Groups (basic smoke tests)', () => {
 
 describe('Groups (behavior)', () => {
   test('Join flow: state flips to Leave immediately; count reflects 3/5 after refetch', async () => {
-    // Deterministic data for this test
     ds.fetchMyGroups.mockReset();
 
-    // 1) First render: not a member, explicit count 2/5, NO members[] (avoid length override)
+    // 1) initial paint: not a member, explicit count 2/5
+    // 2) post-meId repaint: same 2/5
+    // 3) After join + refresh: server says 3/5
     ds.fetchMyGroups
       .mockResolvedValueOnce([
         mkSrvGroup({
@@ -235,7 +242,15 @@ describe('Groups (behavior)', () => {
           maxMembers: 5,
         }),
       ])
-      // 2) After join + refresh: server says 3/5
+      .mockResolvedValueOnce([
+        mkSrvGroup({
+          id: 'srv-other',
+          name: otherName,
+          createdBy: '2',
+          member_count: 2,
+          maxMembers: 5,
+        }),
+      ])
       .mockResolvedValueOnce([
         mkSrvGroup({
           id: 'srv-other',
@@ -268,9 +283,19 @@ describe('Groups (behavior)', () => {
 
     // Sequence:
     // 1) Initial: not a member (2/5)
-    // 2) After join refetch: 3/5
-    // 3) After leave refetch: 2/5
+    // 2) Post-meId: still not a member (2/5)
+    // 3) After join refetch: 3/5
+    // 4) After leave refetch: 2/5
     ds.fetchMyGroups
+      .mockResolvedValueOnce([
+        mkSrvGroup({
+          id: 'srv-other',
+          name: otherName,
+          createdBy: '2',
+          member_count: 2,
+          maxMembers: 5,
+        }),
+      ])
       .mockResolvedValueOnce([
         mkSrvGroup({
           id: 'srv-other',
@@ -329,8 +354,9 @@ describe('Groups (behavior)', () => {
   test('Delete (owner): removes card and calls deleteGroup; invalidate triggers refetch', async () => {
     ds.fetchMyGroups.mockReset();
 
-    // Initial: owner + other
+    // With the double initial fetch, plus two refreshes after delete → 4 calls total
     ds.fetchMyGroups
+      // Initial
       .mockResolvedValueOnce([
         mkSrvGroup({
           id: 'srv-owner',
@@ -347,7 +373,24 @@ describe('Groups (behavior)', () => {
           maxMembers: 5,
         }),
       ])
-      // After delete (invalidate + explicit refresh): only "Other Group" remains
+      // Post-meId repaint (same list)
+      .mockResolvedValueOnce([
+        mkSrvGroup({
+          id: 'srv-owner',
+          name: ownerName,
+          createdBy: '1',
+          member_count: 1,
+          maxMembers: 8,
+        }),
+        mkSrvGroup({
+          id: 'srv-other',
+          name: otherName,
+          createdBy: '2',
+          member_count: 2,
+          maxMembers: 5,
+        }),
+      ])
+      // After delete: only "Other Group" remains
       .mockResolvedValueOnce([
         mkSrvGroup({
           id: 'srv-other',
@@ -382,8 +425,8 @@ describe('Groups (behavior)', () => {
     // Called with backend id
     expect(ds.deleteGroup).toHaveBeenCalledWith('srv-owner');
 
-    // Initial + invalidate refresh + explicit refresh = 3 total
-    await waitFor(() => expect(ds.fetchMyGroups).toHaveBeenCalledTimes(3));
+    // Initial + post-meId + invalidate refresh + explicit refresh = 4 total
+    await waitFor(() => expect(ds.fetchMyGroups).toHaveBeenCalledTimes(4));
   });
 });
 
@@ -434,7 +477,7 @@ describe('Groups (coverage boosters, stable)', () => {
     ds.fetchMyGroups.mockReset();
     ds.getGroupMembers.mockReset();
 
-    ds.fetchMyGroups.mockResolvedValueOnce([
+    seedInitialGroupsTwice([
       mkSrvGroup({
         id: 'srv-other',
         name: otherName,
@@ -456,6 +499,8 @@ describe('Groups (coverage boosters, stable)', () => {
     // expand members → triggers fetch
     await userEvent.click(within(card).getByRole('button', { name: /View members/i }));
 
+    await waitFor(() => expect(ds.getGroupMembers).toHaveBeenCalledWith('srv-other'));
+
     // chips visible (names)
     await within(card).findByText('Alice Doe');
     await within(card).findByText('Bob Z');
@@ -465,7 +510,7 @@ describe('Groups (coverage boosters, stable)', () => {
     ds.fetchMyGroups.mockReset();
     ds.getGroupMembers.mockReset();
 
-    ds.fetchMyGroups.mockResolvedValueOnce([
+    seedInitialGroupsTwice([
       mkSrvGroup({
         id: 'srv-other',
         name: otherName,
@@ -481,6 +526,7 @@ describe('Groups (coverage boosters, stable)', () => {
     const card = await waitFor(() => findCard(otherName));
     await userEvent.click(within(card).getByRole('button', { name: /View members/i }));
 
+    await waitFor(() => expect(ds.getGroupMembers).toHaveBeenCalledWith('srv-other'));
     await within(card).findByText(/Could not load members/i);
   });
 
@@ -489,7 +535,8 @@ describe('Groups (coverage boosters, stable)', () => {
     ds.createGroup.mockReset();
     ds.joinGroup.mockReset();
 
-    // 1) initial: just "other"
+    // 1) initial (twice): just "other"
+    // 2) after successful create+join refresh: include new group from server
     ds.fetchMyGroups
       .mockResolvedValueOnce([
         mkSrvGroup({
@@ -500,7 +547,15 @@ describe('Groups (coverage boosters, stable)', () => {
           maxMembers: 5,
         }),
       ])
-      // 2) after successful create+join refresh: include new group from server
+      .mockResolvedValueOnce([
+        mkSrvGroup({
+          id: 'srv-other',
+          name: otherName,
+          createdBy: '2',
+          member_count: 2,
+          maxMembers: 5,
+        }),
+      ])
       .mockResolvedValueOnce([
         mkSrvGroup({
           id: 'srv-new',
@@ -554,15 +609,12 @@ describe('Groups (coverage boosters, stable)', () => {
       expect(ds.joinGroup).toHaveBeenCalledWith('srv-new');
     });
 
-    // modal closes and a refetch happens; allow >=2 to be robust to an extra invalidation/refetch
+    // modal closes and a refetch happens; now we expect >=3 calls (two initial + one after create)
     await waitFor(() => {
-      expect(ds.fetchMyGroups.mock.calls.length).toBeGreaterThanOrEqual(2);
+      expect(ds.fetchMyGroups.mock.calls.length).toBeGreaterThanOrEqual(3);
     });
 
-    // assert the modal is gone (final UI may show empty-state or cards depending on filters)
     expect(screen.queryByRole('dialog', { name: /Create new group/i })).toBeNull();
-
-    // NOTE: Do not assert that "New Group X" heading appears — this is brittle due to runtime filters.
   });
 
   test('edit group modal: opens, saves changes via updateGroup, then refreshes', async () => {
@@ -570,8 +622,19 @@ describe('Groups (coverage boosters, stable)', () => {
     ds.updateGroup.mockReset();
     ds.updateGroup.mockResolvedValue(true); // ensure awaited call resolves
 
-    // make the owner group present so Edit button exists
     ds.fetchMyGroups
+      // initial
+      .mockResolvedValueOnce([
+        mkSrvGroup({
+          id: 'srv-owner',
+          name: ownerName,
+          createdBy: '1',
+          member_count: 1,
+          maxMembers: 8,
+          description: 'Old desc',
+        }),
+      ])
+      // post-meId repaint (same list)
       .mockResolvedValueOnce([
         mkSrvGroup({
           id: 'srv-owner',
@@ -645,8 +708,7 @@ describe('Groups (coverage boosters, stable)', () => {
     ds.scheduleSession24hReminders.mockReset();
     ds.notifyGroup.mockReset();
 
-    // make an owner card so the Schedule button is present
-    ds.fetchMyGroups.mockResolvedValueOnce([
+    seedInitialGroupsTwice([
       mkSrvGroup({
         id: 'srv-owner',
         name: ownerName,
@@ -715,8 +777,7 @@ describe('Groups (coverage boosters, stable)', () => {
     ds.inviteToGroup.mockReset();
     ds.createNotification.mockReset();
 
-    // owner so Invite button is present
-    ds.fetchMyGroups.mockResolvedValueOnce([
+    seedInitialGroupsTwice([
       mkSrvGroup({
         id: 'srv-owner',
         name: ownerName,

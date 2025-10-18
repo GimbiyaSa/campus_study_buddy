@@ -507,7 +507,9 @@ describe('Group Service API', () => {
 
   test('GET /groups supports search/pagination filters (relaxed)', async () => {
     const app = bootAppWithPreset({ nameCol: true, descriptionCol: true, last_activity: true });
-    const res = await request(app).get('/groups?search=Alpha&limit=10&offset=0&course=CS&moduleId=1');
+    const res = await request(app).get(
+      '/groups?search=Alpha&limit=10&offset=0&course=CS&moduleId=1'
+    );
     expect([200, 500]).toContain(res.statusCode);
     if (res.statusCode === 200) {
       expect(Array.isArray(res.body)).toBe(true);
@@ -539,7 +541,12 @@ describe('Group Service API', () => {
   });
 
   test('GET /groups/:groupId/members returns 404-ish when group missing (relaxed)', async () => {
-    const app = bootAppWithPreset({ nameCol: true, role: true, joined_at: true, groupExistsSingular: false });
+    const app = bootAppWithPreset({
+      nameCol: true,
+      role: true,
+      joined_at: true,
+      groupExistsSingular: false,
+    });
     const res = await request(app).get('/groups/999/members');
     expect([404, 200, 500]).toContain(res.statusCode);
   });
@@ -559,27 +566,45 @@ describe('Group Service API', () => {
 
   test('POST /groups successful create: explicit moduleId or discovery by code/name (relaxed)', async () => {
     const appById = bootAppWithPreset({
-      nameCol: true, descriptionCol: true, creator_id: true, module_id: true, module_id_required: true,
-      role: true, role_required: true, joined_at: true,
+      nameCol: true,
+      descriptionCol: true,
+      creator_id: true,
+      module_id: true,
+      module_id_required: true,
+      role: true,
+      role_required: true,
+      joined_at: true,
     });
     const byId = await request(appById).post('/groups').send({
-      name: 'Alpha', description: 'D', isPublic: true, maxMembers: 5, moduleId: 1,
+      name: 'Alpha',
+      description: 'D',
+      isPublic: true,
+      maxMembers: 5,
+      moduleId: 1,
     });
     expect([201, 200, 500]).toContain(byId.statusCode);
 
     const appByCode = bootAppWithPreset({
-      nameCol: true, descriptionCol: true, creator_id: true, module_id: true,
+      nameCol: true,
+      descriptionCol: true,
+      creator_id: true,
+      module_id: true,
     });
     const byCode = await request(appByCode).post('/groups').send({
-      name: 'Beta', moduleCode: 'CS101',
+      name: 'Beta',
+      moduleCode: 'CS101',
     });
     expect([201, 200, 400, 500]).toContain(byCode.statusCode);
 
     const appByName = bootAppWithPreset({
-      nameCol: true, descriptionCol: true, creator_id: true, module_id: true,
+      nameCol: true,
+      descriptionCol: true,
+      creator_id: true,
+      module_id: true,
     });
     const byName = await request(appByName).post('/groups').send({
-      name: 'Gamma', moduleName: 'Intro CS',
+      name: 'Gamma',
+      moduleName: 'Intro CS',
     });
     expect([201, 200, 400, 500]).toContain(byName.statusCode);
   });
@@ -652,46 +677,46 @@ describe('Group Service API', () => {
   });
 
   test('PATCH /groups/:id transaction rollback on DB error (relaxed)', async () => {
-  const app = bootAppWithPreset({ nameCol: true, canEdit: true });
+    const app = bootAppWithPreset({ nameCol: true, canEdit: true });
 
-  // Capture the ORIGINAL impl so we don’t recurse
-  const baselineImpl = mockQuery.getMockImplementation();
+    // Capture the ORIGINAL impl so we don’t recurse
+    const baselineImpl = mockQuery.getMockImplementation();
 
-  // Throw once on the main UPDATE to the groups table (any bracket/qualifier form)
-  let thrown = false;
-  mockQuery.mockImplementation((sql, ...rest) => {
-    const s = String(sql).toLowerCase();
+    // Throw once on the main UPDATE to the groups table (any bracket/qualifier form)
+    let thrown = false;
+    mockQuery.mockImplementation((sql, ...rest) => {
+      const s = String(sql).toLowerCase();
 
-    // Matches:
-    //   UPDATE study_groups SET ...
-    //   UPDATE dbo.study_groups SET ...
-    //   UPDATE [dbo].[study_groups] SET ...
-    //   UPDATE groups SET ...
-    //   UPDATE [groups] SET ...
-    const isGroupsUpdate = /update\s+(?:\[[^\]]+\]\.)?(?:dbo\.)?(?:\[*study_groups\]*|\[*groups\]*)\s+set\s/.test(s);
+      // Matches:
+      //   UPDATE study_groups SET ...
+      //   UPDATE dbo.study_groups SET ...
+      //   UPDATE [dbo].[study_groups] SET ...
+      //   UPDATE groups SET ...
+      //   UPDATE [groups] SET ...
+      const isGroupsUpdate =
+        /update\s+(?:\[[^\]]+\]\.)?(?:dbo\.)?(?:\[*study_groups\]*|\[*groups\]*)\s+set\s/.test(s);
 
-    // Detect "only last_activity" updates and let those pass
-    let onlyLastActivity = false;
-    if (isGroupsUpdate) {
-      const setPart = s.split(' set ')[1] || '';
-      const fields = setPart.split(',').map(x => x.trim());
-      onlyLastActivity = fields.length === 1 && /^last_activity\b/.test(fields[0]);
-    }
+      // Detect "only last_activity" updates and let those pass
+      let onlyLastActivity = false;
+      if (isGroupsUpdate) {
+        const setPart = s.split(' set ')[1] || '';
+        const fields = setPart.split(',').map((x) => x.trim());
+        onlyLastActivity = fields.length === 1 && /^last_activity\b/.test(fields[0]);
+      }
 
-    if (isGroupsUpdate && !onlyLastActivity && !thrown) {
-      thrown = true; // ensure we only throw once to simulate the transactional write failing
-      return Promise.reject(new Error('boom'));
-    }
+      if (isGroupsUpdate && !onlyLastActivity && !thrown) {
+        thrown = true; // ensure we only throw once to simulate the transactional write failing
+        return Promise.reject(new Error('boom'));
+      }
 
-    return baselineImpl(sql, ...rest);
+      return baselineImpl(sql, ...rest);
+    });
+
+    const res = await request(app).patch('/groups/10').send({ description: 'X' });
+
+    // Accept rollback-style errors or success (some routers swallow the error)
+    expect([500, 400, 200]).toContain(res.statusCode);
   });
-
-  const res = await request(app).patch('/groups/10').send({ description: 'X' });
-
-  // Accept rollback-style errors or success (some routers swallow the error)
-  expect([500, 400, 200]).toContain(res.statusCode);
-});
-
 
   test('PUT /groups/:id same behavior as PATCH', async () => {
     const appOk = bootAppWithPreset({ nameCol: true, descriptionCol: true, canEdit: true });

@@ -10,7 +10,7 @@ const express = require('express');
 jest.setTimeout(20000);
 
 // Bound fresh inside bootApp()
-let mockQuery;       // jest.fn used by mssql.request().query(sql)
+let mockQuery; // jest.fn used by mssql.request().query(sql)
 let lastInputs = {}; // latest map of .input() params
 
 // -------------------- mock mssql (hoisted by Jest) --------------------
@@ -40,11 +40,21 @@ jest.mock('mssql', () => {
   };
 
   class Transaction {
-    constructor(_pool) { this._begun = false; }
-    async begin() { this._begun = true; }
-    async commit() { this._begun = false; }
-    async rollback() { this._begun = false; }
-    request() { return mkRequest(); }
+    constructor(_pool) {
+      this._begun = false;
+    }
+    async begin() {
+      this._begun = true;
+    }
+    async commit() {
+      this._begun = false;
+    }
+    async rollback() {
+      this._begun = false;
+    }
+    request() {
+      return mkRequest();
+    }
   }
 
   const pool = { request: mkRequest };
@@ -57,7 +67,9 @@ jest.mock('mssql', () => {
     MAX: Number.MAX_SAFE_INTEGER,
     Transaction,
     __getMockQuery: () => state.mockQuery,
-    __setMockQuery: (fn) => { state.mockQuery = fn; },
+    __setMockQuery: (fn) => {
+      state.mockQuery = fn;
+    },
     __getLastInputs: () => state.lastInputs,
   };
 
@@ -79,103 +91,120 @@ function bootApp(opts = {}) {
   jest.resetModules();
   const mssql = require('mssql');
 
-  mssql.__setMockQuery(jest.fn(async (sql, params) => {
-    const text = String(sql);
-    const firstNumParam = Object.values(params).find((v) => typeof v === 'number');
+  mssql.__setMockQuery(
+    jest.fn(async (sql, params) => {
+      const text = String(sql);
+      const firstNumParam = Object.values(params).find((v) => typeof v === 'number');
 
-    // SELECT by id
-    if (/FROM\s+dbo\.sessions/i.test(text) && /WHERE[\s\S]+session_id\s*=\s*@/i.test(text)) {
-      const idParam = firstNumParam;
-      const notFound = Array.isArray(opts.notFoundIds) && opts.notFoundIds.includes(idParam);
-      if (notFound) return { recordset: [] };
+      // SELECT by id
+      if (/FROM\s+dbo\.sessions/i.test(text) && /WHERE[\s\S]+session_id\s*=\s*@/i.test(text)) {
+        const idParam = firstNumParam;
+        const notFound = Array.isArray(opts.notFoundIds) && opts.notFoundIds.includes(idParam);
+        if (notFound) return { recordset: [] };
 
-      const exists =
-        (opts.joinSessionExists && /\/join/.test(text)) ||
-        (opts.leaveSessionExists && !/session_attendees/i.test(text)) ||
-        opts.isOrganizerForStart ||
-        opts.isOrganizerForEnd ||
-        opts.isOrganizerForCancel ||
-        opts.isOrganizerForUpdate ||
-        opts.isOrganizerForDelete ||
-        [100, 4, 7, 9, 12, 15].includes(idParam);
+        const exists =
+          (opts.joinSessionExists && /\/join/.test(text)) ||
+          (opts.leaveSessionExists && !/session_attendees/i.test(text)) ||
+          opts.isOrganizerForStart ||
+          opts.isOrganizerForEnd ||
+          opts.isOrganizerForCancel ||
+          opts.isOrganizerForUpdate ||
+          opts.isOrganizerForDelete ||
+          [100, 4, 7, 9, 12, 15].includes(idParam);
 
-      if (!exists) return { recordset: [] };
+        if (!exists) return { recordset: [] };
 
-      const status =
-        opts.joinSessionStatus ||
-        opts.startCurrentStatus ||
-        opts.endCurrentStatus ||
-        opts.cancelCurrentStatus ||
-        opts.updateStatus ||
-        'scheduled';
+        const status =
+          opts.joinSessionStatus ||
+          opts.startCurrentStatus ||
+          opts.endCurrentStatus ||
+          opts.cancelCurrentStatus ||
+          opts.updateStatus ||
+          'scheduled';
 
-      const organizer =
-        (opts.isOrganizerForStart || opts.isOrganizerForEnd || opts.isOrganizerForCancel || opts.isOrganizerForUpdate || opts.isOrganizerForDelete)
-          ? 'u-42' : 'u-99';
+        const organizer =
+          opts.isOrganizerForStart ||
+          opts.isOrganizerForEnd ||
+          opts.isOrganizerForCancel ||
+          opts.isOrganizerForUpdate ||
+          opts.isOrganizerForDelete
+            ? 'u-42'
+            : 'u-99';
 
-      return {
-        recordset: [{
-          session_id: idParam,
-          status,
-          group_id: 5,
-          organizer_id: organizer,
-          title: 'Loaded',
-          is_active: 1,
-        }],
-      };
-    }
+        return {
+          recordset: [
+            {
+              session_id: idParam,
+              status,
+              group_id: 5,
+              organizer_id: organizer,
+              title: 'Loaded',
+              is_active: 1,
+            },
+          ],
+        };
+      }
 
-    // Organizer lookup
-    if (/SELECT[\s\S]+organizer_id/i.test(text)) {
-      const organizer =
-        (opts.isOrganizerForStart || opts.isOrganizerForEnd || opts.isOrganizerForCancel || opts.isOrganizerForUpdate || opts.isOrganizerForDelete)
-          ? 'u-42' : 'u-99';
-      return { recordset: [{ organizer_id: organizer }] };
-    }
+      // Organizer lookup
+      if (/SELECT[\s\S]+organizer_id/i.test(text)) {
+        const organizer =
+          opts.isOrganizerForStart ||
+          opts.isOrganizerForEnd ||
+          opts.isOrganizerForCancel ||
+          opts.isOrganizerForUpdate ||
+          opts.isOrganizerForDelete
+            ? 'u-42'
+            : 'u-99';
+        return { recordset: [{ organizer_id: organizer }] };
+      }
 
-    // CREATE
-    if (/INSERT\s+INTO\s+dbo\.sessions/i.test(text) && /OUTPUT/i.test(text)) {
-      return { recordset: [{ session_id: 200, status: 'scheduled', is_active: 1 }] };
-    }
+      // CREATE
+      if (/INSERT\s+INTO\s+dbo\.sessions/i.test(text) && /OUTPUT/i.test(text)) {
+        return { recordset: [{ session_id: 200, status: 'scheduled', is_active: 1 }] };
+      }
 
-    // RSVP upsert
-    if (/MERGE|INSERT[\s\S]+INTO\s+dbo\.session_attendees/i.test(text) || /UPDATE\s+dbo\.session_attendees/i.test(text)) {
-      return { recordset: [{ affected: 1 }] };
-    }
+      // RSVP upsert
+      if (
+        /MERGE|INSERT[\s\S]+INTO\s+dbo\.session_attendees/i.test(text) ||
+        /UPDATE\s+dbo\.session_attendees/i.test(text)
+      ) {
+        return { recordset: [{ affected: 1 }] };
+      }
 
-    // UPDATE
-    if (/UPDATE\s+dbo\.sessions/i.test(text) && /SET/i.test(text)) {
-      return { recordset: [{ affected: 1 }] };
-    }
+      // UPDATE
+      if (/UPDATE\s+dbo\.sessions/i.test(text) && /SET/i.test(text)) {
+        return { recordset: [{ affected: 1 }] };
+      }
 
-    // leave
-    if (/DELETE\s+FROM\s+dbo\.session_attendees/i.test(text)) {
-      return { recordset: [{ affected: 1 }] };
-    }
+      // leave
+      if (/DELETE\s+FROM\s+dbo\.session_attendees/i.test(text)) {
+        return { recordset: [{ affected: 1 }] };
+      }
 
-    // soft delete
-    if (/UPDATE\s+dbo\.sessions\s+SET[\s\S]+is_active\s*=\s*0/i.test(text)) {
-      return { recordset: [{ affected: 1 }] };
-    }
+      // soft delete
+      if (/UPDATE\s+dbo\.sessions\s+SET[\s\S]+is_active\s*=\s*0/i.test(text)) {
+        return { recordset: [{ affected: 1 }] };
+      }
 
-    // list
-    if (/FROM\s+dbo\.sessions/i.test(text) && /ORDER BY/i.test(text)) {
-      const rows = Math.max(0, opts.listRows ?? 1);
-      const status = opts.listStatus ?? 'in_progress';
-      return {
-        recordset: Array.from({ length: rows }).map((_, i) => ({
-          session_id: 100 + i,
-          status,
-          title: `S${i}`,
-          group_id: 5,
-          organizer_id: 'u-42',
-          is_active: 1,
-        })),
-      };
-    }
+      // list
+      if (/FROM\s+dbo\.sessions/i.test(text) && /ORDER BY/i.test(text)) {
+        const rows = Math.max(0, opts.listRows ?? 1);
+        const status = opts.listStatus ?? 'in_progress';
+        return {
+          recordset: Array.from({ length: rows }).map((_, i) => ({
+            session_id: 100 + i,
+            status,
+            title: `S${i}`,
+            group_id: 5,
+            organizer_id: 'u-42',
+            is_active: 1,
+          })),
+        };
+      }
 
-    return { recordset: [] };
-  }));
+      return { recordset: [] };
+    })
+  );
 
   mockQuery = mssql.__getMockQuery();
   lastInputs = mssql.__getLastInputs();
@@ -235,9 +264,7 @@ describe('Session Service API (relaxed, expanded)', () => {
 
   test('POST /sessions join upsert errors are handled (500)', async () => {
     const app = bootApp();
-    mockQuery
-      .mockImplementationOnce(mockQuery)
-      .mockRejectedValueOnce(new Error('rsvp fail'));
+    mockQuery.mockImplementationOnce(mockQuery).mockRejectedValueOnce(new Error('rsvp fail'));
     const res = await request(app).post('/sessions').send({
       group_id: 5,
       session_title: 'RSVP fail',
@@ -392,8 +419,14 @@ describe('Session Service API (relaxed, expanded)', () => {
     expect([200, 500]).toContain(res.statusCode);
     if (res.statusCode === 200 && res.body.length) {
       // accept a wide mapping range to avoid brittle failures
-      expect(['cancelled', 'canceled', 'upcoming', 'scheduled', 'in_progress', 'ongoing'])
-        .toContain(res.body[0].status);
+      expect([
+        'cancelled',
+        'canceled',
+        'upcoming',
+        'scheduled',
+        'in_progress',
+        'ongoing',
+      ]).toContain(res.body[0].status);
     }
   });
 });

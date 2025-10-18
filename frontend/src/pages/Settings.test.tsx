@@ -139,7 +139,9 @@ describe('Settings (render + loading)', () => {
 
     // Fields filled from API
     const nameInput = screen.getByPlaceholderText(/Your full name/i) as HTMLInputElement;
-    const emailInput = screen.getByPlaceholderText(/your\.email@university\.edu/i) as HTMLInputElement;
+    const emailInput = screen.getByPlaceholderText(
+      /your\.email@university\.edu/i
+    ) as HTMLInputElement;
     expect(nameInput.value ?? '').toBe(apiProfile.name);
     expect(emailInput.value ?? '').toBe(apiProfile.email);
   });
@@ -169,7 +171,9 @@ describe('Settings (navigation between tabs)', () => {
 
 describe('Settings (saving flows use PUT + token)', () => {
   const expectLastPut = (path: string, matcher?: (init: RequestInit) => void) => {
-    const calls = fetchSpy.mock.calls.filter((c) => typeof c[0] === 'string' && (c[0] as string).includes(path));
+    const calls = fetchSpy.mock.calls.filter(
+      (c) => typeof c[0] === 'string' && (c[0] as string).includes(path)
+    );
     // last call for that path
     const last = calls.at(-1);
     expect(last, `expected a PUT to ${path} but none found`).toBeTruthy();
@@ -202,7 +206,9 @@ describe('Settings (saving flows use PUT + token)', () => {
 
     // Toggle Email Notifications (off->on)
     const emailRow = screen.getByText(/Email Notifications/i).closest('div')!;
-    const checkbox = within(emailRow.parentElement as HTMLElement).getByRole('checkbox') as HTMLInputElement;
+    const checkbox = within(emailRow.parentElement as HTMLElement).getByRole(
+      'checkbox'
+    ) as HTMLInputElement;
     expect(checkbox.checked).toBe(false);
     await userEvent.click(checkbox);
     expect(checkbox.checked).toBe(true);
@@ -364,14 +370,17 @@ describe('Settings (Account password flow + visibility toggle)', () => {
 describe('Settings (error fallback path)', () => {
   test('if initial fetch throws, uses demo fallback profile name', async () => {
     // Make the very first GET blow up (profile fetch)
-    (global.fetch as any) = vi.fn().mockRejectedValueOnce(new Error('boom')).mockImplementation((url: string) => {
-      // After first rejection, return defaults for the rest so the page can render
-      if (url.includes('/notifications')) return Promise.resolve(mkJson(apiNotifications));
-      if (url.includes('/privacy')) return Promise.resolve(mkJson(apiPrivacy));
-      if (url.includes('/preferences')) return Promise.resolve(mkJson(apiPreferences));
-      // harmless ok for anything else
-      return Promise.resolve({ ok: true, json: async () => ({}) });
-    });
+    (global.fetch as any) = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockImplementation((url: string) => {
+        // After first rejection, return defaults for the rest so the page can render
+        if (url.includes('/notifications')) return Promise.resolve(mkJson(apiNotifications));
+        if (url.includes('/privacy')) return Promise.resolve(mkJson(apiPrivacy));
+        if (url.includes('/preferences')) return Promise.resolve(mkJson(apiPreferences));
+        // harmless ok for anything else
+        return Promise.resolve({ ok: true, json: async () => ({}) });
+      });
 
     render(<Settings />);
 

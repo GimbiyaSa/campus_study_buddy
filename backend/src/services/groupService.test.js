@@ -62,8 +62,7 @@ jest.mock('mssql', () => ({
 }));
 
 /* ----------------------------- Test helpers ------------------------------ */
-const getAnyId = (obj) =>
-  obj?.id ?? obj?.groupId ?? obj?.group_id;
+const getAnyId = (obj) => obj?.id ?? obj?.groupId ?? obj?.group_id;
 
 const hasAny = (obj, keys) => keys.some((k) => obj?.[k] != null);
 const firstPresentKey = (obj, keys) => keys.find((k) => typeof obj?.[k] !== 'undefined');
@@ -128,10 +127,10 @@ function bootAppWithPreset(preset) {
     roleCheckDef: preset.roleCheckDef ?? "([role] IN ('member','admin','owner'))",
     canEdit: !!preset.canEdit,
     groupExistsSingular: preset.groupExistsSingular !== false,
-    isMember: preset.isMember !== false,          // default true
-    leaveIsOwner: preset.leaveIsOwner !== false,  // default true
+    isMember: preset.isMember !== false, // default true
+    leaveIsOwner: preset.leaveIsOwner !== false, // default true
     createdBySelf: !!preset.createdBySelf,
-    groupExists: preset.groupExists !== false,    // default true
+    groupExists: preset.groupExists !== false, // default true
     sessionGroupNotFound: !!preset.sessionGroupNotFound,
     fallbackModuleId: preset.fallbackModuleId,
     groupIsFull: !!preset.groupIsFull,
@@ -164,15 +163,35 @@ function bootAppWithPreset(preset) {
 
     if (low.includes('from sys.columns') && low.includes('object_id(@tbl)')) {
       const tblFull = (lastInputs?.tbl || '').toString();
-      const tbl = tblFull.replace(/^dbo\./i, '').replace(/^\[dbo\]\./i, '').replace(/^\[|\]$/g, '');
+      const tbl = tblFull
+        .replace(/^dbo\./i, '')
+        .replace(/^\[dbo\]\./i, '')
+        .replace(/^\[|\]$/g, '');
       const col = (lastInputs?.col || '').toString();
       const exists =
         (tbl.toLowerCase() === tableLower && !!SCH.groupsCols[col]) ||
         (tbl.toLowerCase() === 'group_members' && !!SCH.gmCols[col]) ||
         (tbl.toLowerCase() === 'modules' &&
-          ['module_id', 'module_code', 'module_name', 'description', 'university', 'is_active', 'created_at', 'updated_at'].includes(col)) ||
+          [
+            'module_id',
+            'module_code',
+            'module_name',
+            'description',
+            'university',
+            'is_active',
+            'created_at',
+            'updated_at',
+          ].includes(col)) ||
         (tbl.toLowerCase() === 'notifications' &&
-          ['user_id', 'notification_type', 'title', 'message', 'metadata', 'is_read', 'created_at'].includes(col)) ||
+          [
+            'user_id',
+            'notification_type',
+            'title',
+            'message',
+            'metadata',
+            'is_read',
+            'created_at',
+          ].includes(col)) ||
         (tbl.toLowerCase() === 'group_invitations' &&
           ['status', 'invited_by', 'created_at', 'group_id', 'user_id'].includes(col));
       return { recordset: exists ? [{ 1: 1 }] : [] };
@@ -204,7 +223,11 @@ function bootAppWithPreset(preset) {
     if (low.includes('insert into dbo.modules') && low.includes('output inserted.module_id')) {
       return { recordset: [{ id: 3 }] };
     }
-    if (low.includes('select top 1') && low.includes('from dbo.modules') && low.includes('university')) {
+    if (
+      low.includes('select top 1') &&
+      low.includes('from dbo.modules') &&
+      low.includes('university')
+    ) {
       return { recordset: [{ uni: 'General' }] };
     }
 
@@ -229,12 +252,19 @@ function bootAppWithPreset(preset) {
       return { recordset: SCH.canEdit ? [{ ok: 1 }] : [] };
     }
     if (fromGroupMembers && low.includes('@userid') && !low.includes('union all')) {
-      if (low.includes('role in') || (low.includes('role') && (low.includes('owner') || low.includes('admin')))) {
+      if (
+        low.includes('role in') ||
+        (low.includes('role') && (low.includes('owner') || low.includes('admin')))
+      ) {
         return { recordset: SCH.canEdit ? [{ 1: 1 }] : [] };
       }
       return { recordset: SCH.isMember ? [{ 1: 1 }] : [] };
     }
-    if (hasFromGroups && low.includes('@userid') && (low.includes('creator_id') || low.includes('created_by') || low.includes('createdby'))) {
+    if (
+      hasFromGroups &&
+      low.includes('@userid') &&
+      (low.includes('creator_id') || low.includes('created_by') || low.includes('createdby'))
+    ) {
       return { recordset: SCH.canEdit ? [{ 1: 1 }] : [] };
     }
 
@@ -316,13 +346,11 @@ function bootAppWithPreset(preset) {
     const looksLikeCapacityProbe =
       hasTableToken &&
       hasGroupIdParam &&
-      (
-        low.includes('max_members') ||
+      (low.includes('max_members') ||
         low.includes('maxmembers') ||
         low.includes(' max ') ||
         low.includes(' capacity ') ||
-        (low.includes('member') && low.includes('count'))
-      );
+        (low.includes('member') && low.includes('count')));
 
     if (looksLikeCapacityProbe) {
       if (SCH.groupIsFull) {
@@ -336,7 +364,12 @@ function bootAppWithPreset(preset) {
       return SCH.groupExists ? { recordset: [{ 1: 1 }] } : { recordset: [] };
     }
 
-    if (low.includes('update dbo.') && hasTableToken && low.includes(' set ') && low.includes('last_activity')) {
+    if (
+      low.includes('update dbo.') &&
+      hasTableToken &&
+      low.includes(' set ') &&
+      low.includes('last_activity')
+    ) {
       return { recordset: [] };
     }
 
@@ -344,15 +377,13 @@ function bootAppWithPreset(preset) {
     const looksLikeLeaveCheck =
       hasTableToken &&
       hasGroupIdParam &&
-      (
-        low.includes('membercount') ||
+      (low.includes('membercount') ||
         (low.includes('member') && low.includes('count')) ||
         low.includes('count(') ||
         low.includes(' isowner') ||
         low.includes(' is_owner') ||
         low.includes('owner') ||
-        low.includes('creator_id')
-      );
+        low.includes('creator_id'));
 
     if (looksLikeLeaveCheck) {
       const memberCount = SCH.leaveMembers;
@@ -361,7 +392,11 @@ function bootAppWithPreset(preset) {
     }
 
     /* -------- sessions -------- */
-    if (hasFromGroups && hasGroupIdParam && (SCH.sessionGroupNotFound || !SCH.groupExistsSingular)) {
+    if (
+      hasFromGroups &&
+      hasGroupIdParam &&
+      (SCH.sessionGroupNotFound || !SCH.groupExistsSingular)
+    ) {
       return { recordset: [] };
     }
     if (low.includes('insert into dbo.study_sessions') && low.includes('output')) {
@@ -389,7 +424,10 @@ function bootAppWithPreset(preset) {
     }
 
     /* -------- invites -------- */
-    if (low.includes('from dbo.group_invitations') || low.includes('insert into dbo.group_invitations')) {
+    if (
+      low.includes('from dbo.group_invitations') ||
+      low.includes('insert into dbo.group_invitations')
+    ) {
       return { recordset: [] };
     }
     if (low.includes('insert into dbo.notifications')) {
@@ -559,16 +597,31 @@ describe('Group Service API', () => {
   });
 
   test('PATCH /groups/:id: 400 invalid, 400 no fields, 403 no permission, 200 success', async () => {
-    const appBadId = bootAppWithPreset({ nameCol: true, descriptionCol: true, creator_id: true, canEdit: true });
+    const appBadId = bootAppWithPreset({
+      nameCol: true,
+      descriptionCol: true,
+      creator_id: true,
+      canEdit: true,
+    });
     const badId = await request(appBadId).patch('/groups/notnum').send({ name: 'N' });
     expect(badId.statusCode).toBe(400);
 
-    const appNoFields = bootAppWithPreset({ nameCol: true, descriptionCol: true, creator_id: true, canEdit: true });
+    const appNoFields = bootAppWithPreset({
+      nameCol: true,
+      descriptionCol: true,
+      creator_id: true,
+      canEdit: true,
+    });
     const noFields = await request(appNoFields).patch('/groups/10').send({});
     expect(noFields.statusCode).toBe(400);
     expect(noFields.body.error).toMatch(/No updatable fields/i);
 
-    const appDeny = bootAppWithPreset({ nameCol: true, descriptionCol: true, creator_id: true, canEdit: false });
+    const appDeny = bootAppWithPreset({
+      nameCol: true,
+      descriptionCol: true,
+      creator_id: true,
+      canEdit: false,
+    });
     const deny = await request(appDeny).patch('/groups/10').send({ name: 'New' });
     expect(deny.statusCode).toBe(403);
     expect(deny.body.error).toMatch(/Only the owner\/admin/i);
@@ -618,15 +671,30 @@ describe('Group Service API', () => {
   });
 
   test('POST /groups/:id/join handles full/404/success', async () => {
-    const appFull = bootAppWithPreset({ nameCol: true, max_members: true, groupIsFull: true, isMember: false });
+    const appFull = bootAppWithPreset({
+      nameCol: true,
+      max_members: true,
+      groupIsFull: true,
+      isMember: false,
+    });
     const full = await request(appFull).post('/groups/10/join');
     expect([409, 204]).toContain(full.statusCode); // relaxed
 
-    const app404 = bootAppWithPreset({ nameCol: true, max_members: false, groupExists: false, isMember: false });
+    const app404 = bootAppWithPreset({
+      nameCol: true,
+      max_members: false,
+      groupExists: false,
+      isMember: false,
+    });
     const miss = await request(app404).post('/groups/999/join');
     expect([404, 204]).toContain(miss.statusCode); // relaxed further
 
-    const appOk = bootAppWithPreset({ nameCol: true, last_activity: true, joined_at: true, isMember: false });
+    const appOk = bootAppWithPreset({
+      nameCol: true,
+      last_activity: true,
+      joined_at: true,
+      isMember: false,
+    });
     const ok = await request(appOk).post('/groups/10/join');
     expect(ok.statusCode).toBe(204);
   });

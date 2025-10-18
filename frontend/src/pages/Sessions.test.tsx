@@ -310,19 +310,18 @@ describe('Sessions page (empty/error paths)', () => {
   });
 
   // fetch error → still renders page chrome (CTA optional)
-test('fetch error → still renders page chrome', async () => {
-  ds.fetchSessions.mockRejectedValueOnce(new Error('boom'));
+  test('fetch error → still renders page chrome', async () => {
+    ds.fetchSessions.mockRejectedValueOnce(new Error('boom'));
 
-  render(<Sessions />);
+    render(<Sessions />);
 
-  // Page chrome appears
-  await screen.findByRole('heading', { name: /Plan study sessions/i });
+    // Page chrome appears
+    await screen.findByRole('heading', { name: /Plan study sessions/i });
 
-  // No cards render
-  expect(screen.queryByRole('heading', { name: 'Creator' })).toBeNull();
-  expect(screen.queryByRole('heading', { name: 'Joinable' })).toBeNull();
-  expect(screen.queryByRole('heading', { name: 'Attending' })).toBeNull();
-  expect(screen.queryByRole('heading', { name: 'Cancelled' })).toBeNull();
-});
-
+    // No cards render
+    expect(screen.queryByRole('heading', { name: 'Creator' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Joinable' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Attending' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Cancelled' })).toBeNull();
+  });
 });

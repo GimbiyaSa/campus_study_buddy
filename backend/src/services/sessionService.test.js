@@ -19,7 +19,7 @@ const express = require('express');
 jest.setTimeout(20000);
 
 // Bound fresh inside bootApp()
-let mockQuery;       // jest.fn used by mssql.request().query(sql)
+let mockQuery; // jest.fn used by mssql.request().query(sql)
 let lastInputs = {}; // latest map of .input() params
 
 // -------------------- mock mssql (hoisted by Jest) --------------------
@@ -86,7 +86,9 @@ jest.mock('mssql', () => {
 
     // helpers for tests/bootApp
     __getMockQuery: () => state.mockQuery,
-    __setMockQuery: (fn) => { state.mockQuery = fn; },
+    __setMockQuery: (fn) => {
+      state.mockQuery = fn;
+    },
     __getLastInputs: () => state.lastInputs,
   };
 
@@ -121,105 +123,112 @@ function bootApp(opts = {}) {
   const mssql = require('mssql');
 
   // Install a permissive baseline implementation; tests can override per-call
-  mssql.__setMockQuery(jest.fn(async (sql, params) => {
-    const text = String(sql);
+  mssql.__setMockQuery(
+    jest.fn(async (sql, params) => {
+      const text = String(sql);
 
-    // --- SELECT by id / existence checks ---
-    if (/FROM\s+dbo\.sessions/i.test(text) && /WHERE[\s\S]+session_id\s*=\s*@/i.test(text)) {
-      const idParam = Object.values(params).find((v) => typeof v === 'number');
-      const exists =
-        (opts.joinSessionExists && /\/join/.test(text)) ||
-        (opts.leaveSessionExists && !/session_attendees/i.test(text)) ||
-        opts.isOrganizerForStart ||
-        opts.isOrganizerForEnd ||
-        opts.isOrganizerForCancel ||
-        opts.isOrganizerForUpdate ||
-        opts.isOrganizerForDelete ||
-        [100, 4, 7, 9, 12, 15].includes(idParam);
+      // --- SELECT by id / existence checks ---
+      if (/FROM\s+dbo\.sessions/i.test(text) && /WHERE[\s\S]+session_id\s*=\s*@/i.test(text)) {
+        const idParam = Object.values(params).find((v) => typeof v === 'number');
+        const exists =
+          (opts.joinSessionExists && /\/join/.test(text)) ||
+          (opts.leaveSessionExists && !/session_attendees/i.test(text)) ||
+          opts.isOrganizerForStart ||
+          opts.isOrganizerForEnd ||
+          opts.isOrganizerForCancel ||
+          opts.isOrganizerForUpdate ||
+          opts.isOrganizerForDelete ||
+          [100, 4, 7, 9, 12, 15].includes(idParam);
 
-      if (!exists) return { recordset: [] };
+        if (!exists) return { recordset: [] };
 
-      const status =
-        opts.joinSessionStatus ||
-        opts.startCurrentStatus ||
-        opts.endCurrentStatus ||
-        opts.cancelCurrentStatus ||
-        opts.updateStatus ||
-        'scheduled';
+        const status =
+          opts.joinSessionStatus ||
+          opts.startCurrentStatus ||
+          opts.endCurrentStatus ||
+          opts.cancelCurrentStatus ||
+          opts.updateStatus ||
+          'scheduled';
 
-      return {
-        recordset: [{
-          session_id: idParam,
-          status,
-          group_id: 5,
-          organizer_id: opts.leaveOrganizerIsUser ? 'u-42' : 'u-99',
-          title: 'Loaded',
-        }],
-      };
-    }
+        return {
+          recordset: [
+            {
+              session_id: idParam,
+              status,
+              group_id: 5,
+              organizer_id: opts.leaveOrganizerIsUser ? 'u-42' : 'u-99',
+              title: 'Loaded',
+            },
+          ],
+        };
+      }
 
-    // --- Organizer check SELECTs (by organizer_id) ---
-    if (/SELECT[\s\S]+organizer_id/i.test(text)) {
-      const organizer =
-        opts.isOrganizerForStart ||
-        opts.isOrganizerForEnd ||
-        opts.isOrganizerForCancel ||
-        opts.isOrganizerForUpdate ||
-        opts.isOrganizerForDelete
-          ? 'u-42'
-          : 'u-99';
-      return { recordset: [{ organizer_id: organizer }] };
-    }
+      // --- Organizer check SELECTs (by organizer_id) ---
+      if (/SELECT[\s\S]+organizer_id/i.test(text)) {
+        const organizer =
+          opts.isOrganizerForStart ||
+          opts.isOrganizerForEnd ||
+          opts.isOrganizerForCancel ||
+          opts.isOrganizerForUpdate ||
+          opts.isOrganizerForDelete
+            ? 'u-42'
+            : 'u-99';
+        return { recordset: [{ organizer_id: organizer }] };
+      }
 
-    // --- CREATE (INSERT ... OUTPUT) ---
-    if (/INSERT\s+INTO\s+dbo\.sessions/i.test(text) && /OUTPUT/i.test(text)) {
-      // Pretend DB created session_id 200
-      return { recordset: [{ session_id: 200, status: 'scheduled' }] };
-    }
+      // --- CREATE (INSERT ... OUTPUT) ---
+      if (/INSERT\s+INTO\s+dbo\.sessions/i.test(text) && /OUTPUT/i.test(text)) {
+        // Pretend DB created session_id 200
+        return { recordset: [{ session_id: 200, status: 'scheduled' }] };
+      }
 
-    // --- RSVP upsert after create or join ---
-    if (/MERGE|INSERT[\s\S]+INTO\s+dbo\.session_attendees/i.test(text) || /UPDATE\s+dbo\.session_attendees/i.test(text)) {
-      return { recordset: [{ affected: 1 }] };
-    }
+      // --- RSVP upsert after create or join ---
+      if (
+        /MERGE|INSERT[\s\S]+INTO\s+dbo\.session_attendees/i.test(text) ||
+        /UPDATE\s+dbo\.session_attendees/i.test(text)
+      ) {
+        return { recordset: [{ affected: 1 }] };
+      }
 
-    // --- UPDATE session (PUT /:id) ---
-    if (/UPDATE\s+dbo\.sessions/i.test(text) && /SET/i.test(text)) {
-      return { recordset: [{ affected: 1 }] };
-    }
+      // --- UPDATE session (PUT /:id) ---
+      if (/UPDATE\s+dbo\.sessions/i.test(text) && /SET/i.test(text)) {
+        return { recordset: [{ affected: 1 }] };
+      }
 
-    // --- start / end / cancel updates ---
-    if (/UPDATE\s+dbo\.sessions/i.test(text) && /(in_progress|completed|cancelled)/i.test(text)) {
-      return { recordset: [{ affected: 1 }] };
-    }
+      // --- start / end / cancel updates ---
+      if (/UPDATE\s+dbo\.sessions/i.test(text) && /(in_progress|completed|cancelled)/i.test(text)) {
+        return { recordset: [{ affected: 1 }] };
+      }
 
-    // --- leave (DELETE attendee) ---
-    if (/DELETE\s+FROM\s+dbo\.session_attendees/i.test(text)) {
-      return { recordset: [{ affected: 1 }] };
-    }
+      // --- leave (DELETE attendee) ---
+      if (/DELETE\s+FROM\s+dbo\.session_attendees/i.test(text)) {
+        return { recordset: [{ affected: 1 }] };
+      }
 
-    // --- soft delete session ---
-    if (/UPDATE\s+dbo\.sessions\s+SET[\s\S]+is_active\s*=\s*0/i.test(text)) {
-      return { recordset: [{ affected: 1 }] };
-    }
+      // --- soft delete session ---
+      if (/UPDATE\s+dbo\.sessions\s+SET[\s\S]+is_active\s*=\s*0/i.test(text)) {
+        return { recordset: [{ affected: 1 }] };
+      }
 
-    // --- list with filter ---
-    if (/FROM\s+dbo\.sessions/i.test(text) && /ORDER BY/i.test(text)) {
-      const rows = Math.max(0, opts.listRows ?? 1);
-      const status = opts.listStatus ?? 'in_progress';
-      return {
-        recordset: Array.from({ length: rows }).map((_, i) => ({
-          session_id: 100 + i,
-          status,
-          title: `S${i}`,
-          group_id: 5,
-          organizer_id: 'u-42',
-        })),
-      };
-    }
+      // --- list with filter ---
+      if (/FROM\s+dbo\.sessions/i.test(text) && /ORDER BY/i.test(text)) {
+        const rows = Math.max(0, opts.listRows ?? 1);
+        const status = opts.listStatus ?? 'in_progress';
+        return {
+          recordset: Array.from({ length: rows }).map((_, i) => ({
+            session_id: 100 + i,
+            status,
+            title: `S${i}`,
+            group_id: 5,
+            organizer_id: 'u-42',
+          })),
+        };
+      }
 
-    // default
-    return { recordset: [] };
-  }));
+      // default
+      return { recordset: [] };
+    })
+  );
 
   // (Re)grab live handles to the mock and inputs after setting the baseline
   mockQuery = mssql.__getMockQuery();

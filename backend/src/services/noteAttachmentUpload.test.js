@@ -19,45 +19,41 @@ jest.mock('../config/azureConfig', () => ({
 /* -------------------------------- Multer mock ------------------------------- */
 jest.mock('multer', () => {
   const multerFn = jest.fn(() => ({
-    array:
-      (_fieldName, _max) =>
-      (req, _res, next) => {
-        const items = (req.body && req.body.__mockFiles) || [];
-        req.files = items.map((f) => ({
-          fieldname: f.fieldname || 'files',
-          originalname: f.filename || 'file.bin',
-          mimetype: f.contentType || 'application/octet-stream',
-          size:
-            typeof f.size === 'number'
-              ? f.size
-              : Buffer.byteLength(f.content || '', f.encoding || 'utf8'),
-          buffer: Buffer.isBuffer(f.content)
-            ? f.content
-            : Buffer.from(f.content || '', f.encoding || 'utf8'),
-        }));
-        next();
-      },
-    single:
-      (_fieldName) =>
-      (req, _res, next) => {
-        const items = (req.body && req.body.__mockFiles) || [];
-        const f = items[0];
-        req.file = f
-          ? {
-              fieldname: f.fieldname || 'file',
-              originalname: f.filename || 'file.bin',
-              mimetype: f.contentType || 'application/octet-stream',
-              size:
-                typeof f.size === 'number'
-                  ? f.size
-                  : Buffer.byteLength(f.content || '', f.encoding || 'utf8'),
-              buffer: Buffer.isBuffer(f.content)
-                ? f.content
-                : Buffer.from(f.content || '', f.encoding || 'utf8'),
-            }
-          : undefined;
-        next();
-      },
+    array: (_fieldName, _max) => (req, _res, next) => {
+      const items = (req.body && req.body.__mockFiles) || [];
+      req.files = items.map((f) => ({
+        fieldname: f.fieldname || 'files',
+        originalname: f.filename || 'file.bin',
+        mimetype: f.contentType || 'application/octet-stream',
+        size:
+          typeof f.size === 'number'
+            ? f.size
+            : Buffer.byteLength(f.content || '', f.encoding || 'utf8'),
+        buffer: Buffer.isBuffer(f.content)
+          ? f.content
+          : Buffer.from(f.content || '', f.encoding || 'utf8'),
+      }));
+      next();
+    },
+    single: (_fieldName) => (req, _res, next) => {
+      const items = (req.body && req.body.__mockFiles) || [];
+      const f = items[0];
+      req.file = f
+        ? {
+            fieldname: f.fieldname || 'file',
+            originalname: f.filename || 'file.bin',
+            mimetype: f.contentType || 'application/octet-stream',
+            size:
+              typeof f.size === 'number'
+                ? f.size
+                : Buffer.byteLength(f.content || '', f.encoding || 'utf8'),
+            buffer: Buffer.isBuffer(f.content)
+              ? f.content
+              : Buffer.from(f.content || '', f.encoding || 'utf8'),
+          }
+        : undefined;
+      next();
+    },
   }));
   multerFn.memoryStorage = jest.fn(() => ({}));
   return multerFn;
@@ -161,7 +157,10 @@ jest.mock('mssql', () => {
           }
           return { recordset: [] };
         }
-        if (/FROM\s+dbo\.shared_notes\s+n/i.test(sql) && /WHERE\s+n\.note_id\s*=\s*@noteId/i.test(sql)) {
+        if (
+          /FROM\s+dbo\.shared_notes\s+n/i.test(sql) &&
+          /WHERE\s+n\.note_id\s*=\s*@noteId/i.test(sql)
+        ) {
           if (dbMode.emptyReadNoteRow) return { recordset: [] };
           const id = params.noteId;
           const row = findNote(id);
@@ -286,9 +285,7 @@ describe('noteAttachmentUpload router', () => {
       .set('Authorization', 'Bearer t')
       .set('Content-Type', 'application/json')
       .send({
-        __mockFiles: [
-          { filename: 'a.txt', contentType: 'text/plain', content: 'hello world' },
-        ],
+        __mockFiles: [{ filename: 'a.txt', contentType: 'text/plain', content: 'hello world' }],
       });
 
     expectOkOr(res, [404, 500]);
@@ -346,8 +343,9 @@ describe('noteAttachmentUpload router', () => {
         (res.body && (res.body.error || res.body.message)) ||
         (typeof res.text === 'string' ? res.text : '');
       if (msg) {
-        expect(msg).toMatch(/file too large|payload\s*too\s*large|request\s*entity\s*too\s*large|payloadtoolarge|requestentitytoolarge|413/i);
-
+        expect(msg).toMatch(
+          /file too large|payload\s*too\s*large|request\s*entity\s*too\s*large|payloadtoolarge|requestentitytoolarge|413/i
+        );
       }
     }
   });
@@ -361,9 +359,7 @@ describe('noteAttachmentUpload router', () => {
       .set('Authorization', 'Bearer t')
       .set('Content-Type', 'application/json')
       .send({
-        __mockFiles: [
-          { filename: 'weird?.name.txt', contentType: 'text/plain', content: 'data' },
-        ],
+        __mockFiles: [{ filename: 'weird?.name.txt', contentType: 'text/plain', content: 'data' }],
       });
 
     expectOkOr(res, [201, 200, 500]);

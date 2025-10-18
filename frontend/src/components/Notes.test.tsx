@@ -256,9 +256,15 @@ describe('Notes (basic + behavior)', () => {
     const modalRoot = asHTMLElement(modalTitle.closest('.w-full') ?? modalTitle.parentElement);
 
     // Controls inside the modal
-    const [groupSelect, visibilitySelect] = within(modalRoot).getAllByRole('combobox') as HTMLSelectElement[];
-    const titleInput = within(modalRoot).getByPlaceholderText('e.g. Binary Tree Traversal') as HTMLInputElement;
-    const contentArea = within(modalRoot).getByPlaceholderText('Write your study notes…') as HTMLTextAreaElement;
+    const [groupSelect, visibilitySelect] = within(modalRoot).getAllByRole(
+      'combobox'
+    ) as HTMLSelectElement[];
+    const titleInput = within(modalRoot).getByPlaceholderText(
+      'e.g. Binary Tree Traversal'
+    ) as HTMLInputElement;
+    const contentArea = within(modalRoot).getByPlaceholderText(
+      'Write your study notes…'
+    ) as HTMLTextAreaElement;
     const fileInput = modalRoot.querySelector('input[type="file"]') as HTMLInputElement;
 
     const createInModal = within(modalRoot).getByRole('button', { name: /^create$/i });
@@ -349,8 +355,12 @@ describe('Notes (basic + behavior)', () => {
     const modalRoot = asHTMLElement(modalTitle.closest('.w-full') ?? modalTitle.parentElement);
 
     const [groupSelect] = within(modalRoot).getAllByRole('combobox') as HTMLSelectElement[];
-    const titleInput = within(modalRoot).getByPlaceholderText('e.g. Binary Tree Traversal') as HTMLInputElement;
-    const contentArea = within(modalRoot).getByPlaceholderText('Write your study notes…') as HTMLTextAreaElement;
+    const titleInput = within(modalRoot).getByPlaceholderText(
+      'e.g. Binary Tree Traversal'
+    ) as HTMLInputElement;
+    const contentArea = within(modalRoot).getByPlaceholderText(
+      'Write your study notes…'
+    ) as HTMLTextAreaElement;
     const createInModal = within(modalRoot).getByRole('button', { name: /^create$/i });
 
     await user().selectOptions(groupSelect, '1');
@@ -365,6 +375,8 @@ describe('Notes (basic + behavior)', () => {
 
     expect(await screen.findByText('Failed to create note')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /create note/i })).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole('button', { name: /^create$/i })).not.toBeDisabled());
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /^create$/i })).not.toBeDisabled()
+    );
   });
 });

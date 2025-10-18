@@ -11,9 +11,9 @@ jest.mock('mssql', () => {
   // shared mutable state inside the mock
   const state = {
     tables: {
-      groups: true,         // router prefers "groups" if present
-      study_groups: false,  // fallback; unused in these tests
-      shared_notes: true,   // toggle to false to test 501/empty cases
+      groups: true, // router prefers "groups" if present
+      study_groups: false, // fallback; unused in these tests
+      shared_notes: true, // toggle to false to test 501/empty cases
     },
     columns: {
       groups: { name: true, group_name: false, title: false },
@@ -60,8 +60,7 @@ jest.mock('mssql', () => {
       for (const n of names) if (Object.prototype.hasOwnProperty.call(params, n)) return params[n];
       return undefined;
     };
-    const pickId = () =>
-      pick('noteId', 'id', 'note_id', 'nid', 'noteid', 'noteID');
+    const pickId = () => pick('noteId', 'id', 'note_id', 'nid', 'noteid', 'noteID');
 
     const req = {
       input: (name, _type, value) => {
@@ -83,7 +82,8 @@ jest.mock('mssql', () => {
 
         // Group existence checks
         if (/FROM\s+dbo\.groups/i.test(sql) && /WHERE\s+group_id\s*=\s*@/i.test(sql)) {
-          const exists = state.tables.groups && typeof params.gid === 'number' && params.gid !== 9999;
+          const exists =
+            state.tables.groups && typeof params.gid === 'number' && params.gid !== 9999;
           return { recordset: exists ? [{ 1: 1 }] : [] };
         }
 
@@ -113,11 +113,11 @@ jest.mock('mssql', () => {
             note_id: newId,
             group_id: groupId,
             author_id: authorId,
-            topic_id: state.columns.shared_notes.topic_id ? (topicParam ?? null) : null,
+            topic_id: state.columns.shared_notes.topic_id ? topicParam ?? null : null,
             note_title: titleParam,
             note_content: contentParam,
-            attachments: state.columns.shared_notes.attachments ? (attParam ?? null) : null,
-            visibility: state.columns.shared_notes.visibility ? (visParam ?? 'group') : 'group',
+            attachments: state.columns.shared_notes.attachments ? attParam ?? null : null,
+            visibility: state.columns.shared_notes.visibility ? visParam ?? 'group' : 'group',
             is_active: state.columns.shared_notes.is_active ? 1 : 1,
             created_at: new Date('2025-02-01T00:00:00Z'),
             updated_at: new Date('2025-02-01T00:00:00Z'),
@@ -127,14 +127,16 @@ jest.mock('mssql', () => {
         }
 
         // POST meta (author_name, group_name)
-        if (/COALESCE\(u\.first_name \+ ' ' \+ u\.last_name, u\.email\)\s+AS\s+author_name/i.test(sql)) {
+        if (
+          /COALESCE\(u\.first_name \+ ' ' \+ u\.last_name, u\.email\)\s+AS\s+author_name/i.test(sql)
+        ) {
           return { recordset: [{ author_name: 'Grace Hopper', group_name: 'Algorithms' }] };
         }
 
         // PATCH update + SELECT — be permissive about SQL shape (aliases/brackets/UPDATE...FROM)
         const looksLikeUpdateSharedNotes =
           /UPDATE[\s\S]+?(?:dbo\.)?\[?shared_notes\]?/i.test(sql) ||
-          (/UPDATE[\s\S]+?SET[\s\S]+?FROM[\s\S]+?(?:dbo\.)?\[?shared_notes\]?/i.test(sql));
+          /UPDATE[\s\S]+?SET[\s\S]+?FROM[\s\S]+?(?:dbo\.)?\[?shared_notes\]?/i.test(sql);
         const hasWhereOnNoteId = /WHERE[\s\S]+?\[?note_id\]?\s*=\s*@/i.test(sql);
 
         if (looksLikeUpdateSharedNotes && hasWhereOnNoteId) {
@@ -164,7 +166,10 @@ jest.mock('mssql', () => {
         }
 
         // DELETE note
-        if (/DELETE\s+FROM\s+dbo\.shared_notes/i.test(sql) && /WHERE[\s\S]+?\[?note_id\]?\s*=\s*@/i.test(sql)) {
+        if (
+          /DELETE\s+FROM\s+dbo\.shared_notes/i.test(sql) &&
+          /WHERE[\s\S]+?\[?note_id\]?\s*=\s*@/i.test(sql)
+        ) {
           const id = pickId() ?? 101;
           const before = state.notesRows.length;
           state.notesRows = state.notesRows.filter((r) => r.note_id !== id);
@@ -184,7 +189,7 @@ jest.mock('mssql', () => {
   // helper to make a callable “type”
   const mkType = (name) => {
     const fn = (length) => ({ __type: name, length });
-    fn.TYPE_NAME = name;       // harmless metadata if anything inspects it
+    fn.TYPE_NAME = name; // harmless metadata if anything inspects it
     return fn;
   };
 
@@ -193,9 +198,9 @@ jest.mock('mssql', () => {
 
     // IMPORTANT: make these callable like the real mssql API
     NVarChar: mkType('NVarChar'),
-    Int:      mkType('Int'),
-    Bit:      mkType('Bit'),
-    MAX:      Number.MAX_SAFE_INTEGER, // any sentinel is fine; just needs to exist
+    Int: mkType('Int'),
+    Bit: mkType('Bit'),
+    MAX: Number.MAX_SAFE_INTEGER, // any sentinel is fine; just needs to exist
 
     __setState: (patch) => Object.assign(state, patch),
     __getState: () => state,

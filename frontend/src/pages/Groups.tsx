@@ -193,7 +193,9 @@ export default function Groups() {
 
     // keep owner map fresh in case backend transfers ownership (key by backendId)
     if (backendId) {
-      setOwners((prev) => (prev[backendId] === createdBy ? prev : { ...prev, [backendId]: createdBy }));
+      setOwners((prev) =>
+        prev[backendId] === createdBy ? prev : { ...prev, [backendId]: createdBy }
+      );
     }
 
     // map local numeric → backend id for legacy lookups
@@ -206,9 +208,13 @@ export default function Groups() {
       const iAmIn = g.members.some(
         (m: any) => String(m?.userId ?? m?.id ?? m?.user_id) === String(meId)
       );
-      setJoinedByMe((prev) => (prev[backendId] === undefined ? { ...prev, [backendId]: iAmIn } : prev));
+      setJoinedByMe((prev) =>
+        prev[backendId] === undefined ? { ...prev, [backendId]: iAmIn } : prev
+      );
     } else if (backendId && createdBy && meId && String(createdBy) === String(meId)) {
-      setJoinedByMe((prev) => (prev[backendId] === undefined ? { ...prev, [backendId]: true } : prev));
+      setJoinedByMe((prev) =>
+        prev[backendId] === undefined ? { ...prev, [backendId]: true } : prev
+      );
     }
 
     const membersCount = Array.isArray(g?.members)
@@ -249,7 +255,9 @@ export default function Groups() {
     // If I'm the creator, reflect membership immediately
     if (backendId && meId && String(createdBy || '') === String(meId)) {
       base.member_count = Math.max(1, Number(base.member_count || 0));
-      setJoinedByMe((prev) => (prev[backendId] === undefined ? { ...prev, [backendId]: true } : prev));
+      setJoinedByMe((prev) =>
+        prev[backendId] === undefined ? { ...prev, [backendId]: true } : prev
+      );
     }
     if (typeof g?.isInvited === 'boolean') (base as any).isInvited = !!g.isInvited;
 
@@ -264,8 +272,7 @@ export default function Groups() {
       const ownerId = owners[backendId];
       if (ownerId && String(ownerId) === String(meId)) return true;
     }
-    const ownerIdFallback =
-      group.creator_id != null ? String(group.creator_id) : '';
+    const ownerIdFallback = group.creator_id != null ? String(group.creator_id) : '';
     if (ownerIdFallback && String(ownerIdFallback) === String(meId)) return true;
 
     const m = (group as any).members;
@@ -309,7 +316,6 @@ export default function Groups() {
     if (meId) {
       refreshGroups();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meId]);
 
   // listen for broadcasted changes (created elsewhere)
@@ -455,7 +461,6 @@ export default function Groups() {
           new CustomEvent('group.invites.changed', { detail: { groupId: realId } })
         );
       } catch {}
-
     } catch (err) {
       console.error('Error joining group:', err);
       setGroups((prev) =>
@@ -552,7 +557,6 @@ export default function Groups() {
           new CustomEvent('group.invites.changed', { detail: { groupId: realId } })
         );
       } catch {}
-
     } catch (err) {
       console.error('Error accepting invite:', err);
     } finally {
@@ -576,7 +580,6 @@ export default function Groups() {
       return;
     }
 
-
     setRespondingId(groupId);
     setRespondingAction('decline');
 
@@ -591,12 +594,11 @@ export default function Groups() {
       await refreshGroups();
 
       // notify invite UIs (modal)
-    try {
-      window.dispatchEvent(
-        new CustomEvent('group.invites.changed', { detail: { groupId: realId } })
-      );
-    } catch {}
-
+      try {
+        window.dispatchEvent(
+          new CustomEvent('group.invites.changed', { detail: { groupId: realId } })
+        );
+      } catch {}
     } catch (err) {
       console.error('Error declining invite:', err);
     } finally {
@@ -944,13 +946,11 @@ export default function Groups() {
                           Owner
                         </span>
                       )}
-                      {!owner &&
-                        (group as any).isInvited === true &&
-                        !iJoined && (
-                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
-                            Invited
-                          </span>
-                        )}
+                      {!owner && (group as any).isInvited === true && !iJoined && (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                          Invited
+                        </span>
+                      )}
                     </div>
                     <span
                       className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getGroupTypeColor(
@@ -1740,7 +1740,7 @@ function InviteMembersModal({
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
-    useEffect(() => {
+  useEffect(() => {
     if (!groupId) return;
 
     async function refetchPending() {
@@ -1763,7 +1763,6 @@ function InviteMembersModal({
     window.addEventListener('group.invites.changed', handler);
     return () => window.removeEventListener('group.invites.changed', handler);
   }, [groupId]);
-
 
   async function invite() {
     if (selectedIds.length === 0 || sending || sent) return;

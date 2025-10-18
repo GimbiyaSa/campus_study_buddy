@@ -1,10 +1,11 @@
+// src/components/UpcomingSessions.test.tsx
 import { render } from '../test-utils';
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import UpcomingSessions from './UpcomingSessions';
 
-/* ---------- Minimal mocks ---------- */
+/* ---------- Minimal mocks (keep imports intact) ---------- */
 const fetchSessionsMock = vi.fn();
 vi.mock('../services/dataService', () => ({
   DataService: {
@@ -31,7 +32,7 @@ const mk = (over: Partial<any> = {}) => ({
   id: over.id ?? Math.random().toString(36).slice(2),
   title: over.title ?? 'Future Session',
   type: over.type ?? 'study',
-  date: over.date ?? daysFromNow(1), // safely within next 7 days
+  date: over.date ?? daysFromNow(1), // within next 7 days
   startTime: over.startTime ?? '23:59',
   participants: over.participants ?? 1,
   maxParticipants: over.maxParticipants ?? 5,
@@ -41,6 +42,15 @@ const mk = (over: Partial<any> = {}) => ({
   isAttending: over.isAttending ?? false,
   course: over.course ?? 'CS',
 });
+
+/* A tiny helper to get a card scoped by its title */
+const getCardByTitle = async (title: string) => {
+  const heading = await screen.findByRole('heading', { name: title });
+  const card =
+    heading.closest('.bg-white') ?? heading.parentElement?.parentElement;
+  if (!card || !(card instanceof HTMLElement)) throw new Error('Card root not found for ' + title);
+  return card;
+};
 
 beforeEach(() => {
   fetchSessionsMock.mockReset();
@@ -63,13 +73,10 @@ describe('UpcomingSessions (basic)', () => {
 
     render(<UpcomingSessions />);
 
-    // Header shows
     await screen.findByRole('heading', { name: /upcoming sessions/i, level: 2 });
 
-    // Count reflects filtered list size (we fed two in-window items)
     expect(screen.getByText('2 sessions this week')).toBeInTheDocument();
 
-    // Titles are present
     expect(screen.getByRole('heading', { name: 'Future Session' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Another' })).toBeInTheDocument();
   });
@@ -104,8 +111,137 @@ describe('UpcomingSessions (basic)', () => {
     render(<UpcomingSessions />);
 
     await screen.findByRole('heading', { name: 'Details' });
-    // Only one card in this test → global query is safe
     await userEvent.click(screen.getByRole('button', { name: /view details/i }));
     expect(navigateMock).toHaveBeenCalledWith('/sessions');
+  });
+});
+
+describe('UpcomingSessions (behavior)', () => {
+  test('filters to the next 7 days (older/far-future excluded)', async () => {
+    fetchSessionsMock.mockResolvedValueOnce([
+      mk({ title: 'In 1 day', date: daysFromNow(1) }),
+      mk({ title: 'In 6 days', date: daysFromNow(6) }),
+      mk({ title: 'In 8 days', date: daysFromNow(8) }), // excluded
+      mk({ title: 'Yesterday', date: daysFromNow(-1) }), // excluded
+    ]);
+
+    render(<UpcomingSessions />);
+
+    await screen.findByRole('heading', { name: /upcoming sessions/i, level: 2 });
+
+    expect(screen.getByRole('heading', { name: 'In 1 day' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'In 6 days' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'In 8 days' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Yesterday' })).toBeNull();
+
+    expect(screen.getByText('2 sessions this week')).toBeInTheDocument();
+  });
+
+  test('Attend flow: optimistic join, counter updates, invalidate triggers refetch', async () => {
+    const s = mk({ title: 'Joinable', isAttending: false, participants: 2, maxParticipants: 5 });
+
+    // Initial fetch returns original
+    fetchSessionsMock.mockResolvedValueOnce([s]);
+
+    // After sessions:invalidate, return the *updated* server state (joined)
+    const sJoined = { ...s, isAttending: true, participants: 3 };
+    fetchSessionsMock.mockResolvedValueOnce([sJoined]);
+
+    render(<UpcomingSessions />);
+
+    const card = await getCardByTitle('Joinable');
+
+    // Click Attend
+    const attendBtn = within(card).getByRole('button', { name: /attend/i });
+    await userEvent.click(attendBtn);
+
+    // Optimistic UI updates, and stays updated after refetch
+    await waitFor(() => {
+      expect(within(card).queryByRole('button', { name: /attend/i })).toBeNull();
+      expect(within(card).getByText(/participants/i).textContent).toMatch(/3\s*\/\s*5/);
+      expect(within(card).getByText(/attending/i)).toBeInTheDocument();
+    });
+
+    await waitFor(() => expect(fetchSessionsMock).toHaveBeenCalledTimes(2));
+  });
+
+  test('Leave flow: optimistic leave, counter updates back, invalidate triggers refetch', async () => {
+    const s = mk({
+      title: 'Leaveable',
+      isAttending: true,
+      participants: 3,
+      maxParticipants: 5,
+    });
+
+    // Initial fetch: attending = true
+    fetchSessionsMock.mockResolvedValueOnce([s]);
+
+    // After invalidate, server reflects left state
+    const sLeft = { ...s, isAttending: false, participants: 2 };
+    fetchSessionsMock.mockResolvedValueOnce([sLeft]);
+
+    render(<UpcomingSessions />);
+
+    const card = await getCardByTitle('Leaveable');
+
+    const leaveBtn = within(card).getByRole('button', { name: /leave/i });
+    await userEvent.click(leaveBtn);
+
+    await waitFor(() => {
+      expect(within(card).getByText(/participants/i).textContent).toMatch(/2\s*\/\s*5/);
+      expect(within(card).getByRole('button', { name: /attend/i })).toBeInTheDocument();
+    });
+
+    await waitFor(() => expect(fetchSessionsMock).toHaveBeenCalledTimes(2));
+  });
+
+  test('Cancel (organizer): removes card and emits session:deleted + sessions:invalidate', async () => {
+    const s = mk({ title: 'Cancelable', isCreator: true });
+
+    fetchSessionsMock.mockResolvedValueOnce([s]);
+    fetchSessionsMock.mockResolvedValueOnce([]); // post-invalidate
+
+    const deletedSpy = vi.fn();
+    const invalidateSpy = vi.fn();
+    window.addEventListener('session:deleted', deletedSpy as EventListener);
+    window.addEventListener('sessions:invalidate', invalidateSpy as EventListener);
+
+    render(<UpcomingSessions />);
+
+    const card = await getCardByTitle('Cancelable');
+    const cancelBtn = within(card).getByRole('button', { name: /cancel session/i });
+
+    await userEvent.click(cancelBtn);
+
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Cancelable' })).toBeNull();
+    });
+
+    await waitFor(() => {
+      expect(deletedSpy).toHaveBeenCalledTimes(1);
+      expect(invalidateSpy).toHaveBeenCalled();
+    });
+
+    await waitFor(() => expect(fetchSessionsMock).toHaveBeenCalledTimes(2));
+  });
+
+  test('Event bus: created/updated propagate into the list', async () => {
+    fetchSessionsMock.mockResolvedValueOnce([]);
+
+    render(<UpcomingSessions />);
+
+    await screen.findByText(/no upcoming sessions/i);
+
+    const created = mk({ title: 'Newly Created', date: daysFromNow(2) });
+    window.dispatchEvent(new CustomEvent('session:created', { detail: created }));
+
+    await screen.findByRole('heading', { name: 'Newly Created' });
+    expect(screen.getByText('1 sessions this week')).toBeInTheDocument();
+
+    const updated = { ...created, title: 'Renamed Session' };
+    window.dispatchEvent(new CustomEvent('session:updated', { detail: updated }));
+
+    await screen.findByRole('heading', { name: 'Renamed Session' });
+    expect(screen.queryByRole('heading', { name: 'Newly Created' })).toBeNull();
   });
 });

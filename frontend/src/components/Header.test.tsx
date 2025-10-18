@@ -126,7 +126,9 @@ async function openUserMenu(container: Element): Promise<void> {
     const logout = getButtonByText(document.body, 'Logout');
     if (settings || logout) return; // menu is open
   }
-  throw new Error('Could not open user menu: Settings/Logout not found after clicking header buttons.');
+  throw new Error(
+    'Could not open user menu: Settings/Logout not found after clicking header buttons.'
+  );
 }
 
 // Poll the DOM across a few microtasks until a condition is true

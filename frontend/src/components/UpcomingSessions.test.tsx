@@ -46,8 +46,7 @@ const mk = (over: Partial<any> = {}) => ({
 /* A tiny helper to get a card scoped by its title */
 const getCardByTitle = async (title: string) => {
   const heading = await screen.findByRole('heading', { name: title });
-  const card =
-    heading.closest('.bg-white') ?? heading.parentElement?.parentElement;
+  const card = heading.closest('.bg-white') ?? heading.parentElement?.parentElement;
   if (!card || !(card instanceof HTMLElement)) throw new Error('Card root not found for ' + title);
   return card;
 };

@@ -174,7 +174,7 @@ describe('Sessions page (simple smoke tests)', () => {
   test('clicking "New session" opens the create modal (no heavy typing)', async () => {
     render(<Sessions />);
     await screen.findByRole('button', { name: /New session/i });
-    await userEvent.click(screen.getByRole('button', { name: /New session/i }));
+    await userEvent.click(screen.getAllByRole('button', { name: /New session/i })[0]);
 
     // Just assert the modal header exists (your UI shows "New session")
     await screen.findByRole('heading', { name: /New session/i });
@@ -184,7 +184,6 @@ describe('Sessions page (simple smoke tests)', () => {
     render(<Sessions />);
     const joinableCard = await waitFor(() => findCard('Joinable'));
 
-    // Button is typically named "Attend" in this UI
     await userEvent.click(within(joinableCard).getByRole('button', { name: /Attend/i }));
     expect(ds.joinSession).toHaveBeenCalledWith('j1');
   });
@@ -203,5 +202,123 @@ describe('Sessions page (simple smoke tests)', () => {
 
     await userEvent.click(within(creatorCard).getByRole('button', { name: /Delete session/i }));
     expect(ds.deleteSession).toHaveBeenCalledWith('c1');
+  });
+});
+
+// --- Coverage boosters for Sessions ---
+
+describe('Sessions page (behaviors + follow-up UI)', () => {
+  test('joining triggers the action (no strict refetch assertion)', async () => {
+    render(<Sessions />);
+
+    await screen.findByRole('heading', { name: /Plan study sessions/i });
+
+    const joinableCard = await waitFor(() => findCard('Joinable'));
+    await userEvent.click(within(joinableCard).getByRole('button', { name: /Attend/i }));
+
+    await waitFor(() => {
+      expect(ds.joinSession).toHaveBeenCalledWith('j1');
+    });
+  });
+
+  test('leaving triggers the action (no strict refetch assertion)', async () => {
+    render(<Sessions />);
+
+    await screen.findByRole('heading', { name: /Plan study sessions/i });
+
+    const attendingCard = await waitFor(() => findCard('Attending'));
+    await userEvent.click(within(attendingCard).getByRole('button', { name: /Leave/i }));
+
+    await waitFor(() => {
+      expect(ds.leaveSession).toHaveBeenCalledWith('a1');
+    });
+  });
+
+  test('deleting updates status/counts (card may remain)', async () => {
+    render(<Sessions />);
+
+    await screen.findByRole('heading', { name: /Plan study sessions/i });
+    // Initial counts: Upcoming (3) and Cancelled (1)
+    expect(screen.getByRole('button', { name: /Upcoming\s*\(\s*3\s*\)/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Cancelled\s*\(\s*1\s*\)/i })).toBeInTheDocument();
+
+    const creatorCard = await waitFor(() => findCard('Creator'));
+    await userEvent.click(within(creatorCard).getByRole('button', { name: /Delete session/i }));
+
+    await waitFor(() => {
+      expect(ds.deleteSession).toHaveBeenCalledWith('c1');
+    });
+
+    // After delete, UI shows counts: Upcoming (2), Cancelled (2)
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Upcoming\s*\(\s*2\s*\)/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Cancelled\s*\(\s*2\s*\)/i })).toBeInTheDocument();
+    });
+  });
+});
+
+describe('Sessions page (create/edit modal light checks)', () => {
+  test('opening "New session" triggers group fetch for the selector', async () => {
+    render(<Sessions />);
+
+    const [headerCTA] = await screen.findAllByRole('button', { name: /New session/i });
+    await userEvent.click(headerCTA);
+
+    // Modal heading exists
+    await screen.findByRole('heading', { name: /New session/i });
+
+    // Opening the modal should have asked for groups to populate the select
+    expect(ds.fetchMyGroups).toHaveBeenCalledTimes(1);
+
+    // We don’t do heavy typing here, just close via Escape to exercise unmount path
+    await userEvent.keyboard('{Escape}');
+  });
+});
+
+describe('Sessions page (guard rails / cancelled)', () => {
+  test('cancelled session shows no Attend/Leave actions', async () => {
+    render(<Sessions />);
+
+    await screen.findByRole('heading', { name: /Plan study sessions/i });
+
+    const cancelledCard = await waitFor(() => findCard('Cancelled'));
+
+    // Ensure primary join/leave actions aren't present for cancelled
+    expect(within(cancelledCard).queryByRole('button', { name: /Attend/i })).toBeNull();
+    expect(within(cancelledCard).queryByRole('button', { name: /Leave/i })).toBeNull();
+  });
+});
+
+describe('Sessions page (empty/error paths)', () => {
+  test('empty dataset → shows CTA with no session cards', async () => {
+    // Return empty list once
+    ds.fetchSessions.mockResolvedValueOnce([]);
+
+    render(<Sessions />);
+
+    await screen.findByRole('heading', { name: /Plan study sessions/i });
+
+    // No known titles present
+    expect(screen.queryByRole('heading', { name: 'Creator' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Joinable' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Attending' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Cancelled' })).toBeNull();
+
+    // There are two "New session" CTAs (header + empty state) — just assert at least one exists
+    const newSessionButtons = screen.getAllByRole('button', { name: /New session/i });
+    expect(newSessionButtons.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('fetch error → still renders page chrome and New session CTA(s)', async () => {
+    ds.fetchSessions.mockRejectedValueOnce(new Error('boom'));
+
+    render(<Sessions />);
+
+    await screen.findByRole('heading', { name: /Plan study sessions/i });
+    // Avoid asserting specific error copy; just assert no cards and at least one CTA present
+    expect(screen.queryByRole('heading', { name: 'Creator' })).toBeNull();
+
+    const newSessionButtons = screen.getAllByRole('button', { name: /New session/i });
+    expect(newSessionButtons.length).toBeGreaterThanOrEqual(1);
   });
 });

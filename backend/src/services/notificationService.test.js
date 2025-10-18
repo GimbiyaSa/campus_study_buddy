@@ -97,7 +97,10 @@ const mockRequest = {
     }
 
     // Mark single notification as read (UPDATE ... is_read = 1)
-    if (re(`update\\s+(dbo\\.)?notifications\\b`).test(q) && re(`set\\s+.*is_read\\s*=\\s*1`).test(q)) {
+    if (
+      re(`update\\s+(dbo\\.)?notifications\\b`).test(q) &&
+      re(`set\\s+.*is_read\\s*=\\s*1`).test(q)
+    ) {
       const id = Number(this._inputs.notificationId || this._inputs.id || 0);
       if (id === 1) {
         return { recordset: [{ ...mockNotifications[0], is_read: 1 }] };
@@ -107,7 +110,11 @@ const mockRequest = {
     }
 
     // Mark all as read for a user (no explicit notificationId)
-    if (re(`update\\s+(dbo\\.)?notifications\\b`).test(q) && re(`set\\s+.*is_read\\s*=\\s*1`).test(q) && !re(`@notificationId`).test(q)) {
+    if (
+      re(`update\\s+(dbo\\.)?notifications\\b`).test(q) &&
+      re(`set\\s+.*is_read\\s*=\\s*1`).test(q) &&
+      !re(`@notificationId`).test(q)
+    ) {
       return { rowsAffected: [1] };
     }
 
@@ -118,7 +125,10 @@ const mockRequest = {
     }
 
     // Mark sent
-    if (re(`update\\s+(dbo\\.)?notifications\\b`).test(q) && re(`set\\s+.*sent_at\\s*=\\s*getutcdate\\(\\)`).test(q)) {
+    if (
+      re(`update\\s+(dbo\\.)?notifications\\b`).test(q) &&
+      re(`set\\s+.*sent_at\\s*=\\s*getutcdate\\(\\)`).test(q)
+    ) {
       return { rowsAffected: [2] };
     }
 
@@ -226,7 +236,9 @@ describe('Notification Service API', () => {
 
   describe('GET /notifications', () => {
     test('should return notifications list with default parameters', async () => {
-      const res = await request(app).get('/notifications').set('Authorization', 'Bearer test-token');
+      const res = await request(app)
+        .get('/notifications')
+        .set('Authorization', 'Bearer test-token');
 
       expect([200, 204]).toContain(res.statusCode);
       if (res.statusCode === 200) {
@@ -238,7 +250,9 @@ describe('Notification Service API', () => {
     });
 
     test('should filter by unread notifications when unreadOnly=true', async () => {
-      const res = await request(app).get('/notifications?unreadOnly=true').set('Authorization', 'Bearer test-token');
+      const res = await request(app)
+        .get('/notifications?unreadOnly=true')
+        .set('Authorization', 'Bearer test-token');
 
       expect([200, 204]).toContain(res.statusCode);
       if (res.statusCode === 200) {
@@ -248,7 +262,9 @@ describe('Notification Service API', () => {
     });
 
     test('should filter by notification type when provided', async () => {
-      const res = await request(app).get('/notifications?type=message').set('Authorization', 'Bearer test-token');
+      const res = await request(app)
+        .get('/notifications?type=message')
+        .set('Authorization', 'Bearer test-token');
 
       expect([200, 204]).toContain(res.statusCode);
       if (res.statusCode === 200) {
@@ -258,7 +274,9 @@ describe('Notification Service API', () => {
     });
 
     test('should handle limit and offset parameters', async () => {
-      const res = await request(app).get('/notifications?limit=10&offset=5').set('Authorization', 'Bearer test-token');
+      const res = await request(app)
+        .get('/notifications?limit=10&offset=5')
+        .set('Authorization', 'Bearer test-token');
 
       expect([200, 204]).toContain(res.statusCode);
       if (res.statusCode === 200) {
@@ -268,7 +286,9 @@ describe('Notification Service API', () => {
 
     test('should handle database errors gracefully', async () => {
       mockRequest.query.mockRejectedValueOnce(new Error('Database error'));
-      const res = await request(app).get('/notifications').set('Authorization', 'Bearer test-token');
+      const res = await request(app)
+        .get('/notifications')
+        .set('Authorization', 'Bearer test-token');
 
       expect([500, 200]).toContain(res.statusCode);
       if (res.statusCode === 500) {
@@ -277,7 +297,9 @@ describe('Notification Service API', () => {
     });
 
     test('should parse metadata JSON correctly', async () => {
-      const res = await request(app).get('/notifications').set('Authorization', 'Bearer test-token');
+      const res = await request(app)
+        .get('/notifications')
+        .set('Authorization', 'Bearer test-token');
 
       expect([200, 204]).toContain(res.statusCode);
       if (res.statusCode === 200) {
@@ -289,7 +311,9 @@ describe('Notification Service API', () => {
 
   describe('GET /notifications/counts', () => {
     test('should return notification counts', async () => {
-      const res = await request(app).get('/notifications/counts').set('Authorization', 'Bearer test-token');
+      const res = await request(app)
+        .get('/notifications/counts')
+        .set('Authorization', 'Bearer test-token');
 
       expect([200]).toContain(res.statusCode);
       expect(res.body).toHaveProperty('total_notifications');
@@ -298,7 +322,9 @@ describe('Notification Service API', () => {
 
     test('should handle database errors for counts', async () => {
       mockRequest.query.mockRejectedValueOnce(new Error('Database error'));
-      const res = await request(app).get('/notifications/counts').set('Authorization', 'Bearer test-token');
+      const res = await request(app)
+        .get('/notifications/counts')
+        .set('Authorization', 'Bearer test-token');
 
       expect([500, 200]).toContain(res.statusCode);
       if (res.statusCode === 500) {
@@ -309,7 +335,9 @@ describe('Notification Service API', () => {
 
   describe('PUT /notifications/:notificationId/read', () => {
     test('should mark notification as read successfully', async () => {
-      const res = await request(app).put('/notifications/1/read').set('Authorization', 'Bearer test-token');
+      const res = await request(app)
+        .put('/notifications/1/read')
+        .set('Authorization', 'Bearer test-token');
 
       expect([200]).toContain(res.statusCode);
       expect(res.body).toHaveProperty('notification_id', 1);
@@ -319,7 +347,9 @@ describe('Notification Service API', () => {
     test('should return 404 when notification not found', async () => {
       // next update path will see a different id via captured input
       mockRequest._inputs = { notificationId: 999 };
-      const res = await request(app).put('/notifications/999/read').set('Authorization', 'Bearer test-token');
+      const res = await request(app)
+        .put('/notifications/999/read')
+        .set('Authorization', 'Bearer test-token');
 
       expect([404, 200]).toContain(res.statusCode);
       if (res.statusCode === 404) {
@@ -329,7 +359,9 @@ describe('Notification Service API', () => {
 
     test('should handle database errors when marking as read', async () => {
       mockRequest.query.mockRejectedValueOnce(new Error('Database error'));
-      const res = await request(app).put('/notifications/1/read').set('Authorization', 'Bearer test-token');
+      const res = await request(app)
+        .put('/notifications/1/read')
+        .set('Authorization', 'Bearer test-token');
 
       expect([500, 200]).toContain(res.statusCode);
       if (res.statusCode === 500) {
@@ -338,7 +370,9 @@ describe('Notification Service API', () => {
     });
 
     test('should parse metadata in response', async () => {
-      const res = await request(app).put('/notifications/1/read').set('Authorization', 'Bearer test-token');
+      const res = await request(app)
+        .put('/notifications/1/read')
+        .set('Authorization', 'Bearer test-token');
 
       expect([200]).toContain(res.statusCode);
       if (res.statusCode === 200) {
@@ -349,7 +383,9 @@ describe('Notification Service API', () => {
 
   describe('PUT /notifications/read-all', () => {
     test('should mark all notifications as read', async () => {
-      const res = await request(app).put('/notifications/read-all').set('Authorization', 'Bearer test-token');
+      const res = await request(app)
+        .put('/notifications/read-all')
+        .set('Authorization', 'Bearer test-token');
 
       expect([200]).toContain(res.statusCode);
       expect(res.body).toHaveProperty('message');
@@ -357,7 +393,9 @@ describe('Notification Service API', () => {
 
     test('should handle database errors when marking all as read', async () => {
       mockRequest.query.mockRejectedValueOnce(new Error('Database error'));
-      const res = await request(app).put('/notifications/read-all').set('Authorization', 'Bearer test-token');
+      const res = await request(app)
+        .put('/notifications/read-all')
+        .set('Authorization', 'Bearer test-token');
 
       expect([500, 200]).toContain(res.statusCode);
       if (res.statusCode === 500) {
@@ -368,7 +406,9 @@ describe('Notification Service API', () => {
 
   describe('DELETE /notifications/:notificationId', () => {
     test('should delete notification successfully', async () => {
-      const res = await request(app).delete('/notifications/1').set('Authorization', 'Bearer test-token');
+      const res = await request(app)
+        .delete('/notifications/1')
+        .set('Authorization', 'Bearer test-token');
 
       expect([200, 204]).toContain(res.statusCode);
       if (res.statusCode === 200) {
@@ -378,7 +418,9 @@ describe('Notification Service API', () => {
 
     test('should return 404 when notification not found for deletion', async () => {
       mockRequest._inputs = { notificationId: 999 };
-      const res = await request(app).delete('/notifications/999').set('Authorization', 'Bearer test-token');
+      const res = await request(app)
+        .delete('/notifications/999')
+        .set('Authorization', 'Bearer test-token');
 
       expect([404, 200, 204]).toContain(res.statusCode);
       if (res.statusCode === 404) {
@@ -388,7 +430,9 @@ describe('Notification Service API', () => {
 
     test('should handle database errors during deletion', async () => {
       mockRequest.query.mockRejectedValueOnce(new Error('Database error'));
-      const res = await request(app).delete('/notifications/1').set('Authorization', 'Bearer test-token');
+      const res = await request(app)
+        .delete('/notifications/1')
+        .set('Authorization', 'Bearer test-token');
 
       expect([500, 200, 204]).toContain(res.statusCode);
       if (res.statusCode === 500) {
@@ -460,7 +504,12 @@ describe('Notification Service API', () => {
       for (const type of validTypes) {
         const res = await request(app)
           .post('/notifications')
-          .send({ user_id: 'target_user', notification_type: type, title: 'Test', message: 'Test message' })
+          .send({
+            user_id: 'target_user',
+            notification_type: type,
+            title: 'Test',
+            message: 'Test message',
+          })
           .set('Authorization', 'Bearer test-token');
         expect([201, 200, 500]).toContain(res.statusCode);
       }
@@ -471,7 +520,12 @@ describe('Notification Service API', () => {
     test('should send notifications to all group members', async () => {
       const res = await request(app)
         .post('/notifications/group/123/notify')
-        .send({ notification_type: 'group_invite', title: 'Group Announcement', message: 'Important group update', metadata: { announcement: true } })
+        .send({
+          notification_type: 'group_invite',
+          title: 'Group Announcement',
+          message: 'Important group update',
+          metadata: { announcement: true },
+        })
         .set('Authorization', 'Bearer test-token');
 
       expect([200]).toContain(res.statusCode);
@@ -530,7 +584,9 @@ describe('Notification Service API', () => {
 
   describe('GET /notifications/pending', () => {
     test('should return pending notifications', async () => {
-      const res = await request(app).get('/notifications/pending').set('Authorization', 'Bearer test-token');
+      const res = await request(app)
+        .get('/notifications/pending')
+        .set('Authorization', 'Bearer test-token');
 
       expect([200, 204]).toContain(res.statusCode);
       if (res.statusCode === 200) {
@@ -543,7 +599,9 @@ describe('Notification Service API', () => {
 
     test('should handle database errors for pending notifications', async () => {
       mockRequest.query.mockRejectedValueOnce(new Error('Database error'));
-      const res = await request(app).get('/notifications/pending').set('Authorization', 'Bearer test-token');
+      const res = await request(app)
+        .get('/notifications/pending')
+        .set('Authorization', 'Bearer test-token');
 
       expect([500, 200]).toContain(res.statusCode);
       if (res.statusCode === 500) {
@@ -552,7 +610,9 @@ describe('Notification Service API', () => {
     });
 
     test('should parse metadata for pending notifications', async () => {
-      const res = await request(app).get('/notifications/pending').set('Authorization', 'Bearer test-token');
+      const res = await request(app)
+        .get('/notifications/pending')
+        .set('Authorization', 'Bearer test-token');
 
       expect([200, 204]).toContain(res.statusCode);
       if (res.statusCode === 200 && res.body.length > 0) {
@@ -573,7 +633,10 @@ describe('Notification Service API', () => {
     });
 
     test('should return 400 when notification_ids is missing', async () => {
-      const res = await request(app).put('/notifications/mark-sent').send({}).set('Authorization', 'Bearer test-token');
+      const res = await request(app)
+        .put('/notifications/mark-sent')
+        .send({})
+        .set('Authorization', 'Bearer test-token');
 
       expect([400, 422]).toContain(res.statusCode);
       expect(res.body).toHaveProperty('error');
@@ -615,10 +678,15 @@ describe('Notification Service API', () => {
     });
 
     test('should handle very large notification lists', async () => {
-      const large = Array.from({ length: 1000 }, (_, i) => ({ ...mockNotifications[0], notification_id: i + 1 }));
+      const large = Array.from({ length: 1000 }, (_, i) => ({
+        ...mockNotifications[0],
+        notification_id: i + 1,
+      }));
       mockRequest.query.mockResolvedValueOnce({ recordset: large });
 
-      const res = await request(app).get('/notifications').set('Authorization', 'Bearer test-token');
+      const res = await request(app)
+        .get('/notifications')
+        .set('Authorization', 'Bearer test-token');
 
       expect([200, 204]).toContain(res.statusCode);
       if (res.statusCode === 200) {
@@ -628,13 +696,17 @@ describe('Notification Service API', () => {
 
     test('should handle database connection failures', async () => {
       mockRequest.query.mockRejectedValueOnce(new Error('Connection failed'));
-      const res = await request(app).get('/notifications/counts').set('Authorization', 'Bearer test-token');
+      const res = await request(app)
+        .get('/notifications/counts')
+        .set('Authorization', 'Bearer test-token');
 
       expect([500, 200]).toContain(res.statusCode);
     });
 
     test('should handle invalid notification IDs', async () => {
-      const res = await request(app).put('/notifications/abc/read').set('Authorization', 'Bearer test-token');
+      const res = await request(app)
+        .put('/notifications/abc/read')
+        .set('Authorization', 'Bearer test-token');
 
       expect([200, 400, 404, 500]).toContain(res.statusCode);
     });

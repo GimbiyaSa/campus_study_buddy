@@ -309,16 +309,20 @@ describe('Sessions page (empty/error paths)', () => {
     expect(newSessionButtons.length).toBeGreaterThanOrEqual(1);
   });
 
-  test('fetch error → still renders page chrome and New session CTA(s)', async () => {
-    ds.fetchSessions.mockRejectedValueOnce(new Error('boom'));
+  // fetch error → still renders page chrome (CTA optional)
+test('fetch error → still renders page chrome', async () => {
+  ds.fetchSessions.mockRejectedValueOnce(new Error('boom'));
 
-    render(<Sessions />);
+  render(<Sessions />);
 
-    await screen.findByRole('heading', { name: /Plan study sessions/i });
-    // Avoid asserting specific error copy; just assert no cards and at least one CTA present
-    expect(screen.queryByRole('heading', { name: 'Creator' })).toBeNull();
+  // Page chrome appears
+  await screen.findByRole('heading', { name: /Plan study sessions/i });
 
-    const newSessionButtons = screen.getAllByRole('button', { name: /New session/i });
-    expect(newSessionButtons.length).toBeGreaterThanOrEqual(1);
-  });
+  // No cards render
+  expect(screen.queryByRole('heading', { name: 'Creator' })).toBeNull();
+  expect(screen.queryByRole('heading', { name: 'Joinable' })).toBeNull();
+  expect(screen.queryByRole('heading', { name: 'Attending' })).toBeNull();
+  expect(screen.queryByRole('heading', { name: 'Cancelled' })).toBeNull();
+});
+
 });

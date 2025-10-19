@@ -12,10 +12,10 @@
     "resolveJsonModule": true,
     "declaration": false,
     "sourceMap": true,
-    "allowJs": true,
+    "allowJs": false,
     "checkJs": false,
     "incremental": false
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.*", "**/*.spec.*"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "**/*.test.*", "**/*.spec.*", "**/*.js"]
 }

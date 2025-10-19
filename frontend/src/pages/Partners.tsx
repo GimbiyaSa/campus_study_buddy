@@ -48,13 +48,13 @@ export default function Partners() {
     return allPartners.filter((partner) => {
       // Exclude items already shown in suggestions
       if (suggestionIds.has(partner.id)) return false;
-      
+
       // Exclude already connected buddies
       if (buddyIds.has(partner.id)) return false;
-      
+
       // Text search across name, course, university, bio, and all courses
       const searchTerm = q.toLowerCase();
-      
+
       if (q === '') {
         return true;
       }
@@ -64,8 +64,10 @@ export default function Partners() {
         partner.name || '',
         partner.course || '',
         partner.university || '',
-        partner.bio || ''
-      ].join(' ').toLowerCase();
+        partner.bio || '',
+      ]
+        .join(' ')
+        .toLowerCase();
 
       // Check if search term matches basic fields
       if (basicFields.includes(searchTerm)) {
@@ -74,8 +76,8 @@ export default function Partners() {
 
       // Check individual courses
       const allCourses = partner.allCourses || [];
-      const matchesCourse = allCourses.some(course => 
-        course && course.toLowerCase().includes(searchTerm)
+      const matchesCourse = allCourses.some(
+        (course) => course && course.toLowerCase().includes(searchTerm)
       );
 
       return matchesCourse;
@@ -126,10 +128,12 @@ export default function Partners() {
             .sort((a, b) => (b.compatibilityScore || 0) - (a.compatibilityScore || 0))
             .slice(0, 4);
           setSuggestions(topSuggestions);
-          
+
           // Filter ALL partners to exclude those without any courses
           const partnersWithCourses = newPartners.filter((partner) => {
-            const allCourses = (partner.allCourses || []).filter(course => course && course.trim() !== '');
+            const allCourses = (partner.allCourses || []).filter(
+              (course) => course && course.trim() !== ''
+            );
             return allCourses.length > 0; // Only show partners who have at least one course
           });
           setAllPartners(partnersWithCourses); // Show only partners with courses
@@ -280,9 +284,7 @@ export default function Partners() {
               <h2 id="suggestions-title" className="text-2xl font-bold text-slate-900 mb-2">
                 Suggested for you
               </h2>
-              <p className="text-slate-600">
-                Perfect matches based on shared courses
-              </p>
+              <p className="text-slate-600">Perfect matches based on shared courses</p>
             </div>
             <div className="bg-emerald-100 text-emerald-800 px-4 py-2 rounded-full font-semibold text-sm">
               {suggestions.length} matches
@@ -340,9 +342,9 @@ export default function Partners() {
           ) : (
             <ul className="space-y-4">
               {buddies.map((b) => (
-                <EnhancedBuddyCard 
-                  key={String(b.id)} 
-                  buddy={b} 
+                <EnhancedBuddyCard
+                  key={String(b.id)}
+                  buddy={b}
                   onOpenChat={() => navigate(`/chat?partnerId=${b.id}`)}
                 />
               ))}
@@ -427,8 +429,11 @@ export default function Partners() {
           if (!selected?.id) return;
           setInvited(false);
           try {
+            console.log('📤 Attempting to send buddy request to:', selected.id, selected.name);
+
             // Send buddy request to backend
             await DataService.sendBuddyRequest(selected.id);
+
             // Optionally, send real-time notification
             try {
               await azureIntegrationService.sendPartnerRequest(Number(selected.id));
@@ -450,9 +455,41 @@ export default function Partners() {
             window.dispatchEvent(new Event('buddies:invalidate'));
             // Optionally, initiate chat here in the future
           } catch (err) {
-            // Optionally, show error to user
+            // Show detailed error to user
+            console.error('❌ Failed to send invite:', err);
             setInvited(false);
-            alert('Failed to send invite. Please try again.');
+
+            let errorMessage = 'Failed to send invite. Please try again.';
+            if (err instanceof Error) {
+              const errorText = err.message.toLowerCase();
+
+              if (errorText.includes('yourself')) {
+                errorMessage = 'You cannot send an invite to yourself.';
+              } else if (
+                errorText.includes('already connected') ||
+                errorText.includes('study buddies')
+              ) {
+                errorMessage = 'You are already connected with this person!';
+              } else if (
+                errorText.includes('declined') ||
+                errorText.includes('previous buddy request')
+              ) {
+                errorMessage =
+                  'This person has declined your previous invite. You cannot send another request.';
+              } else if (errorText.includes('pending') || errorText.includes('already pending')) {
+                errorMessage = 'You already have a pending invite with this person.';
+              } else if (
+                errorText.includes('already exists') ||
+                errorText.includes('connection already exists')
+              ) {
+                errorMessage = 'You already have a connection with this person.';
+              } else if (err.message.trim()) {
+                // Use the specific error message from backend if available
+                errorMessage = err.message;
+              }
+            }
+
+            alert(errorMessage);
           }
         }}
         onClose={() => setOpen(false)}
@@ -475,11 +512,10 @@ function EnhancedSuggestionCard({
   // For suggested partners: ONLY show shared courses (courses with similarity)
   const sharedCourses = suggestion.sharedCourses || [];
   const sharedTopicsCount = suggestion.sharedTopicsCount || 0;
-  
+
   // Get match reasons from backend
-  const matchReasons = suggestion.matchReasons && suggestion.matchReasons.length > 0
-    ? suggestion.matchReasons
-    : [];
+  const matchReasons =
+    suggestion.matchReasons && suggestion.matchReasons.length > 0 ? suggestion.matchReasons : [];
 
   return (
     <li className="group relative rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-lg hover:border-emerald-200 transition-all duration-300">
@@ -493,7 +529,7 @@ function EnhancedSuggestionCard({
               {suggestion.name}
             </h3>
             <p className="text-sm text-slate-700 font-medium mb-2">{suggestion.course}</p>
-            
+
             {/* Show ONLY shared/similar courses for suggested partners */}
             {sharedCourses.length > 0 && (
               <div className="bg-emerald-50 rounded-lg px-3 py-2 mb-2">
@@ -502,27 +538,31 @@ function EnhancedSuggestionCard({
                 </p>
                 <div className="flex flex-wrap gap-1">
                   {sharedCourses.map((course, i) => (
-                    <span key={i} className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded-md font-medium">
+                    <span
+                      key={i}
+                      className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded-md font-medium"
+                    >
                       {course}
                     </span>
                   ))}
                 </div>
               </div>
             )}
-            
+
             {/* Show shared topics count if available */}
             {sharedTopicsCount > 0 && (
               <p className="text-xs text-emerald-600 font-medium mb-2">
                 + {sharedTopicsCount} shared topic{sharedTopicsCount > 1 ? 's' : ''}
               </p>
             )}
-            
+
             {/* Match reasons */}
             {matchReasons.length > 0 && (
               <div className="flex flex-wrap gap-1 text-xs text-slate-600">
                 {matchReasons.map((reason, index) => (
                   <span key={index}>
-                    {reason}{index < matchReasons.length - 1 ? ' •' : ''}
+                    {reason}
+                    {index < matchReasons.length - 1 ? ' •' : ''}
                   </span>
                 ))}
               </div>
@@ -535,13 +575,16 @@ function EnhancedSuggestionCard({
         disabled={
           isPending ||
           suggestion.connectionStatus === 'pending' ||
-          suggestion.connectionStatus === 'accepted'
+          suggestion.connectionStatus === 'accepted' ||
+          suggestion.connectionStatus === 'declined'
         }
         className={`w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold shadow-md hover:shadow-lg focus-visible:outline focus-visible:outline-2 transition-all duration-200 ${
           isPending || suggestion.connectionStatus === 'pending'
             ? 'bg-yellow-100 text-yellow-800 cursor-not-allowed'
             : suggestion.connectionStatus === 'accepted'
             ? 'bg-green-100 text-green-800 cursor-not-allowed'
+            : suggestion.connectionStatus === 'declined'
+            ? 'bg-red-100 text-red-800 cursor-not-allowed'
             : 'bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:outline-emerald-600'
         }`}
       >
@@ -552,6 +595,8 @@ function EnhancedSuggestionCard({
             : 'Pending response'
           : suggestion.connectionStatus === 'accepted'
           ? 'Study buddies'
+          : suggestion.connectionStatus === 'declined'
+          ? 'Request declined'
           : 'Connect'}
       </button>
     </li>
@@ -562,18 +607,20 @@ function EnhancedBuddyCard({ buddy, onOpenChat }: { buddy: StudyPartner; onOpenC
   const initials = initialsFrom(buddy.name || '—');
   // For connected buddies: show ALL their courses
   // Filter out any null/undefined/empty values from the array
-  const allCourses = (buddy.allCourses || buddy.sharedCourses || []).filter(course => course && course.trim() !== '');
+  const allCourses = (buddy.allCourses || buddy.sharedCourses || []).filter(
+    (course) => course && course.trim() !== ''
+  );
 
   return (
-    <li 
-      className="flex flex-col gap-2 p-4 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white hover:border-blue-300 transition-all duration-200 group"
-    >
+    <li className="flex flex-col gap-2 p-4 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white hover:border-blue-300 transition-all duration-200 group">
       <div className="flex items-center gap-4">
         <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 text-blue-700 grid place-items-center text-sm font-bold flex-shrink-0">
           {initials}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-slate-900 mb-1 group-hover:text-blue-700 transition-colors">{buddy.name}</p>
+          <p className="font-semibold text-slate-900 mb-1 group-hover:text-blue-700 transition-colors">
+            {buddy.name}
+          </p>
           <p className="text-xs text-slate-700 font-medium">{buddy.course}</p>
         </div>
         <button
@@ -585,14 +632,17 @@ function EnhancedBuddyCard({ buddy, onOpenChat }: { buddy: StudyPartner; onOpenC
           <MessageCircle className="h-5 w-5 text-slate-400 group-hover:text-blue-600 transition-colors" />
         </button>
       </div>
-      
+
       {/* Show ALL courses for connected buddies */}
       {allCourses.length > 0 && (
         <div className="mt-2">
           <p className="text-xs font-semibold text-blue-700 mb-1.5">Courses:</p>
           <div className="flex flex-wrap gap-1.5">
             {allCourses.map((course, i) => (
-              <span key={i} className="text-xs px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 font-medium border border-blue-100">
+              <span
+                key={i}
+                className="text-xs px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 font-medium border border-blue-100"
+              >
                 {course}
               </span>
             ))}
@@ -615,7 +665,7 @@ function EnhancedPartnerCard({
   const initials = initialsFrom(partner.name || '—');
   // For all other partners (not suggested): show ALL their courses
   // Filter out any null/undefined/empty values from the array
-  const allCourses = (partner.allCourses || []).filter(course => course && course.trim() !== '');
+  const allCourses = (partner.allCourses || []).filter((course) => course && course.trim() !== '');
 
   return (
     <li className="group relative rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md hover:border-emerald-200 transition-all duration-200">
@@ -640,7 +690,10 @@ function EnhancedPartnerCard({
           <p className="text-xs font-semibold text-emerald-700 mb-1.5">Courses:</p>
           <div className="flex flex-wrap gap-1.5">
             {allCourses.map((course, i) => (
-              <span key={i} className="text-xs px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 font-medium border border-emerald-100">
+              <span
+                key={i}
+                className="text-xs px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 font-medium border border-emerald-100"
+              >
                 {course}
               </span>
             ))}
@@ -653,13 +706,16 @@ function EnhancedPartnerCard({
         disabled={
           isPending ||
           partner.connectionStatus === 'pending' ||
-          partner.connectionStatus === 'accepted'
+          partner.connectionStatus === 'accepted' ||
+          partner.connectionStatus === 'declined'
         }
         className={`w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold shadow-md hover:shadow-lg focus-visible:outline focus-visible:outline-2 transition-all duration-200 ${
           isPending || partner.connectionStatus === 'pending'
             ? 'bg-yellow-100 text-yellow-800 cursor-not-allowed'
             : partner.connectionStatus === 'accepted'
             ? 'bg-green-100 text-green-800 cursor-not-allowed'
+            : partner.connectionStatus === 'declined'
+            ? 'bg-red-100 text-red-800 cursor-not-allowed'
             : 'bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:outline-emerald-600'
         }`}
       >
@@ -670,6 +726,8 @@ function EnhancedPartnerCard({
             : 'Pending response'
           : partner.connectionStatus === 'accepted'
           ? 'Study buddies'
+          : partner.connectionStatus === 'declined'
+          ? 'Request declined'
           : 'Connect'}
       </button>
     </li>
@@ -838,13 +896,16 @@ function EnhancedProfileModal({
               disabled={
                 invited ||
                 person.connectionStatus === 'pending' ||
-                person.connectionStatus === 'accepted'
+                person.connectionStatus === 'accepted' ||
+                person.connectionStatus === 'declined'
               }
               className={`flex-1 px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all duration-200 ${
                 invited || person.connectionStatus === 'pending'
                   ? 'bg-yellow-100 text-yellow-800 border border-yellow-200 cursor-default'
                   : person.connectionStatus === 'accepted'
                   ? 'bg-green-100 text-green-800 border border-green-200 cursor-default'
+                  : person.connectionStatus === 'declined'
+                  ? 'bg-red-100 text-red-800 border border-red-200 cursor-default'
                   : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg hover:shadow-xl'
               }`}
             >
@@ -865,6 +926,10 @@ function EnhancedProfileModal({
               ) : person.connectionStatus === 'accepted' ? (
                 <>
                   <Check className="w-5 h-5" /> Study buddies
+                </>
+              ) : person.connectionStatus === 'declined' ? (
+                <>
+                  <X className="w-5 h-5" /> Request declined
                 </>
               ) : (
                 <>

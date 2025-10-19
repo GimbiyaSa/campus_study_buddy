@@ -10,8 +10,9 @@ export const useAutoRefresh = () => {
   const unsubscribers = useRef<(() => void)[]>([]);
 
   useEffect(() => {
-    // Initialize event bus connection using singleton instance
-    
+    // Initialize event bus connection
+    eventBusRef.current = new EventBus();
+
     // Set up global event listeners for automatic refresh
     const setupEventListeners = () => {
       // User events - refresh user profile, settings
@@ -150,7 +151,7 @@ export const useAutoRefresh = () => {
    * Trigger refresh for specific data types
    */
   const triggerRefresh = useCallback((refreshTypes: string[]) => {
-    refreshTypes.forEach(type => {
+    refreshTypes.forEach((type) => {
       const callback = refreshCallbacks.current.get(type);
       if (callback) {
         console.log(`🔄 Auto-refreshing: ${type}`);
@@ -164,7 +165,7 @@ export const useAutoRefresh = () => {
    */
   const registerRefresh = useCallback((dataType: string, refreshCallback: () => void) => {
     refreshCallbacks.current.set(dataType, refreshCallback);
-    
+
     return () => {
       refreshCallbacks.current.delete(dataType);
     };
@@ -173,9 +174,12 @@ export const useAutoRefresh = () => {
   /**
    * Manually trigger refresh for specific types
    */
-  const manualRefresh = useCallback((dataTypes: string[]) => {
-    triggerRefresh(dataTypes);
-  }, [triggerRefresh]);
+  const manualRefresh = useCallback(
+    (dataTypes: string[]) => {
+      triggerRefresh(dataTypes);
+    },
+    [triggerRefresh]
+  );
 
   /**
    * Emit an event (for components that create data)
@@ -188,7 +192,7 @@ export const useAutoRefresh = () => {
     registerRefresh,
     manualRefresh,
     emitEvent,
-    isConnected: true // eventBus singleton is always connected
+    isConnected: eventBusRef.current?.isConnected() ?? false,
   };
 };
 

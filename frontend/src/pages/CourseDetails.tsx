@@ -48,7 +48,7 @@ export default function CourseDetails({ id }: { id: string }) {
       try {
         const [courses, userGroups] = await Promise.all([
           DataService.fetchCourses(),
-          DataService.fetchMyGroups()
+          DataService.fetchMyGroups(),
         ]);
         const found = courses.find((c: any) => String(c.id) === String(id));
         setCourse(found);
@@ -73,7 +73,7 @@ export default function CourseDetails({ id }: { id: string }) {
         description: log.description,
       });
       console.log('✅ Study hours logged successfully');
-      
+
       // Refresh both course data and topics to update progress
       const courses = await DataService.fetchCourses();
       const updatedCourse = courses.find((c: any) => String(c.id) === String(course.id));
@@ -81,11 +81,13 @@ export default function CourseDetails({ id }: { id: string }) {
 
       const topicsData = await DataService.fetchModuleTopics(Number(course.id));
       setTopics(topicsData);
-      
+
       // Dispatch event to notify other components to refresh course data
-      window.dispatchEvent(new CustomEvent('courses:invalidate', { 
-        detail: { courseId: course.id, type: 'progress_update' } 
-      }));
+      window.dispatchEvent(
+        new CustomEvent('courses:invalidate', {
+          detail: { courseId: course.id, type: 'progress_update' },
+        })
+      );
     } catch (error) {
       console.error('❌ Failed to log hours:', error);
       alert('Failed to log study hours. Please check your connection and try again.');
@@ -101,7 +103,7 @@ export default function CourseDetails({ id }: { id: string }) {
     try {
       await DataService.markTopicComplete(topicId);
       console.log('✅ Topic marked as complete');
-      
+
       // Refresh both course data and topics to update progress
       const courses = await DataService.fetchCourses();
       const updatedCourse = courses.find((c: any) => String(c.id) === String(course.id));
@@ -109,11 +111,13 @@ export default function CourseDetails({ id }: { id: string }) {
 
       const topicsData = await DataService.fetchModuleTopics(Number(course.id));
       setTopics(topicsData);
-      
+
       // Dispatch event to notify other components to refresh course data
-      window.dispatchEvent(new CustomEvent('courses:invalidate', { 
-        detail: { courseId: course.id, type: 'progress_update' } 
-      }));
+      window.dispatchEvent(
+        new CustomEvent('courses:invalidate', {
+          detail: { courseId: course.id, type: 'progress_update' },
+        })
+      );
     } catch (error) {
       console.error('❌ Failed to mark topic complete:', error);
       alert('Failed to mark topic as complete. Please try again.');
@@ -142,7 +146,7 @@ export default function CourseDetails({ id }: { id: string }) {
       await DataService.deleteNote(String(noteId));
       console.log('✅ Note deleted successfully');
       // Refresh notes by incrementing the refresh key
-      setNotesRefreshKey(k => k + 1);
+      setNotesRefreshKey((k) => k + 1);
     } catch (error) {
       console.error('❌ Failed to delete note:', error);
       alert('Failed to delete note. Please try again.');
@@ -311,16 +315,17 @@ export default function CourseDetails({ id }: { id: string }) {
                   ? 'bg-gradient-to-r from-emerald-500 to-emerald-600'
                   : progressPercentage > 0
                   ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
-                  : (course.totalHours && course.totalHours > 0)
+                  : course.totalHours && course.totalHours > 0
                   ? 'bg-gradient-to-r from-blue-400 to-blue-500'
                   : 'bg-slate-300'
               }`}
-              style={{ 
-                width: progressPercentage > 0 
-                  ? `${Math.min(100, Math.max(0, progressPercentage))}%`
-                  : (course.totalHours && course.totalHours > 0)
-                  ? '10%' // Show small blue bar when hours logged but no topics completed
-                  : '0%'
+              style={{
+                width:
+                  progressPercentage > 0
+                    ? `${Math.min(100, Math.max(0, progressPercentage))}%`
+                    : course.totalHours && course.totalHours > 0
+                    ? '10%' // Show small blue bar when hours logged but no topics completed
+                    : '0%',
               }}
             />
           </div>
@@ -389,7 +394,10 @@ export default function CourseDetails({ id }: { id: string }) {
             {topics
               .sort((a: any, b: any) => a.orderSequence - b.orderSequence)
               .map((topic: any) => (
-                <div key={topic.id} className="p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors">
+                <div
+                  key={topic.id}
+                  className="p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors"
+                >
                   <div className="flex items-center gap-4 flex-1">
                     <div
                       className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
@@ -418,17 +426,19 @@ export default function CourseDetails({ id }: { id: string }) {
                           )
                         ) : (
                           <span className="capitalize">
-                            {topic.completionStatus.replace('_', ' ')}
+                            {typeof topic.completionStatus === 'string'
+                              ? topic.completionStatus.replace('_', ' ')
+                              : ''}
                           </span>
                         )}
                       </div>
                       {/* --- Notes for this topic --- */}
-                      <TopicNotes 
-                        topicId={topic.id} 
-                        onNoteClick={setOpenNote} 
+                      <TopicNotes
+                        topicId={topic.id}
+                        onNoteClick={setOpenNote}
                         onEditNote={handleEditNote}
                         onDeleteNote={handleDeleteNote}
-                        refreshSignal={notesRefreshKey} 
+                        refreshSignal={notesRefreshKey}
                       />
                       <button
                         className="mt-2 px-3 py-1.5 text-xs font-medium text-brand-700 bg-brand-50 hover:bg-brand-100 rounded-lg transition-colors"

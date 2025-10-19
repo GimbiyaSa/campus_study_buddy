@@ -1,7 +1,7 @@
 // frontend/src/utils/eventBus.ts
 /**
  * Centralized Event Bus for Real-time Updates
- * 
+ *
  * This event bus ensures all components automatically refresh when data changes.
  * Emit events after any data mutation (create, update, delete) to notify all listeners.
  */
@@ -96,9 +96,9 @@ class EventBus {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set());
     }
-    
+
     this.listeners.get(event)!.add(callback);
-    
+
     // Return unsubscribe function
     return () => {
       this.listeners.get(event)?.delete(callback);
@@ -109,11 +109,11 @@ class EventBus {
    * Subscribe to multiple events with the same callback
    */
   onMany(events: AppEvent[], callback: (payload?: EventPayload) => void): () => void {
-    const unsubscribers = events.map(event => this.on(event, callback));
-    
+    const unsubscribers = events.map((event) => this.on(event, callback));
+
     // Return function that unsubscribes from all
     return () => {
-      unsubscribers.forEach(unsub => unsub());
+      unsubscribers.forEach((unsub) => unsub());
     };
   }
 
@@ -125,7 +125,7 @@ class EventBus {
       callback(payload);
       this.listeners.get(event)?.delete(wrapper);
     };
-    
+
     this.on(event, wrapper);
   }
 
@@ -134,10 +134,10 @@ class EventBus {
    */
   emit(event: AppEvent, payload?: EventPayload): void {
     console.log(`🔔 EventBus: Emitting '${event}'`, payload);
-    
+
     const callbacks = this.listeners.get(event);
     if (callbacks) {
-      callbacks.forEach(callback => {
+      callbacks.forEach((callback) => {
         try {
           callback(payload);
         } catch (error) {
@@ -148,8 +148,8 @@ class EventBus {
 
     // Also emit to window for backwards compatibility
     window.dispatchEvent(
-      new CustomEvent(event, { 
-        detail: payload || { type: 'generic', timestamp: Date.now() }
+      new CustomEvent(event, {
+        detail: payload || { type: 'generic', timestamp: Date.now() },
       })
     );
   }
@@ -158,7 +158,7 @@ class EventBus {
    * Emit multiple related events at once
    */
   emitMany(events: AppEvent[], payload?: EventPayload): void {
-    events.forEach(event => this.emit(event, payload));
+    events.forEach((event) => this.emit(event, payload));
   }
 
   /**
@@ -203,7 +203,7 @@ export function useEventBus(
   deps: any[] = []
 ) {
   const { useEffect } = require('react');
-  
+
   useEffect(() => {
     if (Array.isArray(event)) {
       return eventBus.onMany(event, callback);

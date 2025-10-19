@@ -20,7 +20,6 @@
     "worker:notifications": "node workers/notificationsWorker.js"
   },
   "dependencies": {
-    "@azure/communication-email": "^1.0.0",
     "@azure/identity": "^4.12.0",
     "@azure/keyvault-secrets": "^4.10.0",
     "@azure/service-bus": "^7.9.0",

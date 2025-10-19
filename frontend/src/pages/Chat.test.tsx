@@ -71,6 +71,13 @@ describe('Chat page', () => {
     vi.resetAllMocks();
     // Mock scrollIntoView for all tests
     window.HTMLElement.prototype.scrollIntoView = vi.fn();
+    // Mock window.location and window.history for browser APIs
+    Object.defineProperty(window, 'location', {
+      value: { search: '', pathname: '/chat', hash: '', href: 'http://localhost/chat' },
+      writable: true,
+    });
+    window.history.replaceState = vi.fn();
+    window.history.pushState = vi.fn();
     // Set up default mocks for each test
     vi.spyOn(DataService, 'fetchPartners').mockResolvedValue(mockBuddies);
     vi.spyOn(azureIntegrationService, 'onConnectionEvent').mockImplementation(() => () => {});

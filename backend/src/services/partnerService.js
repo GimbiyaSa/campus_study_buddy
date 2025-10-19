@@ -2,7 +2,6 @@
 const express = require('express');
 const sql = require('mssql');
 const { authenticateToken } = require('../middleware/authMiddleware');
-const { logicAppsService } = require('./logicAppsService');
 
 const router = express.Router();
 
@@ -928,8 +927,33 @@ router.post('/request', authenticateToken, async (req, res) => {
     if (existingConnection.recordset.length > 0) {
       const status = existingConnection.recordset[0].match_status;
       console.log(`❌ Existing connection found with status: ${status}`);
+      
+      // Provide more specific error messages based on status
+      let errorMessage = '';
+      let errorCode = '';
+      
+      switch (status) {
+        case 'pending':
+          errorMessage = 'A buddy request is already pending between these users';
+          errorCode = 'REQUEST_PENDING';
+          break;
+        case 'accepted':
+          errorMessage = 'These users are already connected as study buddies';
+          errorCode = 'ALREADY_CONNECTED';
+          break;
+        case 'declined':
+          errorMessage = 'This person has declined your previous buddy request';
+          errorCode = 'REQUEST_DECLINED';
+          break;
+        default:
+          errorMessage = `A ${status} connection already exists between these users`;
+          errorCode = 'CONNECTION_EXISTS';
+      }
+      
       return res.status(400).json({
-        error: `A ${status} connection already exists between these users`,
+        error: errorMessage,
+        code: errorCode,
+        status: status,
       });
     }
 
@@ -1034,13 +1058,13 @@ router.post('/request', authenticateToken, async (req, res) => {
         const recipientEmail = recipientRes.recordset[0].email;
         const senderInfo = senderRes.recordset[0];
         senderInfo.id = requesterId;
-
-        // Send buddy request email (async, don't wait)
-        logicAppsService
-          .sendBuddyRequestNotification(recipientEmail, senderInfo, message)
-          .catch((err) => {
-            console.error('⚠️ Failed to send buddy request email:', err.message);
-          });
+        
+        // Log buddy request notification (Logic Apps removed)
+        console.log('📧 Buddy request notification:', {
+          recipient: recipientEmail,
+          sender: senderInfo.first_name + ' ' + senderInfo.last_name,
+          message: message
+        });
       }
     } catch (err) {
       console.error('⚠️ Buddy request email notification failed:', err.message);

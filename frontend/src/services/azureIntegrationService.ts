@@ -313,6 +313,36 @@ class AzureIntegrationService {
     }
   }
 
+  // Join a group chat
+  public async joinGroupChat(groupId: string): Promise<string> {
+    if (!this.webPubSubClient) {
+      throw new Error('Real-time connection not established');
+    }
+
+    const chatRoomId = `group_${groupId}`;
+
+    try {
+      await this.webPubSubClient.joinGroup(chatRoomId);
+      return chatRoomId;
+    } catch (error) {
+      console.error('Failed to join group chat:', error);
+      throw error;
+    }
+  }
+
+  // Leave a group chat
+  public async leaveGroupChat(groupId: string): Promise<void> {
+    if (!this.webPubSubClient) return;
+
+    const chatRoomId = `group_${groupId}`;
+
+    try {
+      await this.webPubSubClient.leaveGroup(chatRoomId);
+    } catch (error) {
+      console.error('Failed to leave group chat:', error);
+    }
+  }
+
   // File Upload API
   public async uploadFile(file: File, metadata?: any): Promise<any> {
     const formData = new FormData();

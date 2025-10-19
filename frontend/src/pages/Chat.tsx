@@ -2,15 +2,24 @@ import { useEffect, useRef, useState } from 'react';
 import { useUser } from '../contexts/UserContext';
 import { DataService, type StudyPartner } from '../services/dataService';
 import azureIntegrationService from '../services/azureIntegrationService';
-import { Send, MessageCircle, Users, AlertCircle, RefreshCw } from 'lucide-react';
+import { Send, MessageCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import GroupChat from '../components/GroupChat';
 
 export default function Chat() {
   const { currentUser } = useUser();
+
+  // IMPORTANT: All hooks must be declared before any conditional returns!
+  const [groupChatMode, setGroupChatMode] = useState<{ groupId: string; groupName: string } | null>(
+    null
+  );
   const [buddies, setBuddies] = useState<StudyPartner[]>([]);
+  const [myGroups, setMyGroups] = useState<any[]>([]);
   const [selectedBuddy, setSelectedBuddy] = useState<StudyPartner | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<any | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
+  const [, setGroupsLoading] = useState(true);
   const [error, setError] = useState<{
     title: string;
     message: string;
@@ -18,11 +27,35 @@ export default function Chat() {
   } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Check for groupId in URL params - if present, show GroupChat component
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const groupId = params.get('groupId');
+
+    if (groupId) {
+      // Load group info
+      DataService.fetchMyGroups().then((groups) => {
+        const group = groups.find(
+          (g: any) => String(g.id) === groupId || String(g.group_id) === groupId
+        );
+        if (group) {
+          setGroupChatMode({
+            groupId: String(group.id || group.group_id),
+            groupName: group.name || group.group_name || 'Study Group',
+          });
+        }
+      });
+    } else {
+      // Clear group chat mode if no groupId in URL
+      setGroupChatMode(null);
+    }
+  }, []);
+
   // Check for partnerId in URL query params
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const partnerId = params.get('partnerId');
-    
+
     if (partnerId && buddies.length > 0) {
       const buddy = buddies.find((b) => String(b.id) === partnerId);
       if (buddy) {
@@ -33,13 +66,38 @@ export default function Chat() {
     }
   }, [buddies]);
 
-  // Load buddies (accepted connections)
+  // Load buddies (accepted connections) and groups
   useEffect(() => {
     loadBuddies();
+    loadGroups();
 
     // Listen for buddy updates
     const handleBuddiesUpdate = () => {
       loadBuddies();
+    };
+
+    // Listen for group updates
+    const handleGroupsUpdate = () => {
+      loadGroups();
+    };
+
+    // Listen for group membership changes
+    const handleGroupJoined = () => {
+      console.log('👥 Group joined - refreshing chat groups');
+      loadGroups();
+    };
+
+    const handleGroupLeft = (event: any) => {
+      console.log('👋 Group left - refreshing chat groups');
+      const groupId = event.detail?.groupId || event.detail?.group_id;
+      if (groupId && (selectedGroup?.id === groupId || selectedGroup?.group_id === groupId)) {
+        // Clear selection if we left the currently selected group
+        setSelectedGroup(null);
+        setGroupChatMode(null);
+        setMessages([]);
+        window.history.pushState({}, '', '/chat');
+      }
+      loadGroups();
     };
 
     // Listen for partner request acceptance to refresh buddy list
@@ -49,6 +107,9 @@ export default function Chat() {
     };
 
     window.addEventListener('buddies:invalidate', handleBuddiesUpdate);
+    window.addEventListener('groups:invalidate', handleGroupsUpdate);
+    window.addEventListener('group:joined', handleGroupJoined as EventListener);
+    window.addEventListener('group:left', handleGroupLeft as EventListener);
 
     // Subscribe to Azure Web PubSub events
     const unsubscribeAccepted = azureIntegrationService.onConnectionEvent(
@@ -58,6 +119,9 @@ export default function Chat() {
 
     return () => {
       window.removeEventListener('buddies:invalidate', handleBuddiesUpdate);
+      window.removeEventListener('groups:invalidate', handleGroupsUpdate);
+      window.removeEventListener('group:joined', handleGroupJoined as EventListener);
+      window.removeEventListener('group:left', handleGroupLeft as EventListener);
       unsubscribeAccepted();
     };
   }, []);
@@ -83,9 +147,32 @@ export default function Chat() {
     }
   };
 
+  const loadGroups = async () => {
+    try {
+      setGroupsLoading(true);
+      const groups = await DataService.fetchMyGroups();
+      // Only include groups where the user is a member
+      const memberGroups = groups.filter(
+        (group: any) =>
+          group.isMember ||
+          group.member_count > 0 ||
+          group.members?.some(
+            (m: any) => m.userId === currentUser?.user_id || m.user_id === currentUser?.user_id
+          )
+      );
+      setMyGroups(memberGroups);
+      console.log('📱 Loaded member groups for chat:', memberGroups.length);
+    } catch (err) {
+      console.error('Error loading groups for chat:', err);
+    } finally {
+      setGroupsLoading(false);
+    }
+  };
+
   const handleRetry = () => {
     setError(null);
     loadBuddies();
+    loadGroups();
   };
 
   // Subscribe to real-time messages
@@ -220,13 +307,18 @@ export default function Chat() {
     }
   }
 
+  // If in group chat mode, render GroupChat component instead
+  if (groupChatMode) {
+    return <GroupChat groupId={groupChatMode.groupId} groupName={groupChatMode.groupName} />;
+  }
+
   if (loading) {
     return (
       <div className="space-y-8">
         <div className="text-center">
-          <h1 className="text-4xl font-bold text-slate-900 mb-3">Chat with study partners</h1>
+          <h1 className="text-4xl font-bold text-slate-900 mb-3">Chat</h1>
           <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-            Connect and collaborate with your study buddies in real-time conversations.
+            Connect and collaborate with your study partners and groups in real-time conversations.
           </p>
         </div>
         <div className="flex items-center justify-center py-16">
@@ -244,9 +336,9 @@ export default function Chat() {
     <div className="space-y-8">
       {/* Enhanced Header */}
       <div className="text-center">
-        <h1 className="text-4xl font-bold text-slate-900 mb-3">Chat with study partners</h1>
+        <h1 className="text-4xl font-bold text-slate-900 mb-3">Chat</h1>
         <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-          Connect and collaborate with your study buddies in real-time conversations.
+          Connect and collaborate with your study partners and groups in real-time conversations.
         </p>
       </div>
 
@@ -276,69 +368,133 @@ export default function Chat() {
 
       {/* Enhanced Chat Interface */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 h-[600px]">
-        {/* Partners List */}
+        {/* Chat List */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm h-full flex flex-col">
             <div className="p-6 border-b border-slate-100">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
-                  <Users className="h-5 w-5 text-emerald-600" />
+                  <MessageCircle className="h-5 w-5 text-emerald-600" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-900">Study Partners</h2>
-                  <p className="text-sm text-slate-500">{buddies.length} connected</p>
+                  <h2 className="text-lg font-semibold text-slate-900">Chats</h2>
+                  <p className="text-sm text-slate-500">
+                    {buddies.length} partners • {myGroups.length} groups
+                  </p>
                 </div>
               </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6">
-              {buddies.length === 0 ? (
+              {buddies.length === 0 && myGroups.length === 0 ? (
                 <div className="text-center py-8">
                   <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <MessageCircle className="h-8 w-8 text-slate-400" />
                   </div>
-                  <h3 className="font-medium text-slate-900 mb-2">No partners yet</h3>
+                  <h3 className="font-medium text-slate-900 mb-2">No chats yet</h3>
                   <p className="text-sm text-slate-500">
-                    Start connecting with classmates to begin chatting!
+                    Connect with partners or join groups to start chatting!
                   </p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {buddies.map((buddy) => (
-                    <div
-                      key={buddy.id}
-                      onClick={() => {
-                        setSelectedBuddy(buddy);
-                        setMessages([]); // reset messages for new chat
-                      }}
-                      className={`p-4 rounded-2xl cursor-pointer transition-all duration-200 ${
-                        selectedBuddy?.id === buddy.id
-                          ? 'bg-emerald-50 border-2 border-emerald-200 shadow-sm'
-                          : 'bg-slate-50 hover:bg-slate-100 border-2 border-transparent'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div className="w-12 h-12 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-xl flex items-center justify-center text-white font-semibold">
-                          {buddy.avatar ? (
-                            <img
-                              src={buddy.avatar}
-                              alt={buddy.name}
-                              className="w-12 h-12 rounded-xl object-cover"
-                            />
-                          ) : (
-                            buddy.name.charAt(0).toUpperCase()
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-slate-900 truncate">{buddy.name}</p>
-                          <p className="text-sm text-slate-500 truncate">
-                            {buddy.course || 'Study Partner'}
-                          </p>
-                          <p className="text-xs text-slate-400">Connected</p>
-                        </div>
+                <div className="space-y-4">
+                  {/* Group Chats Section */}
+                  {myGroups.length > 0 && (
+                    <div>
+                      <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                        Group Chats
+                      </h3>
+                      <div className="space-y-2">
+                        {myGroups.map((group) => (
+                          <div
+                            key={group.id || group.group_id}
+                            onClick={() => {
+                              setSelectedGroup(group);
+                              setSelectedBuddy(null);
+                              setMessages([]); // reset messages for new chat
+                              // Navigate to group chat
+                              const groupId = group.id || group.group_id;
+                              window.history.pushState({}, '', `/chat?groupId=${groupId}`);
+                              setGroupChatMode({
+                                groupId: String(groupId),
+                                groupName: group.name || group.group_name || 'Study Group',
+                              });
+                            }}
+                            className={`p-3 rounded-xl cursor-pointer transition-all duration-200 ${
+                              selectedGroup?.id === (group.id || group.group_id)
+                                ? 'bg-blue-50 border-2 border-blue-200 shadow-sm'
+                                : 'bg-slate-50 hover:bg-slate-100 border-2 border-transparent'
+                            }`}
+                          >
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center text-white font-semibold text-sm">
+                                {(group.name || group.group_name || 'G').charAt(0).toUpperCase()}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-slate-900 truncate text-sm">
+                                  {group.name || group.group_name || 'Study Group'}
+                                </p>
+                                <p className="text-xs text-slate-500">
+                                  {group.member_count || group.members?.length || 0} members
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  ))}
+                  )}
+
+                  {/* Study Partners Section */}
+                  {buddies.length > 0 && (
+                    <div>
+                      <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                        Study Partners
+                      </h3>
+                      <div className="space-y-2">
+                        {buddies.map((buddy) => (
+                          <div
+                            key={buddy.id}
+                            onClick={() => {
+                              setSelectedBuddy(buddy);
+                              setSelectedGroup(null);
+                              setMessages([]); // reset messages for new chat
+                              // Clear group chat mode
+                              setGroupChatMode(null);
+                              window.history.pushState({}, '', '/chat');
+                            }}
+                            className={`p-3 rounded-xl cursor-pointer transition-all duration-200 ${
+                              selectedBuddy?.id === buddy.id
+                                ? 'bg-emerald-50 border-2 border-emerald-200 shadow-sm'
+                                : 'bg-slate-50 hover:bg-slate-100 border-2 border-transparent'
+                            }`}
+                          >
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center text-white font-semibold text-sm">
+                                {buddy.avatar ? (
+                                  <img
+                                    src={buddy.avatar}
+                                    alt={buddy.name}
+                                    className="w-10 h-10 rounded-lg object-cover"
+                                  />
+                                ) : (
+                                  buddy.name.charAt(0).toUpperCase()
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-slate-900 truncate text-sm">
+                                  {buddy.name}
+                                </p>
+                                <p className="text-xs text-slate-500">
+                                  {buddy.course || 'Study Partner'}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -348,25 +504,47 @@ export default function Chat() {
         {/* Chat Area */}
         <div className="lg:col-span-3">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm h-full flex flex-col">
-            {selectedBuddy ? (
+            {selectedBuddy || selectedGroup ? (
               <>
                 {/* Chat Header */}
                 <div className="p-6 border-b border-slate-100">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-xl flex items-center justify-center text-white font-semibold">
-                      {selectedBuddy.avatar ? (
-                        <img
-                          src={selectedBuddy.avatar}
-                          alt={selectedBuddy.name}
-                          className="w-12 h-12 rounded-xl object-cover"
-                        />
-                      ) : (
-                        selectedBuddy.name.charAt(0).toUpperCase()
-                      )}
+                    <div
+                      className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-semibold ${
+                        selectedBuddy
+                          ? 'bg-gradient-to-br from-emerald-400 to-emerald-600'
+                          : 'bg-gradient-to-br from-blue-400 to-blue-600'
+                      }`}
+                    >
+                      {selectedBuddy ? (
+                        selectedBuddy.avatar ? (
+                          <img
+                            src={selectedBuddy.avatar}
+                            alt={selectedBuddy.name}
+                            className="w-12 h-12 rounded-xl object-cover"
+                          />
+                        ) : (
+                          selectedBuddy.name.charAt(0).toUpperCase()
+                        )
+                      ) : selectedGroup ? (
+                        (selectedGroup.name || selectedGroup.group_name || 'G')
+                          .charAt(0)
+                          .toUpperCase()
+                      ) : null}
                     </div>
                     <div>
-                      <h3 className="text-xl font-semibold text-slate-900">{selectedBuddy.name}</h3>
-                      <p className="text-slate-500">{selectedBuddy.course || 'Study Partner'}</p>
+                      <h3 className="text-xl font-semibold text-slate-900">
+                        {selectedBuddy
+                          ? selectedBuddy.name
+                          : selectedGroup?.name || selectedGroup?.group_name || 'Study Group'}
+                      </h3>
+                      <p className="text-slate-500">
+                        {selectedBuddy
+                          ? selectedBuddy.course || 'Study Partner'
+                          : `${
+                              selectedGroup?.member_count || selectedGroup?.members?.length || 0
+                            } members`}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -389,17 +567,19 @@ export default function Chat() {
                     <div className="space-y-4">
                       {messages.map((message, i) => {
                         // Try different possible field names for sender ID
-                        const messageSenderId = message.senderId || message.sender_id || message.userId || message.user_id || message.senderUserId;
-                        const isCurrentUser = String(messageSenderId) === String(currentUser?.user_id);
-                        
+                        const messageSenderId =
+                          message.senderId ||
+                          message.sender_id ||
+                          message.userId ||
+                          message.user_id ||
+                          message.senderUserId;
+                        const isCurrentUser =
+                          String(messageSenderId) === String(currentUser?.user_id);
+
                         return (
                           <div
                             key={i}
-                            className={`flex ${
-                              isCurrentUser
-                                ? 'justify-end'
-                                : 'justify-start'
-                            }`}
+                            className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
                           >
                             <div
                               className={`max-w-xs lg:max-w-sm xl:max-w-md px-4 py-3 rounded-2xl ${
@@ -410,9 +590,7 @@ export default function Chat() {
                             >
                               <div
                                 className={`text-xs font-medium mb-1 ${
-                                  isCurrentUser
-                                    ? 'text-emerald-100'
-                                    : 'text-slate-500'
+                                  isCurrentUser ? 'text-emerald-100' : 'text-slate-500'
                                 }`}
                               >
                                 {message.senderName}
@@ -420,9 +598,7 @@ export default function Chat() {
                               <p className="break-words">{message.content}</p>
                               <p
                                 className={`text-xs mt-2 ${
-                                  isCurrentUser
-                                    ? 'text-emerald-100'
-                                    : 'text-slate-400'
+                                  isCurrentUser ? 'text-emerald-100' : 'text-slate-400'
                                 }`}
                               >
                                 {new Date(message.timestamp).toLocaleString([], {
@@ -483,11 +659,9 @@ export default function Chat() {
                   <div className="w-20 h-20 bg-slate-100 rounded-3xl flex items-center justify-center mx-auto mb-6">
                     <MessageCircle className="h-10 w-10 text-slate-400" />
                   </div>
-                  <h3 className="text-xl font-semibold text-slate-900 mb-2">
-                    Select a study partner
-                  </h3>
+                  <h3 className="text-xl font-semibold text-slate-900 mb-2">Select a chat</h3>
                   <p className="text-slate-500">
-                    Choose someone from your partner list to start chatting.
+                    Choose a study partner or group from the list to start chatting.
                   </p>
                 </div>
               </div>

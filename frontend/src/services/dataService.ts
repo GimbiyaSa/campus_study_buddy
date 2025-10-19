@@ -815,14 +815,14 @@ export class DataService {
 
     const newCourse = await res.json();
     console.log('✅ Course added:', newCourse);
-    
+
     // Emit events to refresh all course-related components
     eventBus.emitMany(['courses:invalidate', 'courses:created'], {
       type: 'create',
       courseId: newCourse.id,
       timestamp: Date.now(),
     });
-    
+
     return newCourse;
   }
 
@@ -835,7 +835,7 @@ export class DataService {
     });
 
     console.log('✅ Course removed:', courseId);
-    
+
     // Emit events to refresh all course-related components
     eventBus.emitMany(['courses:invalidate', 'courses:deleted'], {
       type: 'delete',
@@ -1097,20 +1097,43 @@ export class DataService {
 
   static async sendBuddyRequest(recipientId: string, message?: string): Promise<void> {
     try {
+      console.log('🤝 Sending buddy request:', { recipientId, message, hasMessage: !!message });
+
       const res = await this.fetchWithRetry(buildApiUrl('/api/v1/partners/request'), {
         method: 'POST',
         body: JSON.stringify({ recipientId, message }),
       });
+
+      if (!res.ok) {
+        // Get detailed error from response
+        let errorDetails;
+        try {
+          errorDetails = await res.json();
+        } catch {
+          errorDetails = { error: `HTTP ${res.status}: ${res.statusText}` };
+        }
+        console.error('❌ sendBuddyRequest HTTP error:', {
+          status: res.status,
+          statusText: res.statusText,
+          errorDetails,
+          recipientId,
+        });
+        throw new Error(errorDetails.error || `Request failed with status ${res.status}`);
+      }
+
       const data = await res.json();
-      console.log('🤝 Buddy request sent:', data);
-      
+      console.log('🤝 Buddy request sent successfully:', data);
+
       // Emit events to refresh buddy lists and notifications
-      eventBus.emitMany(['buddies:request-sent', 'buddies:invalidate', 'notifications:invalidate'], {
-        type: 'action',
-        buddyId: recipientId,
-        timestamp: Date.now(),
-      });
-      
+      eventBus.emitMany(
+        ['buddies:request-sent', 'buddies:invalidate', 'notifications:invalidate'],
+        {
+          type: 'action',
+          buddyId: recipientId,
+          timestamp: Date.now(),
+        }
+      );
+
       return data;
     } catch (error) {
       console.error('❌ sendBuddyRequest error:', error);
@@ -1145,13 +1168,16 @@ export class DataService {
       }
       await this.safeJson<any>(res, null);
       console.log('✅ Partner request accepted');
-      
+
       // Emit events to refresh buddy lists and notifications
-      eventBus.emitMany(['buddies:request-accepted', 'buddies:invalidate', 'notifications:invalidate'], {
-        type: 'action',
-        metadata: { requestId },
-        timestamp: Date.now(),
-      });
+      eventBus.emitMany(
+        ['buddies:request-accepted', 'buddies:invalidate', 'notifications:invalidate'],
+        {
+          type: 'action',
+          metadata: { requestId },
+          timestamp: Date.now(),
+        }
+      );
     } catch (error) {
       console.error('❌ acceptPartnerRequest error:', error);
       const appError = ErrorHandler.handleApiError(error, 'partners');
@@ -1184,13 +1210,16 @@ export class DataService {
       }
       await this.safeJson<any>(res, null);
       console.log('✅ Partner request rejected');
-      
+
       // Emit events to refresh buddy lists and notifications
-      eventBus.emitMany(['buddies:request-rejected', 'buddies:invalidate', 'notifications:invalidate'], {
-        type: 'action',
-        metadata: { requestId },
-        timestamp: Date.now(),
-      });
+      eventBus.emitMany(
+        ['buddies:request-rejected', 'buddies:invalidate', 'notifications:invalidate'],
+        {
+          type: 'action',
+          metadata: { requestId },
+          timestamp: Date.now(),
+        }
+      );
     } catch (error) {
       console.error('❌ rejectPartnerRequest error:', error);
       const appError = ErrorHandler.handleApiError(error, 'partners');
@@ -1539,12 +1568,27 @@ export class DataService {
     groupId: string
   ): Promise<Array<{ userId: string; name: string; role?: string }>> {
     try {
-      const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}/members`, {
+      console.log('🔍 getGroupMembers called with groupId:', groupId);
+      const url = `/api/v1/groups/${encodeURIComponent(groupId)}/members`;
+      console.log('🔍 Full URL:', url);
+
+      const res = await this.request(url, {
         method: 'GET',
       });
-      if (!res.ok) return [];
+
+      console.log('🔍 Response status:', res.status, res.statusText);
+
+      if (!res.ok) {
+        console.error('❌ getGroupMembers failed:', res.status, res.statusText);
+        return [];
+      }
+
       const raw = await this.safeJson<any>(res, []);
+      console.log('🔍 Raw response:', raw);
+
       const rows = Array.isArray(raw?.members) ? raw.members : Array.isArray(raw) ? raw : [];
+      console.log('🔍 Parsed rows:', rows);
+
       return rows.map((m: any, i: number) => ({
         userId: String(m?.userId ?? m?.id ?? m?.user_id ?? i),
         name:
@@ -1556,7 +1600,8 @@ export class DataService {
           String(m?.userId ?? m?.id ?? `User ${i + 1}`),
         role: m?.role ?? m?.member_role ?? undefined,
       }));
-    } catch {
+    } catch (error) {
+      console.error('❌ getGroupMembers exception:', error);
       return [];
     }
   }
@@ -1687,7 +1732,7 @@ export class DataService {
       }
       if (!res.ok) return null;
       const created = await this.safeJson<SharedNote | null>(res, null);
-      
+
       // Emit events to refresh all related components
       if (created) {
         eventBus.emitMany(['notes:created', 'notes:invalidate'], {
@@ -1697,7 +1742,7 @@ export class DataService {
           timestamp: Date.now(),
         });
       }
-      
+
       return created;
     } catch {
       return null;
@@ -1729,7 +1774,7 @@ export class DataService {
       }
       if (!res.ok) return null;
       const updated = await this.safeJson<SharedNote | null>(res, null);
-      
+
       // Emit events to refresh all related components
       if (updated) {
         eventBus.emitMany(['notes:updated', 'notes:invalidate'], {
@@ -1739,7 +1784,7 @@ export class DataService {
           timestamp: Date.now(),
         });
       }
-      
+
       return updated;
     } catch {
       return null;
@@ -1756,9 +1801,9 @@ export class DataService {
           method: 'DELETE',
         });
       }
-      
+
       const success = res.ok;
-      
+
       // Emit events to refresh all related components
       if (success) {
         eventBus.emitMany(['notes:deleted', 'notes:invalidate'], {
@@ -1767,7 +1812,7 @@ export class DataService {
           timestamp: Date.now(),
         });
       }
-      
+
       return success;
     } catch {
       return false;
@@ -2044,15 +2089,18 @@ export class DataService {
       );
       const data = await res.json();
       console.log('📝 Study hours logged successfully:', data);
-      
+
       // Emit events to refresh all related components
-      eventBus.emitMany(['hours:logged', 'topics:invalidate', 'courses:invalidate', 'progress:updated'], {
-        type: 'progress_update',
-        topicId,
-        metadata: { hours: log.hours },
-        timestamp: Date.now(),
-      });
-      
+      eventBus.emitMany(
+        ['hours:logged', 'topics:invalidate', 'courses:invalidate', 'progress:updated'],
+        {
+          type: 'progress_update',
+          topicId,
+          metadata: { hours: log.hours },
+          timestamp: Date.now(),
+        }
+      );
+
       return data;
     } catch (error) {
       console.error('❌ logStudyHours error:', error);
@@ -2072,14 +2120,17 @@ export class DataService {
       );
       const data = await res.json();
       console.log('✅ Topic marked complete successfully:', data);
-      
+
       // Emit events to refresh all related components
-      eventBus.emitMany(['topics:completed', 'topics:invalidate', 'courses:invalidate', 'progress:updated'], {
-        type: 'progress_update',
-        topicId,
-        timestamp: Date.now(),
-      });
-      
+      eventBus.emitMany(
+        ['topics:completed', 'topics:invalidate', 'courses:invalidate', 'progress:updated'],
+        {
+          type: 'progress_update',
+          topicId,
+          timestamp: Date.now(),
+        }
+      );
+
       return data;
     } catch (error) {
       console.error('❌ markTopicComplete error:', error);
@@ -2175,7 +2226,7 @@ export class DataService {
       }
       const data = await this.safeJson<any>(res, null);
       console.log('📝 Course study hours logged successfully:', data);
-      
+
       // Emit events to refresh all related components
       eventBus.emitMany(['hours:logged', 'courses:invalidate', 'progress:updated'], {
         type: 'progress_update',
@@ -2183,12 +2234,74 @@ export class DataService {
         metadata: { hours: log.hours },
         timestamp: Date.now(),
       });
-      
+
       return data;
     } catch (error) {
       console.error('❌ logCourseStudyHours error:', error);
       const appError = ErrorHandler.handleApiError(error, 'courses');
       throw appError;
+    }
+  }
+
+  /* ----------------- Group Chat ----------------- */
+
+  /**
+   * Fetch message history for a group chat
+   */
+  static async fetchGroupMessages(
+    groupId: string,
+    options: { limit?: number; before?: string } = {}
+  ): Promise<any[]> {
+    try {
+      const params = new URLSearchParams();
+      if (options.limit) params.set('limit', String(options.limit));
+      if (options.before) params.set('before', options.before);
+
+      const url = `/api/v1/chat/groups/${encodeURIComponent(groupId)}/messages${
+        params.toString() ? `?${params}` : ''
+      }`;
+
+      const res = await this.request(url, { method: 'GET' });
+
+      if (!res.ok) {
+        console.error('Failed to fetch group messages:', res.status);
+        return [];
+      }
+
+      const messages = await this.safeJson<any[]>(res, []);
+      return Array.isArray(messages) ? messages : [];
+    } catch (error) {
+      console.error('❌ fetchGroupMessages error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Send a message to a group chat
+   */
+  static async sendGroupMessage(
+    groupId: string,
+    content: string,
+    type: string = 'text'
+  ): Promise<any | null> {
+    try {
+      const res = await this.request(
+        `/api/v1/chat/groups/${encodeURIComponent(groupId)}/messages`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ content, type }),
+        }
+      );
+
+      if (!res.ok) {
+        console.error('Failed to send group message:', res.status);
+        return null;
+      }
+
+      return await this.safeJson<any>(res, null);
+    } catch (error) {
+      console.error('❌ sendGroupMessage error:', error);
+      return null;
     }
   }
 }

@@ -44,7 +44,7 @@ let mockSendBuddyRequest = vi.fn();
 // Create mockDataService for tests that reference it
 const mockDataService = {
   searchPartners: mockSearchPartners,
-  fetchPartners: mockFetchPartners, 
+  fetchPartners: mockFetchPartners,
   sendBuddyRequest: mockSendBuddyRequest,
 };
 
@@ -203,10 +203,10 @@ test('can clear filters and see all partners again', async () => {
 test('handles invalid search gracefully', async () => {
   render(<Partners />);
   await waitFor(() => expect(screen.getAllByText('Alice Smith').length).toBeGreaterThan(0));
-  
+
   const input = screen.getByPlaceholderText(/Search by name or course/i);
   fireEvent.change(input, { target: { value: '   ' } }); // whitespace search
-  
+
   // Should still show results (filters work correctly)
   expect(screen.getAllByText('Alice Smith').length).toBeGreaterThan(0);
 });
@@ -214,16 +214,16 @@ test('handles invalid search gracefully', async () => {
 test('can handle empty partner name gracefully', async () => {
   render(<Partners />);
   await waitFor(() => expect(screen.getAllByText('Alice Smith').length).toBeGreaterThan(0));
-  
+
   // The component handles partner names properly through display logic
   expect(screen.getByText('Alice Smith')).toBeInTheDocument();
 });
 
 test('shows correct modal content structure', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => expect(screen.getAllByText('Alice Smith').length).toBeGreaterThan(0));
-  
+
   // Open modal
   const aliceCards = screen.getAllByText('Alice Smith');
   const aliceCard = aliceCards.find((el) => el.closest('li'))?.closest('li');
@@ -238,7 +238,7 @@ test('shows correct modal content structure', async () => {
     );
     expect(modalHeading).toBeInTheDocument();
   });
-  
+
   // Should show bio section
   expect(screen.getByText(/About this study partner/i)).toBeInTheDocument();
   expect(screen.getByText(/Math enthusiast/i)).toBeInTheDocument();
@@ -246,9 +246,9 @@ test('shows correct modal content structure', async () => {
 
 test('modal shows default bio for partners without custom bio', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => expect(screen.getAllByText('Bob Lee').length).toBeGreaterThan(0));
-  
+
   // Open Bob's modal (he might not have a custom bio in our mock)
   const bobCards = screen.getAllByText('Bob Lee');
   const bobCard = bobCards.find((el) => el.closest('li'))?.closest('li');
@@ -263,16 +263,16 @@ test('modal shows default bio for partners without custom bio', async () => {
     );
     expect(modalHeading).toBeInTheDocument();
   });
-  
+
   // Should show some bio content (either custom or default)
   expect(screen.getByText(/About this study partner/i)).toBeInTheDocument();
 });
 
 test('modal has close button functionality', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => expect(screen.getAllByText('Alice Smith').length).toBeGreaterThan(0));
-  
+
   // Open modal
   const aliceCards = screen.getAllByText('Alice Smith');
   const aliceCard = aliceCards.find((el) => el.closest('li'))?.closest('li');
@@ -291,7 +291,7 @@ test('modal has close button functionality', async () => {
   // Close button should exist
   const closeButton = screen.getByLabelText(/close/i);
   expect(closeButton).toBeInTheDocument();
-  
+
   // Cancel button should also exist
   const cancelButton = screen.getByRole('button', { name: /cancel/i });
   expect(cancelButton).toBeInTheDocument();
@@ -299,9 +299,9 @@ test('modal has close button functionality', async () => {
 
 test('modal shows partner course information', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => expect(screen.getAllByText('Alice Smith').length).toBeGreaterThan(0));
-  
+
   // Open modal
   const aliceCards = screen.getAllByText('Alice Smith');
   const aliceCard = aliceCards.find((el) => el.closest('li'))?.closest('li');
@@ -312,16 +312,16 @@ test('modal shows partner course information', async () => {
   await waitFor(() => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
-  
+
   // Should show course information in modal context
   expect(screen.getAllByText(/Mathematics/i).length).toBeGreaterThan(0);
 });
 
 test('can handle multiple modal interactions', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => expect(screen.getAllByText('Alice Smith').length).toBeGreaterThan(0));
-  
+
   // Test opening Alice's modal
   const aliceCards = screen.getAllByText('Alice Smith');
   const aliceCard = aliceCards.find((el) => el.closest('li'))?.closest('li');
@@ -332,16 +332,16 @@ test('can handle multiple modal interactions', async () => {
   await waitFor(() => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
-  
+
   // Close with cancel
   const cancelButton = screen.getByRole('button', { name: /cancel/i });
   fireEvent.click(cancelButton);
-  
-  // Wait for modal to close, then test Bob's modal  
+
+  // Wait for modal to close, then test Bob's modal
   await waitFor(() => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
-  
+
   // Now test Bob's modal
   const bobCards = screen.getAllByText('Bob Lee');
   const bobCard = bobCards.find((el) => el.closest('li'))?.closest('li');
@@ -356,9 +356,9 @@ test('can handle multiple modal interactions', async () => {
 
 test('shows partner initials correctly', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => expect(screen.getAllByText('Alice Smith').length).toBeGreaterThan(0));
-  
+
   // Open modal
   const aliceCards = screen.getAllByText('Alice Smith');
   const aliceCard = aliceCards.find((el) => el.closest('li'))?.closest('li');
@@ -377,26 +377,30 @@ test('shows partner initials correctly', async () => {
 test('handles empty or invalid filter inputs gracefully', async () => {
   render(<Partners />);
   await waitFor(() => expect(screen.getAllByText('Alice Smith').length).toBeGreaterThan(0));
-  
+
   const input = screen.getByPlaceholderText(/Search by name or course/i);
-  
+
   // Test various edge cases
   fireEvent.change(input, { target: { value: '' } });
   expect(screen.getAllByText('Alice Smith').length).toBeGreaterThan(0);
-  
+
   fireEvent.change(input, { target: { value: '   ' } });
   expect(screen.getAllByText('Alice Smith').length).toBeGreaterThan(0);
-  
+
   fireEvent.change(input, { target: { value: '!@#$%' } });
   // Should handle special characters gracefully
-  expect(screen.getAllByText((text) => text.includes('No partners found') || text.includes('Alice Smith')).length).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText(
+      (text) => text.includes('No partners found') || text.includes('Alice Smith')
+    ).length
+  ).toBeGreaterThan(0);
 });
 
 test('handles keyboard navigation in modal', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => expect(screen.getAllByText('Alice Smith').length).toBeGreaterThan(0));
-  
+
   // Open modal
   const aliceCards = screen.getAllByText('Alice Smith');
   const aliceCard = aliceCards.find((el) => el.closest('li'))?.closest('li');
@@ -411,37 +415,37 @@ test('handles keyboard navigation in modal', async () => {
   // Test tab navigation between modal buttons
   const sendInviteButton = screen.getByRole('button', { name: /send invite/i });
   const cancelButton = screen.getByRole('button', { name: /cancel/i });
-  
+
   // Focus should be manageable
   sendInviteButton.focus();
   expect(document.activeElement).toBe(sendInviteButton);
-  
+
   cancelButton.focus();
   expect(document.activeElement).toBe(cancelButton);
 });
 
 test('displays all partner information correctly in suggestions', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => expect(screen.getAllByText('Alice Smith').length).toBeGreaterThan(0));
-  
+
   // Should display partner names
   expect(screen.getByText('Alice Smith')).toBeInTheDocument();
   expect(screen.getByText('Bob Lee')).toBeInTheDocument();
-  
+
   // Should display courses
   expect(screen.getAllByText(/Mathematics/i).length).toBeGreaterThan(0);
   expect(screen.getAllByText(/Physics/i).length).toBeGreaterThan(0);
-  
+
   // Should show match count
   expect(screen.getByText(/2.*matches/i)).toBeInTheDocument();
 });
 
 test('handles modal backdrop clicks correctly', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => expect(screen.getAllByText('Alice Smith').length).toBeGreaterThan(0));
-  
+
   // Open modal
   const aliceCards = screen.getAllByText('Alice Smith');
   const aliceCard = aliceCards.find((el) => el.closest('li'))?.closest('li');
@@ -452,7 +456,7 @@ test('handles modal backdrop clicks correctly', async () => {
   await waitFor(() => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
-  
+
   // Click inside modal content should not close modal
   const modalContent = screen.getByRole('dialog');
   fireEvent.click(modalContent);
@@ -461,13 +465,13 @@ test('handles modal backdrop clicks correctly', async () => {
 
 test('shows correct suggestions section headers', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => expect(screen.getAllByText('Alice Smith').length).toBeGreaterThan(0));
-  
+
   // Should show suggestions header
   expect(screen.getByText('Suggested for you')).toBeInTheDocument();
   expect(screen.getByText('Perfect matches based on shared courses')).toBeInTheDocument();
-  
+
   // Should show main header
   expect(screen.getByText('Find study partners')).toBeInTheDocument();
   expect(screen.getByText(/Connect with mates who share your courses/i)).toBeInTheDocument();
@@ -475,12 +479,12 @@ test('shows correct suggestions section headers', async () => {
 
 test('handles partner matching badges correctly', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => expect(screen.getAllByText('Alice Smith').length).toBeGreaterThan(0));
-  
+
   // Should show matched courses section for partners
   expect(screen.getAllByText(/Matched courses/i).length).toBeGreaterThan(0);
-  
+
   // Should show course badges
   const mathBadges = screen.getAllByText('Mathematics');
   const physicsBadges = screen.getAllByText('Physics');
@@ -491,9 +495,9 @@ test('handles partner matching badges correctly', async () => {
 // TARGETED tests to hit uncovered lines 773-776, 778-795, 811-813, 824, 847, 856-863, 866-868
 test('covers modal cleanup and focus management (lines 770-776)', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => expect(screen.getAllByText('Alice Smith').length).toBeGreaterThan(0));
-  
+
   // Open modal to trigger useEffect cleanup
   const aliceCards = screen.getAllByText('Alice Smith');
   const aliceCard = aliceCards.find((el) => el.closest('li'))?.closest('li');
@@ -512,9 +516,9 @@ test('covers modal cleanup and focus management (lines 770-776)', async () => {
 
 test('covers modal portal creation and backdrop (lines 778-795)', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => expect(screen.getAllByText('Alice Smith').length).toBeGreaterThan(0));
-  
+
   // Open modal to create portal
   const aliceCards = screen.getAllByText('Alice Smith');
   const aliceCard = aliceCards.find((el) => el.closest('li'))?.closest('li');
@@ -534,9 +538,9 @@ test('covers modal portal creation and backdrop (lines 778-795)', async () => {
 
 test('covers modal header and initials display (lines 811-813)', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => expect(screen.getAllByText('Alice Smith').length).toBeGreaterThan(0));
-  
+
   // Open modal to render header with initials
   const aliceCards = screen.getAllByText('Alice Smith');
   const aliceCard = aliceCards.find((el) => el.closest('li'))?.closest('li');
@@ -554,9 +558,9 @@ test('covers modal header and initials display (lines 811-813)', async () => {
 
 test('covers bio section and about text (line 824)', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => expect(screen.getAllByText('Alice Smith').length).toBeGreaterThan(0));
-  
+
   // Open modal to show bio section
   const aliceCards = screen.getAllByText('Alice Smith');
   const aliceCard = aliceCards.find((el) => el.closest('li'))?.closest('li');
@@ -574,9 +578,9 @@ test('covers bio section and about text (line 824)', async () => {
 
 test('covers button states and status logic (lines 847, 856-863, 866-868)', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => expect(screen.getAllByText('Alice Smith').length).toBeGreaterThan(0));
-  
+
   // Open modal to test button states
   const aliceCards = screen.getAllByText('Alice Smith');
   const aliceCard = aliceCards.find((el) => el.closest('li'))?.closest('li');
@@ -591,10 +595,10 @@ test('covers button states and status logic (lines 847, 856-863, 866-868)', asyn
   const sendButton = screen.getByRole('button', { name: /Send invite/i });
   expect(sendButton).toBeInTheDocument();
   expect(sendButton).not.toBeDisabled(); // Default state
-  
+
   // Click to test state change
   fireEvent.click(sendButton);
-  
+
   // After click, should show "Invite sent" (covers line 856-857)
   await waitFor(() => {
     expect(screen.getByText(/Invite sent/i)).toBeInTheDocument();
@@ -603,9 +607,9 @@ test('covers button states and status logic (lines 847, 856-863, 866-868)', asyn
 
 test('covers all modal button interaction paths', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => expect(screen.getAllByText('Alice Smith').length).toBeGreaterThan(0));
-  
+
   // Test all button states by opening modal multiple times
   const aliceCards = screen.getAllByText('Alice Smith');
   const aliceCard = aliceCards.find((el) => el.closest('li'))?.closest('li');
@@ -619,14 +623,14 @@ test('covers all modal button interaction paths', async () => {
   // Test cancel button
   const cancelButton = screen.getByRole('button', { name: /Cancel/i });
   expect(cancelButton).toBeInTheDocument();
-  
+
   // Test close button
   const closeButton = screen.getByLabelText(/Close/i);
   expect(closeButton).toBeInTheDocument();
-  
+
   // Click cancel to test that path
   fireEvent.click(cancelButton);
-  
+
   await waitFor(() => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
@@ -635,12 +639,12 @@ test('covers all modal button interaction paths', async () => {
 test('covers modal conditional rendering and person prop handling', async () => {
   // Test the "if (!open || !person) return null" condition (line 776)
   render(<Partners />);
-  
+
   await waitFor(() => expect(screen.getAllByText('Alice Smith').length).toBeGreaterThan(0));
-  
+
   // Modal should not be visible initially (covers the return null condition)
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-  
+
   // Now open modal
   const aliceCards = screen.getAllByText('Alice Smith');
   const aliceCard = aliceCards.find((el) => el.closest('li'))?.closest('li');
@@ -650,7 +654,7 @@ test('covers modal conditional rendering and person prop handling', async () => 
   await waitFor(() => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
-  
+
   // Modal should be visible when person is selected
   expect(screen.getByRole('dialog')).toBeInTheDocument();
 });
@@ -659,7 +663,7 @@ test('covers modal conditional rendering and person prop handling', async () => 
 test('displays and handles API errors with retry functionality', async () => {
   // Force searchPartners to throw an error to trigger error state
   mockSearchPartners.mockRejectedValueOnce(new Error('Network error'));
-  
+
   render(<Partners />);
 
   // Wait for error state to appear (covers lines 238-265 - error display)
@@ -669,11 +673,11 @@ test('displays and handles API errors with retry functionality', async () => {
 
   // Should show error details (covers error?.title, error?.message)
   expect(screen.getByText(/Unable to load study partner recommendations/i)).toBeInTheDocument();
-  
+
   // Should show retry button (covers (error || partnersError)?.retryable check)
   const retryButton = screen.getByRole('button', { name: /refresh/i });
   expect(retryButton).toBeInTheDocument();
-  
+
   // Should show dismiss button
   const dismissButton = screen.getByRole('button', { name: /dismiss/i });
   expect(dismissButton).toBeInTheDocument();
@@ -682,7 +686,7 @@ test('displays and handles API errors with retry functionality', async () => {
 test('covers retry functionality and error clearing', async () => {
   // Start with error
   mockSearchPartners.mockRejectedValueOnce(new Error('Network error'));
-  
+
   render(<Partners />);
 
   // Wait for error state
@@ -692,7 +696,7 @@ test('covers retry functionality and error clearing', async () => {
 
   // Reset mock to return success
   mockSearchPartners.mockResolvedValueOnce(mockPartners);
-  
+
   // Click retry button (covers handleRetry function - lines 221-225)
   const retryButton = screen.getByRole('button', { name: /refresh/i });
   fireEvent.click(retryButton);
@@ -707,7 +711,7 @@ test('covers retry functionality and error clearing', async () => {
 test('covers dismiss error functionality', async () => {
   // Force error
   mockSearchPartners.mockRejectedValueOnce(new Error('API error'));
-  
+
   render(<Partners />);
 
   // Wait for error
@@ -728,7 +732,7 @@ test('covers dismiss error functionality', async () => {
 test('covers partners error vs general error states', async () => {
   // Force fetchPartners (buddies) to error while searchPartners succeeds
   mockFetchPartners.mockRejectedValueOnce(new Error('Buddies fetch failed'));
-  
+
   render(<Partners />);
 
   // Wait for partners to load but buddies to fail
@@ -747,50 +751,52 @@ test('covers error retryable property handling', async () => {
   const retryableError = new Error('Retryable error');
   (retryableError as any).retryable = true;
   (retryableError as any).action = 'Retry now';
-  
+
   mockSearchPartners.mockRejectedValueOnce(retryableError);
-  
+
   render(<Partners />);
 
   await waitFor(() => {
     expect(screen.getByText(/Study Partners Unavailable/i)).toBeInTheDocument();
   });
 
-  // Should show custom retry action text (covers (error || partnersError)?.action) 
+  // Should show custom retry action text (covers (error || partnersError)?.action)
   // Note: The error handler standardizes the button text to "Refresh", so we test that
   expect(screen.getByRole('button', { name: /refresh/i })).toBeInTheDocument();
 });
 
 test('covers search input interactions', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByPlaceholderText('Search by name or course...')).toBeInTheDocument();
   });
 
-  const searchInput = screen.getByPlaceholderText('Search by name or course...') as HTMLInputElement;
+  const searchInput = screen.getByPlaceholderText(
+    'Search by name or course...'
+  ) as HTMLInputElement;
   fireEvent.change(searchInput, { target: { value: 'Alice' } });
-  
+
   expect(searchInput.value).toBe('Alice');
 });
 
 test('covers clear search functionality', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText('Clear search')).toBeInTheDocument();
   });
 
   const clearButton = screen.getByText('Clear search');
   fireEvent.click(clearButton);
-  
+
   // Should trigger clear functionality
   expect(clearButton).toBeInTheDocument();
 });
 
 test('covers component state management', async () => {
   render(<Partners />);
-  
+
   // Check that component renders with proper structure
   await waitFor(() => {
     expect(screen.getByText('Find study partners')).toBeInTheDocument();
@@ -803,15 +809,17 @@ test('covers component state management', async () => {
 
 test('covers partner filtering logic', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText('Alice Smith')).toBeInTheDocument();
   });
 
   // Test search functionality
-  const searchInput = screen.getByPlaceholderText('Search by name or course...') as HTMLInputElement;
+  const searchInput = screen.getByPlaceholderText(
+    'Search by name or course...'
+  ) as HTMLInputElement;
   fireEvent.change(searchInput, { target: { value: 'Bob' } });
-  
+
   // Should filter results
   expect(searchInput.value).toBe('Bob');
 });
@@ -819,7 +827,7 @@ test('covers partner filtering logic', async () => {
 // 🚀 SIMPLE WORKING COVERAGE TESTS TO PUSH TO 80%+ 🚀
 test('covers component initialization', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText('Alice Smith')).toBeInTheDocument();
   });
@@ -827,16 +835,16 @@ test('covers component initialization', async () => {
 
 test('covers loading state handling', async () => {
   render(<Partners />);
-  
+
   // Component loads and shows initial state
   expect(screen.getByText('Find study partners')).toBeInTheDocument();
 });
 
 test('covers error state display', async () => {
   mockSearchPartners.mockRejectedValue(new Error('Network error'));
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText(/Study Partners Unavailable/i)).toBeInTheDocument();
   });
@@ -844,9 +852,11 @@ test('covers error state display', async () => {
 
 test('covers search input functionality', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
-    const searchInput = screen.getByPlaceholderText('Search by name or course...') as HTMLInputElement;
+    const searchInput = screen.getByPlaceholderText(
+      'Search by name or course...'
+    ) as HTMLInputElement;
     fireEvent.change(searchInput, { target: { value: 'test search' } });
     expect(searchInput.value).toBe('test search');
   });
@@ -854,7 +864,7 @@ test('covers search input functionality', async () => {
 
 test('covers clear search functionality', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     const clearButton = screen.getByText('Clear search');
     fireEvent.click(clearButton);
@@ -864,7 +874,7 @@ test('covers clear search functionality', async () => {
 
 test('covers partner list rendering', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText('Alice Smith')).toBeInTheDocument();
     expect(screen.getByText('Bob Lee')).toBeInTheDocument();
@@ -873,7 +883,7 @@ test('covers partner list rendering', async () => {
 
 test('covers suggestions section', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText('Suggested for you')).toBeInTheDocument();
     expect(screen.getByText('Perfect matches based on shared courses')).toBeInTheDocument();
@@ -882,7 +892,7 @@ test('covers suggestions section', async () => {
 
 test('covers study connections section', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText('Study connections')).toBeInTheDocument();
     expect(screen.getByText('No connections yet')).toBeInTheDocument();
@@ -891,7 +901,7 @@ test('covers study connections section', async () => {
 
 test('covers all partners search section', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText('All study partners')).toBeInTheDocument();
     expect(screen.getByText('Search by name or course')).toBeInTheDocument();
@@ -900,9 +910,9 @@ test('covers all partners search section', async () => {
 
 test('covers empty search results', async () => {
   mockSearchPartners.mockResolvedValue([]);
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText('No partners found')).toBeInTheDocument();
   });
@@ -910,7 +920,7 @@ test('covers empty search results', async () => {
 
 test('covers partner card rendering', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getAllByText('Connect').length).toBeGreaterThan(0);
     expect(screen.getByText('AS')).toBeInTheDocument(); // Initials
@@ -919,7 +929,7 @@ test('covers partner card rendering', async () => {
 
 test('covers course information display', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getAllByText('Mathematics').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Matched courses/).length).toBeGreaterThan(0);
@@ -929,9 +939,9 @@ test('covers course information display', async () => {
 test('covers retry functionality', async () => {
   mockSearchPartners.mockRejectedValueOnce(new Error('Initial error'));
   mockSearchPartners.mockResolvedValue(mockPartners);
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     const retryButton = screen.getByRole('button', { name: /refresh/i });
     fireEvent.click(retryButton);
@@ -940,9 +950,9 @@ test('covers retry functionality', async () => {
 
 test('covers dismiss error functionality', async () => {
   mockSearchPartners.mockRejectedValue(new Error('Test error'));
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     const dismissButton = screen.getByRole('button', { name: /dismiss/i });
     fireEvent.click(dismissButton);
@@ -951,10 +961,10 @@ test('covers dismiss error functionality', async () => {
 
 test('covers component state transitions', async () => {
   render(<Partners />);
-  
+
   // Should transition through loading to loaded state
   expect(screen.getByText('Find study partners')).toBeInTheDocument();
-  
+
   await waitFor(() => {
     expect(screen.getByText('Alice Smith')).toBeInTheDocument();
   });
@@ -962,7 +972,7 @@ test('covers component state transitions', async () => {
 
 test('covers filter interactions', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     const searchInput = screen.getByPlaceholderText('Search by name or course...');
     fireEvent.change(searchInput, { target: { value: 'Alice' } });
@@ -973,7 +983,7 @@ test('covers filter interactions', async () => {
 
 test('covers partner suggestions display', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText('2 matches')).toBeInTheDocument();
     expect(screen.getByText('Suggested for you')).toBeInTheDocument();
@@ -982,7 +992,7 @@ test('covers partner suggestions display', async () => {
 
 test('covers connection status handling', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText('Alice Smith')).toBeInTheDocument();
   });
@@ -990,7 +1000,7 @@ test('covers connection status handling', async () => {
 
 test('covers accessibility features', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByLabelText('Search partners')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /connect/i })).toBeTruthy();
@@ -999,7 +1009,7 @@ test('covers accessibility features', async () => {
 
 test('covers responsive design elements', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     // Check for grid layout elements
     const sections = screen.getAllByRole('region');
@@ -1009,7 +1019,7 @@ test('covers responsive design elements', async () => {
 
 test('covers connection status display', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText('Alice Smith')).toBeInTheDocument();
     expect(screen.getAllByText('Connect').length).toBeGreaterThan(0);
@@ -1018,7 +1028,7 @@ test('covers connection status display', async () => {
 
 test('covers partner interaction', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     const connectButtons = screen.getAllByText('Connect');
     expect(connectButtons.length).toBeGreaterThan(0);
@@ -1027,7 +1037,7 @@ test('covers partner interaction', async () => {
 
 test('covers course information', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getAllByText('Mathematics').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Physics').length).toBeGreaterThan(0);
@@ -1036,9 +1046,9 @@ test('covers course information', async () => {
 
 test('covers network error handling', async () => {
   mockSearchPartners.mockRejectedValue(new Error('Network error'));
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText(/Study Partners Unavailable/i)).toBeInTheDocument();
   });
@@ -1050,17 +1060,17 @@ test('covers loading spinner and async state transitions', async () => {
   const controlledPromise = new Promise((resolve) => {
     resolvePromise = resolve;
   });
-  
+
   mockSearchPartners.mockReturnValue(controlledPromise);
-  
+
   render(<Partners />);
-  
+
   // Should show initial content
   expect(screen.getByText('Find study partners')).toBeInTheDocument();
-  
+
   // Resolve with data
   resolvePromise(mockPartners);
-  
+
   await waitFor(() => {
     expect(screen.getByText('Alice Smith')).toBeInTheDocument();
   });
@@ -1068,15 +1078,16 @@ test('covers loading spinner and async state transitions', async () => {
 
 test('covers empty search results and no-match scenarios', async () => {
   mockSearchPartners.mockResolvedValue([]);
-  
+
   render(<Partners />);
 
   await waitFor(() => {
     expect(screen.getByText('No partners found')).toBeInTheDocument();
   });
-});test('covers modal keyboard navigation and accessibility', async () => {
+});
+test('covers modal keyboard navigation and accessibility', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText('Alice Smith')).toBeInTheDocument();
   });
@@ -1084,11 +1095,11 @@ test('covers empty search results and no-match scenarios', async () => {
 
 test('covers partner connection handling', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     const connectButtons = screen.getAllByText('Connect');
     fireEvent.click(connectButtons[0]);
-    
+
     // Connection functionality is covered
     expect(connectButtons.length).toBeGreaterThan(0);
   });
@@ -1096,14 +1107,16 @@ test('covers partner connection handling', async () => {
 
 test('covers search functionality', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
-    const searchInput = screen.getByPlaceholderText('Search by name or course...') as HTMLInputElement;
+    const searchInput = screen.getByPlaceholderText(
+      'Search by name or course...'
+    ) as HTMLInputElement;
     fireEvent.change(searchInput, { target: { value: 'Alice' } });
-    
+
     const clearButton = screen.getByText('Clear search');
     fireEvent.click(clearButton);
-    
+
     expect(searchInput.value).toBe('');
   });
 });
@@ -1115,7 +1128,7 @@ test('covers component lifecycle', () => {
 
 test('covers match display', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText('Suggested for you')).toBeInTheDocument();
     expect(screen.getByText('2 matches')).toBeInTheDocument();
@@ -1124,7 +1137,7 @@ test('covers match display', async () => {
 
 test('covers partner details', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText('AS')).toBeInTheDocument(); // Initials
     expect(screen.getByText('Alice Smith')).toBeInTheDocument(); // Name
@@ -1136,14 +1149,14 @@ test('covers partner details', async () => {
 test('covers error retry with success scenario', async () => {
   mockSearchPartners.mockRejectedValueOnce(new Error('Network error'));
   mockSearchPartners.mockResolvedValue(mockPartners);
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     const retryButton = screen.getByRole('button', { name: /refresh/i });
     fireEvent.click(retryButton);
   });
-  
+
   await waitFor(() => {
     expect(screen.getByText('Alice Smith')).toBeInTheDocument();
   });
@@ -1151,7 +1164,7 @@ test('covers error retry with success scenario', async () => {
 
 test('covers modal interaction workflow', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     // Modal functionality is covered in the component
     expect(screen.getByText('Alice Smith')).toBeInTheDocument();
@@ -1160,17 +1173,19 @@ test('covers modal interaction workflow', async () => {
 
 test('covers search input validation and filtering', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
-    const searchInput = screen.getByPlaceholderText('Search by name or course...') as HTMLInputElement;
-    
+    const searchInput = screen.getByPlaceholderText(
+      'Search by name or course...'
+    ) as HTMLInputElement;
+
     // Test various search patterns
     fireEvent.change(searchInput, { target: { value: 'Mathematics' } });
     expect(searchInput.value).toBe('Mathematics');
-    
+
     fireEvent.change(searchInput, { target: { value: 'Alice' } });
     expect(searchInput.value).toBe('Alice');
-    
+
     // Clear search
     fireEvent.change(searchInput, { target: { value: '' } });
     expect(searchInput.value).toBe('');
@@ -1178,15 +1193,17 @@ test('covers search input validation and filtering', async () => {
 });
 
 test('covers partner bio and profile details', async () => {
-  const partnersWithBio = [{
-    ...mockPartners[0],
-    bio: 'I am passionate about mathematics and love collaborative studying'
-  }];
-  
+  const partnersWithBio = [
+    {
+      ...mockPartners[0],
+      bio: 'I am passionate about mathematics and love collaborative studying',
+    },
+  ];
+
   mockSearchPartners.mockResolvedValue(partnersWithBio);
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText('Alice Smith')).toBeInTheDocument();
   });
@@ -1194,7 +1211,7 @@ test('covers partner bio and profile details', async () => {
 
 test('covers compatibility scoring system', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     // Compatibility scoring is integrated in the component
     expect(screen.getByText('Alice Smith')).toBeInTheDocument();
@@ -1203,30 +1220,32 @@ test('covers compatibility scoring system', async () => {
 });
 
 test('covers course matching logic', async () => {
-  const partnersWithMultipleCourses = [{
-    ...mockPartners[0],
-    courses: ['Mathematics', 'Physics', 'Computer Science']
-  }];
-  
+  const partnersWithMultipleCourses = [
+    {
+      ...mockPartners[0],
+      courses: ['Mathematics', 'Physics', 'Computer Science'],
+    },
+  ];
+
   mockSearchPartners.mockResolvedValue(partnersWithMultipleCourses);
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText('Alice Smith')).toBeInTheDocument();
   });
 });
 
 test('covers connection status handling', async () => {
-  const partnersWithStatus = mockPartners.map(p => ({
+  const partnersWithStatus = mockPartners.map((p) => ({
     ...p,
-    connectionStatus: 'pending'
+    connectionStatus: 'pending',
   }));
-  
+
   mockSearchPartners.mockResolvedValue(partnersWithStatus);
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText('Alice Smith')).toBeInTheDocument();
   });
@@ -1234,9 +1253,9 @@ test('covers connection status handling', async () => {
 
 test('covers empty state with helpful suggestions', async () => {
   mockSearchPartners.mockResolvedValue([]);
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText('Remove filters')).toBeInTheDocument();
     expect(screen.getByText('Try different keywords')).toBeInTheDocument();
@@ -1246,27 +1265,27 @@ test('covers empty state with helpful suggestions', async () => {
 
 test('covers keyboard navigation support', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     const searchInput = screen.getByPlaceholderText('Search by name or course...');
-    
+
     // Test keyboard events
     fireEvent.keyDown(searchInput, { key: 'Enter' });
     fireEvent.keyDown(searchInput, { key: 'Escape' });
     fireEvent.keyDown(searchInput, { key: 'Tab' });
-    
+
     expect(searchInput).toBeInTheDocument();
   });
 });
 
 test('covers responsive design elements', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     // Check for responsive grid classes
     const gridElements = document.querySelectorAll('[class*="grid"]');
     expect(gridElements.length).toBeGreaterThan(0);
-    
+
     // Check for responsive text classes
     const responsiveElements = document.querySelectorAll('[class*="lg:"]');
     expect(responsiveElements.length).toBeGreaterThan(0);
@@ -1278,34 +1297,36 @@ test('covers loading state transitions', async () => {
   const controlledPromise = new Promise((resolve) => {
     resolvePromise = resolve;
   });
-  
+
   mockSearchPartners.mockReturnValue(controlledPromise);
-  
+
   render(<Partners />);
-  
+
   // Should show loading text
   expect(screen.getByText('Loading study partners')).toBeInTheDocument();
-  
+
   // Resolve promise
   resolvePromise!(mockPartners);
-  
+
   await waitFor(() => {
     expect(screen.getByText('Alice Smith')).toBeInTheDocument();
   });
 });
 
 test('covers multiple partner rendering', async () => {
-  const manyPartners = Array(10).fill(null).map((_, i) => ({
-    ...mockPartners[0],
-    id: `partner-${i}`,
-    name: `Test Partner ${i}`,
-    email: `partner${i}@example.com`
-  }));
-  
+  const manyPartners = Array(10)
+    .fill(null)
+    .map((_, i) => ({
+      ...mockPartners[0],
+      id: `partner-${i}`,
+      name: `Test Partner ${i}`,
+      email: `partner${i}@example.com`,
+    }));
+
   mockSearchPartners.mockResolvedValue(manyPartners);
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getAllByText(/Test Partner \d+/).length).toBeGreaterThan(0);
   });
@@ -1313,22 +1334,24 @@ test('covers multiple partner rendering', async () => {
 
 test('covers error boundary handling', () => {
   // Test component stability with invalid data
-  mockSearchPartners.mockResolvedValue([{
-    ...mockPartners[0],
-    name: null,
-    email: undefined
-  }]);
-  
+  mockSearchPartners.mockResolvedValue([
+    {
+      ...mockPartners[0],
+      name: null,
+      email: undefined,
+    },
+  ]);
+
   expect(() => render(<Partners />)).not.toThrow();
 });
 
 test('covers accessibility features', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     // Check ARIA labels
     expect(screen.getByLabelText('Search partners')).toBeInTheDocument();
-    
+
     // Check roles
     expect(screen.getAllByRole('button').length).toBeGreaterThan(0);
     expect(screen.getAllByRole('region').length).toBeGreaterThan(0);
@@ -1337,12 +1360,12 @@ test('covers accessibility features', async () => {
 
 test('covers theme and styling classes', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     // Check for theme classes
     const styledElements = document.querySelectorAll('[class*="slate-"]');
     expect(styledElements.length).toBeGreaterThan(0);
-    
+
     const emeraldElements = document.querySelectorAll('[class*="emerald-"]');
     expect(emeraldElements.length).toBeGreaterThan(0);
   });
@@ -1350,27 +1373,27 @@ test('covers theme and styling classes', async () => {
 
 test('covers component state management', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     const searchInput = screen.getByPlaceholderText('Search by name or course...');
-    
+
     // Test state changes
     fireEvent.change(searchInput, { target: { value: 'test' } });
     fireEvent.change(searchInput, { target: { value: 'different test' } });
     fireEvent.change(searchInput, { target: { value: '' } });
-    
+
     expect(searchInput).toBeInTheDocument();
   });
 });
 
 test('covers partner card interactions', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     const connectButtons = screen.getAllByText('Connect');
-    
+
     expect(connectButtons.length).toBeGreaterThan(0);
-    
+
     // Test connect interaction
     fireEvent.click(connectButtons[0]);
   });
@@ -1381,13 +1404,13 @@ test('covers data validation and error handling', async () => {
   const malformedData = [
     { id: '1' }, // Missing required fields
     { ...mockPartners[0], courses: null },
-    { ...mockPartners[1], compatibility: 'invalid' }
+    { ...mockPartners[1], compatibility: 'invalid' },
   ];
-  
+
   mockSearchPartners.mockResolvedValue(malformedData);
-  
+
   render(<Partners />);
-  
+
   // Should handle gracefully without crashing
   await waitFor(() => {
     expect(screen.getByText('Find study partners')).toBeInTheDocument();
@@ -1395,17 +1418,19 @@ test('covers data validation and error handling', async () => {
 });
 
 test('covers performance with large datasets', async () => {
-  const largeDataset = Array(100).fill(null).map((_, i) => ({
-    ...mockPartners[0],
-    id: `large-partner-${i}`,
-    name: `Partner ${i}`,
-    email: `large${i}@example.com`
-  }));
-  
+  const largeDataset = Array(100)
+    .fill(null)
+    .map((_, i) => ({
+      ...mockPartners[0],
+      id: `large-partner-${i}`,
+      name: `Partner ${i}`,
+      email: `large${i}@example.com`,
+    }));
+
   mockSearchPartners.mockResolvedValue(largeDataset);
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText('Find study partners')).toBeInTheDocument();
   });
@@ -1413,7 +1438,7 @@ test('covers performance with large datasets', async () => {
 
 test('covers internationalization support', async () => {
   render(<Partners />);
-  
+
   await waitFor(() => {
     // Check for text that could be internationalized
     expect(screen.getByText('Find study partners')).toBeInTheDocument();
@@ -1426,13 +1451,20 @@ test('covers internationalization support', async () => {
 
 test('covers suggestion card gradient and styling classes', async () => {
   const partners = [
-    { id: '1', name: 'Test Partner', course: 'CS', sharedCourses: ['Math'], allCourses: ['Math'], compatibilityScore: 95 }
+    {
+      id: '1',
+      name: 'Test Partner',
+      course: 'CS',
+      sharedCourses: ['Math'],
+      allCourses: ['Math'],
+      compatibilityScore: 95,
+    },
   ];
   mockSearchPartners.mockResolvedValue(partners);
   mockFetchPartners.mockResolvedValue([]);
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     const suggestionCard = screen.getByText('Test Partner').closest('li');
     expect(suggestionCard).toHaveClass('group', 'relative', 'rounded-2xl');
@@ -1441,13 +1473,19 @@ test('covers suggestion card gradient and styling classes', async () => {
 
 test('covers buddy card interaction and hover states', async () => {
   const buddies = [
-    { id: '1', name: 'Buddy One', course: 'CS', connectionStatus: 'accepted', allCourses: ['CS101', 'Math'] }
+    {
+      id: '1',
+      name: 'Buddy One',
+      course: 'CS',
+      connectionStatus: 'accepted',
+      allCourses: ['CS101', 'Math'],
+    },
   ];
   mockDataService.searchPartners.mockResolvedValue([]);
   mockDataService.fetchPartners.mockResolvedValue(buddies);
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     const chatButton = screen.getByLabelText(/open chat with buddy one/i);
     expect(chatButton).toBeInTheDocument();
@@ -1457,20 +1495,20 @@ test('covers buddy card interaction and hover states', async () => {
 
 test('covers match reasons display logic', async () => {
   const partners = [
-    { 
-      id: '1', 
-      name: 'Match Partner', 
-      course: 'CS', 
-      sharedCourses: ['Math'], 
+    {
+      id: '1',
+      name: 'Match Partner',
+      course: 'CS',
+      sharedCourses: ['Math'],
       allCourses: ['Math'],
-      matchReasons: ['Same university', 'Similar schedule', 'High compatibility']
-    }
+      matchReasons: ['Same university', 'Similar schedule', 'High compatibility'],
+    },
   ];
   mockDataService.searchPartners.mockResolvedValue(partners);
   mockDataService.fetchPartners.mockResolvedValue([]);
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText(/same university/i)).toBeInTheDocument();
     expect(screen.getByText(/similar schedule/i)).toBeInTheDocument();
@@ -1479,20 +1517,20 @@ test('covers match reasons display logic', async () => {
 
 test('covers empty match reasons fallback', async () => {
   const partners = [
-    { 
-      id: '1', 
-      name: 'No Reasons Partner', 
-      course: 'CS', 
-      sharedCourses: ['Math'], 
+    {
+      id: '1',
+      name: 'No Reasons Partner',
+      course: 'CS',
+      sharedCourses: ['Math'],
       allCourses: ['Math'],
-      matchReasons: [] // Empty array
-    }
+      matchReasons: [], // Empty array
+    },
   ];
   mockDataService.searchPartners.mockResolvedValue(partners);
   mockDataService.fetchPartners.mockResolvedValue([]);
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText('No Reasons Partner')).toBeInTheDocument();
   });
@@ -1500,20 +1538,20 @@ test('covers empty match reasons fallback', async () => {
 
 test('covers sharedTopicsCount display logic', async () => {
   const partners = [
-    { 
-      id: '1', 
-      name: 'Topics Partner', 
-      course: 'CS', 
-      sharedCourses: ['Math'], 
+    {
+      id: '1',
+      name: 'Topics Partner',
+      course: 'CS',
+      sharedCourses: ['Math'],
       allCourses: ['Math'],
-      sharedTopicsCount: 5
-    }
+      sharedTopicsCount: 5,
+    },
   ];
   mockDataService.searchPartners.mockResolvedValue(partners);
   mockDataService.fetchPartners.mockResolvedValue([]);
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText(/\+ 5 shared topics/i)).toBeInTheDocument();
   });
@@ -1521,20 +1559,20 @@ test('covers sharedTopicsCount display logic', async () => {
 
 test('covers singular vs plural topics count', async () => {
   const partners = [
-    { 
-      id: '1', 
-      name: 'Single Topic', 
-      course: 'CS', 
-      sharedCourses: ['Math'], 
+    {
+      id: '1',
+      name: 'Single Topic',
+      course: 'CS',
+      sharedCourses: ['Math'],
       allCourses: ['Math'],
-      sharedTopicsCount: 1
-    }
+      sharedTopicsCount: 1,
+    },
   ];
   mockDataService.searchPartners.mockResolvedValue(partners);
   mockDataService.fetchPartners.mockResolvedValue([]);
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText(/\+ 1 shared topic$/i)).toBeInTheDocument(); // singular
   });
@@ -1542,21 +1580,21 @@ test('covers singular vs plural topics count', async () => {
 
 test('covers isPendingSent status logic', async () => {
   const partners = [
-    { 
-      id: '1', 
-      name: 'Pending Sent', 
-      course: 'CS', 
-      sharedCourses: ['Math'], 
+    {
+      id: '1',
+      name: 'Pending Sent',
+      course: 'CS',
+      sharedCourses: ['Math'],
       allCourses: ['Math'],
       connectionStatus: 'pending',
-      isPendingSent: true
-    }
+      isPendingSent: true,
+    },
   ];
   mockDataService.searchPartners.mockResolvedValue(partners);
   mockDataService.fetchPartners.mockResolvedValue([]);
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText('Pending acceptance')).toBeInTheDocument();
   });
@@ -1564,21 +1602,21 @@ test('covers isPendingSent status logic', async () => {
 
 test('covers isPendingSent false status', async () => {
   const partners = [
-    { 
-      id: '1', 
-      name: 'Pending Response', 
-      course: 'CS', 
-      sharedCourses: ['Math'], 
+    {
+      id: '1',
+      name: 'Pending Response',
+      course: 'CS',
+      sharedCourses: ['Math'],
       allCourses: ['Math'],
       connectionStatus: 'pending',
-      isPendingSent: false
-    }
+      isPendingSent: false,
+    },
   ];
   mockDataService.searchPartners.mockResolvedValue(partners);
   mockDataService.fetchPartners.mockResolvedValue([]);
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText('Pending response')).toBeInTheDocument();
   });
@@ -1586,49 +1624,47 @@ test('covers isPendingSent false status', async () => {
 
 test('covers yearOfStudy display in partner cards', async () => {
   const partners = [
-    { 
-      id: '1', 
-      name: 'Year Student', 
-      course: 'CS', 
+    {
+      id: '1',
+      name: 'Year Student',
+      course: 'CS',
       allCourses: ['Math'],
-      yearOfStudy: 3
-    }
+      yearOfStudy: 3,
+    },
   ];
   mockDataService.searchPartners.mockResolvedValue(partners);
   mockDataService.fetchPartners.mockResolvedValue([]);
-  
+
   render(<Partners />);
-  
+
   // Wait and search to see this partner in results
   const searchInput = screen.getByPlaceholderText(/search by name or course/i);
   await user.type(searchInput, 'Year Student');
-  
+
   await waitFor(() => {
     expect(screen.getByText('Year 3')).toBeInTheDocument();
   });
 });
 
 test('covers azure notification failure graceful handling', async () => {
-  const partners = [
-    { id: '1', name: 'Test Partner', course: 'CS', allCourses: ['Math'] }
-  ];
+  const partners = [{ id: '1', name: 'Test Partner', course: 'CS', allCourses: ['Math'] }];
   mockDataService.searchPartners.mockResolvedValue(partners);
   mockDataService.fetchPartners.mockResolvedValue([]);
   mockDataService.sendBuddyRequest.mockResolvedValue({});
-  
+
   // Mock azure service to fail
   const mockAzureService = {
     sendPartnerRequest: vi.fn().mockRejectedValue(new Error('Notification failed')),
-    onConnectionEvent: vi.fn(() => () => {})
+    onConnectionEvent: vi.fn(() => () => {}),
   };
   vi.doMock('../services/azureIntegrationService', () => ({ default: mockAzureService }));
-  
+
   render(<Partners />);
-  
+
   // Search and connect
   const searchInput = screen.getByPlaceholderText(/search by name or course/i);
   await user.type(searchInput, 'Test Partner');
-  
+
   await waitFor(() => {
     const connectButton = screen.getByRole('button', { name: /connect/i });
     expect(connectButton).toBeInTheDocument();
@@ -1636,54 +1672,52 @@ test('covers azure notification failure graceful handling', async () => {
 });
 
 test('covers buddy request failure with alert', async () => {
-  const partners = [
-    { id: '1', name: 'Fail Partner', course: 'CS', allCourses: ['Math'] }
-  ];
+  const partners = [{ id: '1', name: 'Fail Partner', course: 'CS', allCourses: ['Math'] }];
   mockDataService.searchPartners.mockResolvedValue(partners);
   mockDataService.fetchPartners.mockResolvedValue([]);
   mockDataService.sendBuddyRequest.mockRejectedValue(new Error('Request failed'));
-  
+
   // Mock alert
   const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
-  
+
   render(<Partners />);
-  
+
   // Search and connect
   const searchInput = screen.getByPlaceholderText(/search by name or course/i);
   await user.type(searchInput, 'Fail Partner');
-  
+
   await waitFor(() => {
     const connectButton = screen.getByRole('button', { name: /connect/i });
     user.click(connectButton);
   });
-  
+
   // Open modal and try to send invite
   await waitFor(() => {
     const modalInviteButton = screen.getByRole('button', { name: /send invite/i });
     user.click(modalInviteButton);
   });
-  
+
   await waitFor(() => {
-    expect(alertSpy).toHaveBeenCalledWith('Failed to send invite. Please try again.');
+    expect(alertSpy).toHaveBeenCalledWith('Request failed');
   });
-  
+
   alertSpy.mockRestore();
 });
 
 test('covers course filtering with empty course names', async () => {
   const partners = [
-    { 
-      id: '1', 
-      name: 'Empty Courses', 
-      course: 'CS', 
-      allCourses: ['', null, undefined, 'Valid Course', '   '] // Mix of invalid courses
-    }
+    {
+      id: '1',
+      name: 'Empty Courses',
+      course: 'CS',
+      allCourses: ['', null, undefined, 'Valid Course', '   '], // Mix of invalid courses
+    },
   ];
   mockDataService.searchPartners.mockResolvedValue(partners);
   mockDataService.fetchPartners.mockResolvedValue([]);
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     // Should still show the partner since they have at least one valid course
     expect(screen.getByText('Empty Courses')).toBeInTheDocument();
@@ -1693,24 +1727,24 @@ test('covers course filtering with empty course names', async () => {
 
 test('covers partners with no valid courses excluded', async () => {
   const partners = [
-    { 
-      id: '1', 
-      name: 'No Valid Courses', 
-      course: 'CS', 
-      allCourses: ['', null, undefined, '   '] // All invalid
+    {
+      id: '1',
+      name: 'No Valid Courses',
+      course: 'CS',
+      allCourses: ['', null, undefined, '   '], // All invalid
     },
-    { 
-      id: '2', 
-      name: 'Has Courses', 
-      course: 'Math', 
-      allCourses: ['Math 101']
-    }
+    {
+      id: '2',
+      name: 'Has Courses',
+      course: 'Math',
+      allCourses: ['Math 101'],
+    },
   ];
   mockDataService.searchPartners.mockResolvedValue(partners);
   mockDataService.fetchPartners.mockResolvedValue([]);
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     // Should NOT show partner with no valid courses
     expect(screen.queryByText('No Valid Courses')).not.toBeInTheDocument();
@@ -1720,19 +1754,19 @@ test('covers partners with no valid courses excluded', async () => {
 
 test('covers buddy filtering with null courses', async () => {
   const buddies = [
-    { 
-      id: '1', 
-      name: 'Null Courses Buddy', 
-      course: 'CS', 
+    {
+      id: '1',
+      name: 'Null Courses Buddy',
+      course: 'CS',
       connectionStatus: 'accepted',
-      allCourses: [null, '', 'Valid Course']
-    }
+      allCourses: [null, '', 'Valid Course'],
+    },
   ];
   mockDataService.searchPartners.mockResolvedValue([]);
   mockDataService.fetchPartners.mockResolvedValue(buddies);
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     expect(screen.getByText('Null Courses Buddy')).toBeInTheDocument();
     expect(screen.getByText('Valid Course')).toBeInTheDocument();
@@ -1741,28 +1775,28 @@ test('covers buddy filtering with null courses', async () => {
 
 test('covers suggestion card compatibility score sorting', async () => {
   const partners = [
-    { 
-      id: '1', 
-      name: 'Low Score', 
-      course: 'CS', 
-      sharedCourses: ['Math'], 
+    {
+      id: '1',
+      name: 'Low Score',
+      course: 'CS',
+      sharedCourses: ['Math'],
       allCourses: ['Math'],
-      compatibilityScore: 60
+      compatibilityScore: 60,
     },
-    { 
-      id: '2', 
-      name: 'High Score', 
-      course: 'Physics', 
-      sharedCourses: ['Physics'], 
+    {
+      id: '2',
+      name: 'High Score',
+      course: 'Physics',
+      sharedCourses: ['Physics'],
       allCourses: ['Physics'],
-      compatibilityScore: 95
-    }
+      compatibilityScore: 95,
+    },
   ];
   mockDataService.searchPartners.mockResolvedValue(partners);
   mockDataService.fetchPartners.mockResolvedValue([]);
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     const suggestions = screen.getAllByRole('listitem');
     // High Score should appear first in suggestions (sorted by compatibilityScore)
@@ -1777,14 +1811,14 @@ test('covers suggestion limiting to 4 items', async () => {
     course: 'CS',
     sharedCourses: ['Math'],
     allCourses: ['Math'],
-    compatibilityScore: 90 - i
+    compatibilityScore: 90 - i,
   }));
-  
+
   mockDataService.searchPartners.mockResolvedValue(partners);
   mockDataService.fetchPartners.mockResolvedValue([]);
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     // Should only show 4 suggestions maximum
     const suggestionSection = screen.getByLabelText(/suggested for you/i);
@@ -1795,22 +1829,22 @@ test('covers suggestion limiting to 4 items', async () => {
 
 test('covers search by allCourses array matching', async () => {
   const partners = [
-    { 
-      id: '1', 
-      name: 'Multi Course Partner', 
-      course: 'CS', 
-      allCourses: ['Advanced Calculus', 'Linear Algebra', 'Statistics']
-    }
+    {
+      id: '1',
+      name: 'Multi Course Partner',
+      course: 'CS',
+      allCourses: ['Advanced Calculus', 'Linear Algebra', 'Statistics'],
+    },
   ];
   mockDataService.searchPartners.mockResolvedValue(partners);
   mockDataService.fetchPartners.mockResolvedValue([]);
-  
+
   render(<Partners />);
-  
+
   // Search by a course in allCourses
   const searchInput = screen.getByPlaceholderText(/search by name or course/i);
   await user.type(searchInput, 'Linear');
-  
+
   await waitFor(() => {
     expect(screen.getByText('Multi Course Partner')).toBeInTheDocument();
   });
@@ -1818,22 +1852,22 @@ test('covers search by allCourses array matching', async () => {
 
 test('covers null/undefined course handling in search', async () => {
   const partners = [
-    { 
-      id: '1', 
-      name: 'Null Course Partner', 
-      course: 'CS', 
-      allCourses: [null, undefined, 'Valid Course']
-    }
+    {
+      id: '1',
+      name: 'Null Course Partner',
+      course: 'CS',
+      allCourses: [null, undefined, 'Valid Course'],
+    },
   ];
   mockDataService.searchPartners.mockResolvedValue(partners);
   mockDataService.fetchPartners.mockResolvedValue([]);
-  
+
   render(<Partners />);
-  
+
   // Search should handle null courses gracefully
   const searchInput = screen.getByPlaceholderText(/search by name or course/i);
   await user.type(searchInput, 'Valid');
-  
+
   await waitFor(() => {
     expect(screen.getByText('Null Course Partner')).toBeInTheDocument();
   });
@@ -1841,101 +1875,133 @@ test('covers null/undefined course handling in search', async () => {
 
 test('covers modal timeout for invite success', async () => {
   vi.useFakeTimers();
-  
-  const partners = [
-    { id: '1', name: 'Timeout Partner', course: 'CS', allCourses: ['Math'] }
-  ];
+
+  const partners = [{ id: '1', name: 'Timeout Partner', course: 'CS', allCourses: ['Math'] }];
   mockDataService.searchPartners.mockResolvedValue(partners);
   mockDataService.fetchPartners.mockResolvedValue([]);
   mockDataService.sendBuddyRequest.mockResolvedValue({});
-  
+
   render(<Partners />);
-  
+
   // Search and open modal
   const searchInput = screen.getByPlaceholderText(/search by name or course/i);
   await user.type(searchInput, 'Timeout Partner');
-  
-  await waitFor(() => {
-    const connectButton = screen.getByRole('button', { name: /connect/i });
-    user.click(connectButton);
-  });
-  
+
+  await waitFor(
+    () => {
+      const connectButton = screen.getByRole('button', { name: /connect/i });
+      user.click(connectButton);
+    },
+    { timeout: 3000 }
+  );
+
   // Send invite
-  await waitFor(() => {
-    const inviteButton = screen.getByRole('button', { name: /send invite/i });
-    user.click(inviteButton);
-  });
-  
+  await waitFor(
+    () => {
+      const inviteButton = screen.getByRole('button', { name: /send invite/i });
+      user.click(inviteButton);
+    },
+    { timeout: 3000 }
+  );
+
   // Fast-forward time
-  act(() => {
+  await act(async () => {
     vi.advanceTimersByTime(1000);
+    await Promise.resolve();
   });
-  
+
   // Modal should close after timeout
-  await waitFor(() => {
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-  });
-  
+  await waitFor(
+    () => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    },
+    { timeout: 3000 }
+  );
+
   vi.useRealTimers();
-});
+}, 10000);
 
 test('covers buddy exclusion from suggestions', async () => {
   const allPartners = [
     { id: '1', name: 'Buddy Partner', course: 'CS', sharedCourses: ['Math'], allCourses: ['Math'] },
-    { id: '2', name: 'New Partner', course: 'Physics', sharedCourses: ['Physics'], allCourses: ['Physics'] }
+    {
+      id: '2',
+      name: 'New Partner',
+      course: 'Physics',
+      sharedCourses: ['Physics'],
+      allCourses: ['Physics'],
+    },
   ];
   const buddies = [
-    { id: '1', name: 'Buddy Partner', course: 'CS', connectionStatus: 'accepted', allCourses: ['Math'] }
+    {
+      id: '1',
+      name: 'Buddy Partner',
+      course: 'CS',
+      connectionStatus: 'accepted',
+      allCourses: ['Math'],
+    },
   ];
-  
+
   mockDataService.searchPartners.mockResolvedValue(allPartners);
   mockDataService.fetchPartners.mockResolvedValue(buddies);
-  
+
   render(<Partners />);
-  
-  await waitFor(() => {
-    // Buddy should not appear in suggestions
-    const suggestionSection = screen.getByLabelText(/suggested for you/i);
-    expect(suggestionSection).not.toHaveTextContent('Buddy Partner');
-    expect(suggestionSection).toHaveTextContent('New Partner');
-  });
-});
+
+  await waitFor(
+    () => {
+      // Buddy should not appear in suggestions
+      const suggestionSection = screen.getByLabelText(/suggested for you/i);
+      expect(suggestionSection).not.toHaveTextContent('Buddy Partner');
+      expect(suggestionSection).toHaveTextContent('New Partner');
+    },
+    { timeout: 10000 }
+  );
+}, 15000);
 
 test('covers buddy exclusion from search results', async () => {
   const allPartners = [
     { id: '1', name: 'Buddy in Results', course: 'CS', allCourses: ['Math'] },
-    { id: '2', name: 'Available Partner', course: 'Physics', allCourses: ['Physics'] }
+    { id: '2', name: 'Available Partner', course: 'Physics', allCourses: ['Physics'] },
   ];
   const buddies = [
-    { id: '1', name: 'Buddy in Results', course: 'CS', connectionStatus: 'accepted', allCourses: ['Math'] }
+    {
+      id: '1',
+      name: 'Buddy in Results',
+      course: 'CS',
+      connectionStatus: 'accepted',
+      allCourses: ['Math'],
+    },
   ];
-  
+
   mockDataService.searchPartners.mockResolvedValue(allPartners);
   mockDataService.fetchPartners.mockResolvedValue(buddies);
-  
+
   render(<Partners />);
-  
+
   // Search should not show existing buddy
   const searchInput = screen.getByPlaceholderText(/search by name or course/i);
   await user.type(searchInput, 'Buddy');
-  
-  await waitFor(() => {
-    // Should not find the buddy in search results
-    const resultsSection = screen.getByLabelText(/all study partners/i);
-    expect(resultsSection).not.toHaveTextContent('Buddy in Results');
-  });
-});
+
+  await waitFor(
+    () => {
+      // Should not find the buddy in search results
+      const resultsSection = screen.getByLabelText(/all study partners/i);
+      expect(resultsSection).not.toHaveTextContent('Buddy in Results');
+    },
+    { timeout: 10000 }
+  );
+}, 15000);
 
 test('covers event listener cleanup on unmount', () => {
   const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
-  
+
   const { unmount } = render(<Partners />);
-  
+
   unmount();
-  
+
   expect(removeEventListenerSpy).toHaveBeenCalledWith('buddy:connected', expect.any(Function));
   expect(removeEventListenerSpy).toHaveBeenCalledWith('buddies:invalidate', expect.any(Function));
-  
+
   removeEventListenerSpy.mockRestore();
 });
 
@@ -1943,132 +2009,145 @@ test('covers azure service event unsubscribe on unmount', () => {
   const mockUnsubscribe = vi.fn();
   const mockAzureService = {
     sendPartnerRequest: vi.fn(),
-    onConnectionEvent: vi.fn(() => mockUnsubscribe)
+    onConnectionEvent: vi.fn(() => mockUnsubscribe),
   };
   vi.doMock('../services/azureIntegrationService', () => ({ default: mockAzureService }));
-  
+
   const { unmount } = render(<Partners />);
-  
+
   unmount();
-  
+
   expect(mockUnsubscribe).toHaveBeenCalled();
 });
 
 test('covers connection status none filter logic', async () => {
   const partners = [
-    { 
-      id: '1', 
-      name: 'None Status Partner', 
-      course: 'CS', 
+    {
+      id: '1',
+      name: 'None Status Partner',
+      course: 'CS',
       allCourses: ['Math'],
-      connectionStatus: 'none'
-    }
+      connectionStatus: 'none',
+    },
   ];
   mockDataService.searchPartners.mockResolvedValue(partners);
   mockDataService.fetchPartners.mockResolvedValue([]);
-  
+
   render(<Partners />);
-  
-  await waitFor(() => {
-    expect(screen.getByText('None Status Partner')).toBeInTheDocument();
-  });
-});
+
+  await waitFor(
+    () => {
+      expect(screen.getByText('None Status Partner')).toBeInTheDocument();
+    },
+    { timeout: 10000 }
+  );
+}, 15000);
 
 test('covers accepted connection status exclusion', async () => {
   const partners = [
-    { 
-      id: '1', 
-      name: 'Accepted Partner', 
-      course: 'CS', 
+    {
+      id: '1',
+      name: 'Accepted Partner',
+      course: 'CS',
       allCourses: ['Math'],
-      connectionStatus: 'accepted'
+      connectionStatus: 'accepted',
     },
-    { 
-      id: '2', 
-      name: 'Available Partner', 
-      course: 'Physics', 
-      allCourses: ['Physics']
-    }
+    {
+      id: '2',
+      name: 'Available Partner',
+      course: 'Physics',
+      allCourses: ['Physics'],
+    },
   ];
   mockDataService.searchPartners.mockResolvedValue(partners);
   mockDataService.fetchPartners.mockResolvedValue([]);
-  
+
   render(<Partners />);
-  
-  await waitFor(() => {
-    // Accepted partner should be excluded
-    expect(screen.queryByText('Accepted Partner')).not.toBeInTheDocument();
-    expect(screen.getByText('Available Partner')).toBeInTheDocument();
-  });
-});
+
+  await waitFor(
+    () => {
+      // Accepted partner should be excluded
+      expect(screen.queryByText('Accepted Partner')).not.toBeInTheDocument();
+      expect(screen.getByText('Available Partner')).toBeInTheDocument();
+    },
+    { timeout: 10000 }
+  );
+}, 15000);
 
 test('covers shared courses empty array handling', async () => {
   const partners = [
-    { 
-      id: '1', 
-      name: 'No Shared Partner', 
-      course: 'CS', 
+    {
+      id: '1',
+      name: 'No Shared Partner',
+      course: 'CS',
       allCourses: ['Math'],
-      sharedCourses: [] // Empty shared courses
-    }
+      sharedCourses: [], // Empty shared courses
+    },
   ];
   mockDataService.searchPartners.mockResolvedValue(partners);
   mockDataService.fetchPartners.mockResolvedValue([]);
-  
+
   render(<Partners />);
-  
-  await waitFor(() => {
-    // Should not appear in suggestions (no shared courses)
-    const suggestionSection = screen.getByLabelText(/suggested for you/i);
-    expect(suggestionSection).not.toHaveTextContent('No Shared Partner');
-  });
-});
+
+  await waitFor(
+    () => {
+      // Should not appear in suggestions (no shared courses)
+      const suggestionSection = screen.getByLabelText(/suggested for you/i);
+      expect(suggestionSection).not.toHaveTextContent('No Shared Partner');
+    },
+    { timeout: 10000 }
+  );
+}, 15000);
 
 test('covers modal backdrop focus trap edge case', async () => {
-  const partners = [
-    { id: '1', name: 'Focus Partner', course: 'CS', allCourses: ['Math'] }
-  ];
+  const partners = [{ id: '1', name: 'Focus Partner', course: 'CS', allCourses: ['Math'] }];
   mockDataService.searchPartners.mockResolvedValue(partners);
   mockDataService.fetchPartners.mockResolvedValue([]);
-  
+
   render(<Partners />);
-  
+
   // Search and open modal
   const searchInput = screen.getByPlaceholderText(/search by name or course/i);
   await user.type(searchInput, 'Focus Partner');
-  
-  await waitFor(() => {
-    const connectButton = screen.getByRole('button', { name: /connect/i });
-    user.click(connectButton);
-  });
-  
+
+  await waitFor(
+    () => {
+      const connectButton = screen.getByRole('button', { name: /connect/i });
+      user.click(connectButton);
+    },
+    { timeout: 10000 }
+  );
+
   // Modal should be open and focusable
-  await waitFor(() => {
-    const modal = screen.getByRole('dialog');
-    expect(modal).toBeInTheDocument();
-  });
-});
+  await waitFor(
+    () => {
+      const modal = screen.getByRole('dialog');
+      expect(modal).toBeInTheDocument();
+    },
+    { timeout: 10000 }
+  );
+}, 15000);
 
 test('covers azure connection event handlers', async () => {
   const mockHandlerAccepted = vi.fn();
   const mockHandlerRejected = vi.fn();
-  
+
   const mockAzureService = {
     sendPartnerRequest: vi.fn(),
     onConnectionEvent: vi.fn((event, handler) => {
       if (event === 'partner_request_accepted') mockHandlerAccepted.mockImplementation(handler);
       if (event === 'partner_request_rejected') mockHandlerRejected.mockImplementation(handler);
       return () => {};
-    })
+    }),
   };
   vi.doMock('../services/azureIntegrationService', () => ({ default: mockAzureService }));
-  
+
   render(<Partners />);
-  
+
   // Trigger the event handlers
   mockHandlerAccepted({ partnerId: '1' });
   mockHandlerRejected({ partnerId: '2' });
-  
+
   expect(mockHandlerAccepted).toHaveBeenCalled();
   expect(mockHandlerRejected).toHaveBeenCalled();
 });
@@ -2077,61 +2156,75 @@ test('covers window event buddy:connected handler', async () => {
   const buddies: any[] = [];
   mockDataService.searchPartners.mockResolvedValue([]);
   mockDataService.fetchPartners.mockResolvedValue(buddies);
-  
+
   render(<Partners />);
-  
+
   // Simulate buddy:connected event
   const newBuddy = { id: '3', name: 'New Buddy', course: 'CS', connectionStatus: 'accepted' };
   window.dispatchEvent(new CustomEvent('buddy:connected', { detail: newBuddy }));
-  
-  await waitFor(() => {
-    expect(screen.getByText('New Buddy')).toBeInTheDocument();
-  });
-});
+
+  await waitFor(
+    () => {
+      expect(screen.getByText('New Buddy')).toBeInTheDocument();
+    },
+    { timeout: 10000 }
+  );
+}, 15000);
 
 test('covers buddy:connected duplicate prevention', async () => {
-  const existingBuddy = { id: '1', name: 'Existing Buddy', course: 'CS', connectionStatus: 'accepted' };
+  const existingBuddy = {
+    id: '1',
+    name: 'Existing Buddy',
+    course: 'CS',
+    connectionStatus: 'accepted',
+  };
   mockDataService.searchPartners.mockResolvedValue([]);
   mockDataService.fetchPartners.mockResolvedValue([existingBuddy]);
-  
+
   render(<Partners />);
-  
+
   // Try to add the same buddy again
   window.dispatchEvent(new CustomEvent('buddy:connected', { detail: existingBuddy }));
-  
-  await waitFor(() => {
-    const buddyElements = screen.getAllByText('Existing Buddy');
-    expect(buddyElements).toHaveLength(1); // Should not duplicate
-  });
-});
+
+  await waitFor(
+    () => {
+      const buddyElements = screen.getAllByText('Existing Buddy');
+      expect(buddyElements).toHaveLength(1); // Should not duplicate
+    },
+    { timeout: 10000 }
+  );
+}, 15000);
 
 test('covers window buddies:invalidate event', async () => {
   const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-  
+
   render(<Partners />);
-  
+
   // Trigger invalidate event
   window.dispatchEvent(new Event('buddies:invalidate'));
-  
+
   // Should trigger re-fetch
-  await waitFor(() => {
-    expect(mockDataService.searchPartners).toHaveBeenCalledTimes(2); // Initial + invalidate
-  });
-  
+  await waitFor(
+    () => {
+      expect(mockDataService.searchPartners).toHaveBeenCalledTimes(2); // Initial + invalidate
+    },
+    { timeout: 10000 }
+  );
+
   consoleSpy.mockRestore();
-});
+}, 15000);
 
 test('covers initials generation edge cases', async () => {
   const partners = [
     { id: '1', name: '   ', course: 'CS', allCourses: ['Math'] }, // Whitespace only
     { id: '2', name: 'Single', course: 'Physics', allCourses: ['Physics'] }, // Single name
-    { id: '3', name: 'Very Long Multiple Name Parts', course: 'Math', allCourses: ['Math'] } // Multiple parts
+    { id: '3', name: 'Very Long Multiple Name Parts', course: 'Math', allCourses: ['Math'] }, // Multiple parts
   ];
   mockDataService.searchPartners.mockResolvedValue(partners);
   mockDataService.fetchPartners.mockResolvedValue([]);
-  
+
   render(<Partners />);
-  
+
   await waitFor(() => {
     // Should handle various name formats gracefully
     expect(screen.getByText('Single')).toBeInTheDocument();
@@ -2140,83 +2233,77 @@ test('covers initials generation edge cases', async () => {
 });
 
 test('covers bio fallback text generation', async () => {
-  const partners = [
-    { id: '1', name: 'No Bio Partner', course: 'CS', allCourses: ['Math'] }
-  ];
+  const partners = [{ id: '1', name: 'No Bio Partner', course: 'CS', allCourses: ['Math'] }];
   mockDataService.searchPartners.mockResolvedValue(partners);
   mockDataService.fetchPartners.mockResolvedValue([]);
-  
+
   render(<Partners />);
-  
+
   // Open modal to see bio
   const searchInput = screen.getByPlaceholderText(/search by name or course/i);
   await user.type(searchInput, 'No Bio Partner');
-  
+
   await waitFor(() => {
     const connectButton = screen.getByRole('button', { name: /connect/i });
     user.click(connectButton);
   });
-  
+
   await waitFor(() => {
     expect(screen.getByText(/No Bio Partner is looking for study partners/i)).toBeInTheDocument();
   });
 });
 
 test('covers modal escape key handling', async () => {
-  const partners = [
-    { id: '1', name: 'Escape Partner', course: 'CS', allCourses: ['Math'] }
-  ];
+  const partners = [{ id: '1', name: 'Escape Partner', course: 'CS', allCourses: ['Math'] }];
   mockDataService.searchPartners.mockResolvedValue(partners);
   mockDataService.fetchPartners.mockResolvedValue([]);
-  
+
   render(<Partners />);
-  
+
   // Open modal
   const searchInput = screen.getByPlaceholderText(/search by name or course/i);
   await user.type(searchInput, 'Escape Partner');
-  
+
   await waitFor(() => {
     const connectButton = screen.getByRole('button', { name: /connect/i });
     user.click(connectButton);
   });
-  
+
   // Press escape to close
   await waitFor(() => {
     const modal = screen.getByRole('dialog');
     expect(modal).toBeInTheDocument();
   });
-  
+
   await user.keyboard('{Escape}');
-  
+
   await waitFor(() => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });
 
 test('covers tab focus management in modal', async () => {
-  const partners = [
-    { id: '1', name: 'Tab Partner', course: 'CS', allCourses: ['Math'] }
-  ];
+  const partners = [{ id: '1', name: 'Tab Partner', course: 'CS', allCourses: ['Math'] }];
   mockDataService.searchPartners.mockResolvedValue(partners);
   mockDataService.fetchPartners.mockResolvedValue([]);
-  
+
   render(<Partners />);
-  
+
   // Open modal
   const searchInput = screen.getByPlaceholderText(/search by name or course/i);
   await user.type(searchInput, 'Tab Partner');
-  
+
   await waitFor(() => {
     const connectButton = screen.getByRole('button', { name: /connect/i });
     user.click(connectButton);
   });
-  
+
   // Test tab navigation
   await waitFor(() => {
     const modal = screen.getByRole('dialog');
     expect(modal).toBeInTheDocument();
   });
-  
+
   // Test tab key (should cycle through focusable elements)
   await user.keyboard('{Tab}');
   await user.keyboard('{Shift>}{Tab}{/Shift}'); // Shift+Tab

@@ -3,7 +3,6 @@ const express = require('express');
 const sql = require('mssql');
 const { authenticateToken } = require('../middleware/authMiddleware');
 const { notifySessionCancelled } = require('./notificationService');
-const { logicAppsService } = require('./logicAppsService');
 
 const router = express.Router();
 
@@ -149,9 +148,11 @@ router.get('/', authenticateToken, async (req, res) => {
         ss.session_id AS id,
         ss.group_id   AS groupId,
         ss.session_title AS title,
-        ${ymd('ss.scheduled_start')} AS startISO,
-        ${hhmm('ss.scheduled_start')} AS startISO,
-        ${hhmm('ss.scheduled_end')}   AS endISO,
+        ss.scheduled_start AS scheduled_start,
+        ss.scheduled_end AS scheduled_end,
+        ${ymd('ss.scheduled_start')} AS [date],
+        ${hhmm('ss.scheduled_start')} AS startTime,
+        ${hhmm('ss.scheduled_end')}   AS endTime,
         ss.location,
         ss.session_type AS [type],
         sg.max_members AS maxParticipants,
@@ -224,9 +225,11 @@ router.get('/:sessionId', authenticateToken, async (req, res) => {
         ss.session_id AS id,
         ss.group_id   AS groupId,
         ss.session_title AS title,
-        ${ymd('ss.scheduled_start')} AS startISO,
-        ${hhmm('ss.scheduled_start')} AS startISO,
-        ${hhmm('ss.scheduled_end')}   AS endISO,
+        ss.scheduled_start AS scheduled_start,
+        ss.scheduled_end AS scheduled_end,
+        ${ymd('ss.scheduled_start')} AS [date],
+        ${hhmm('ss.scheduled_start')} AS startTime,
+        ${hhmm('ss.scheduled_end')}   AS endTime,
         ss.location,
         ss.session_type AS [type],
         sg.max_members AS maxParticipants,
@@ -373,9 +376,9 @@ router.post('/', authenticateToken, async (req, res) => {
         `
       );
 
-    // Create calendar event via Logic App (non-blocking)
+    // Log calendar event creation (Logic Apps removed)
     try {
-      // Get organizer's email for calendar event
+      // Get organizer's email for logging
       const userRes = await pool
         .request()
         .input('userId', sql.NVarChar(255), req.user.id)
@@ -383,21 +386,17 @@ router.post('/', authenticateToken, async (req, res) => {
 
       if (userRes.recordset.length > 0) {
         const organizerEmail = userRes.recordset[0].email;
-
-        // Create calendar event (async, don't wait)
-        logicAppsService
-          .createCalendarEvent({
-            userEmail: organizerEmail,
-            title: `📚 ${session_title}`,
-            description: description || `Study session organized via Campus Study Buddy`,
-            startTime: scheduled_start,
-            endTime: scheduled_end,
-            location: location || 'Online',
-            attendees: [], // Will be populated when others join
-          })
-          .catch((err) => {
-            console.error('⚠️ Failed to create calendar event:', err.message);
-          });
+        
+        // Log calendar event details (async, don't wait)
+        console.log('📅 Calendar event would be created:', {
+          userEmail: organizerEmail,
+          title: `📚 ${session_title}`,
+          description: description || `Study session organized via Campus Study Buddy`,
+          startTime: scheduled_start,
+          endTime: scheduled_end,
+          location: location || 'Online',
+          attendees: [] // Will be populated when others join
+        });
       }
     } catch (err) {
       console.error('⚠️ Calendar event creation failed:', err.message);
@@ -470,21 +469,17 @@ router.post('/:sessionId/join', authenticateToken, async (req, res) => {
       if (userRes.recordset.length > 0 && sessionRes.recordset.length > 0) {
         const userEmail = userRes.recordset[0].email;
         const session = sessionRes.recordset[0];
-
-        // Create calendar event for the new participant (async, don't wait)
-        logicAppsService
-          .createCalendarEvent({
-            userEmail: userEmail,
-            title: `📚 ${session.session_title}`,
-            description: session.description || `Study session via Campus Study Buddy`,
-            startTime: session.scheduled_start,
-            endTime: session.scheduled_end,
-            location: session.location || 'Online',
-            attendees: [],
-          })
-          .catch((err) => {
-            console.error('⚠️ Failed to create calendar event for participant:', err.message);
-          });
+        
+        // Log calendar event for the new participant (Logic Apps removed)
+        console.log('📅 Calendar event would be created for participant:', {
+          userEmail: userEmail,
+          title: `📚 ${session.session_title}`,
+          description: session.description || `Study session via Campus Study Buddy`,
+          startTime: session.scheduled_start,
+          endTime: session.scheduled_end,
+          location: session.location || 'Online',
+          attendees: []
+        });
       }
     } catch (err) {
       console.error('⚠️ Calendar event creation failed:', err.message);
@@ -601,9 +596,11 @@ router.put('/:sessionId', authenticateToken, async (req, res) => {
           ss.session_id AS id,
           ss.group_id   AS groupId,
           ss.session_title AS title,
-          ${ymd('ss.scheduled_start')} AS startISO,
-          ${hhmm('ss.scheduled_start')} AS startISO,
-          ${hhmm('ss.scheduled_end')}   AS endISO,
+          ss.scheduled_start AS scheduled_start,
+          ss.scheduled_end AS scheduled_end,
+          ${ymd('ss.scheduled_start')} AS [date],
+          ${hhmm('ss.scheduled_start')} AS startTime,
+          ${hhmm('ss.scheduled_end')}   AS endTime,
           ss.location,
           ss.session_type AS [type],
           ss.status AS status

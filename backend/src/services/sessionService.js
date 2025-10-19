@@ -383,10 +383,10 @@ router.post('/', authenticateToken, async (req, res) => {
         .request()
         .input('userId', sql.NVarChar(255), req.user.id)
         .query('SELECT email FROM users WHERE user_id = @userId');
-      
+
       if (userRes.recordset.length > 0) {
         const organizerEmail = userRes.recordset[0].email;
-        
+
         // Log calendar event details (async, don't wait)
         console.log('📅 Calendar event would be created:', {
           userEmail: organizerEmail,
@@ -395,7 +395,7 @@ router.post('/', authenticateToken, async (req, res) => {
           startTime: scheduled_start,
           endTime: scheduled_end,
           location: location || 'Online',
-          attendees: [] // Will be populated when others join
+          attendees: [], // Will be populated when others join
         });
       }
     } catch (err) {
@@ -458,20 +458,18 @@ router.post('/:sessionId/join', authenticateToken, async (req, res) => {
         .request()
         .input('userId', sql.NVarChar(255), req.user.id)
         .query('SELECT email FROM users WHERE user_id = @userId');
-      
-      const sessionRes = await pool
-        .request()
-        .input('sessionId', sql.Int, req.params.sessionId)
+
+      const sessionRes = await pool.request().input('sessionId', sql.Int, req.params.sessionId)
         .query(`
           SELECT session_title, description, scheduled_start, scheduled_end, location
           FROM study_sessions 
           WHERE session_id = @sessionId
         `);
-      
+
       if (userRes.recordset.length > 0 && sessionRes.recordset.length > 0) {
         const userEmail = userRes.recordset[0].email;
         const session = sessionRes.recordset[0];
-        
+
         // Log calendar event for the new participant (Logic Apps removed)
         console.log('📅 Calendar event would be created for participant:', {
           userEmail: userEmail,
@@ -480,7 +478,7 @@ router.post('/:sessionId/join', authenticateToken, async (req, res) => {
           startTime: session.scheduled_start,
           endTime: session.scheduled_end,
           location: session.location || 'Online',
-          attendees: []
+          attendees: [],
         });
       }
     } catch (err) {

@@ -1,12 +1,12 @@
-## NPM Supply Chain Attack Audit
+# NPM Supply Chain Attack Audit
 
-### Incident 1 – `chalk` / `debug` Ecosystem Hijack
+## Incident 1 – `chalk` / `debug` Ecosystem Hijack
 - **Source**: [Aikido Security write-up](https://www.aikido.dev/blog/npm-debug-and-chalk-packages-compromised).
 - **Root cause**: Phishing email spoofing npm support (`support@npmjs.help`) convinced a maintainer to run malicious commands, handing attackers publish access to core packages such as `chalk` and `debug`.
 - **Attack chain**: Newly published versions injected obfuscated browser-side malware that hooks `fetch`, `XMLHttpRequest`, and crypto wallet APIs to rewrite addresses and siphon funds.
 - **Blast radius**: Eighteen core terminal/colour utility packages were trojanised; together they serve ~2B weekly downloads.
 
-#### Compromised packages and versions
+### Compromised packages and versions
 | Package | Malicious version(s) |
 | --- | --- |
 | backslash | 0.2.1 |
@@ -28,13 +28,13 @@
 | debug | 4.4.2 |
 | ansi-styles | 6.2.2 |
 
-### Incident 2 – `@ctrl/tinycolor` Campaign
+## Incident 2 – `@ctrl/tinycolor` Campaign
 - **Source**: [Socket Research](https://socket.dev/blog/tinycolor-supply-chain-attack-affects-40-packages).
 - **Root cause**: Malicious `bundle.js` added to `@ctrl/tinycolor` family. Attackers appear to have breached maintainer tooling, automating repacks via a script (`NpmModule.updatePackage`) that downloaded legitimate tarballs, injected malware, and republished dozens of packages.
 - **Attack chain**: Installation executes `bundle.js`, which downloads TruffleHog, harvests tokens (`NPM_TOKEN`, `GITHUB_TOKEN`, cloud metadata), plants a GitHub Actions workflow that exfiltrates `${{ toJSON(secrets) }}` to `webhook.site`, and republishes hijacked packages for lateral spread.
 - **Blast radius**: Initial wave hit 40+ packages across `@ctrl`, RxNT, Angular, and NativeScript ecosystems; subsequent tracking expanded to ~500 packages.
 
-#### Compromised packages and versions (initial wave)
+### Compromised packages and versions (initial wave)
 | Package | Malicious version(s) |
 | --- | --- |
 | angulartics2 | 14.1.2 |
@@ -78,14 +78,14 @@
 
 _Socket’s follow-up investigation (16 Sep 2025) lists nearly 500 additional packages; review the linked article for the evolving catalogue._
 
-### Campus Study Buddy Exposure Review
+## Campus Study Buddy Exposure Review
 
-#### Automated scan
+### Automated scan
 - Executed `npm run audit:deps` (script wraps `npm audit --json`) on backend and frontend.
 - Output stored at `reports/security/dependency-audit.json`
 - Result: **0 vulnerabilities** at all severities; no audit failures.
 
-#### Manual lockfile inspection
+### Manual lockfile inspection
 - Checked `backend/package-lock.json` and `frontend/package-lock.json` for the malicious versions above.
 - Findings:
   - `chalk` is locked to 4.1.2 (frontend) and 4.1.2/4.0.0 ranges (backend) – all predating the compromised 5.6.1 release.
@@ -94,22 +94,22 @@ _Socket’s follow-up investigation (16 Sep 2025) lists nearly 500 additional pa
   - No `ansi-styles@6.2.2`, `supports-color@10.2.1`, or related trojanised dependencies; versions are older (5.x/7.x) and unaffected.
 - Conclusion: Current locks are **not impacted** by the known malicious versions from either incident.
 
-### Recommended Countermeasures
+## Recommended Countermeasures
 
-#### Protect against upstream package compromise
+### Protect against upstream package compromise
 - Enforce dependency pinning with lockfiles and checksum verification (npm’s `package-lock.json` already checked into repo).
 - Add malware-focused scanners (e.g., Aikido SafeChain, Socket, or npm’s `--audit-level` gates) to CI/CD to detect malicious publish spikes.
 - Subscribe to npm advisories and third-party threat feeds; automate pull request alerts when high-priority packages release unexpected majors/minors.
 - Mirror critical dependencies internally or use artifact proxies (e.g., Artifactory) with allow-lists to slow propagation of poisoned releases.
 
-#### Protect maintainers and pipelines from account takeover
+### Protect maintainers and pipelines from account takeover
 - Require hardware-based 2FA for npm maintainers and rotate tokens regularly; avoid responding to unsolicited “support” emails.
 - Store publish tokens in dedicated secret managers; restrict GitHub Actions workflows with OIDC and scoped deployment tokens.
 - Enable provenance/sigstore checks (npm provenance, GitHub npm provenance) so only builds produced from trusted CI can publish.
 - Monitor CI agents for outbound calls to metadata endpoints (`169.254.169.254`, `metadata.google.internal`) and block unauthorized egress destinations (e.g., `webhook.site`).
 - Enforce `npm` provenance controls such as owner verification and package signing where available to prevent malicious repacks from unverified hosts.
 
-#### Project-specific possible next steps
+### Project-specific possible next steps
 1. Integrate the `npm run audit:deps` script into CI with a failing threshold that balances signal-to-noise. 
 2. Pilot a malware-focused scanner (Aikido SafeChain or Socket) on the repository to gain real-time telemetry for emerging campaigns.
 3. Document an incident playbook for dependency compromises, covering cache invalidation, forced reinstall, and credential rotation.

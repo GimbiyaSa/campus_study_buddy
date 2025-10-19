@@ -85,6 +85,7 @@ nav:
       - CI/CD: infrastructure/ci-cd.md
       - Google Auth: infrastructure/google_auth.md
       - Testing: infrastructure/testing.md
+      - Supply Chain Attack Audit: infrastructure/supply_chain_attack_audit.md
   - Design System:
       - Overview: design-system/index.md
       - Tokens: design-system/tokens.md

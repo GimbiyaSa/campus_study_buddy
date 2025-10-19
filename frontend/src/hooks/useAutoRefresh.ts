@@ -1,6 +1,5 @@
 import { useEffect, useCallback, useRef } from 'react';
-import { EventBus } from '../utils/eventBus';
-import { EventType } from '../types/events';
+import { eventBus, type AppEvent } from '../utils/eventBus';
 
 /**
  * Custom hook for automatic data refresh when events occur
@@ -8,107 +7,142 @@ import { EventType } from '../types/events';
  */
 export const useAutoRefresh = () => {
   const refreshCallbacks = useRef<Map<string, () => void>>(new Map());
-  const eventBusRef = useRef<EventBus | null>(null);
+  const unsubscribers = useRef<(() => void)[]>([]);
 
   useEffect(() => {
-    // Initialize event bus connection
-    eventBusRef.current = new EventBus();
+    // Initialize event bus connection using singleton instance
     
     // Set up global event listeners for automatic refresh
     const setupEventListeners = () => {
-      if (!eventBusRef.current) return;
-
       // User events - refresh user profile, settings
-      eventBusRef.current.on(EventType.USER_UPDATED, () => {
-        triggerRefresh(['user-profile', 'user-settings', 'navigation']);
-      });
+      unsubscribers.current.push(
+        eventBus.on('user:updated', () => {
+          triggerRefresh(['user-profile', 'user-settings', 'navigation']);
+        })
+      );
 
       // Progress events - refresh progress displays, analytics
-      eventBusRef.current.on(EventType.PROGRESS_UPDATED, () => {
-        triggerRefresh(['progress', 'analytics', 'dashboard', 'modules']);
-      });
+      unsubscribers.current.push(
+        eventBus.on('progress:updated', () => {
+          triggerRefresh(['progress', 'analytics', 'dashboard', 'modules']);
+        })
+      );
 
-      eventBusRef.current.on(EventType.MODULE_COMPLETED, () => {
-        triggerRefresh(['progress', 'analytics', 'dashboard', 'modules', 'achievements']);
-      });
+      unsubscribers.current.push(
+        eventBus.on('module:completed', () => {
+          triggerRefresh(['progress', 'analytics', 'dashboard', 'modules', 'achievements']);
+        })
+      );
 
       // Study buddy events - refresh buddy lists, requests
-      eventBusRef.current.on(EventType.BUDDY_REQUEST_SENT, () => {
-        triggerRefresh(['buddy-requests', 'buddy-list', 'notifications']);
-      });
+      unsubscribers.current.push(
+        eventBus.on('buddies:request-sent', () => {
+          triggerRefresh(['buddy-requests', 'buddy-list', 'notifications']);
+        })
+      );
 
-      eventBusRef.current.on(EventType.BUDDY_REQUEST_ACCEPTED, () => {
-        triggerRefresh(['buddy-requests', 'buddy-list', 'notifications', 'dashboard']);
-      });
+      unsubscribers.current.push(
+        eventBus.on('buddies:request-accepted', () => {
+          triggerRefresh(['buddy-requests', 'buddy-list', 'notifications', 'dashboard']);
+        })
+      );
 
-      eventBusRef.current.on(EventType.BUDDY_MATCHED, () => {
-        triggerRefresh(['buddy-list', 'dashboard', 'notifications']);
-      });
+      unsubscribers.current.push(
+        eventBus.on('buddies:matched', () => {
+          triggerRefresh(['buddy-list', 'dashboard', 'notifications']);
+        })
+      );
 
       // Session events - refresh schedules, calendars
-      eventBusRef.current.on(EventType.SESSION_CREATED, () => {
-        triggerRefresh(['sessions', 'calendar', 'dashboard', 'notifications']);
-      });
+      unsubscribers.current.push(
+        eventBus.on('sessions:created', () => {
+          triggerRefresh(['sessions', 'calendar', 'dashboard', 'notifications']);
+        })
+      );
 
-      eventBusRef.current.on(EventType.SESSION_UPDATED, () => {
-        triggerRefresh(['sessions', 'calendar', 'session-details']);
-      });
+      unsubscribers.current.push(
+        eventBus.on('sessions:updated', () => {
+          triggerRefresh(['sessions', 'calendar', 'session-details']);
+        })
+      );
 
-      eventBusRef.current.on(EventType.SESSION_JOINED, () => {
-        triggerRefresh(['sessions', 'calendar', 'session-details', 'my-sessions']);
-      });
+      unsubscribers.current.push(
+        eventBus.on('sessions:joined', () => {
+          triggerRefresh(['sessions', 'calendar', 'session-details', 'my-sessions']);
+        })
+      );
 
-      eventBusRef.current.on(EventType.SESSION_LEFT, () => {
-        triggerRefresh(['sessions', 'calendar', 'session-details', 'my-sessions']);
-      });
+      unsubscribers.current.push(
+        eventBus.on('sessions:left', () => {
+          triggerRefresh(['sessions', 'calendar', 'session-details', 'my-sessions']);
+        })
+      );
 
       // Group events - refresh group displays
-      eventBusRef.current.on(EventType.GROUP_CREATED, () => {
-        triggerRefresh(['groups', 'my-groups', 'dashboard']);
-      });
+      unsubscribers.current.push(
+        eventBus.on('groups:created', () => {
+          triggerRefresh(['groups', 'my-groups', 'dashboard']);
+        })
+      );
 
-      eventBusRef.current.on(EventType.GROUP_MEMBER_JOINED, () => {
-        triggerRefresh(['groups', 'group-details', 'group-members']);
-      });
+      unsubscribers.current.push(
+        eventBus.on('groups:member-added', () => {
+          triggerRefresh(['groups', 'group-details', 'group-members']);
+        })
+      );
 
-      eventBusRef.current.on(EventType.GROUP_MEMBER_LEFT, () => {
-        triggerRefresh(['groups', 'group-details', 'group-members']);
-      });
+      unsubscribers.current.push(
+        eventBus.on('groups:member-removed', () => {
+          triggerRefresh(['groups', 'group-details', 'group-members']);
+        })
+      );
 
       // Notification events - refresh notification displays
-      eventBusRef.current.on(EventType.NOTIFICATION_CREATED, () => {
-        triggerRefresh(['notifications', 'notification-count', 'header']);
-      });
+      unsubscribers.current.push(
+        eventBus.on('notifications:created', () => {
+          triggerRefresh(['notifications', 'notification-count', 'header']);
+        })
+      );
 
-      eventBusRef.current.on(EventType.NOTIFICATION_READ, () => {
-        triggerRefresh(['notifications', 'notification-count', 'header']);
-      });
+      unsubscribers.current.push(
+        eventBus.on('notifications:read', () => {
+          triggerRefresh(['notifications', 'notification-count', 'header']);
+        })
+      );
 
       // Chat events - refresh chat interfaces
-      eventBusRef.current.on(EventType.MESSAGE_SENT, () => {
-        triggerRefresh(['chat', 'messages', 'chat-list']);
-      });
+      unsubscribers.current.push(
+        eventBus.on('chat:message-sent', () => {
+          triggerRefresh(['chat', 'messages', 'chat-list']);
+        })
+      );
 
       // Notes events - refresh notes displays
-      eventBusRef.current.on(EventType.NOTE_CREATED, () => {
-        triggerRefresh(['notes', 'shared-notes', 'group-notes']);
-      });
+      unsubscribers.current.push(
+        eventBus.on('notes:created', () => {
+          triggerRefresh(['notes', 'shared-notes', 'group-notes']);
+        })
+      );
 
-      eventBusRef.current.on(EventType.NOTE_UPDATED, () => {
-        triggerRefresh(['notes', 'shared-notes', 'group-notes', 'note-details']);
-      });
+      unsubscribers.current.push(
+        eventBus.on('notes:updated', () => {
+          triggerRefresh(['notes', 'shared-notes', 'group-notes', 'note-details']);
+        })
+      );
 
-      eventBusRef.current.on(EventType.NOTE_SHARED, () => {
-        triggerRefresh(['shared-notes', 'group-notes', 'notifications']);
-      });
+      unsubscribers.current.push(
+        eventBus.on('notes:shared', () => {
+          triggerRefresh(['shared-notes', 'group-notes', 'notifications']);
+        })
+      );
     };
 
     setupEventListeners();
 
     return () => {
-      if (eventBusRef.current) {
-        eventBusRef.current.disconnect();
-      }
+      // Unsubscribe from all events
+      unsubscribers.current.forEach(unsubscribe => unsubscribe());
+      unsubscribers.current = [];
     };
   }, []);
 
@@ -146,17 +180,15 @@ export const useAutoRefresh = () => {
   /**
    * Emit an event (for components that create data)
    */
-  const emitEvent = useCallback((eventType: EventType, data: any) => {
-    if (eventBusRef.current) {
-      eventBusRef.current.emit(eventType, data);
-    }
+  const emitEvent = useCallback((eventType: AppEvent, data?: any) => {
+    eventBus.emit(eventType, data);
   }, []);
 
   return {
     registerRefresh,
     manualRefresh,
     emitEvent,
-    isConnected: eventBusRef.current?.isConnected() ?? false
+    isConnected: true // eventBus singleton is always connected
   };
 };
 

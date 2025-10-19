@@ -10,10 +10,7 @@ export const useAutoRefresh = () => {
   const unsubscribers = useRef<(() => void)[]>([]);
 
   useEffect(() => {
-    // Initialize event bus connection
-    eventBusRef.current = new EventBus();
-
-    // Set up global event listeners for automatic refresh
+    // Set up global event listeners for automatic refresh using singleton eventBus
     const setupEventListeners = () => {
       // User events - refresh user profile, settings
       unsubscribers.current.push(
@@ -192,7 +189,7 @@ export const useAutoRefresh = () => {
     registerRefresh,
     manualRefresh,
     emitEvent,
-    isConnected: eventBusRef.current?.isConnected() ?? false,
+    isConnected: true, // eventBus singleton is always connected
   };
 };
 

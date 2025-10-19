@@ -1097,12 +1097,32 @@ export class DataService {
 
   static async sendBuddyRequest(recipientId: string, message?: string): Promise<void> {
     try {
+      console.log('🤝 Sending buddy request:', { recipientId, message, hasMessage: !!message });
+      
       const res = await this.fetchWithRetry(buildApiUrl('/api/v1/partners/request'), {
         method: 'POST',
         body: JSON.stringify({ recipientId, message }),
       });
+      
+      if (!res.ok) {
+        // Get detailed error from response
+        let errorDetails;
+        try {
+          errorDetails = await res.json();
+        } catch {
+          errorDetails = { error: `HTTP ${res.status}: ${res.statusText}` };
+        }
+        console.error('❌ sendBuddyRequest HTTP error:', {
+          status: res.status,
+          statusText: res.statusText,
+          errorDetails,
+          recipientId,
+        });
+        throw new Error(errorDetails.error || `Request failed with status ${res.status}`);
+      }
+      
       const data = await res.json();
-      console.log('🤝 Buddy request sent:', data);
+      console.log('🤝 Buddy request sent successfully:', data);
       
       // Emit events to refresh buddy lists and notifications
       eventBus.emitMany(['buddies:request-sent', 'buddies:invalidate', 'notifications:invalidate'], {
@@ -1539,12 +1559,27 @@ export class DataService {
     groupId: string
   ): Promise<Array<{ userId: string; name: string; role?: string }>> {
     try {
-      const res = await this.request(`/api/v1/groups/${encodeURIComponent(groupId)}/members`, {
+      console.log('🔍 getGroupMembers called with groupId:', groupId);
+      const url = `/api/v1/groups/${encodeURIComponent(groupId)}/members`;
+      console.log('🔍 Full URL:', url);
+      
+      const res = await this.request(url, {
         method: 'GET',
       });
-      if (!res.ok) return [];
+      
+      console.log('🔍 Response status:', res.status, res.statusText);
+      
+      if (!res.ok) {
+        console.error('❌ getGroupMembers failed:', res.status, res.statusText);
+        return [];
+      }
+      
       const raw = await this.safeJson<any>(res, []);
+      console.log('🔍 Raw response:', raw);
+      
       const rows = Array.isArray(raw?.members) ? raw.members : Array.isArray(raw) ? raw : [];
+      console.log('🔍 Parsed rows:', rows);
+      
       return rows.map((m: any, i: number) => ({
         userId: String(m?.userId ?? m?.id ?? m?.user_id ?? i),
         name:
@@ -1556,7 +1591,8 @@ export class DataService {
           String(m?.userId ?? m?.id ?? `User ${i + 1}`),
         role: m?.role ?? m?.member_role ?? undefined,
       }));
-    } catch {
+    } catch (error) {
+      console.error('❌ getGroupMembers exception:', error);
       return [];
     }
   }

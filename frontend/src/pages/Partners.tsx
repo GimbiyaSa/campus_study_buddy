@@ -427,8 +427,11 @@ export default function Partners() {
           if (!selected?.id) return;
           setInvited(false);
           try {
+            console.log('📤 Attempting to send buddy request to:', selected.id, selected.name);
+            
             // Send buddy request to backend
             await DataService.sendBuddyRequest(selected.id);
+            
             // Optionally, send real-time notification
             try {
               await azureIntegrationService.sendPartnerRequest(Number(selected.id));
@@ -450,9 +453,31 @@ export default function Partners() {
             window.dispatchEvent(new Event('buddies:invalidate'));
             // Optionally, initiate chat here in the future
           } catch (err) {
-            // Optionally, show error to user
+            // Show detailed error to user
+            console.error('❌ Failed to send invite:', err);
             setInvited(false);
-            alert('Failed to send invite. Please try again.');
+            
+            let errorMessage = 'Failed to send invite. Please try again.';
+            if (err instanceof Error) {
+              const errorText = err.message.toLowerCase();
+              
+              if (errorText.includes('yourself')) {
+                errorMessage = 'You cannot send an invite to yourself.';
+              } else if (errorText.includes('already connected') || errorText.includes('study buddies')) {
+                errorMessage = 'You are already connected with this person!';
+              } else if (errorText.includes('declined') || errorText.includes('previous buddy request')) {
+                errorMessage = 'This person has declined your previous invite. You cannot send another request.';
+              } else if (errorText.includes('pending') || errorText.includes('already pending')) {
+                errorMessage = 'You already have a pending invite with this person.';
+              } else if (errorText.includes('already exists') || errorText.includes('connection already exists')) {
+                errorMessage = 'You already have a connection with this person.';
+              } else if (err.message.trim()) {
+                // Use the specific error message from backend if available
+                errorMessage = err.message;
+              }
+            }
+            
+            alert(errorMessage);
           }
         }}
         onClose={() => setOpen(false)}
@@ -535,13 +560,16 @@ function EnhancedSuggestionCard({
         disabled={
           isPending ||
           suggestion.connectionStatus === 'pending' ||
-          suggestion.connectionStatus === 'accepted'
+          suggestion.connectionStatus === 'accepted' ||
+          suggestion.connectionStatus === 'declined'
         }
         className={`w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold shadow-md hover:shadow-lg focus-visible:outline focus-visible:outline-2 transition-all duration-200 ${
           isPending || suggestion.connectionStatus === 'pending'
             ? 'bg-yellow-100 text-yellow-800 cursor-not-allowed'
             : suggestion.connectionStatus === 'accepted'
             ? 'bg-green-100 text-green-800 cursor-not-allowed'
+            : suggestion.connectionStatus === 'declined'
+            ? 'bg-red-100 text-red-800 cursor-not-allowed'
             : 'bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:outline-emerald-600'
         }`}
       >
@@ -552,6 +580,8 @@ function EnhancedSuggestionCard({
             : 'Pending response'
           : suggestion.connectionStatus === 'accepted'
           ? 'Study buddies'
+          : suggestion.connectionStatus === 'declined'
+          ? 'Request declined'
           : 'Connect'}
       </button>
     </li>
@@ -653,13 +683,16 @@ function EnhancedPartnerCard({
         disabled={
           isPending ||
           partner.connectionStatus === 'pending' ||
-          partner.connectionStatus === 'accepted'
+          partner.connectionStatus === 'accepted' ||
+          partner.connectionStatus === 'declined'
         }
         className={`w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold shadow-md hover:shadow-lg focus-visible:outline focus-visible:outline-2 transition-all duration-200 ${
           isPending || partner.connectionStatus === 'pending'
             ? 'bg-yellow-100 text-yellow-800 cursor-not-allowed'
             : partner.connectionStatus === 'accepted'
             ? 'bg-green-100 text-green-800 cursor-not-allowed'
+            : partner.connectionStatus === 'declined'
+            ? 'bg-red-100 text-red-800 cursor-not-allowed'
             : 'bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:outline-emerald-600'
         }`}
       >
@@ -670,6 +703,8 @@ function EnhancedPartnerCard({
             : 'Pending response'
           : partner.connectionStatus === 'accepted'
           ? 'Study buddies'
+          : partner.connectionStatus === 'declined'
+          ? 'Request declined'
           : 'Connect'}
       </button>
     </li>
@@ -838,13 +873,16 @@ function EnhancedProfileModal({
               disabled={
                 invited ||
                 person.connectionStatus === 'pending' ||
-                person.connectionStatus === 'accepted'
+                person.connectionStatus === 'accepted' ||
+                person.connectionStatus === 'declined'
               }
               className={`flex-1 px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all duration-200 ${
                 invited || person.connectionStatus === 'pending'
                   ? 'bg-yellow-100 text-yellow-800 border border-yellow-200 cursor-default'
                   : person.connectionStatus === 'accepted'
                   ? 'bg-green-100 text-green-800 border border-green-200 cursor-default'
+                  : person.connectionStatus === 'declined'
+                  ? 'bg-red-100 text-red-800 border border-red-200 cursor-default'
                   : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg hover:shadow-xl'
               }`}
             >
@@ -865,6 +903,10 @@ function EnhancedProfileModal({
               ) : person.connectionStatus === 'accepted' ? (
                 <>
                   <Check className="w-5 h-5" /> Study buddies
+                </>
+              ) : person.connectionStatus === 'declined' ? (
+                <>
+                  <X className="w-5 h-5" /> Request declined
                 </>
               ) : (
                 <>

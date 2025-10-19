@@ -224,16 +224,6 @@ export class AzureConfigService {
     return this.getSecret('jwt-secret');
   }
 
-
-  public async getLogicAppReminderUrl(): Promise<string> {
-    const envUrl = process.env.LOGIC_APP_REMINDER_URL;
-    if (envUrl) {
-      console.info(`[AzureConfig] Using LOGIC_APP_REMINDER_URL from environment variable`);
-      return envUrl;
-    }
-    throw new Error('Logic App reminder URL not configured');
-  }
-
   public async getFrontendUrl(): Promise<string> {
     try {
       return await this.getSecret('frontend-url');
@@ -296,14 +286,12 @@ export class AzureConfigService {
     database: string;
     storage: string;
     webpubsub: string;
-    logicApps: string;
     timestamp: string;
   }> {
     const result = {
       database: 'unknown',
       storage: 'unknown',
       webpubsub: 'unknown',
-      logicApps: 'unknown',
       timestamp: new Date().toISOString(),
     };
 
@@ -326,13 +314,6 @@ export class AzureConfigService {
       result.webpubsub = 'healthy';
     } catch {
       result.webpubsub = 'unhealthy';
-    }
-
-    try {
-      await this.getLogicAppReminderUrl();
-      result.logicApps = 'healthy';
-    } catch {
-      result.logicApps = 'unhealthy';
     }
 
     return result;

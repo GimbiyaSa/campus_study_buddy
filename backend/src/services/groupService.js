@@ -606,6 +606,9 @@ router.get('/my-groups', authenticateToken, async (req, res) => {
       'g.created_at AS createdAt',
       gc.last_activity ? 'g.last_activity AS lastActivity' : 'g.created_at AS lastActivity',
       gc.creator_id ? 'g.creator_id AS createdBy' : 'NULL AS createdBy',
+      `(SELECT COUNT(*) FROM dbo.group_members gm2 WHERE gm2.group_id = g.group_id ${
+        schema.membersCols.status ? `AND gm2.status='active'` : ''
+      }) AS memberCount`,
     ];
 
     const q = `
@@ -631,6 +634,7 @@ router.get('/my-groups', authenticateToken, async (req, res) => {
         createdBy: x.createdBy ?? null,
         createdAt: x.createdAt,
         lastActivity: x.lastActivity,
+        member_count: x.memberCount,
       }))
     );
   } catch (err) {

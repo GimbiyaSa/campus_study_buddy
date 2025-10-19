@@ -9,7 +9,6 @@ import {
   AlertCircle,
   Trash2,
 } from 'lucide-react';
-import { navigate } from '../router';
 import { DataService, type StudySession } from '../services/dataService';
 import { buildApiUrl } from '../utils/url';
 
@@ -22,34 +21,32 @@ export default function UpcomingSessions() {
 
   // Helpers
   const toDateTime = (s: StudySession) => {
-    const t = s.startTime ? s.startTime : '00:00';
-    return new Date(`${s.date}T${t}:00`);
+    // Simple date parsing like Sessions page
+    if (!s.date) {
+      return new Date(); // fallback to now
+    }
+    
+    const time = s.startTime || '00:00';
+    return new Date(`${s.date}T${time}:00`);
   };
 
   const filterUpcomingNext7Days = (list: SessionWithOwner[]) => {
-    const now = new Date();
-    const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    console.log('🕒 UpcomingSessions filter - now:', now, 'nextWeek:', nextWeek);
+    // Just filter by status like Sessions page does - keep it simple!
+    const upcomingSessions = list.filter(s => (s.status ?? 'upcoming') === 'upcoming');
+    console.log('🕒 UpcomingSessions - all sessions:', list.length, 'upcoming sessions:', upcomingSessions.length);
     
-    const filtered = list
-      .filter(
-        (s) => {
-          const sessionDateTime = toDateTime(s);
-          const isUpcoming = (s.status ?? 'upcoming') === 'upcoming';
-          const isAfterNow = sessionDateTime >= now;
-          const isWithinWeek = sessionDateTime <= nextWeek;
-          
-          console.log('🕒 Session:', s.title, 'date:', s.date, 'time:', s.startTime, 
-                     'dateTime:', sessionDateTime, 'status:', s.status,
-                     'isUpcoming:', isUpcoming, 'isAfterNow:', isAfterNow, 'isWithinWeek:', isWithinWeek);
-          
-          return isUpcoming && isAfterNow && isWithinWeek;
-        }
-      )
-      .sort((a, b) => toDateTime(a).getTime() - toDateTime(b).getTime());
+    // Sort by date
+    const sorted = upcomingSessions.sort((a, b) => {
+      try {
+        return toDateTime(a).getTime() - toDateTime(b).getTime();
+      } catch (error) {
+        console.error('🕒 Error sorting sessions:', error);
+        return 0;
+      }
+    });
       
-    console.log('🕒 Filtered upcoming sessions:', filtered);
-    return filtered;
+    console.log('🕒 Final upcoming sessions:', sorted);
+    return sorted;
   };
 
   useEffect(() => {
@@ -93,10 +90,15 @@ export default function UpcomingSessions() {
 
     // Optional invalidation hook if you broadcast it anywhere
     const onInvalidate = async () => {
+      console.log('🔄 UpcomingSessions: sessions:invalidate event received, refetching...');
       try {
         const all = await DataService.fetchSessions();
-        setSessions(filterUpcomingNext7Days(all as SessionWithOwner[]));
-      } catch {
+        console.log('🔄 UpcomingSessions: refetched', all.length, 'sessions');
+        const filtered = filterUpcomingNext7Days(all as SessionWithOwner[]);
+        console.log('🔄 UpcomingSessions: filtered to', filtered.length, 'upcoming sessions');
+        setSessions(filtered);
+      } catch (err) {
+        console.error('🔄 UpcomingSessions: refetch failed:', err);
         // keep current list
       }
     };
@@ -182,6 +184,7 @@ export default function UpcomingSessions() {
   };
 
   const handleLeave = async (sessionId: string) => {
+    // Update to show not attending, but keep session in list (user can rejoin)
     setSessions((prev) =>
       prev.map((s) =>
         s.id === sessionId
@@ -202,6 +205,7 @@ export default function UpcomingSessions() {
 
       if (!res.ok) {
         if ([400, 403, 404].includes(res.status)) {
+          // Revert on failure
           setSessions((prev) =>
             prev.map((s) =>
               s.id === sessionId
@@ -309,7 +313,7 @@ export default function UpcomingSessions() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-semibold text-gray-900">Upcoming Sessions</h2>
-        <span className="text-sm text-gray-500">{sessions.length} sessions this week</span>
+        <span className="text-sm text-gray-500">{sessions.length} sessions upcoming</span>
       </div>
 
       {/* Error message */}
@@ -326,7 +330,7 @@ export default function UpcomingSessions() {
           <Calendar className="w-12 h-12 mb-4" />
           <h3 className="text-lg font-medium mb-2">No upcoming sessions</h3>
           <p className="text-sm text-center mb-4">
-            You don't have any study sessions scheduled for the next week.
+            You don't have any upcoming study sessions.
           </p>
           <button
             onClick={openCalendarScheduleModal}
@@ -380,7 +384,10 @@ export default function UpcomingSessions() {
                     <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
                       <div className="flex items-center gap-2">
                         <Clock className="w-4 h-4" />
-                        <span>{session.date}</span>
+                        <span>
+                          {session.date}
+                          {session.startTime && ` at ${session.startTime}`}
+                        </span>
                       </div>
 
                       <div className="flex items-center gap-2">
@@ -413,11 +420,7 @@ export default function UpcomingSessions() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                  <div className="text-sm text-gray-500">
-                    {session.course && `Course: ${session.course}`}
-                  </div>
-
+                <div className="flex items-center justify-end pt-4 border-t border-gray-100">
                   <div className="flex gap-2">
                     {(session.status ?? 'upcoming') === 'upcoming' && (
                       <>
@@ -445,20 +448,13 @@ export default function UpcomingSessions() {
                                 onClick={() => handleLeave(session.id)}
                                 className="px-3 py-1 bg-gray-500 text-white text-sm rounded hover:bg-gray-600 transition"
                               >
-                                Leave
+                                Decline
                               </button>
                             )}
                           </>
                         )}
                       </>
                     )}
-
-                    <button
-                      onClick={() => navigate('/sessions')}
-                      className="px-3 py-1 border border-gray-300 text-gray-700 text-sm rounded hover:bg-gray-50 transition"
-                    >
-                      View Details
-                    </button>
                   </div>
                 </div>
               </div>

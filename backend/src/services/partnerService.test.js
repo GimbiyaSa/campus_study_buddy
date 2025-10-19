@@ -26,13 +26,6 @@ jest.mock('@azure/web-pubsub', () => ({
   WebPubSubServiceClient: jest.fn(() => mockWebPubSubClient),
 }));
 
-// Mock Logic Apps Service - CRITICAL FOR EMAIL COVERAGE
-jest.mock('./logicAppsService', () => ({
-  logicAppsService: {
-    sendBuddyRequestNotification: jest.fn().mockResolvedValue({ success: true }),
-  },
-}));
-
 // Robust mssql mock - SAME AS BEFORE
 const mockQuery = jest.fn();
 const mockInput = jest.fn(function () {

@@ -211,7 +211,7 @@ router.post('/sessions', authenticateToken, async (req, res) => {
             completionStatus: update.status,
             hoursSpent: update.hours,
             sessionDuration: duration,
-            studyDate: loggedHour.study_date
+            studyDate: loggedHour.study_date,
           });
         }
       }
@@ -564,7 +564,7 @@ router.put('/topics/:topicId/complete', authenticateToken, async (req, res) => {
         topicName: topicInfo.topic_name,
         moduleName: topicInfo.module_name,
         completionStatus: 'completed',
-        completedAt: new Date().toISOString()
+        completedAt: new Date().toISOString(),
       });
 
       // Check if module is now complete and emit event if so
@@ -572,7 +572,7 @@ router.put('/topics/:topicId/complete', authenticateToken, async (req, res) => {
         const moduleCheckRequest = new sql.Request(pool);
         moduleCheckRequest.input('userId', sql.NVarChar(255), req.user.id);
         moduleCheckRequest.input('topicId', sql.Int, topicId);
-        
+
         const moduleProgress = await moduleCheckRequest.query(`
           SELECT 
             m.module_id,
@@ -588,28 +588,29 @@ router.put('/topics/:topicId/complete', authenticateToken, async (req, res) => {
           WHERE m.module_id = (SELECT module_id FROM topics WHERE topic_id = @topicId)
           GROUP BY m.module_id, m.module_name, u.first_name, u.last_name, u.email
         `);
-        
+
         if (moduleProgress.recordset.length > 0) {
           const moduleData = moduleProgress.recordset[0];
-          const completion_percentage = (moduleData.completed_topics / moduleData.total_topics) * 100;
-          
+          const completion_percentage =
+            (moduleData.completed_topics / moduleData.total_topics) * 100;
+
           if (completion_percentage >= 100) {
             // Module is complete! Emit module completion event
             eventBus.emitEvent(EventType.MODULE_COMPLETED, {
               user: {
                 user_id: req.user.id,
                 name: moduleData.user_name,
-                email: moduleData.user_email
+                email: moduleData.user_email,
               },
               module: {
                 module_id: moduleData.module_id,
-                name: moduleData.module_name
+                name: moduleData.module_name,
               },
               progress: {
                 completion_percentage: completion_percentage,
                 completed_topics: moduleData.completed_topics,
-                total_topics: moduleData.total_topics
-              }
+                total_topics: moduleData.total_topics,
+              },
             });
           }
         }

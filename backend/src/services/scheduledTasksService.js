@@ -83,14 +83,14 @@ class ScheduledTasksService {
 
       for (let i = 0; i < users.length; i += batchSize) {
         const batch = users.slice(i, i + batchSize);
-        
+
         // Process batch in parallel
         const promises = batch.map(async (user) => {
           try {
             // Get upcoming sessions for this user
-            const sessionsResult = await this.pool.request()
-              .input('userId', sql.NVarChar(255), user.user_id)
-              .query(`
+            const sessionsResult = await this.pool
+              .request()
+              .input('userId', sql.NVarChar(255), user.user_id).query(`
                 SELECT 
                   ss.session_title as title,
                   ss.scheduled_start as startTime,
@@ -110,22 +110,18 @@ class ScheduledTasksService {
               `);
 
             const upcomingSessions = sessionsResult.recordset;
-            
+
             // Send weekly reminder
-            const result = await logicAppsService.sendWeeklyReminder(
-              user.email,
-              upcomingSessions,
-              {
-                totalHours: Math.round(user.totalHours * 10) / 10, // Round to 1 decimal
-                completedTopics: user.completedTopics,
-                sessionsAttended: user.sessionsAttended
-              }
-            );
+            const result = await logicAppsService.sendWeeklyReminder(user.email, upcomingSessions, {
+              totalHours: Math.round(user.totalHours * 10) / 10, // Round to 1 decimal
+              completedTopics: user.completedTopics,
+              sessionsAttended: user.sessionsAttended,
+            });
 
             if (result.success) {
               successCount++;
             }
-            
+
             return { success: result.success, user: user.name };
           } catch (error) {
             console.error(`❌ Failed to send weekly reminder to ${user.name}:`, error.message);
@@ -134,16 +130,17 @@ class ScheduledTasksService {
         });
 
         await Promise.all(promises);
-        
+
         // Small delay between batches
         if (i + batchSize < users.length) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       }
 
-      console.log(`✅ Weekly reminders completed: ${successCount}/${users.length} sent successfully`);
+      console.log(
+        `✅ Weekly reminders completed: ${successCount}/${users.length} sent successfully`
+      );
       return { success: true, sent: successCount, total: users.length };
-      
     } catch (error) {
       console.error('❌ Weekly reminder process failed:', error);
       return { success: false, error: error.message };
@@ -186,9 +183,9 @@ class ScheduledTasksService {
       for (const session of sessions) {
         try {
           // Get participants for this session
-          const participantsResult = await this.pool.request()
-            .input('sessionId', sql.Int, session.session_id)
-            .query(`
+          const participantsResult = await this.pool
+            .request()
+            .input('sessionId', sql.Int, session.session_id).query(`
               SELECT u.email
               FROM session_attendees sa
               JOIN users u ON sa.user_id = u.user_id
@@ -198,27 +195,31 @@ class ScheduledTasksService {
                 AND u.email != ''
             `);
 
-          const participantEmails = participantsResult.recordset.map(p => p.email);
-          
+          const participantEmails = participantsResult.recordset.map((p) => p.email);
+
           if (participantEmails.length > 0) {
             const result = await logicAppsService.sendSessionReminder(
               session,
               participantEmails,
               24
             );
-            
+
             if (result.success) {
               totalSent += result.sentCount || 0;
             }
           }
         } catch (error) {
-          console.error(`❌ Failed to send reminders for session ${session.session_id}:`, error.message);
+          console.error(
+            `❌ Failed to send reminders for session ${session.session_id}:`,
+            error.message
+          );
         }
       }
 
-      console.log(`✅ 24-hour reminders completed: ${totalSent} emails sent for ${sessions.length} sessions`);
+      console.log(
+        `✅ 24-hour reminders completed: ${totalSent} emails sent for ${sessions.length} sessions`
+      );
       return { success: true, sessions: sessions.length, emailsSent: totalSent };
-      
     } catch (error) {
       console.error('❌ 24-hour reminder process failed:', error);
       return { success: false, error: error.message };
@@ -261,9 +262,9 @@ class ScheduledTasksService {
       for (const session of sessions) {
         try {
           // Get participants for this session
-          const participantsResult = await this.pool.request()
-            .input('sessionId', sql.Int, session.session_id)
-            .query(`
+          const participantsResult = await this.pool
+            .request()
+            .input('sessionId', sql.Int, session.session_id).query(`
               SELECT u.email
               FROM session_attendees sa
               JOIN users u ON sa.user_id = u.user_id
@@ -273,27 +274,31 @@ class ScheduledTasksService {
                 AND u.email != ''
             `);
 
-          const participantEmails = participantsResult.recordset.map(p => p.email);
-          
+          const participantEmails = participantsResult.recordset.map((p) => p.email);
+
           if (participantEmails.length > 0) {
             const result = await logicAppsService.sendSessionReminder(
               session,
               participantEmails,
               1
             );
-            
+
             if (result.success) {
               totalSent += result.sentCount || 0;
             }
           }
         } catch (error) {
-          console.error(`❌ Failed to send 1-hour reminders for session ${session.session_id}:`, error.message);
+          console.error(
+            `❌ Failed to send 1-hour reminders for session ${session.session_id}:`,
+            error.message
+          );
         }
       }
 
-      console.log(`✅ 1-hour reminders completed: ${totalSent} emails sent for ${sessions.length} sessions`);
+      console.log(
+        `✅ 1-hour reminders completed: ${totalSent} emails sent for ${sessions.length} sessions`
+      );
       return { success: true, sessions: sessions.length, emailsSent: totalSent };
-      
     } catch (error) {
       console.error('❌ 1-hour reminder process failed:', error);
       return { success: false, error: error.message };
@@ -305,14 +310,14 @@ class ScheduledTasksService {
    */
   async healthCheck() {
     await this.initialize();
-    
+
     const logicAppsHealth = await logicAppsService.healthCheck();
-    
+
     return {
       database: !!this.pool,
       logicApps: logicAppsHealth,
       initialized: this.initialized,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 }

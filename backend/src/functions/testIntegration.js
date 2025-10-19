@@ -23,7 +23,7 @@ router.get('/logic-apps', async (req, res) => {
     const results = {
       timestamp: new Date().toISOString(),
       tests: {},
-      overall: 'unknown'
+      overall: 'unknown',
     };
 
     // Test 1: Azure Config URLs
@@ -31,7 +31,7 @@ router.get('/logic-apps', async (req, res) => {
       const emailUrl = await azureConfig.getLogicAppEmailUrl();
       const reminderUrl = await azureConfig.getLogicAppReminderUrl();
       const frontendUrl = await azureConfig.getFrontendUrl();
-      
+
       results.tests.azureConfig = {
         status: 'pass',
         emailUrlConfigured: !!emailUrl && emailUrl.includes('logic.azure.com'),
@@ -40,13 +40,13 @@ router.get('/logic-apps', async (req, res) => {
         urls: {
           emailUrl: emailUrl ? `${emailUrl.substring(0, 40)}...` : 'not configured',
           reminderUrl: reminderUrl ? `${reminderUrl.substring(0, 40)}...` : 'not configured',
-          frontendUrl: frontendUrl || 'not configured'
-        }
+          frontendUrl: frontendUrl || 'not configured',
+        },
       };
     } catch (error) {
       results.tests.azureConfig = {
         status: 'fail',
-        error: error.message
+        error: error.message,
       };
     }
 
@@ -55,12 +55,12 @@ router.get('/logic-apps', async (req, res) => {
       const healthCheck = await logicAppsService.healthCheck();
       results.tests.logicAppsService = {
         status: healthCheck.emailService && healthCheck.reminderService ? 'pass' : 'partial',
-        healthCheck
+        healthCheck,
       };
     } catch (error) {
       results.tests.logicAppsService = {
         status: 'fail',
-        error: error.message
+        error: error.message,
       };
     }
 
@@ -69,12 +69,12 @@ router.get('/logic-apps', async (req, res) => {
       const healthCheck = await scheduledTasksService.healthCheck();
       results.tests.scheduledTasks = {
         status: healthCheck.database && healthCheck.logicApps ? 'pass' : 'partial',
-        healthCheck
+        healthCheck,
       };
     } catch (error) {
       results.tests.scheduledTasks = {
         status: 'fail',
-        error: error.message
+        error: error.message,
       };
     }
 
@@ -84,12 +84,12 @@ router.get('/logic-apps', async (req, res) => {
       results.tests.eventBus = {
         status: 'pass',
         stats,
-        logicAppsIntegration: eventBus.logicAppsIntegration
+        logicAppsIntegration: eventBus.logicAppsIntegration,
       };
     } catch (error) {
       results.tests.eventBus = {
         status: 'fail',
-        error: error.message
+        error: error.message,
       };
     }
 
@@ -98,33 +98,33 @@ router.get('/logic-apps', async (req, res) => {
       // Temporarily disable Logic Apps integration for testing
       const originalSetting = eventBus.logicAppsIntegration;
       eventBus.setLogicAppsIntegration(false);
-      
+
       // Emit a test event
       eventBus.emitEvent(EventType.PROGRESS_UPDATED, {
         userId: 'test-user',
         topicId: 123,
-        completionStatus: 'completed'
+        completionStatus: 'completed',
       });
-      
+
       // Restore original setting
       eventBus.setLogicAppsIntegration(originalSetting);
-      
+
       results.tests.eventEmission = {
         status: 'pass',
-        message: 'Event emission test completed successfully'
+        message: 'Event emission test completed successfully',
       };
     } catch (error) {
       results.tests.eventEmission = {
         status: 'fail',
-        error: error.message
+        error: error.message,
       };
     }
 
     // Determine overall status
     const testResults = Object.values(results.tests);
-    const passCount = testResults.filter(t => t.status === 'pass').length;
-    const partialCount = testResults.filter(t => t.status === 'partial').length;
-    const failCount = testResults.filter(t => t.status === 'fail').length;
+    const passCount = testResults.filter((t) => t.status === 'pass').length;
+    const partialCount = testResults.filter((t) => t.status === 'partial').length;
+    const failCount = testResults.filter((t) => t.status === 'fail').length;
 
     if (failCount === 0 && partialCount === 0) {
       results.overall = 'pass';
@@ -138,10 +138,12 @@ router.get('/logic-apps', async (req, res) => {
       total: testResults.length,
       pass: passCount,
       partial: partialCount,
-      fail: failCount
+      fail: failCount,
     };
 
-    console.log(`✅ Logic Apps test completed: ${results.overall} (${passCount}/${testResults.length} passed)`);
+    console.log(
+      `✅ Logic Apps test completed: ${results.overall} (${passCount}/${testResults.length} passed)`
+    );
 
     res.json(results);
   } catch (error) {
@@ -150,7 +152,7 @@ router.get('/logic-apps', async (req, res) => {
       timestamp: new Date().toISOString(),
       overall: 'error',
       error: error.message,
-      message: 'Test execution failed'
+      message: 'Test execution failed',
     });
   }
 });
@@ -195,20 +197,20 @@ router.post('/email', async (req, res) => {
         <p style="color: #666; font-size: 14px;">This is a test email from the Study Buddy Logic Apps integration.</p>
       </div>`,
       type: 'test',
-      metadata: { testTimestamp: new Date().toISOString() }
+      metadata: { testTimestamp: new Date().toISOString() },
     });
 
     res.json({
       success: result.success,
       message: result.success ? 'Test email sent successfully' : 'Failed to send test email',
-      result
+      result,
     });
   } catch (error) {
     console.error('❌ Test email failed:', error);
     res.status(500).json({
       success: false,
       error: error.message,
-      message: 'Test email failed'
+      message: 'Test email failed',
     });
   }
 });

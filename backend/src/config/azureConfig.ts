@@ -224,7 +224,6 @@ export class AzureConfigService {
     return this.getSecret('jwt-secret');
   }
 
-
   public async getLogicAppReminderUrl(): Promise<string> {
     const envUrl = process.env.LOGIC_APP_REMINDER_URL;
     if (envUrl) {

@@ -23,7 +23,7 @@ class LogicAppsService {
         console.log('📧 Logic Apps service initialized via Azure Config');
       } catch (configError) {
         console.warn('Azure config not available for Logic Apps, using environment variables');
-        
+
         // Fallback to environment variables
         this.emailWorkflowUrl = process.env.LOGIC_APP_EMAIL_URL;
         this.reminderWorkflowUrl = process.env.LOGIC_APP_REMINDER_URL;
@@ -67,16 +67,19 @@ class LogicAppsService {
         body: emailData.body,
         type: emailData.type || 'notification',
         timestamp: new Date().toISOString(),
-        metadata: emailData.metadata || {}
+        metadata: emailData.metadata || {},
       };
 
-      console.log('📧 Sending email via Logic App:', { to: emailData.to, subject: emailData.subject });
+      console.log('📧 Sending email via Logic App:', {
+        to: emailData.to,
+        subject: emailData.subject,
+      });
 
       const response = await axios.post(this.emailWorkflowUrl, payload, {
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        timeout: 10000 // 10 second timeout
+        timeout: 10000, // 10 second timeout
       });
 
       console.log('✅ Email sent successfully:', response.status);
@@ -116,16 +119,19 @@ class LogicAppsService {
         location: eventData.location || 'Online',
         attendees: eventData.attendees || [],
         type: 'calendar_event',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
-      console.log('📅 Creating calendar event via Logic App:', { title: eventData.title, user: eventData.userEmail });
+      console.log('📅 Creating calendar event via Logic App:', {
+        title: eventData.title,
+        user: eventData.userEmail,
+      });
 
       const response = await axios.post(this.reminderWorkflowUrl, payload, {
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        timeout: 10000
+        timeout: 10000,
       });
 
       console.log('✅ Calendar event created successfully:', response.status);
@@ -144,7 +150,7 @@ class LogicAppsService {
    */
   async sendWeeklyReminder(userEmail, upcomingSessions, weeklyStats) {
     const subject = 'Your Weekly Study Schedule & Progress 📚';
-    
+
     let body = `
       <h2>Hi there! 👋</h2>
       <p>Here's your weekly study summary and upcoming sessions:</p>
@@ -162,10 +168,13 @@ class LogicAppsService {
         <h3>📅 Upcoming Study Sessions</h3>
         <ul>
       `;
-      
-      upcomingSessions.forEach(session => {
+
+      upcomingSessions.forEach((session) => {
         const sessionDate = new Date(session.startTime).toLocaleDateString();
-        const sessionTime = new Date(session.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const sessionTime = new Date(session.startTime).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
         body += `
           <li>
             <strong>${session.title}</strong><br>
@@ -175,7 +184,7 @@ class LogicAppsService {
           </li>
         `;
       });
-      
+
       body += '</ul>';
     } else {
       body += '<p>No upcoming study sessions scheduled. Why not create one? 🎯</p>';
@@ -183,7 +192,9 @@ class LogicAppsService {
 
     body += `
       <p>Keep up the great work! 🌟</p>
-      <p><a href="${process.env.FRONTEND_URL || 'https://your-app.com'}" style="background: #10B981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Open Campus Study Buddy</a></p>
+      <p><a href="${
+        process.env.FRONTEND_URL || 'https://your-app.com'
+      }" style="background: #10B981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Open Campus Study Buddy</a></p>
     `;
 
     return await this.sendEmail({
@@ -193,8 +204,8 @@ class LogicAppsService {
       type: 'weekly_reminder',
       metadata: {
         weeklyStats,
-        upcomingSessionsCount: upcomingSessions?.length || 0
-      }
+        upcomingSessionsCount: upcomingSessions?.length || 0,
+      },
     });
   }
 
@@ -207,30 +218,45 @@ class LogicAppsService {
   async sendSessionReminder(session, participants, hoursBefore = 24) {
     const sessionDate = new Date(session.startTime);
     const isToday = hoursBefore <= 2;
-    
-    const subject = isToday 
+
+    const subject = isToday
       ? `Study Session Starting Soon! 🚨 ${session.title}`
       : `Reminder: Study Session Tomorrow 📚 ${session.title}`;
 
     const body = `
-      <h2>${isToday ? 'Your study session is starting soon!' : 'Don\'t forget about your study session!'} 📚</h2>
+      <h2>${
+        isToday ? 'Your study session is starting soon!' : "Don't forget about your study session!"
+      } 📚</h2>
       
       <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
         <h3 style="color: #10B981; margin-top: 0;">${session.title}</h3>
         <p><strong>📅 Date:</strong> ${sessionDate.toLocaleDateString()}</p>
-        <p><strong>⏰ Time:</strong> ${sessionDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+        <p><strong>⏰ Time:</strong> ${sessionDate.toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        })}</p>
         <p><strong>📍 Location:</strong> ${session.location}</p>
         ${session.course ? `<p><strong>📖 Course:</strong> ${session.course}</p>` : ''}
-        ${session.description ? `<p><strong>📝 Description:</strong> ${session.description}</p>` : ''}
+        ${
+          session.description
+            ? `<p><strong>📝 Description:</strong> ${session.description}</p>`
+            : ''
+        }
       </div>
 
-      <p>${isToday ? 'Get ready and join your study buddies!' : 'Make sure to prepare any materials you might need.'}</p>
+      <p>${
+        isToday
+          ? 'Get ready and join your study buddies!'
+          : 'Make sure to prepare any materials you might need.'
+      }</p>
       
-      <p><a href="${process.env.FRONTEND_URL || 'https://your-app.com'}/sessions/${session.id}" style="background: #10B981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Session Details</a></p>
+      <p><a href="${process.env.FRONTEND_URL || 'https://your-app.com'}/sessions/${
+      session.id
+    }" style="background: #10B981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Session Details</a></p>
     `;
 
     // Send email to all participants
-    const emailPromises = participants.map(email => 
+    const emailPromises = participants.map((email) =>
       this.sendEmail({
         to: email,
         subject,
@@ -239,14 +265,14 @@ class LogicAppsService {
         metadata: {
           sessionId: session.id,
           hoursBefore,
-          sessionTime: session.startTime
-        }
+          sessionTime: session.startTime,
+        },
       })
     );
 
     const results = await Promise.allSettled(emailPromises);
-    const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
-    
+    const successful = results.filter((r) => r.status === 'fulfilled' && r.value.success).length;
+
     console.log(`📧 Session reminder sent to ${successful}/${participants.length} participants`);
     return { success: successful > 0, sentCount: successful, totalCount: participants.length };
   }
@@ -259,7 +285,7 @@ class LogicAppsService {
    */
   async sendBuddyRequestNotification(recipientEmail, senderInfo, message = '') {
     const subject = `New Study Buddy Request from ${senderInfo.name} 🤝`;
-    
+
     const body = `
       <h2>You have a new study buddy request! 🤝</h2>
       
@@ -274,7 +300,9 @@ class LogicAppsService {
 
       <p>Check out their profile and decide if you'd like to connect!</p>
       
-      <p><a href="${process.env.FRONTEND_URL || 'https://your-app.com'}/study-buddy" style="background: #10B981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Buddy Requests</a></p>
+      <p><a href="${
+        process.env.FRONTEND_URL || 'https://your-app.com'
+      }/study-buddy" style="background: #10B981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Buddy Requests</a></p>
     `;
 
     return await this.sendEmail({
@@ -284,8 +312,8 @@ class LogicAppsService {
       type: 'buddy_request',
       metadata: {
         senderId: senderInfo.id,
-        senderName: senderInfo.name
-      }
+        senderName: senderInfo.name,
+      },
     });
   }
 
@@ -294,12 +322,12 @@ class LogicAppsService {
    */
   async healthCheck() {
     await this.initialize();
-    
+
     return {
       emailService: !!this.emailWorkflowUrl,
       reminderService: !!this.reminderWorkflowUrl,
       initialized: this.initialized,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 }

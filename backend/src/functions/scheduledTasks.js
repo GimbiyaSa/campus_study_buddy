@@ -36,21 +36,21 @@ const router = express.Router();
 router.post('/weekly-reminders', authenticateToken, async (req, res) => {
   try {
     console.log('📅 Weekly reminders endpoint called by:', req.user?.user_id || 'system');
-    
+
     const result = await scheduledTasksService.sendWeeklyReminders();
-    
+
     if (result.success) {
       res.json({
         success: true,
         sent: result.sent,
         total: result.total,
-        message: `Weekly reminders sent to ${result.sent}/${result.total} users`
+        message: `Weekly reminders sent to ${result.sent}/${result.total} users`,
       });
     } else {
       res.status(500).json({
         success: false,
         error: result.error,
-        message: 'Failed to process weekly reminders'
+        message: 'Failed to process weekly reminders',
       });
     }
   } catch (error) {
@@ -58,7 +58,7 @@ router.post('/weekly-reminders', authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       error: error.message,
-      message: 'Internal server error'
+      message: 'Internal server error',
     });
   }
 });
@@ -91,21 +91,21 @@ router.post('/weekly-reminders', authenticateToken, async (req, res) => {
 router.post('/session-reminders/24h', authenticateToken, async (req, res) => {
   try {
     console.log('⏰ 24-hour session reminders endpoint called by:', req.user?.user_id || 'system');
-    
+
     const result = await scheduledTasksService.send24HourSessionReminders();
-    
+
     if (result.success) {
       res.json({
         success: true,
         sessions: result.sessions,
         emailsSent: result.emailsSent,
-        message: `24-hour reminders sent for ${result.sessions} sessions (${result.emailsSent} emails)`
+        message: `24-hour reminders sent for ${result.sessions} sessions (${result.emailsSent} emails)`,
       });
     } else {
       res.status(500).json({
         success: false,
         error: result.error,
-        message: 'Failed to process 24-hour session reminders'
+        message: 'Failed to process 24-hour session reminders',
       });
     }
   } catch (error) {
@@ -113,7 +113,7 @@ router.post('/session-reminders/24h', authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       error: error.message,
-      message: 'Internal server error'
+      message: 'Internal server error',
     });
   }
 });
@@ -146,21 +146,21 @@ router.post('/session-reminders/24h', authenticateToken, async (req, res) => {
 router.post('/session-reminders/1h', authenticateToken, async (req, res) => {
   try {
     console.log('🚨 1-hour session reminders endpoint called by:', req.user?.user_id || 'system');
-    
+
     const result = await scheduledTasksService.send1HourSessionReminders();
-    
+
     if (result.success) {
       res.json({
         success: true,
         sessions: result.sessions,
         emailsSent: result.emailsSent,
-        message: `1-hour reminders sent for ${result.sessions} sessions (${result.emailsSent} emails)`
+        message: `1-hour reminders sent for ${result.sessions} sessions (${result.emailsSent} emails)`,
       });
     } else {
       res.status(500).json({
         success: false,
         error: result.error,
-        message: 'Failed to process 1-hour session reminders'
+        message: 'Failed to process 1-hour session reminders',
       });
     }
   } catch (error) {
@@ -168,7 +168,7 @@ router.post('/session-reminders/1h', authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       error: error.message,
-      message: 'Internal server error'
+      message: 'Internal server error',
     });
   }
 });
@@ -207,7 +207,7 @@ router.get('/health', async (req, res) => {
       logicApps: false,
       initialized: false,
       error: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });

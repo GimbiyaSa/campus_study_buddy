@@ -6,18 +6,18 @@ const EventType = {
   USER_REGISTERED: 'user:registered',
   USER_UPDATED: 'user:updated',
   USER_DELETED: 'user:deleted',
-  
+
   // Course/Module events
   COURSE_ENROLLED: 'course:enrolled',
   MODULE_COMPLETED: 'module:completed',
   PROGRESS_UPDATED: 'progress:updated',
-  
+
   // Study buddy events
   BUDDY_REQUEST_SENT: 'buddy:request_sent',
   BUDDY_REQUEST_ACCEPTED: 'buddy:request_accepted',
   BUDDY_REQUEST_DECLINED: 'buddy:request_declined',
   BUDDY_MATCHED: 'buddy:matched',
-  
+
   // Session events
   SESSION_CREATED: 'session:created',
   SESSION_UPDATED: 'session:updated',
@@ -25,21 +25,21 @@ const EventType = {
   SESSION_JOINED: 'session:joined',
   SESSION_LEFT: 'session:left',
   SESSION_STARTING_SOON: 'session:starting_soon',
-  
+
   // Group events
   GROUP_CREATED: 'group:created',
   GROUP_UPDATED: 'group:updated',
   GROUP_MEMBER_JOINED: 'group:member_joined',
   GROUP_MEMBER_LEFT: 'group:member_left',
-  
+
   // Notification events
   NOTIFICATION_CREATED: 'notification:created',
   NOTIFICATION_READ: 'notification:read',
-  
+
   // Chat events
   MESSAGE_SENT: 'chat:message_sent',
   CHAT_CREATED: 'chat:created',
-  
+
   // Notes events
   NOTE_CREATED: 'note:created',
   NOTE_UPDATED: 'note:updated',
@@ -139,7 +139,9 @@ class StudyBuddyEventBus extends EventEmitter {
             subject: 'Study Buddy Request Accepted! 🎉',
             body: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
               <h2 style="color: #4CAF50;">Great news!</h2>
-              <p>Your study buddy request has been accepted by <strong>${accepter.name}</strong>!</p>
+              <p>Your study buddy request has been accepted by <strong>${
+                accepter.name
+              }</strong>!</p>
               <p>You can now start planning study sessions together and collaborate on your courses.</p>
               <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
                 <h3>What's next?</h3>
@@ -156,7 +158,7 @@ class StudyBuddyEventBus extends EventEmitter {
               <p style="color: #666; font-size: 14px;">Happy studying!<br>The Study Buddy Team</p>
             </div>`,
             type: 'buddy_request_accepted',
-            metadata: { requesterId: requester.user_id, accepterId: accepter.user_id }
+            metadata: { requesterId: requester.user_id, accepterId: accepter.user_id },
           });
         }
       } catch (error) {
@@ -187,7 +189,7 @@ class StudyBuddyEventBus extends EventEmitter {
               <p style="color: #666; font-size: 14px;">Keep learning!<br>The Study Buddy Team</p>
             </div>`,
             type: 'module_completion',
-            metadata: { moduleId: module.module_id, userId: user.user_id }
+            metadata: { moduleId: module.module_id, userId: user.user_id },
           });
         }
       } catch (error) {
@@ -199,9 +201,11 @@ class StudyBuddyEventBus extends EventEmitter {
     this.on(EventType.GROUP_MEMBER_JOINED, async (payload) => {
       try {
         const { group, newMember, existingMembers } = payload.data;
-        const memberEmails = existingMembers?.filter(m => m.email && m.user_id !== newMember.user_id)
-                                          ?.map(m => m.email) || [];
-        
+        const memberEmails =
+          existingMembers
+            ?.filter((m) => m.email && m.user_id !== newMember.user_id)
+            ?.map((m) => m.email) || [];
+
         if (memberEmails.length > 0) {
           // Send to multiple recipients by sending individual emails
           for (const email of memberEmails) {
@@ -210,15 +214,19 @@ class StudyBuddyEventBus extends EventEmitter {
               subject: `New member joined ${group.name}`,
               body: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                 <h2 style="color: #2196F3;">Welcome ${newMember.name}! 👋</h2>
-                <p><strong>${newMember.name}</strong> has joined your study group <em>${group.name}</em>.</p>
+                <p><strong>${newMember.name}</strong> has joined your study group <em>${
+                group.name
+              }</em>.</p>
                 <p>Say hello and help them get up to speed with your group activities!</p>
-                <p><a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/groups/${group.group_id}" 
+                <p><a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/groups/${
+                group.group_id
+              }" 
                        style="background: #2196F3; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
                   Visit Group
                 </a></p>
               </div>`,
               type: 'group_member_joined',
-              metadata: { groupId: group.group_id, newMemberId: newMember.user_id }
+              metadata: { groupId: group.group_id, newMemberId: newMember.user_id },
             });
           }
         }
@@ -236,7 +244,6 @@ class StudyBuddyEventBus extends EventEmitter {
   async handleLogicAppsIntegration(payload) {
     // This method is called automatically for all events
     // Specific integrations are handled by the event listeners above
-    
     // You can add general Logic Apps handling here if needed
     // For example, logging to a central system, analytics, etc.
   }

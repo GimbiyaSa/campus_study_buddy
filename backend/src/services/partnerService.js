@@ -927,11 +927,11 @@ router.post('/request', authenticateToken, async (req, res) => {
     if (existingConnection.recordset.length > 0) {
       const status = existingConnection.recordset[0].match_status;
       console.log(`❌ Existing connection found with status: ${status}`);
-      
+
       // Provide more specific error messages based on status
       let errorMessage = '';
       let errorCode = '';
-      
+
       switch (status) {
         case 'pending':
           errorMessage = 'A buddy request is already pending between these users';
@@ -949,7 +949,7 @@ router.post('/request', authenticateToken, async (req, res) => {
           errorMessage = `A ${status} connection already exists between these users`;
           errorCode = 'CONNECTION_EXISTS';
       }
-      
+
       return res.status(400).json({
         error: errorMessage,
         code: errorCode,
@@ -1058,12 +1058,12 @@ router.post('/request', authenticateToken, async (req, res) => {
         const recipientEmail = recipientRes.recordset[0].email;
         const senderInfo = senderRes.recordset[0];
         senderInfo.id = requesterId;
-        
+
         // Log buddy request notification (Logic Apps removed)
         console.log('📧 Buddy request notification:', {
           recipient: recipientEmail,
           sender: senderInfo.first_name + ' ' + senderInfo.last_name,
-          message: message
+          message: message,
         });
       }
     } catch (err) {

@@ -41,7 +41,10 @@ const initializeDatabase = async () => {
       console.log('🔧 Using Azure config for database connection');
       pool = await sql.connect(dbConfig);
     } catch (azureError) {
-      console.warn('⚠️ Azure config not available, using environment variables:', azureError.message);
+      console.warn(
+        '⚠️ Azure config not available, using environment variables:',
+        azureError.message
+      );
       // Fallback to connection string
       if (process.env.DATABASE_CONNECTION_STRING) {
         console.log('🔧 Using DATABASE_CONNECTION_STRING from environment');
@@ -74,7 +77,9 @@ initializeServices();
 // Helper function to check if service is ready
 const ensureServiceReady = (req, res, next) => {
   if (!isInitialized || !pool) {
-    return res.status(503).json({ error: 'Chat service is initializing, please try again in a moment' });
+    return res
+      .status(503)
+      .json({ error: 'Chat service is initializing, please try again in a moment' });
   }
   next();
 };
@@ -124,109 +129,114 @@ router.post('/negotiate', authenticateToken, ensureServiceReady, async (req, res
 });
 
 // Send message to group
-router.post('/groups/:groupId/messages', authenticateToken, ensureServiceReady, async (req, res) => {
-  try {
-    const { groupId } = req.params;
-    const { content, type = 'text' } = req.body;
-    const userId = req.user.id;
+router.post(
+  '/groups/:groupId/messages',
+  authenticateToken,
+  ensureServiceReady,
+  async (req, res) => {
+    try {
+      const { groupId } = req.params;
+      const { content, type = 'text' } = req.body;
+      const userId = req.user.id;
 
-    if (!content || !content.trim()) {
-      return res.status(400).json({ error: 'Message content is required' });
-    }
+      if (!content || !content.trim()) {
+        return res.status(400).json({ error: 'Message content is required' });
+      }
 
-    console.log('💬 Sending group message:', {
-      groupId,
-      userId,
-      content: content.substring(0, 50) + '...',
-    });
+      console.log('💬 Sending group message:', {
+        groupId,
+        userId,
+        content: content.substring(0, 50) + '...',
+      });
 
-    // Get or create chat room for this group
-    const roomName = `group_${groupId}`;
-    
-    let roomRequest = pool.request();
-    roomRequest.input('roomName', sql.NVarChar(255), roomName);
-    roomRequest.input('groupId', sql.Int, parseInt(groupId));
+      // Get or create chat room for this group
+      const roomName = `group_${groupId}`;
 
-    let roomResult = await roomRequest.query(`
+      let roomRequest = pool.request();
+      roomRequest.input('roomName', sql.NVarChar(255), roomName);
+      roomRequest.input('groupId', sql.Int, parseInt(groupId));
+
+      let roomResult = await roomRequest.query(`
       SELECT room_id FROM chat_rooms WHERE room_name = @roomName
     `);
 
-    let roomId;
-    if (roomResult.recordset.length === 0) {
-      // Create room if it doesn't exist
-      const createRoomRequest = pool.request();
-      createRoomRequest.input('roomName', sql.NVarChar(255), roomName);
-      createRoomRequest.input('groupId', sql.Int, parseInt(groupId));
-      createRoomRequest.input('roomType', sql.NVarChar(50), 'group');
+      let roomId;
+      if (roomResult.recordset.length === 0) {
+        // Create room if it doesn't exist
+        const createRoomRequest = pool.request();
+        createRoomRequest.input('roomName', sql.NVarChar(255), roomName);
+        createRoomRequest.input('groupId', sql.Int, parseInt(groupId));
+        createRoomRequest.input('roomType', sql.NVarChar(50), 'group');
 
-      const createResult = await createRoomRequest.query(`
+        const createResult = await createRoomRequest.query(`
         INSERT INTO chat_rooms (group_id, room_name, room_type, is_active)
         OUTPUT INSERTED.room_id
         VALUES (@groupId, @roomName, @roomType, 1)
       `);
-      roomId = createResult.recordset[0].room_id;
-      console.log('✅ Created new group chat room:', roomId);
-    } else {
-      roomId = roomResult.recordset[0].room_id;
-    }
+        roomId = createResult.recordset[0].room_id;
+        console.log('✅ Created new group chat room:', roomId);
+      } else {
+        roomId = roomResult.recordset[0].room_id;
+      }
 
-    // Save message to database
-    const messageRequest = pool.request();
-    messageRequest.input('roomId', sql.Int, roomId);
-    messageRequest.input('senderId', sql.NVarChar(255), userId);
-    messageRequest.input('content', sql.NText, content.trim());
-    messageRequest.input('messageType', sql.NVarChar(50), type);
+      // Save message to database
+      const messageRequest = pool.request();
+      messageRequest.input('roomId', sql.Int, roomId);
+      messageRequest.input('senderId', sql.NVarChar(255), userId);
+      messageRequest.input('content', sql.NText, content.trim());
+      messageRequest.input('messageType', sql.NVarChar(50), type);
 
-    const messageResult = await messageRequest.query(`
+      const messageResult = await messageRequest.query(`
       INSERT INTO chat_messages (room_id, sender_id, message_content, message_type)
       OUTPUT INSERTED.message_id, INSERTED.created_at
       VALUES (@roomId, @senderId, @content, @messageType)
     `);
 
-    const newMessage = messageResult.recordset[0];
+      const newMessage = messageResult.recordset[0];
 
-    // Get sender name
-    const senderRequest = pool.request();
-    senderRequest.input('senderId', sql.NVarChar(255), userId);
-    const senderResult = await senderRequest.query(`
+      // Get sender name
+      const senderRequest = pool.request();
+      senderRequest.input('senderId', sql.NVarChar(255), userId);
+      const senderResult = await senderRequest.query(`
       SELECT first_name + ' ' + last_name as senderName FROM users WHERE user_id = @senderId
     `);
 
-    const senderName = senderResult.recordset[0]?.senderName || 'Unknown User';
+      const senderName = senderResult.recordset[0]?.senderName || 'Unknown User';
 
-    // Send real-time message via WebPubSub
-    const messagePayload = {
-      type: 'chat_message',
-      payload: {
-        chatRoomId: roomName,
-        content: content.trim(),
-        messageType: type,
-        senderId: userId,
-        senderName,
-        timestamp: newMessage.created_at,
+      // Send real-time message via WebPubSub
+      const messagePayload = {
+        type: 'chat_message',
+        payload: {
+          chatRoomId: roomName,
+          content: content.trim(),
+          messageType: type,
+          senderId: userId,
+          senderName,
+          timestamp: newMessage.created_at,
+          messageId: newMessage.message_id,
+          groupId: groupId,
+        },
+      };
+
+      try {
+        await serviceClient.sendToGroup(roomName, messagePayload);
+        console.log('✅ Real-time group message sent via WebPubSub');
+      } catch (pubsubError) {
+        console.warn('⚠️ Failed to send real-time group message:', pubsubError);
+      }
+
+      console.log('✅ Group message saved and sent');
+      res.json({
         messageId: newMessage.message_id,
-        groupId: groupId,
-      },
-    };
-
-    try {
-      await serviceClient.sendToGroup(roomName, messagePayload);
-      console.log('✅ Real-time group message sent via WebPubSub');
-    } catch (pubsubError) {
-      console.warn('⚠️ Failed to send real-time group message:', pubsubError);
+        timestamp: newMessage.created_at,
+        success: true,
+      });
+    } catch (error) {
+      console.error('❌ Error sending group message:', error);
+      res.status(500).json({ error: 'Failed to send message' });
     }
-
-    console.log('✅ Group message saved and sent');
-    res.json({
-      messageId: newMessage.message_id,
-      timestamp: newMessage.created_at,
-      success: true,
-    });
-  } catch (error) {
-    console.error('❌ Error sending group message:', error);
-    res.status(500).json({ error: 'Failed to send message' });
   }
-});
+);
 
 // Get chat history for a group
 router.get('/groups/:groupId/messages', authenticateToken, ensureServiceReady, async (req, res) => {
@@ -251,7 +261,7 @@ router.get('/groups/:groupId/messages', authenticateToken, ensureServiceReady, a
 
     // Get or create chat room for this group
     const roomName = `group_${groupId}`;
-    
+
     const roomRequest = pool.request();
     roomRequest.input('roomName', sql.NVarChar(255), roomName);
     roomRequest.input('groupId', sql.Int, parseInt(groupId));
@@ -398,38 +408,42 @@ router.get('/partner/:partnerId/room', authenticateToken, ensureServiceReady, as
 });
 
 // Get message history for a partner chat
-router.get('/partner/:partnerId/messages', authenticateToken, ensureServiceReady, async (req, res) => {
-  try {
-    const { partnerId } = req.params;
-    const userId = req.user.id;
-    const { limit = 50, before } = req.query;
+router.get(
+  '/partner/:partnerId/messages',
+  authenticateToken,
+  ensureServiceReady,
+  async (req, res) => {
+    try {
+      const { partnerId } = req.params;
+      const userId = req.user.id;
+      const { limit = 50, before } = req.query;
 
-    console.log('📨 Getting partner chat messages:', { userId, partnerId, limit });
+      console.log('📨 Getting partner chat messages:', { userId, partnerId, limit });
 
-    // Create consistent room name from user IDs
-    const userIds = [userId, partnerId].sort();
-    const roomName = `partner_${userIds.join('_')}`;
+      // Create consistent room name from user IDs
+      const userIds = [userId, partnerId].sort();
+      const roomName = `partner_${userIds.join('_')}`;
 
-    // Get room ID
-    const roomRequest = pool.request();
-    roomRequest.input('roomName', sql.NVarChar(255), roomName);
+      // Get room ID
+      const roomRequest = pool.request();
+      roomRequest.input('roomName', sql.NVarChar(255), roomName);
 
-    const roomResult = await roomRequest.query(`
+      const roomResult = await roomRequest.query(`
       SELECT room_id FROM chat_rooms WHERE room_name = @roomName
     `);
 
-    if (roomResult.recordset.length === 0) {
-      return res.json([]); // No messages if room doesn't exist
-    }
+      if (roomResult.recordset.length === 0) {
+        return res.json([]); // No messages if room doesn't exist
+      }
 
-    const roomId = roomResult.recordset[0].room_id;
+      const roomId = roomResult.recordset[0].room_id;
 
-    // Get messages
-    const messageRequest = pool.request();
-    messageRequest.input('roomId', sql.Int, roomId);
-    messageRequest.input('limit', sql.Int, parseInt(limit));
+      // Get messages
+      const messageRequest = pool.request();
+      messageRequest.input('roomId', sql.Int, roomId);
+      messageRequest.input('limit', sql.Int, parseInt(limit));
 
-    let query = `
+      let query = `
       SELECT TOP (@limit)
         cm.message_id,
         cm.sender_id,
@@ -443,128 +457,134 @@ router.get('/partner/:partnerId/messages', authenticateToken, ensureServiceReady
       AND cm.is_deleted = 0
     `;
 
-    if (before) {
-      messageRequest.input('before', sql.DateTime2, before);
-      query += ` AND cm.created_at < @before`;
+      if (before) {
+        messageRequest.input('before', sql.DateTime2, before);
+        query += ` AND cm.created_at < @before`;
+      }
+
+      query += ` ORDER BY cm.created_at DESC`;
+
+      const result = await messageRequest.query(query);
+
+      // Reverse to get chronological order (oldest first)
+      const messages = result.recordset.reverse();
+
+      console.log(`📨 Found ${messages.length} messages for room ${roomId}`);
+      res.json(messages);
+    } catch (error) {
+      console.error('❌ Error getting partner chat messages:', error);
+      res.status(500).json({ error: 'Failed to get messages' });
     }
-
-    query += ` ORDER BY cm.created_at DESC`;
-
-    const result = await messageRequest.query(query);
-
-    // Reverse to get chronological order (oldest first)
-    const messages = result.recordset.reverse();
-
-    console.log(`📨 Found ${messages.length} messages for room ${roomId}`);
-    res.json(messages);
-  } catch (error) {
-    console.error('❌ Error getting partner chat messages:', error);
-    res.status(500).json({ error: 'Failed to get messages' });
   }
-});
+);
 
 // Send a message to partner chat
-router.post('/partner/:partnerId/message', authenticateToken, ensureServiceReady, async (req, res) => {
-  try {
-    const { partnerId } = req.params;
-    const userId = req.user.id;
-    const { content, messageType = 'text' } = req.body;
+router.post(
+  '/partner/:partnerId/message',
+  authenticateToken,
+  ensureServiceReady,
+  async (req, res) => {
+    try {
+      const { partnerId } = req.params;
+      const userId = req.user.id;
+      const { content, messageType = 'text' } = req.body;
 
-    if (!content || !content.trim()) {
-      return res.status(400).json({ error: 'Message content is required' });
-    }
+      if (!content || !content.trim()) {
+        return res.status(400).json({ error: 'Message content is required' });
+      }
 
-    console.log('💬 Sending partner message:', {
-      userId,
-      partnerId,
-      content: content.substring(0, 50) + '...',
-    });
+      console.log('💬 Sending partner message:', {
+        userId,
+        partnerId,
+        content: content.substring(0, 50) + '...',
+      });
 
-    // Create consistent room name from user IDs
-    const userIds = [userId, partnerId].sort();
-    const roomName = `partner_${userIds.join('_')}`;
+      // Create consistent room name from user IDs
+      const userIds = [userId, partnerId].sort();
+      const roomName = `partner_${userIds.join('_')}`;
 
-    // Get or create room
-    const roomRequest = pool.request();
-    roomRequest.input('roomName', sql.NVarChar(255), roomName);
+      // Get or create room
+      const roomRequest = pool.request();
+      roomRequest.input('roomName', sql.NVarChar(255), roomName);
 
-    let roomResult = await roomRequest.query(`
+      let roomResult = await roomRequest.query(`
       SELECT room_id FROM chat_rooms WHERE room_name = @roomName
     `);
 
-    let roomId;
-    if (roomResult.recordset.length === 0) {
-      // Create new room
-      const createRoomRequest = pool.request();
-      createRoomRequest.input('roomName', sql.NVarChar(255), roomName);
-      createRoomRequest.input('roomType', sql.NVarChar(50), 'private');
+      let roomId;
+      if (roomResult.recordset.length === 0) {
+        // Create new room
+        const createRoomRequest = pool.request();
+        createRoomRequest.input('roomName', sql.NVarChar(255), roomName);
+        createRoomRequest.input('roomType', sql.NVarChar(50), 'private');
 
-      const createResult = await createRoomRequest.query(`
+        const createResult = await createRoomRequest.query(`
         INSERT INTO chat_rooms (group_id, room_name, room_type, is_active)
         OUTPUT INSERTED.room_id
         VALUES (1, @roomName, @roomType, 1)
       `);
-      roomId = createResult.recordset[0].room_id;
-    } else {
-      roomId = roomResult.recordset[0].room_id;
-    }
+        roomId = createResult.recordset[0].room_id;
+      } else {
+        roomId = roomResult.recordset[0].room_id;
+      }
 
-    // Save message to database
-    const messageRequest = pool.request();
-    messageRequest.input('roomId', sql.Int, roomId);
-    messageRequest.input('senderId', sql.NVarChar(255), userId);
-    messageRequest.input('content', sql.NText, content.trim());
-    messageRequest.input('messageType', sql.NVarChar(50), messageType);
+      // Save message to database
+      const messageRequest = pool.request();
+      messageRequest.input('roomId', sql.Int, roomId);
+      messageRequest.input('senderId', sql.NVarChar(255), userId);
+      messageRequest.input('content', sql.NText, content.trim());
+      messageRequest.input('messageType', sql.NVarChar(50), messageType);
 
-    const messageResult = await messageRequest.query(`
+      const messageResult = await messageRequest.query(`
       INSERT INTO chat_messages (room_id, sender_id, message_content, message_type)
       OUTPUT INSERTED.message_id, INSERTED.created_at
       VALUES (@roomId, @senderId, @content, @messageType)
     `);
 
-    const newMessage = messageResult.recordset[0];
+      const newMessage = messageResult.recordset[0];
 
-    // Get sender name
-    const senderRequest = pool.request();
-    senderRequest.input('senderId', sql.NVarChar(255), userId);
-    const senderResult = await senderRequest.query(`
+      // Get sender name
+      const senderRequest = pool.request();
+      senderRequest.input('senderId', sql.NVarChar(255), userId);
+      const senderResult = await senderRequest.query(`
       SELECT first_name + ' ' + last_name as senderName FROM users WHERE user_id = @senderId
     `);
 
-    const senderName = senderResult.recordset[0]?.senderName || 'Unknown User';
+      const senderName = senderResult.recordset[0]?.senderName || 'Unknown User';
 
-    // Send real-time message via WebPubSub
-    const messagePayload = {
-      type: 'chat_message',
-      payload: {
-        chatRoomId: roomName,
-        content: content.trim(),
-        messageType,
-        senderId: userId,
-        senderName,
-        timestamp: newMessage.created_at,
+      // Send real-time message via WebPubSub
+      const messagePayload = {
+        type: 'chat_message',
+        payload: {
+          chatRoomId: roomName,
+          content: content.trim(),
+          messageType,
+          senderId: userId,
+          senderName,
+          timestamp: newMessage.created_at,
+          messageId: newMessage.message_id,
+        },
+      };
+
+      try {
+        await serviceClient.sendToGroup(roomName, messagePayload);
+        console.log('✅ Real-time message sent via WebPubSub');
+      } catch (pubsubError) {
+        console.warn('⚠️ Failed to send real-time message:', pubsubError);
+      }
+
+      console.log('✅ Message saved and sent');
+      res.json({
         messageId: newMessage.message_id,
-      },
-    };
-
-    try {
-      await serviceClient.sendToGroup(roomName, messagePayload);
-      console.log('✅ Real-time message sent via WebPubSub');
-    } catch (pubsubError) {
-      console.warn('⚠️ Failed to send real-time message:', pubsubError);
+        timestamp: newMessage.created_at,
+        success: true,
+      });
+    } catch (error) {
+      console.error('❌ Error sending partner message:', error);
+      res.status(500).json({ error: 'Failed to send message' });
     }
-
-    console.log('✅ Message saved and sent');
-    res.json({
-      messageId: newMessage.message_id,
-      timestamp: newMessage.created_at,
-      success: true,
-    });
-  } catch (error) {
-    console.error('❌ Error sending partner message:', error);
-    res.status(500).json({ error: 'Failed to send message' });
   }
-});
+);
 
 module.exports = router;
 // Export for testing

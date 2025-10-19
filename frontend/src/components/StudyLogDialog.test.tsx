@@ -24,17 +24,13 @@ describe('StudyLogDialog Component', () => {
   });
 
   it('does not render when isOpen is false', () => {
-    const { container } = render(
-      <StudyLogDialog {...defaultProps} isOpen={false} />
-    );
+    const { container } = render(<StudyLogDialog {...defaultProps} isOpen={false} />);
 
     expect(container.firstChild).toBeNull();
   });
 
   it('does not render when topic is not provided', () => {
-    const { container } = render(
-      <StudyLogDialog {...defaultProps} topic={undefined} />
-    );
+    const { container } = render(<StudyLogDialog {...defaultProps} topic={undefined} />);
 
     expect(container.firstChild).toBeNull();
   });
@@ -56,7 +52,9 @@ describe('StudyLogDialog Component', () => {
     expect(hoursInput.value).toBe('1');
 
     // Description input
-    const descriptionInput = screen.getByLabelText('What did you study? (Optional)') as HTMLInputElement;
+    const descriptionInput = screen.getByLabelText(
+      'What did you study? (Optional)'
+    ) as HTMLInputElement;
     expect(descriptionInput).toBeInTheDocument();
     expect(descriptionInput.value).toBe('');
   });
@@ -91,7 +89,9 @@ describe('StudyLogDialog Component', () => {
   it('updates description when input changes', () => {
     render(<StudyLogDialog {...defaultProps} />);
 
-    const descriptionInput = screen.getByLabelText('What did you study? (Optional)') as HTMLInputElement;
+    const descriptionInput = screen.getByLabelText(
+      'What did you study? (Optional)'
+    ) as HTMLInputElement;
     fireEvent.change(descriptionInput, { target: { value: 'Learned about async/await' } });
 
     expect(descriptionInput.value).toBe('Learned about async/await');
@@ -203,7 +203,7 @@ describe('StudyLogDialog Component', () => {
 
   it('shows loading state while submitting', async () => {
     // Mock a delayed submission
-    mockOnSubmit.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
+    mockOnSubmit.mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 100)));
 
     render(<StudyLogDialog {...defaultProps} />);
 
@@ -225,7 +225,9 @@ describe('StudyLogDialog Component', () => {
 
     // Fill out the form
     const hoursInput = screen.getByLabelText('Hours Studied *') as HTMLInputElement;
-    const descriptionInput = screen.getByLabelText('What did you study? (Optional)') as HTMLInputElement;
+    const descriptionInput = screen.getByLabelText(
+      'What did you study? (Optional)'
+    ) as HTMLInputElement;
 
     fireEvent.change(hoursInput, { target: { value: '4' } });
     fireEvent.change(descriptionInput, { target: { value: 'Practice problems' } });
@@ -254,7 +256,10 @@ describe('StudyLogDialog Component', () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to log study session:', expect.any(Error));
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Failed to log study session:',
+        expect.any(Error)
+      );
     });
 
     // Dialog should remain open after error
@@ -286,7 +291,7 @@ describe('StudyLogDialog Component', () => {
     const submitButton = screen.getByText('Log Session');
 
     fireEvent.change(hoursInput, { target: { value: 'invalid' } });
-    
+
     expect(submitButton).toBeDisabled();
   });
 
@@ -294,7 +299,7 @@ describe('StudyLogDialog Component', () => {
     render(<StudyLogDialog {...defaultProps} />);
 
     const hoursInput = screen.getByLabelText('Hours Studied *') as HTMLInputElement;
-    
+
     expect(hoursInput.getAttribute('min')).toBe('0.25');
     expect(hoursInput.getAttribute('step')).toBe('0.25');
     expect(hoursInput.getAttribute('type')).toBe('number');
@@ -304,7 +309,9 @@ describe('StudyLogDialog Component', () => {
     render(<StudyLogDialog {...defaultProps} />);
 
     const hoursInput = screen.getByLabelText('Hours Studied *') as HTMLInputElement;
-    const descriptionInput = screen.getByLabelText('What did you study? (Optional)') as HTMLInputElement;
+    const descriptionInput = screen.getByLabelText(
+      'What did you study? (Optional)'
+    ) as HTMLInputElement;
 
     expect(hoursInput.placeholder).toBe('1.5');
     expect(descriptionInput.placeholder).toContain('Chapter 3 exercises');
@@ -323,7 +330,9 @@ describe('StudyLogDialog Component', () => {
   it('shows helpful text about minimum study time', () => {
     render(<StudyLogDialog {...defaultProps} />);
 
-    expect(screen.getByText(/Be honest about your actual study time.*minimum 15 minutes/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Be honest about your actual study time.*minimum 15 minutes/)
+    ).toBeInTheDocument();
   });
 
   it('submits form when Enter key is pressed in hours input', async () => {
@@ -377,7 +386,7 @@ describe('StudyLogDialog Component', () => {
 
     // Check for clock icon in header (blue theme)
     expect(screen.getByText('Log Study Session')).toBeInTheDocument();
-    
+
     // Verify submit button has blue styling class name (this would depend on actual CSS classes used)
     const submitButton = screen.getByText('Log Session');
     expect(submitButton).toHaveClass('bg-blue-600'); // Assuming Tailwind classes
@@ -420,10 +429,10 @@ describe('StudyLogDialog Component', () => {
     render(<StudyLogDialog {...defaultProps} />);
 
     const descriptionInput = screen.getByLabelText('What did you study? (Optional)');
-    
+
     // Enter in text input should not submit the form (unlike the hours input)
     fireEvent.keyPress(descriptionInput, { key: 'Enter', code: 'Enter' });
-    
+
     // Form should not have been submitted
     expect(mockOnSubmit).not.toHaveBeenCalled();
   });

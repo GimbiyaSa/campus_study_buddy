@@ -11,7 +11,7 @@ export default function BuddySearch() {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<StudyPartner | null>(null);
   const [invited, setInvited] = useState(false);
-  
+
   // Filter states
   const [courseFilter, setCourseFilter] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -28,15 +28,18 @@ export default function BuddySearch() {
   // Filtered suggestions based on user selections
   const filteredSuggestions = useMemo(() => {
     if (!allSuggestions.length) return [];
-    
+
     return allSuggestions.filter((partner) => {
       // Course filter
-      if (courseFilter && !partner.sharedCourses?.some(course => 
-        course.toLowerCase().includes(courseFilter.toLowerCase())
-      )) {
+      if (
+        courseFilter &&
+        !partner.sharedCourses?.some((course) =>
+          course.toLowerCase().includes(courseFilter.toLowerCase())
+        )
+      ) {
         return false;
       }
-      
+
       return true;
     });
   }, [allSuggestions, courseFilter]);
@@ -44,8 +47,8 @@ export default function BuddySearch() {
   // Available filter options from data
   const availableCourses = useMemo(() => {
     const courses = new Set<string>();
-    allSuggestions.forEach(partner => {
-      partner.sharedCourses?.forEach(course => courses.add(course));
+    allSuggestions.forEach((partner) => {
+      partner.sharedCourses?.forEach((course) => courses.add(course));
     });
     return Array.from(courses).sort();
   }, [allSuggestions]);
@@ -65,7 +68,11 @@ export default function BuddySearch() {
         const allPartners = await DataService.searchPartners();
         console.log(
           '🔍 BuddySearch raw data:',
-          allPartners.map((p) => ({ name: p.name, connectionStatus: p.connectionStatus, sharedCourses: p.sharedCourses?.length || 0 }))
+          allPartners.map((p) => ({
+            name: p.name,
+            connectionStatus: p.connectionStatus,
+            sharedCourses: p.sharedCourses?.length || 0,
+          }))
         );
 
         // CRITICAL: For dashboard suggestions, ONLY show partners with matched courses
@@ -75,9 +82,9 @@ export default function BuddySearch() {
             (partner) =>
               // Must NOT be already connected
               (!partner.connectionStatus ||
-              partner.connectionStatus === 'none' ||
-              partner.connectionStatus === undefined ||
-              partner.connectionStatus !== 'accepted') &&
+                partner.connectionStatus === 'none' ||
+                partner.connectionStatus === undefined ||
+                partner.connectionStatus !== 'accepted') &&
               // MUST have at least one matched course (adhering to algorithm)
               partner.sharedCourses &&
               partner.sharedCourses.length > 0
@@ -90,17 +97,19 @@ export default function BuddySearch() {
           'out of',
           allPartners.length
         );
-        
+
         // Store all non-connected partners for filtering (also require matched courses)
-        setAllSuggestions(allPartners.filter(
-          (partner) =>
-            (!partner.connectionStatus ||
-            partner.connectionStatus === 'none' ||
-            partner.connectionStatus === undefined ||
-            partner.connectionStatus !== 'accepted') &&
-            partner.sharedCourses &&
-            partner.sharedCourses.length > 0
-        ));
+        setAllSuggestions(
+          allPartners.filter(
+            (partner) =>
+              (!partner.connectionStatus ||
+                partner.connectionStatus === 'none' ||
+                partner.connectionStatus === undefined ||
+                partner.connectionStatus !== 'accepted') &&
+              partner.sharedCourses &&
+              partner.sharedCourses.length > 0
+          )
+        );
         setSuggestions(newSuggestions);
       } catch (err) {
         const appError = ErrorHandler.handleApiError(err, 'partners');
@@ -234,9 +243,7 @@ export default function BuddySearch() {
         <div className="bg-slate-50 rounded-xl p-4 mb-6 border border-slate-200">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Shared Course
-              </label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Shared Course</label>
               <select
                 value={courseFilter}
                 onChange={(e) => setCourseFilter(e.target.value)}
@@ -371,7 +378,7 @@ function EnhancedSuggestionCard({
   // For suggested partners: ONLY show shared/similar courses
   const sharedCourses = suggestion.sharedCourses || [];
   const sharedTopicsCount = suggestion.sharedTopicsCount || 0;
-  
+
   // Use match reasons from backend
   const matchReasons = suggestion.matchReasons || [];
 
@@ -385,10 +392,8 @@ function EnhancedSuggestionCard({
           <h3 className="font-bold text-slate-900 group-hover:text-emerald-700 transition-colors mb-1">
             {suggestion.name}
           </h3>
-          <p className="text-sm text-slate-700 font-medium mb-2">
-            {suggestion.course}
-          </p>
-          
+          <p className="text-sm text-slate-700 font-medium mb-2">{suggestion.course}</p>
+
           {/* Show ONLY shared courses prominently for suggested partners */}
           {sharedCourses.length > 0 && (
             <div className="bg-emerald-50 rounded-lg px-3 py-2 mb-3">
@@ -397,27 +402,31 @@ function EnhancedSuggestionCard({
               </p>
               <div className="flex flex-wrap gap-1">
                 {sharedCourses.map((course, i) => (
-                  <span key={i} className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded-md font-medium">
+                  <span
+                    key={i}
+                    className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded-md font-medium"
+                  >
                     {course}
                   </span>
                 ))}
               </div>
             </div>
           )}
-          
+
           {/* Show shared topics count if available */}
           {sharedTopicsCount > 0 && (
             <p className="text-xs text-emerald-600 font-medium mb-2">
               + {sharedTopicsCount} shared topic{sharedTopicsCount > 1 ? 's' : ''}
             </p>
           )}
-          
+
           {/* Match reasons from backend */}
           {matchReasons.length > 0 && (
             <div className="flex flex-wrap gap-1 text-xs text-slate-600">
               {matchReasons.map((reason, index) => (
                 <span key={index}>
-                  {reason}{index < matchReasons.length - 1 ? ' •' : ''}
+                  {reason}
+                  {index < matchReasons.length - 1 ? ' •' : ''}
                 </span>
               ))}
             </div>

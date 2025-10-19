@@ -7,9 +7,11 @@ import GroupChat from '../components/GroupChat';
 
 export default function Chat() {
   const { currentUser } = useUser();
-  
+
   // IMPORTANT: All hooks must be declared before any conditional returns!
-  const [groupChatMode, setGroupChatMode] = useState<{ groupId: string; groupName: string } | null>(null);
+  const [groupChatMode, setGroupChatMode] = useState<{ groupId: string; groupName: string } | null>(
+    null
+  );
   const [buddies, setBuddies] = useState<StudyPartner[]>([]);
   const [myGroups, setMyGroups] = useState<any[]>([]);
   const [selectedBuddy, setSelectedBuddy] = useState<StudyPartner | null>(null);
@@ -29,17 +31,17 @@ export default function Chat() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const groupId = params.get('groupId');
-    
+
     if (groupId) {
       // Load group info
       DataService.fetchMyGroups().then((groups) => {
-        const group = groups.find((g: any) => 
-          String(g.id) === groupId || String(g.group_id) === groupId
+        const group = groups.find(
+          (g: any) => String(g.id) === groupId || String(g.group_id) === groupId
         );
         if (group) {
           setGroupChatMode({
             groupId: String(group.id || group.group_id),
-            groupName: group.name || group.group_name || 'Study Group'
+            groupName: group.name || group.group_name || 'Study Group',
           });
         }
       });
@@ -53,7 +55,7 @@ export default function Chat() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const partnerId = params.get('partnerId');
-    
+
     if (partnerId && buddies.length > 0) {
       const buddy = buddies.find((b) => String(b.id) === partnerId);
       if (buddy) {
@@ -150,10 +152,13 @@ export default function Chat() {
       setGroupsLoading(true);
       const groups = await DataService.fetchMyGroups();
       // Only include groups where the user is a member
-      const memberGroups = groups.filter((group: any) => 
-        group.isMember || group.member_count > 0 || group.members?.some((m: any) => 
-          m.userId === currentUser?.user_id || m.user_id === currentUser?.user_id
-        )
+      const memberGroups = groups.filter(
+        (group: any) =>
+          group.isMember ||
+          group.member_count > 0 ||
+          group.members?.some(
+            (m: any) => m.userId === currentUser?.user_id || m.user_id === currentUser?.user_id
+          )
       );
       setMyGroups(memberGroups);
       console.log('📱 Loaded member groups for chat:', memberGroups.length);
@@ -412,7 +417,7 @@ export default function Chat() {
                               window.history.pushState({}, '', `/chat?groupId=${groupId}`);
                               setGroupChatMode({
                                 groupId: String(groupId),
-                                groupName: group.name || group.group_name || 'Study Group'
+                                groupName: group.name || group.group_name || 'Study Group',
                               });
                             }}
                             className={`p-3 rounded-xl cursor-pointer transition-all duration-200 ${
@@ -477,7 +482,9 @@ export default function Chat() {
                                 )}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="font-medium text-slate-900 truncate text-sm">{buddy.name}</p>
+                                <p className="font-medium text-slate-900 truncate text-sm">
+                                  {buddy.name}
+                                </p>
                                 <p className="text-xs text-slate-500">
                                   {buddy.course || 'Study Partner'}
                                 </p>
@@ -502,11 +509,13 @@ export default function Chat() {
                 {/* Chat Header */}
                 <div className="p-6 border-b border-slate-100">
                   <div className="flex items-center gap-4">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-semibold ${
-                      selectedBuddy 
-                        ? 'bg-gradient-to-br from-emerald-400 to-emerald-600' 
-                        : 'bg-gradient-to-br from-blue-400 to-blue-600'
-                    }`}>
+                    <div
+                      className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-semibold ${
+                        selectedBuddy
+                          ? 'bg-gradient-to-br from-emerald-400 to-emerald-600'
+                          : 'bg-gradient-to-br from-blue-400 to-blue-600'
+                      }`}
+                    >
                       {selectedBuddy ? (
                         selectedBuddy.avatar ? (
                           <img
@@ -518,18 +527,23 @@ export default function Chat() {
                           selectedBuddy.name.charAt(0).toUpperCase()
                         )
                       ) : selectedGroup ? (
-                        (selectedGroup.name || selectedGroup.group_name || 'G').charAt(0).toUpperCase()
+                        (selectedGroup.name || selectedGroup.group_name || 'G')
+                          .charAt(0)
+                          .toUpperCase()
                       ) : null}
                     </div>
                     <div>
                       <h3 className="text-xl font-semibold text-slate-900">
-                        {selectedBuddy ? selectedBuddy.name : (selectedGroup?.name || selectedGroup?.group_name || 'Study Group')}
+                        {selectedBuddy
+                          ? selectedBuddy.name
+                          : selectedGroup?.name || selectedGroup?.group_name || 'Study Group'}
                       </h3>
                       <p className="text-slate-500">
-                        {selectedBuddy 
-                          ? (selectedBuddy.course || 'Study Partner')
-                          : `${selectedGroup?.member_count || selectedGroup?.members?.length || 0} members`
-                        }
+                        {selectedBuddy
+                          ? selectedBuddy.course || 'Study Partner'
+                          : `${
+                              selectedGroup?.member_count || selectedGroup?.members?.length || 0
+                            } members`}
                       </p>
                     </div>
                   </div>
@@ -553,17 +567,19 @@ export default function Chat() {
                     <div className="space-y-4">
                       {messages.map((message, i) => {
                         // Try different possible field names for sender ID
-                        const messageSenderId = message.senderId || message.sender_id || message.userId || message.user_id || message.senderUserId;
-                        const isCurrentUser = String(messageSenderId) === String(currentUser?.user_id);
-                        
+                        const messageSenderId =
+                          message.senderId ||
+                          message.sender_id ||
+                          message.userId ||
+                          message.user_id ||
+                          message.senderUserId;
+                        const isCurrentUser =
+                          String(messageSenderId) === String(currentUser?.user_id);
+
                         return (
                           <div
                             key={i}
-                            className={`flex ${
-                              isCurrentUser
-                                ? 'justify-end'
-                                : 'justify-start'
-                            }`}
+                            className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
                           >
                             <div
                               className={`max-w-xs lg:max-w-sm xl:max-w-md px-4 py-3 rounded-2xl ${
@@ -574,9 +590,7 @@ export default function Chat() {
                             >
                               <div
                                 className={`text-xs font-medium mb-1 ${
-                                  isCurrentUser
-                                    ? 'text-emerald-100'
-                                    : 'text-slate-500'
+                                  isCurrentUser ? 'text-emerald-100' : 'text-slate-500'
                                 }`}
                               >
                                 {message.senderName}
@@ -584,9 +598,7 @@ export default function Chat() {
                               <p className="break-words">{message.content}</p>
                               <p
                                 className={`text-xs mt-2 ${
-                                  isCurrentUser
-                                    ? 'text-emerald-100'
-                                    : 'text-slate-400'
+                                  isCurrentUser ? 'text-emerald-100' : 'text-slate-400'
                                 }`}
                               >
                                 {new Date(message.timestamp).toLocaleString([], {
@@ -647,9 +659,7 @@ export default function Chat() {
                   <div className="w-20 h-20 bg-slate-100 rounded-3xl flex items-center justify-center mx-auto mb-6">
                     <MessageCircle className="h-10 w-10 text-slate-400" />
                   </div>
-                  <h3 className="text-xl font-semibold text-slate-900 mb-2">
-                    Select a chat
-                  </h3>
+                  <h3 className="text-xl font-semibold text-slate-900 mb-2">Select a chat</h3>
                   <p className="text-slate-500">
                     Choose a study partner or group from the list to start chatting.
                   </p>

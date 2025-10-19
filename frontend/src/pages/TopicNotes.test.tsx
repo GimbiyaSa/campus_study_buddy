@@ -16,7 +16,10 @@ describe('TopicNotes Component', () => {
       group_id: 1,
       author_id: '1',
       note_title: 'Test Note 1',
-      note_content: 'This is the content of test note 1. It contains some text that should be truncated if it is too long for display. '.repeat(5),
+      note_content:
+        'This is the content of test note 1. It contains some text that should be truncated if it is too long for display. '.repeat(
+          5
+        ),
       topic_id: 123,
       visibility: 'group',
       is_active: true,
@@ -107,7 +110,7 @@ describe('TopicNotes Component', () => {
     ];
 
     mockDataService.fetchNotes = vi.fn().mockResolvedValue(notesWithStringIds);
-    
+
     render(<TopicNotes {...defaultProps} />);
 
     await waitFor(() => {
@@ -152,7 +155,7 @@ describe('TopicNotes Component', () => {
     };
 
     mockDataService.fetchNotes = vi.fn().mockResolvedValue([noteWithMultipleAttachments]);
-    
+
     render(<TopicNotes {...defaultProps} />);
 
     await waitFor(() => {
@@ -166,7 +169,7 @@ describe('TopicNotes Component', () => {
     await waitFor(() => {
       const noteElements = screen.getAllByText(/Test Note/);
       expect(noteElements).toHaveLength(2);
-      
+
       // Should not show attachment info for note 2 (empty array) or note 3 (null)
       expect(screen.queryByText('0 attachments')).not.toBeInTheDocument();
     });
@@ -215,7 +218,7 @@ describe('TopicNotes Component', () => {
 
   it('calls onDeleteNote with confirmation when delete button is clicked', async () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    
+
     render(<TopicNotes {...defaultProps} />);
 
     await waitFor(() => {
@@ -234,7 +237,7 @@ describe('TopicNotes Component', () => {
 
   it('does not delete when confirmation is cancelled', async () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
-    
+
     render(<TopicNotes {...defaultProps} />);
 
     await waitFor(() => {
@@ -263,7 +266,7 @@ describe('TopicNotes Component', () => {
 
   it('returns null when no notes exist for the topic', async () => {
     mockDataService.fetchNotes = vi.fn().mockResolvedValue([]);
-    
+
     const { container } = render(<TopicNotes {...defaultProps} />);
 
     await waitFor(() => {
@@ -274,11 +277,14 @@ describe('TopicNotes Component', () => {
   it('handles API errors gracefully', async () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     mockDataService.fetchNotes = vi.fn().mockRejectedValue(new Error('API Error'));
-    
+
     render(<TopicNotes {...defaultProps} />);
 
     await waitFor(() => {
-      expect(consoleErrorSpy).toHaveBeenCalledWith('❌ TopicNotes: Error fetching notes:', expect.any(Error));
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '❌ TopicNotes: Error fetching notes:',
+        expect.any(Error)
+      );
     });
 
     consoleErrorSpy.mockRestore();
@@ -324,9 +330,9 @@ describe('TopicNotes Component', () => {
 
   it('cleans up event listeners on unmount', async () => {
     const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
-    
+
     const { unmount } = render(<TopicNotes {...defaultProps} />);
-    
+
     unmount();
 
     expect(removeEventListenerSpy).toHaveBeenCalledWith('notes:invalidate', expect.any(Function));
@@ -336,7 +342,7 @@ describe('TopicNotes Component', () => {
 
   it('handles non-array response from fetchNotes', async () => {
     mockDataService.fetchNotes = vi.fn().mockResolvedValue(null);
-    
+
     const { container } = render(<TopicNotes {...defaultProps} />);
 
     await waitFor(() => {

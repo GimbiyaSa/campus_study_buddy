@@ -160,7 +160,7 @@ describe('StudyConnections Component', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     // Setup default mock implementation
     mockDataService.searchPartners = vi.fn().mockResolvedValue(mockConnections);
   });
@@ -217,7 +217,7 @@ describe('StudyConnections Component', () => {
       // Check first connection card
       expect(screen.getByText('John Doe')).toBeInTheDocument();
       expect(screen.getByText('Computer Science')).toBeInTheDocument();
-      
+
       // Check second connection card
       expect(screen.getByText('Jane Smith')).toBeInTheDocument();
       expect(screen.getByText('Software Engineering')).toBeInTheDocument();
@@ -244,7 +244,7 @@ describe('StudyConnections Component', () => {
     ];
 
     mockDataService.searchPartners = vi.fn().mockResolvedValue(connectionsWithUniversity);
-    
+
     render(<StudyConnections />);
 
     await waitFor(() => {
@@ -304,19 +304,21 @@ describe('StudyConnections Component', () => {
 
   it('displays empty state when no connections exist', async () => {
     mockDataService.searchPartners = vi.fn().mockResolvedValue([]);
-    
+
     render(<StudyConnections />);
 
     await waitFor(() => {
       expect(screen.getByText('No study connections yet')).toBeInTheDocument();
-      expect(screen.getByText('Start connecting with study partners to build your study network.')).toBeInTheDocument();
+      expect(
+        screen.getByText('Start connecting with study partners to build your study network.')
+      ).toBeInTheDocument();
       expect(screen.getByText('Find study partners')).toBeInTheDocument();
     });
   });
 
   it('navigates to partners page from empty state', async () => {
     mockDataService.searchPartners = vi.fn().mockResolvedValue([]);
-    
+
     render(<StudyConnections />);
 
     await waitFor(() => {
@@ -330,7 +332,7 @@ describe('StudyConnections Component', () => {
   it('displays error state when API call fails', async () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     mockDataService.searchPartners = vi.fn().mockRejectedValue(new Error('Network error'));
-    
+
     render(<StudyConnections />);
 
     await waitFor(() => {
@@ -343,10 +345,11 @@ describe('StudyConnections Component', () => {
 
   it('handles retry when error occurs', async () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    mockDataService.searchPartners = vi.fn()
+    mockDataService.searchPartners = vi
+      .fn()
       .mockRejectedValueOnce(new Error('Network error'))
       .mockResolvedValueOnce(mockConnections);
-    
+
     render(<StudyConnections />);
 
     await waitFor(() => {
@@ -366,7 +369,7 @@ describe('StudyConnections Component', () => {
   it('dismisses error message when dismiss button is clicked', async () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     mockDataService.searchPartners = vi.fn().mockRejectedValue(new Error('Network error'));
-    
+
     render(<StudyConnections />);
 
     await waitFor(() => {
@@ -406,9 +409,9 @@ describe('StudyConnections Component', () => {
 
   it('cleans up event listeners on unmount', async () => {
     const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
-    
+
     const { unmount } = render(<StudyConnections />);
-    
+
     unmount();
 
     expect(removeEventListenerSpy).toHaveBeenCalledWith('buddies:invalidate', expect.any(Function));
@@ -447,11 +450,13 @@ describe('StudyConnections Component', () => {
     ];
 
     mockDataService.searchPartners = vi.fn().mockResolvedValue(longNameConnection);
-    
+
     render(<StudyConnections />);
 
     await waitFor(() => {
-      expect(screen.getByText('Very Long Name That Should Be Truncated Properly')).toBeInTheDocument();
+      expect(
+        screen.getByText('Very Long Name That Should Be Truncated Properly')
+      ).toBeInTheDocument();
     });
   });
 
@@ -459,7 +464,7 @@ describe('StudyConnections Component', () => {
     // Test with fewer connections
     const fewConnections = mockConnections.slice(0, 3);
     mockDataService.searchPartners = vi.fn().mockResolvedValue(fewConnections);
-    
+
     render(<StudyConnections />);
 
     await waitFor(() => {

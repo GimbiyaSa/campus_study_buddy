@@ -19,9 +19,7 @@ describe('AddTopicDialog Component', () => {
   });
 
   it('does not render when isOpen is false', () => {
-    const { container } = render(
-      <AddTopicDialog {...defaultProps} isOpen={false} />
-    );
+    const { container } = render(<AddTopicDialog {...defaultProps} isOpen={false} />);
 
     expect(container.firstChild).toBeNull();
   });
@@ -42,7 +40,9 @@ describe('AddTopicDialog Component', () => {
     expect(topicNameInput.value).toBe('');
 
     // Description textarea
-    const descriptionTextarea = screen.getByLabelText('Description (Optional)') as HTMLTextAreaElement;
+    const descriptionTextarea = screen.getByLabelText(
+      'Description (Optional)'
+    ) as HTMLTextAreaElement;
     expect(descriptionTextarea).toBeInTheDocument();
     expect(descriptionTextarea.value).toBe('');
   });
@@ -77,12 +77,16 @@ describe('AddTopicDialog Component', () => {
   it('updates description when textarea changes', () => {
     render(<AddTopicDialog {...defaultProps} />);
 
-    const descriptionTextarea = screen.getByLabelText('Description (Optional)') as HTMLTextAreaElement;
-    fireEvent.change(descriptionTextarea, { 
-      target: { value: 'Deep dive into advanced React Hook patterns and custom hooks' } 
+    const descriptionTextarea = screen.getByLabelText(
+      'Description (Optional)'
+    ) as HTMLTextAreaElement;
+    fireEvent.change(descriptionTextarea, {
+      target: { value: 'Deep dive into advanced React Hook patterns and custom hooks' },
     });
 
-    expect(descriptionTextarea.value).toBe('Deep dive into advanced React Hook patterns and custom hooks');
+    expect(descriptionTextarea.value).toBe(
+      'Deep dive into advanced React Hook patterns and custom hooks'
+    );
   });
 
   it('submits topic with correct data when form is submitted', async () => {
@@ -93,8 +97,8 @@ describe('AddTopicDialog Component', () => {
     const descriptionTextarea = screen.getByLabelText('Description (Optional)');
 
     fireEvent.change(topicNameInput, { target: { value: 'Advanced State Management' } });
-    fireEvent.change(descriptionTextarea, { 
-      target: { value: 'Learn Redux, Context API, and Zustand for state management' } 
+    fireEvent.change(descriptionTextarea, {
+      target: { value: 'Learn Redux, Context API, and Zustand for state management' },
     });
 
     // Submit the form
@@ -173,7 +177,7 @@ describe('AddTopicDialog Component', () => {
 
   it('shows loading state while submitting', async () => {
     // Mock a delayed submission
-    mockOnSubmit.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
+    mockOnSubmit.mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 100)));
 
     render(<AddTopicDialog {...defaultProps} />);
 
@@ -195,7 +199,7 @@ describe('AddTopicDialog Component', () => {
   });
 
   it('disables form fields during submission', async () => {
-    mockOnSubmit.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
+    mockOnSubmit.mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 100)));
 
     render(<AddTopicDialog {...defaultProps} />);
 
@@ -221,10 +225,14 @@ describe('AddTopicDialog Component', () => {
 
     // Fill out the form
     const topicNameInput = screen.getByLabelText(/Topic Name.*\*/) as HTMLInputElement;
-    const descriptionTextarea = screen.getByLabelText('Description (Optional)') as HTMLTextAreaElement;
+    const descriptionTextarea = screen.getByLabelText(
+      'Description (Optional)'
+    ) as HTMLTextAreaElement;
 
     fireEvent.change(topicNameInput, { target: { value: 'Testing Strategies' } });
-    fireEvent.change(descriptionTextarea, { target: { value: 'Unit, integration, and e2e testing' } });
+    fireEvent.change(descriptionTextarea, {
+      target: { value: 'Unit, integration, and e2e testing' },
+    });
 
     // Submit the form
     const submitButton = screen.getByText('Add Topic');
@@ -317,7 +325,9 @@ describe('AddTopicDialog Component', () => {
     render(<AddTopicDialog {...defaultProps} />);
 
     const topicNameInput = screen.getByLabelText(/Topic Name.*\*/) as HTMLInputElement;
-    const descriptionTextarea = screen.getByLabelText('Description (Optional)') as HTMLTextAreaElement;
+    const descriptionTextarea = screen.getByLabelText(
+      'Description (Optional)'
+    ) as HTMLTextAreaElement;
 
     expect(topicNameInput.placeholder).toContain('Arrays and Lists');
     expect(descriptionTextarea.placeholder).toContain('Describe what this topic covers');
@@ -338,8 +348,12 @@ describe('AddTopicDialog Component', () => {
   it('shows helpful guidance text for both fields', () => {
     render(<AddTopicDialog {...defaultProps} />);
 
-    expect(screen.getByText('Choose a clear, specific name for this study topic')).toBeInTheDocument();
-    expect(screen.getByText('Optional description to help you remember what this topic is about')).toBeInTheDocument();
+    expect(
+      screen.getByText('Choose a clear, specific name for this study topic')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Optional description to help you remember what this topic is about')
+    ).toBeInTheDocument();
   });
 
   it('submits form when Enter key is pressed in topic name input', async () => {
@@ -358,8 +372,10 @@ describe('AddTopicDialog Component', () => {
   it('does not resize description textarea', () => {
     render(<AddTopicDialog {...defaultProps} />);
 
-    const descriptionTextarea = screen.getByLabelText('Description (Optional)') as HTMLTextAreaElement;
-    
+    const descriptionTextarea = screen.getByLabelText(
+      'Description (Optional)'
+    ) as HTMLTextAreaElement;
+
     // Check that textarea has resize-none class (this would depend on your CSS implementation)
     expect(descriptionTextarea).toHaveAttribute('rows', '4');
   });
@@ -369,14 +385,14 @@ describe('AddTopicDialog Component', () => {
 
     // Check for BookOpen icon in header (emerald theme)
     expect(screen.getByText('Add Topic')).toBeInTheDocument();
-    
+
     // Verify submit button has emerald styling
     const submitButton = screen.getByText('Add Topic', { selector: 'button' });
     expect(submitButton).toHaveClass('bg-emerald-600'); // Assuming Tailwind classes
   });
 
   it('shows loading spinner in submit button during submission', async () => {
-    mockOnSubmit.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
+    mockOnSubmit.mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 100)));
 
     render(<AddTopicDialog {...defaultProps} />);
 
@@ -403,7 +419,7 @@ describe('AddTopicDialog Component', () => {
     // Very long topic name should still be accepted (no max length constraint visible in component)
     const longTopicName = 'A'.repeat(200);
     fireEvent.change(topicNameInput, { target: { value: longTopicName } });
-    
+
     expect(submitButton).not.toBeDisabled();
   });
 
@@ -413,7 +429,9 @@ describe('AddTopicDialog Component', () => {
     render(<AddTopicDialog {...defaultProps} />);
 
     const topicNameInput = screen.getByLabelText(/Topic Name.*\*/) as HTMLInputElement;
-    const descriptionTextarea = screen.getByLabelText('Description (Optional)') as HTMLTextAreaElement;
+    const descriptionTextarea = screen.getByLabelText(
+      'Description (Optional)'
+    ) as HTMLTextAreaElement;
 
     fireEvent.change(topicNameInput, { target: { value: 'Error Topic' } });
     fireEvent.change(descriptionTextarea, { target: { value: 'Error description' } });
@@ -432,7 +450,7 @@ describe('AddTopicDialog Component', () => {
   });
 
   it('prevents multiple submissions by disabling form during submission', async () => {
-    mockOnSubmit.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 200)));
+    mockOnSubmit.mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 200)));
 
     render(<AddTopicDialog {...defaultProps} />);
 
@@ -440,14 +458,14 @@ describe('AddTopicDialog Component', () => {
     fireEvent.change(topicNameInput, { target: { value: 'Double Submit Test' } });
 
     const submitButton = screen.getByText('Add Topic');
-    
+
     // First click
     fireEvent.click(submitButton);
     expect(submitButton).toBeDisabled();
-    
+
     // Second click should not trigger another submission
     fireEvent.click(submitButton);
-    
+
     await waitFor(() => {
       expect(mockOnSubmit).toHaveBeenCalledTimes(1);
     });

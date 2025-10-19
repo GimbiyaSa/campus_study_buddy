@@ -24,17 +24,13 @@ describe('StudyGoalDialog Component', () => {
   });
 
   it('does not render when isOpen is false', () => {
-    const { container } = render(
-      <StudyGoalDialog {...defaultProps} isOpen={false} />
-    );
+    const { container } = render(<StudyGoalDialog {...defaultProps} isOpen={false} />);
 
     expect(container.firstChild).toBeNull();
   });
 
   it('does not render when topic is not provided', () => {
-    const { container } = render(
-      <StudyGoalDialog {...defaultProps} topic={undefined} />
-    );
+    const { container } = render(<StudyGoalDialog {...defaultProps} topic={undefined} />);
 
     expect(container.firstChild).toBeNull();
   });
@@ -56,7 +52,9 @@ describe('StudyGoalDialog Component', () => {
     expect(hoursInput.value).toBe('10');
 
     // Target date input
-    const dateInput = screen.getByLabelText('Target Completion Date (Optional)') as HTMLInputElement;
+    const dateInput = screen.getByLabelText(
+      'Target Completion Date (Optional)'
+    ) as HTMLInputElement;
     expect(dateInput).toBeInTheDocument();
     expect(dateInput.value).toBe('');
 
@@ -96,7 +94,9 @@ describe('StudyGoalDialog Component', () => {
   it('updates target date when input changes', () => {
     render(<StudyGoalDialog {...defaultProps} />);
 
-    const dateInput = screen.getByLabelText('Target Completion Date (Optional)') as HTMLInputElement;
+    const dateInput = screen.getByLabelText(
+      'Target Completion Date (Optional)'
+    ) as HTMLInputElement;
     fireEvent.change(dateInput, { target: { value: '2025-12-31' } });
 
     expect(dateInput.value).toBe('2025-12-31');
@@ -203,7 +203,7 @@ describe('StudyGoalDialog Component', () => {
 
   it('shows loading state while submitting', async () => {
     // Mock a delayed submission
-    mockOnSubmit.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
+    mockOnSubmit.mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 100)));
 
     render(<StudyGoalDialog {...defaultProps} />);
 
@@ -225,7 +225,9 @@ describe('StudyGoalDialog Component', () => {
 
     // Fill out the form
     const hoursInput = screen.getByLabelText('Study Hours Goal') as HTMLInputElement;
-    const dateInput = screen.getByLabelText('Target Completion Date (Optional)') as HTMLInputElement;
+    const dateInput = screen.getByLabelText(
+      'Target Completion Date (Optional)'
+    ) as HTMLInputElement;
     const notesTextarea = screen.getByLabelText('Personal Notes (Optional)') as HTMLTextAreaElement;
 
     fireEvent.change(hoursInput, { target: { value: '25' } });
@@ -289,16 +291,18 @@ describe('StudyGoalDialog Component', () => {
     const submitButton = screen.getByText('Set Goal');
 
     fireEvent.change(hoursInput, { target: { value: 'invalid' } });
-    
+
     expect(submitButton).toBeDisabled();
   });
 
   it('has proper minimum date constraint for target date', () => {
     render(<StudyGoalDialog {...defaultProps} />);
 
-    const dateInput = screen.getByLabelText('Target Completion Date (Optional)') as HTMLInputElement;
+    const dateInput = screen.getByLabelText(
+      'Target Completion Date (Optional)'
+    ) as HTMLInputElement;
     const today = new Date().toISOString().split('T')[0];
-    
+
     expect(dateInput.getAttribute('min')).toBe(today);
   });
 

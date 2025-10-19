@@ -61,7 +61,11 @@ export default function GroupChat({ groupId, groupName }: GroupChatProps) {
 
     // Listen for real-time messages
     const handler = (payload: any) => {
-      if (payload.groupId === groupId || payload.chatRoomId === `group_${groupId}` || payload.chatRoomId === chatRoomId) {
+      if (
+        payload.groupId === groupId ||
+        payload.chatRoomId === `group_${groupId}` ||
+        payload.chatRoomId === chatRoomId
+      ) {
         setMessages((prev) => [...prev, payload]);
       }
     };
@@ -90,7 +94,7 @@ export default function GroupChat({ groupId, groupName }: GroupChatProps) {
     try {
       // Send message via DataService (which will save to database and send via WebPubSub)
       await DataService.sendGroupMessage(groupId, messageContent);
-      
+
       // Add message to local state for immediate feedback
       const newMessage = {
         content: messageContent,
@@ -143,21 +147,14 @@ export default function GroupChat({ groupId, groupName }: GroupChatProps) {
               <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <MessageCircle className="h-8 w-8 text-emerald-600" />
               </div>
-              <h3 className="text-lg font-semibold text-slate-900 mb-2">
-                Start the conversation!
-              </h3>
-              <p className="text-slate-500">
-                Be the first to send a message to your group.
-              </p>
+              <h3 className="text-lg font-semibold text-slate-900 mb-2">Start the conversation!</h3>
+              <p className="text-slate-500">Be the first to send a message to your group.</p>
             </div>
           ) : (
             <div className="space-y-4">
               {messages.map((message, i) => {
                 const senderId =
-                  message.senderId ||
-                  message.sender_id ||
-                  message.userId ||
-                  message.user_id;
+                  message.senderId || message.sender_id || message.userId || message.user_id;
                 const isCurrentUser = String(senderId) === String(currentUser?.user_id);
 
                 return (

@@ -25,16 +25,21 @@ export default function UpcomingSessions() {
     if (!s.date) {
       return new Date(); // fallback to now
     }
-    
+
     const time = s.startTime || '00:00';
     return new Date(`${s.date}T${time}:00`);
   };
 
   const filterUpcomingNext7Days = (list: SessionWithOwner[]) => {
     // Just filter by status like Sessions page does - keep it simple!
-    const upcomingSessions = list.filter(s => (s.status ?? 'upcoming') === 'upcoming');
-    console.log('🕒 UpcomingSessions - all sessions:', list.length, 'upcoming sessions:', upcomingSessions.length);
-    
+    const upcomingSessions = list.filter((s) => (s.status ?? 'upcoming') === 'upcoming');
+    console.log(
+      '🕒 UpcomingSessions - all sessions:',
+      list.length,
+      'upcoming sessions:',
+      upcomingSessions.length
+    );
+
     // Sort by date
     const sorted = upcomingSessions.sort((a, b) => {
       try {
@@ -44,7 +49,7 @@ export default function UpcomingSessions() {
         return 0;
       }
     });
-      
+
     console.log('🕒 Final upcoming sessions:', sorted);
     return sorted;
   };
@@ -329,9 +334,7 @@ export default function UpcomingSessions() {
         <div className="flex-1 flex flex-col items-center justify-center text-gray-500">
           <Calendar className="w-12 h-12 mb-4" />
           <h3 className="text-lg font-medium mb-2">No upcoming sessions</h3>
-          <p className="text-sm text-center mb-4">
-            You don't have any upcoming study sessions.
-          </p>
+          <p className="text-sm text-center mb-4">You don't have any upcoming study sessions.</p>
           <button
             onClick={openCalendarScheduleModal}
             className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition"

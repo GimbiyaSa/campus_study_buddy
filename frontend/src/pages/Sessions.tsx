@@ -30,9 +30,9 @@ export default function Sessions() {
     const handleSessionCreated = (event: CustomEvent) => {
       const newSession = event.detail;
       if (newSession && mounted) {
-        setSessions(prev => {
+        setSessions((prev) => {
           // Avoid duplicates
-          const exists = prev.some(s => s.id === newSession.id);
+          const exists = prev.some((s) => s.id === newSession.id);
           return exists ? prev : [newSession, ...prev];
         });
       }
@@ -41,7 +41,7 @@ export default function Sessions() {
     const handleSessionsInvalidate = () => {
       if (mounted) {
         DataService.fetchSessions()
-          .then(data => mounted && setSessions(data))
+          .then((data) => mounted && setSessions(data))
           .catch(console.error);
       }
     };
@@ -76,12 +76,14 @@ export default function Sessions() {
       if (created) {
         setSessions((prev) => [created, ...prev]);
         broadcastSessionCreated(created);
-        
+
         // Also emit events using the eventBus pattern like Notes
         if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('groups:session-created', { 
-            detail: { session: created, groupId: created.groupId }
-          }));
+          window.dispatchEvent(
+            new CustomEvent('groups:session-created', {
+              detail: { session: created, groupId: created.groupId },
+            })
+          );
         }
         return;
       }
@@ -100,12 +102,14 @@ export default function Sessions() {
     };
     setSessions((prev) => [newSession, ...prev]);
     broadcastSessionCreated(newSession);
-    
+
     // Emit events for fallback case too
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('groups:session-created', { 
-        detail: { session: newSession, groupId: newSession.groupId }
-      }));
+      window.dispatchEvent(
+        new CustomEvent('groups:session-created', {
+          detail: { session: newSession, groupId: newSession.groupId },
+        })
+      );
     }
   };
 
@@ -660,7 +664,7 @@ function SessionModal({
     setGroupId(next);
     // Clear group error when user selects a group
     if (next && formErrors.groupId) {
-      setFormErrors(prev => ({ ...prev, groupId: '' }));
+      setFormErrors((prev) => ({ ...prev, groupId: '' }));
     }
     if (next) {
       const g = groups.find((x) => x.id === next);
@@ -674,7 +678,7 @@ function SessionModal({
   // Clear field errors on change
   const clearFieldError = (field: string) => {
     if (formErrors[field]) {
-      setFormErrors(prev => ({ ...prev, [field]: '' }));
+      setFormErrors((prev) => ({ ...prev, [field]: '' }));
     }
   };
 
@@ -722,13 +726,13 @@ function SessionModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
 
     setIsSubmitting(true);
-    
+
     try {
       await onSubmit({
         title: title.trim(),
@@ -752,12 +756,13 @@ function SessionModal({
   };
 
   // Check if form is valid
-  const isFormValid = !isSubmitting && 
-    title.trim() && 
-    date && 
-    startTime && 
-    endTime && 
-    location.trim() && 
+  const isFormValid =
+    !isSubmitting &&
+    title.trim() &&
+    date &&
+    startTime &&
+    endTime &&
+    location.trim() &&
     (groupId || groups.length === 0) &&
     (!startTime || !endTime || startTime < endTime) &&
     (!date || new Date(date) >= new Date(new Date().toDateString()));
@@ -809,8 +814,8 @@ function SessionModal({
                   value={groupId || ''}
                   onChange={(e) => onChangeGroup(e.target.value)}
                   className={`w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 ${
-                    formErrors.groupId 
-                      ? 'border-red-300 bg-red-50 focus:ring-red-100' 
+                    formErrors.groupId
+                      ? 'border-red-300 bg-red-50 focus:ring-red-100'
                       : 'border-slate-300 bg-slate-50 focus:ring-emerald-100'
                   }`}
                 >
@@ -839,10 +844,9 @@ function SessionModal({
                 ) : (
                   <div className="mt-1">
                     <p className="text-xs text-slate-500">
-                      {groups.length === 0 
-                        ? 'Create or join a study group to schedule sessions' 
-                        : 'Select which study group this session is for'
-                      }
+                      {groups.length === 0
+                        ? 'Create or join a study group to schedule sessions'
+                        : 'Select which study group this session is for'}
                     </p>
                     {groups.length === 0 && (
                       <button
@@ -871,8 +875,8 @@ function SessionModal({
                   placeholder="e.g., Algorithm Study Group"
                   required
                   className={`w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 ${
-                    formErrors.title 
-                      ? 'border-red-300 bg-red-50 focus:ring-red-100' 
+                    formErrors.title
+                      ? 'border-red-300 bg-red-50 focus:ring-red-100'
                       : 'border-slate-300 bg-slate-50 focus:ring-emerald-100'
                   }`}
                 />
@@ -922,14 +926,12 @@ function SessionModal({
                   required
                   min={new Date().toISOString().split('T')[0]}
                   className={`w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 ${
-                    formErrors.date 
-                      ? 'border-red-300 bg-red-50 focus:ring-red-100' 
+                    formErrors.date
+                      ? 'border-red-300 bg-red-50 focus:ring-red-100'
                       : 'border-slate-300 bg-slate-50 focus:ring-emerald-100'
                   }`}
                 />
-                {formErrors.date && (
-                  <p className="mt-1 text-xs text-red-600">{formErrors.date}</p>
-                )}
+                {formErrors.date && <p className="mt-1 text-xs text-red-600">{formErrors.date}</p>}
               </div>
 
               <div>
@@ -949,8 +951,8 @@ function SessionModal({
                   placeholder="e.g., Library Room 204"
                   required
                   className={`w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 ${
-                    formErrors.location 
-                      ? 'border-red-300 bg-red-50 focus:ring-red-100' 
+                    formErrors.location
+                      ? 'border-red-300 bg-red-50 focus:ring-red-100'
                       : 'border-slate-300 bg-slate-50 focus:ring-emerald-100'
                   }`}
                 />
@@ -977,8 +979,8 @@ function SessionModal({
                   }}
                   required
                   className={`w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 ${
-                    formErrors.startTime 
-                      ? 'border-red-300 bg-red-50 focus:ring-red-100' 
+                    formErrors.startTime
+                      ? 'border-red-300 bg-red-50 focus:ring-red-100'
                       : 'border-slate-300 bg-slate-50 focus:ring-emerald-100'
                   }`}
                 />
@@ -1004,8 +1006,8 @@ function SessionModal({
                   }}
                   required
                   className={`w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 ${
-                    formErrors.endTime 
-                      ? 'border-red-300 bg-red-50 focus:ring-red-100' 
+                    formErrors.endTime
+                      ? 'border-red-300 bg-red-50 focus:ring-red-100'
                       : 'border-slate-300 bg-slate-50 focus:ring-emerald-100'
                   }`}
                 />
@@ -1078,10 +1080,13 @@ function SessionModal({
                     : 'bg-slate-400 cursor-not-allowed'
                 }`}
               >
-                {isSubmitting 
-                  ? (editingSession ? 'Updating...' : 'Creating...') 
-                  : (editingSession ? 'Update session' : 'Create session')
-                }
+                {isSubmitting
+                  ? editingSession
+                    ? 'Updating...'
+                    : 'Creating...'
+                  : editingSession
+                  ? 'Update session'
+                  : 'Create session'}
               </button>
             </div>
           </form>

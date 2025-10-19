@@ -37,11 +37,7 @@ const renderWithContext = (component: React.ReactElement) => {
     refreshUser: vi.fn(),
   };
 
-  return render(
-    <UserContext.Provider value={mockContextValue}>
-      {component}
-    </UserContext.Provider>
-  );
+  return render(<UserContext.Provider value={mockContextValue}>{component}</UserContext.Provider>);
 };
 
 describe('GroupChat Component', () => {
@@ -74,10 +70,10 @@ describe('GroupChat Component', () => {
     // Check if header elements are present
     expect(screen.getByText('Test Study Group')).toBeInTheDocument();
     expect(screen.getByText('Group Chat')).toBeInTheDocument();
-    
+
     // Check if back button is present
     expect(screen.getByTitle('Back to groups')).toBeInTheDocument();
-    
+
     // Check if message input is present
     expect(screen.getByPlaceholderText('Type your message...')).toBeInTheDocument();
     expect(screen.getByText('Send')).toBeInTheDocument();
@@ -85,7 +81,7 @@ describe('GroupChat Component', () => {
 
   it('shows loading state initially', () => {
     renderWithContext(<GroupChat {...defaultProps} />);
-    
+
     expect(screen.getByLabelText('Loading messages')).toBeInTheDocument();
   });
 
@@ -108,7 +104,7 @@ describe('GroupChat Component', () => {
     ];
 
     mockDataService.fetchGroupMessages = vi.fn().mockResolvedValue(mockMessages);
-    
+
     renderWithContext(<GroupChat {...defaultProps} />);
 
     await waitFor(() => {
@@ -122,7 +118,7 @@ describe('GroupChat Component', () => {
 
   it('shows empty state when no messages', async () => {
     mockDataService.fetchGroupMessages = vi.fn().mockResolvedValue([]);
-    
+
     renderWithContext(<GroupChat {...defaultProps} />);
 
     await waitFor(() => {
@@ -151,7 +147,7 @@ describe('GroupChat Component', () => {
 
     // Verify that sendGroupMessage was called
     expect(mockDataService.sendGroupMessage).toHaveBeenCalledWith('test-group-123', 'Test message');
-    
+
     // Verify that input is cleared
     await waitFor(() => {
       expect(messageInput.value).toBe('');
@@ -175,7 +171,10 @@ describe('GroupChat Component', () => {
     fireEvent.keyPress(messageInput, { key: 'Enter', code: 'Enter', charCode: 13 });
 
     // Verify that sendGroupMessage was called
-    expect(mockDataService.sendGroupMessage).toHaveBeenCalledWith('test-group-123', 'Enter key message');
+    expect(mockDataService.sendGroupMessage).toHaveBeenCalledWith(
+      'test-group-123',
+      'Enter key message'
+    );
   });
 
   it('does not send empty messages', async () => {
@@ -212,9 +211,9 @@ describe('GroupChat Component', () => {
 
   it('handles message loading errors gracefully', async () => {
     mockDataService.fetchGroupMessages = vi.fn().mockRejectedValue(new Error('Network error'));
-    
+
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    
+
     renderWithContext(<GroupChat {...defaultProps} />);
 
     await waitFor(() => {
@@ -226,9 +225,9 @@ describe('GroupChat Component', () => {
 
   it('handles message sending errors gracefully', async () => {
     mockDataService.sendGroupMessage = vi.fn().mockRejectedValue(new Error('Send error'));
-    
+
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    
+
     renderWithContext(<GroupChat {...defaultProps} />);
 
     const messageInput = screen.getByPlaceholderText('Type your message...');
@@ -269,7 +268,7 @@ describe('GroupChat Component', () => {
     ];
 
     mockDataService.fetchGroupMessages = vi.fn().mockResolvedValue(mockMessages);
-    
+
     renderWithContext(<GroupChat {...defaultProps} />);
 
     await waitFor(() => {
@@ -286,12 +285,13 @@ describe('GroupChat Component', () => {
 
   it('retries message loading when service is initializing', async () => {
     // Mock initial failure with service initializing error
-    mockDataService.fetchGroupMessages = vi.fn()
+    mockDataService.fetchGroupMessages = vi
+      .fn()
       .mockRejectedValueOnce(new Error('Service initializing'))
       .mockResolvedValueOnce([]);
 
     vi.useFakeTimers();
-    
+
     renderWithContext(<GroupChat {...defaultProps} />);
 
     // Wait for initial error

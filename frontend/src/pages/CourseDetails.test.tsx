@@ -15,7 +15,14 @@ vi.mock('../modals/CreateNoteModal', () => ({
   default: ({ open, onClose, onCreated }: any) =>
     open ? (
       <div data-testid="create-note-modal">
-        <button onClick={() => { onCreated(); onClose(); }}>Create Note</button>
+        <button
+          onClick={() => {
+            onCreated();
+            onClose();
+          }}
+        >
+          Create Note
+        </button>
         <button onClick={onClose}>Cancel</button>
       </div>
     ) : null,
@@ -36,7 +43,14 @@ vi.mock('../modals/EditNoteModal', () => ({
     note ? (
       <div data-testid="edit-note-modal">
         <div>Editing: {note.note_title}</div>
-        <button onClick={() => { onUpdated(); onClose(); }}>Update</button>
+        <button
+          onClick={() => {
+            onUpdated();
+            onClose();
+          }}
+        >
+          Update
+        </button>
         <button onClick={onClose}>Cancel</button>
       </div>
     ) : null,
@@ -47,7 +61,9 @@ vi.mock('../components/StudyLogDialog', () => ({
     isOpen && topic ? (
       <div data-testid="study-log-dialog">
         <div>Log for: {topic.name}</div>
-        <button onClick={() => onSubmit({ topicId: topic.id, hours: 2, description: 'Test session' })}>
+        <button
+          onClick={() => onSubmit({ topicId: topic.id, hours: 2, description: 'Test session' })}
+        >
           Submit Log
         </button>
         <button onClick={onClose}>Cancel</button>
@@ -60,7 +76,9 @@ vi.mock('../components/AddTopicDialog', () => ({
     isOpen ? (
       <div data-testid="add-topic-dialog">
         <div>Add topic to: {courseName}</div>
-        <button onClick={() => onSubmit({ topic_name: 'New Topic', description: 'Test description' })}>
+        <button
+          onClick={() => onSubmit({ topic_name: 'New Topic', description: 'Test description' })}
+        >
           Add Topic
         </button>
         <button onClick={onClose}>Cancel</button>
@@ -72,7 +90,9 @@ vi.mock('../pages/TopicNotes', () => ({
   default: ({ topicId, onNoteClick, onEditNote, onDeleteNote }: any) => (
     <div data-testid="topic-notes">
       <div>Notes for topic: {topicId}</div>
-      <button onClick={() => onNoteClick({ note_id: 1, note_title: 'Test Note' })}>View Note</button>
+      <button onClick={() => onNoteClick({ note_id: 1, note_title: 'Test Note' })}>
+        View Note
+      </button>
       <button onClick={() => onEditNote({ note_id: 1, note_title: 'Test Note' })}>Edit Note</button>
       <button onClick={() => onDeleteNote(1)}>Delete Note</button>
     </div>
@@ -128,7 +148,7 @@ describe('CourseDetails Component', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     // Setup default mock implementations
     mockDataService.fetchCourses = vi.fn().mockResolvedValue([mockCourse]);
     mockDataService.fetchMyGroups = vi.fn().mockResolvedValue(mockGroups);
@@ -178,7 +198,7 @@ describe('CourseDetails Component', () => {
 
   it('shows empty state when no topics exist', async () => {
     mockDataService.fetchModuleTopics = vi.fn().mockResolvedValue([]);
-    
+
     render(<CourseDetails id="1" />);
 
     await waitFor(() => {
@@ -339,7 +359,7 @@ describe('CourseDetails Component', () => {
 
   it('displays error state when course fetch fails', async () => {
     mockDataService.fetchCourses = vi.fn().mockRejectedValue(new Error('Network error'));
-    
+
     render(<CourseDetails id="1" />);
 
     await waitFor(() => {
@@ -350,7 +370,7 @@ describe('CourseDetails Component', () => {
 
   it('displays not found state when course does not exist', async () => {
     mockDataService.fetchCourses = vi.fn().mockResolvedValue([]);
-    
+
     render(<CourseDetails id="999" />);
 
     await waitFor(() => {
@@ -361,9 +381,9 @@ describe('CourseDetails Component', () => {
 
   it('handles API errors gracefully during operations', async () => {
     mockDataService.logStudyHours = vi.fn().mockRejectedValue(new Error('Log error'));
-    
+
     const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
-    
+
     render(<CourseDetails id="1" />);
 
     await waitFor(() => {
@@ -375,7 +395,9 @@ describe('CourseDetails Component', () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(alertSpy).toHaveBeenCalledWith('Failed to log study hours. Please check your connection and try again.');
+      expect(alertSpy).toHaveBeenCalledWith(
+        'Failed to log study hours. Please check your connection and try again.'
+      );
     });
 
     alertSpy.mockRestore();
@@ -383,7 +405,7 @@ describe('CourseDetails Component', () => {
 
   it('dispatches course invalidation events after updates', async () => {
     const dispatchEventSpy = vi.spyOn(window, 'dispatchEvent');
-    
+
     render(<CourseDetails id="1" />);
 
     await waitFor(() => {
@@ -398,7 +420,7 @@ describe('CourseDetails Component', () => {
       expect(dispatchEventSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'courses:invalidate',
-          detail: { courseId: 1, type: 'progress_update' }
+          detail: { courseId: 1, type: 'progress_update' },
         })
       );
     });

@@ -1,6 +1,7 @@
 // frontend/src/services/dataService.ts
 import { buildApiUrl } from '../utils/url';
 import { ErrorHandler } from '../utils/errorHandler';
+import { eventBus } from '../utils/eventBus';
 
 /* ============================================================================
    TYPES (merged → superset to avoid breaking either side)
@@ -74,8 +75,12 @@ export type StudyPartner = {
   };
 
   // Shared academic context (from user_modules overlap)
-  sharedCourses: string[];
+  sharedCourses: string[]; // For suggested partners: courses with similarity match
+  allCourses?: string[]; // For all other partners and buddies: ALL their courses
   sharedTopics: string[];
+  sharedTopicsCount?: number; // Number of shared topics for deeper matching
+  courseMatchPercent?: number; // Percentage of course overlap (0-100)
+  hasMatchedCourses?: boolean; // Backend flag: true if has at least 1 matched course (for filtering suggestions)
   compatibilityScore: number;
 
   // Activity & engagement metrics
@@ -101,6 +106,7 @@ export type StudyPartner = {
   // Study match details
   recommendationReason?: string;
   sharedGoals?: string[];
+  matchReasons?: string[];
 };
 
 export type PaginatedResponse<T> = {
@@ -809,6 +815,14 @@ export class DataService {
 
     const newCourse = await res.json();
     console.log('✅ Course added:', newCourse);
+    
+    // Emit events to refresh all course-related components
+    eventBus.emitMany(['courses:invalidate', 'courses:created'], {
+      type: 'create',
+      courseId: newCourse.id,
+      timestamp: Date.now(),
+    });
+    
     return newCourse;
   }
 
@@ -821,6 +835,13 @@ export class DataService {
     });
 
     console.log('✅ Course removed:', courseId);
+    
+    // Emit events to refresh all course-related components
+    eventBus.emitMany(['courses:invalidate', 'courses:deleted'], {
+      type: 'delete',
+      courseId,
+      timestamp: Date.now(),
+    });
   }
 
   /* ----------------- Sessions (merged: richer API, keeps no-arg fetch) ----------------- */
@@ -1082,6 +1103,14 @@ export class DataService {
       });
       const data = await res.json();
       console.log('🤝 Buddy request sent:', data);
+      
+      // Emit events to refresh buddy lists and notifications
+      eventBus.emitMany(['buddies:request-sent', 'buddies:invalidate', 'notifications:invalidate'], {
+        type: 'action',
+        buddyId: recipientId,
+        timestamp: Date.now(),
+      });
+      
       return data;
     } catch (error) {
       console.error('❌ sendBuddyRequest error:', error);
@@ -1116,6 +1145,13 @@ export class DataService {
       }
       await this.safeJson<any>(res, null);
       console.log('✅ Partner request accepted');
+      
+      // Emit events to refresh buddy lists and notifications
+      eventBus.emitMany(['buddies:request-accepted', 'buddies:invalidate', 'notifications:invalidate'], {
+        type: 'action',
+        metadata: { requestId },
+        timestamp: Date.now(),
+      });
     } catch (error) {
       console.error('❌ acceptPartnerRequest error:', error);
       const appError = ErrorHandler.handleApiError(error, 'partners');
@@ -1148,6 +1184,13 @@ export class DataService {
       }
       await this.safeJson<any>(res, null);
       console.log('✅ Partner request rejected');
+      
+      // Emit events to refresh buddy lists and notifications
+      eventBus.emitMany(['buddies:request-rejected', 'buddies:invalidate', 'notifications:invalidate'], {
+        type: 'action',
+        metadata: { requestId },
+        timestamp: Date.now(),
+      });
     } catch (error) {
       console.error('❌ rejectPartnerRequest error:', error);
       const appError = ErrorHandler.handleApiError(error, 'partners');
@@ -1965,6 +2008,15 @@ export class DataService {
       );
       const data = await res.json();
       console.log('📝 Study hours logged successfully:', data);
+      
+      // Emit events to refresh all related components
+      eventBus.emitMany(['hours:logged', 'topics:invalidate', 'courses:invalidate', 'progress:updated'], {
+        type: 'progress_update',
+        topicId,
+        metadata: { hours: log.hours },
+        timestamp: Date.now(),
+      });
+      
       return data;
     } catch (error) {
       console.error('❌ logStudyHours error:', error);
@@ -1984,6 +2036,14 @@ export class DataService {
       );
       const data = await res.json();
       console.log('✅ Topic marked complete successfully:', data);
+      
+      // Emit events to refresh all related components
+      eventBus.emitMany(['topics:completed', 'topics:invalidate', 'courses:invalidate', 'progress:updated'], {
+        type: 'progress_update',
+        topicId,
+        timestamp: Date.now(),
+      });
+      
       return data;
     } catch (error) {
       console.error('❌ markTopicComplete error:', error);
@@ -2079,6 +2139,15 @@ export class DataService {
       }
       const data = await this.safeJson<any>(res, null);
       console.log('📝 Course study hours logged successfully:', data);
+      
+      // Emit events to refresh all related components
+      eventBus.emitMany(['hours:logged', 'courses:invalidate', 'progress:updated'], {
+        type: 'progress_update',
+        courseId,
+        metadata: { hours: log.hours },
+        timestamp: Date.now(),
+      });
+      
       return data;
     } catch (error) {
       console.error('❌ logCourseStudyHours error:', error);

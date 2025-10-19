@@ -1,7 +1,7 @@
 // src/components/Header.tsx
 import { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, ChevronDown, LogOut, Settings } from 'lucide-react';
+import { ChevronDown, LogOut, Settings } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
 import { buildApiUrl } from '../utils/url';
 import NotificationHandler from './NotificationHandler';
@@ -10,7 +10,6 @@ import { DataService } from '../services/dataService';
 export default function Header() {
   const { currentUser, loading, logout } = useUser();
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
 
   // Modal states
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -92,27 +91,8 @@ export default function Header() {
 
   return (
     <>
-      <header className="bg-white border-b border-gray-200 h-16 px-6 flex items-center justify-between">
+      <header className="bg-white border-b border-gray-200 h-16 px-6 flex items-center justify-end">
         <div className="flex items-center gap-4">
-          {/* Search Bar */}
-          <div className="hidden md:flex items-center bg-gray-100 rounded-lg px-3 py-2">
-            <Search className="w-4 h-4 text-gray-400 mr-2" />
-            <input
-              type="text"
-              placeholder="Search courses, partners..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-transparent outline-none text-sm text-gray-700 placeholder-gray-400 w-64"
-            />
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          {/* Mobile Search Icon */}
-          <button className="md:hidden p-2 hover:bg-gray-100 rounded-lg transition">
-            <Search className="w-5 h-5 text-gray-600" />
-          </button>
-
           {/* Notifications */}
           <NotificationHandler />
 

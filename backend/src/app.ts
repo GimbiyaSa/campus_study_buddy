@@ -144,6 +144,8 @@ app.use('/api/v1/notes', notesService); // flat CRUD
 app.use('/api/v1/shared-notes', notesService); // alias for frontend fallback
 app.use('/api/v1/groups', notesService); // group-scoped /:groupId/notes
 app.use('/api/v1/notes', require('./services/noteAttachmentUpload'));
+app.use('/api/v1/scheduled-tasks', require('./functions/scheduledTasks'));
+app.use('/api/v1/test', require('./functions/testIntegration'));
 
 // Aliases (router-level logic determines "me" semantics)
 app.use('/api/v1/users/me/notifications', notificationService);

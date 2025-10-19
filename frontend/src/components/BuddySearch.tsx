@@ -1,6 +1,6 @@
-import { useLayoutEffect, useRef, useState, useEffect } from 'react';
+import { useLayoutEffect, useRef, useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Mail, X, Users, Loader2, AlertCircle, Heart } from 'lucide-react';
+import { Check, Mail, X, Users, Loader2, AlertCircle, Filter } from 'lucide-react';
 import { navigate } from '../router';
 
 import { DataService, type StudyPartner } from '../services/dataService';
@@ -11,14 +11,49 @@ export default function BuddySearch() {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<StudyPartner | null>(null);
   const [invited, setInvited] = useState(false);
+  
+  // Filter states
+  const [courseFilter, setCourseFilter] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
 
   // Enhanced state management with unified error handling
   const [suggestions, setSuggestions] = useState<StudyPartner[]>([]);
+  const [allSuggestions, setAllSuggestions] = useState<StudyPartner[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<AppError | null>(null);
 
   // Track pending invites by partner ID
   const [pendingInvites, setPendingInvites] = useState<Set<string>>(new Set());
+
+  // Filtered suggestions based on user selections
+  const filteredSuggestions = useMemo(() => {
+    if (!allSuggestions.length) return [];
+    
+    return allSuggestions.filter((partner) => {
+      // Course filter
+      if (courseFilter && !partner.sharedCourses?.some(course => 
+        course.toLowerCase().includes(courseFilter.toLowerCase())
+      )) {
+        return false;
+      }
+      
+      return true;
+    });
+  }, [allSuggestions, courseFilter]);
+
+  // Available filter options from data
+  const availableCourses = useMemo(() => {
+    const courses = new Set<string>();
+    allSuggestions.forEach(partner => {
+      partner.sharedCourses?.forEach(course => courses.add(course));
+    });
+    return Array.from(courses).sort();
+  }, [allSuggestions]);
+
+  // Update suggestions when filters change
+  useEffect(() => {
+    setSuggestions(filteredSuggestions.slice(0, 4));
+  }, [filteredSuggestions]);
 
   // Fetch study partners using centralized data service with unified error handling
   useEffect(() => {
@@ -30,25 +65,42 @@ export default function BuddySearch() {
         const allPartners = await DataService.searchPartners();
         console.log(
           '🔍 BuddySearch raw data:',
-          allPartners.map((p) => ({ name: p.name, connectionStatus: p.connectionStatus }))
+          allPartners.map((p) => ({ name: p.name, connectionStatus: p.connectionStatus, sharedCourses: p.sharedCourses?.length || 0 }))
         );
 
+        // CRITICAL: For dashboard suggestions, ONLY show partners with matched courses
+        // This adheres to the "Study Partner Suggestions - Connect with classmates who share your courses"
         const newSuggestions = allPartners
           .filter(
             (partner) =>
-              !partner.connectionStatus ||
+              // Must NOT be already connected
+              (!partner.connectionStatus ||
               partner.connectionStatus === 'none' ||
               partner.connectionStatus === undefined ||
-              partner.connectionStatus !== 'accepted'
+              partner.connectionStatus !== 'accepted') &&
+              // MUST have at least one matched course (adhering to algorithm)
+              partner.sharedCourses &&
+              partner.sharedCourses.length > 0
           )
           .slice(0, 4);
 
         console.log(
-          '🔍 BuddySearch filtered suggestions:',
+          '🔍 BuddySearch filtered suggestions with courses:',
           newSuggestions.length,
           'out of',
           allPartners.length
         );
+        
+        // Store all non-connected partners for filtering (also require matched courses)
+        setAllSuggestions(allPartners.filter(
+          (partner) =>
+            (!partner.connectionStatus ||
+            partner.connectionStatus === 'none' ||
+            partner.connectionStatus === undefined ||
+            partner.connectionStatus !== 'accepted') &&
+            partner.sharedCourses &&
+            partner.sharedCourses.length > 0
+        ));
         setSuggestions(newSuggestions);
       } catch (err) {
         const appError = ErrorHandler.handleApiError(err, 'partners');
@@ -162,14 +214,57 @@ export default function BuddySearch() {
           <h2 className="text-2xl font-bold text-slate-900 mb-1">Study Partner Suggestions</h2>
           <p className="text-slate-600">Connect with classmates who share your courses</p>
         </div>
-        <button
-          onClick={() => navigate('/partners')}
-          className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-600 hover:text-emerald-700 transition-colors"
-        >
-          <Users className="h-4 w-4" />
-          See all partners
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${
+              showFilters || courseFilter
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <Filter className="h-4 w-4" />
+            Filter
+          </button>
+        </div>
       </div>
+
+      {/* Filter Panel */}
+      {showFilters && (
+        <div className="bg-slate-50 rounded-xl p-4 mb-6 border border-slate-200">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Shared Course
+              </label>
+              <select
+                value={courseFilter}
+                onChange={(e) => setCourseFilter(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              >
+                <option value="">All courses</option>
+                {availableCourses.map((course) => (
+                  <option key={course} value={course}>
+                    {course}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {courseFilter && (
+            <div className="mt-3 pt-3 border-t border-slate-200">
+              <button
+                onClick={() => {
+                  setCourseFilter('');
+                }}
+                className="text-sm text-slate-600 hover:text-slate-800 underline"
+              >
+                Clear filter
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Enhanced Error Display */}
       {error && (
@@ -272,6 +367,14 @@ function EnhancedSuggestionCard({
     .toUpperCase()
     .slice(0, 2);
 
+  // Enhanced match information from backend
+  // For suggested partners: ONLY show shared/similar courses
+  const sharedCourses = suggestion.sharedCourses || [];
+  const sharedTopicsCount = suggestion.sharedTopicsCount || 0;
+  
+  // Use match reasons from backend
+  const matchReasons = suggestion.matchReasons || [];
+
   return (
     <li className="group relative rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-lg hover:border-emerald-200 transition-all duration-300">
       <div className="flex items-start gap-4 mb-4">
@@ -282,30 +385,44 @@ function EnhancedSuggestionCard({
           <h3 className="font-bold text-slate-900 group-hover:text-emerald-700 transition-colors mb-1">
             {suggestion.name}
           </h3>
-          <p className="text-sm text-slate-600 mb-2">
-            {suggestion.course || suggestion.university}
+          <p className="text-sm text-slate-700 font-medium mb-2">
+            {suggestion.course}
           </p>
-          <div className="flex flex-wrap gap-1.5">
-            <span className="text-xs px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 font-medium">
-              {suggestion.compatibilityScore.toFixed(0)}% match
-            </span>
-            <span className="text-xs px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-              {suggestion.sharedCourses.length} shared courses
-            </span>
-          </div>
+          
+          {/* Show ONLY shared courses prominently for suggested partners */}
+          {sharedCourses.length > 0 && (
+            <div className="bg-emerald-50 rounded-lg px-3 py-2 mb-3">
+              <p className="text-xs font-semibold text-emerald-800 mb-1">
+                Matched courses ({sharedCourses.length}):
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {sharedCourses.map((course, i) => (
+                  <span key={i} className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded-md font-medium">
+                    {course}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {/* Show shared topics count if available */}
+          {sharedTopicsCount > 0 && (
+            <p className="text-xs text-emerald-600 font-medium mb-2">
+              + {sharedTopicsCount} shared topic{sharedTopicsCount > 1 ? 's' : ''}
+            </p>
+          )}
+          
+          {/* Match reasons from backend */}
+          {matchReasons.length > 0 && (
+            <div className="flex flex-wrap gap-1 text-xs text-slate-600">
+              {matchReasons.map((reason, index) => (
+                <span key={index}>
+                  {reason}{index < matchReasons.length - 1 ? ' •' : ''}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
-      </div>
-
-      {/* Study metrics */}
-      <div className="flex items-center justify-between mb-4 text-xs text-slate-500">
-        <span className="flex items-center gap-1">
-          <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-          {suggestion.studyHours}h studied
-        </span>
-        <span className="flex items-center gap-1">
-          <Heart className="h-3 w-3 text-pink-500" />
-          {suggestion.rating} rating
-        </span>
       </div>
 
       <button

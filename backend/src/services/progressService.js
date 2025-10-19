@@ -34,6 +34,7 @@
 const express = require('express');
 const sql = require('mssql');
 const { authenticateToken } = require('../middleware/authMiddleware');
+const { eventBus, EventType } = require('../utils/eventBus');
 
 const router = express.Router();
 
@@ -199,6 +200,21 @@ router.post('/sessions', authenticateToken, async (req, res) => {
       }
 
       await transaction.commit();
+
+      // Emit progress updated event for each topic
+      if (progressUpdates && progressUpdates.length > 0) {
+        for (const update of progressUpdates) {
+          eventBus.emitEvent(EventType.PROGRESS_UPDATED, {
+            userId: req.user.id,
+            topicId: update.topicId,
+            moduleId: moduleId,
+            completionStatus: update.status,
+            hoursSpent: update.hours,
+            sessionDuration: duration,
+            studyDate: loggedHour.study_date
+          });
+        }
+      }
 
       const response = {
         hourId: loggedHour.hour_id,
@@ -540,6 +556,67 @@ router.put('/topics/:topicId/complete', authenticateToken, async (req, res) => {
       }
 
       await transaction.commit();
+
+      // Emit progress updated event
+      eventBus.emitEvent(EventType.PROGRESS_UPDATED, {
+        userId: req.user.id,
+        topicId: topicId,
+        topicName: topicInfo.topic_name,
+        moduleName: topicInfo.module_name,
+        completionStatus: 'completed',
+        completedAt: new Date().toISOString()
+      });
+
+      // Check if module is now complete and emit event if so
+      try {
+        const moduleCheckRequest = new sql.Request(pool);
+        moduleCheckRequest.input('userId', sql.NVarChar(255), req.user.id);
+        moduleCheckRequest.input('topicId', sql.Int, topicId);
+        
+        const moduleProgress = await moduleCheckRequest.query(`
+          SELECT 
+            m.module_id,
+            m.module_name,
+            COUNT(t.topic_id) as total_topics,
+            COUNT(CASE WHEN up.completion_status = 'completed' THEN 1 END) as completed_topics,
+            u.first_name + ' ' + u.last_name as user_name,
+            u.email as user_email
+          FROM modules m
+          INNER JOIN topics t ON m.module_id = t.module_id
+          INNER JOIN users u ON u.user_id = @userId
+          LEFT JOIN user_progress up ON t.topic_id = up.topic_id AND up.user_id = @userId AND up.chapter_id IS NULL
+          WHERE m.module_id = (SELECT module_id FROM topics WHERE topic_id = @topicId)
+          GROUP BY m.module_id, m.module_name, u.first_name, u.last_name, u.email
+        `);
+        
+        if (moduleProgress.recordset.length > 0) {
+          const moduleData = moduleProgress.recordset[0];
+          const completion_percentage = (moduleData.completed_topics / moduleData.total_topics) * 100;
+          
+          if (completion_percentage >= 100) {
+            // Module is complete! Emit module completion event
+            eventBus.emitEvent(EventType.MODULE_COMPLETED, {
+              user: {
+                user_id: req.user.id,
+                name: moduleData.user_name,
+                email: moduleData.user_email
+              },
+              module: {
+                module_id: moduleData.module_id,
+                name: moduleData.module_name
+              },
+              progress: {
+                completion_percentage: completion_percentage,
+                completed_topics: moduleData.completed_topics,
+                total_topics: moduleData.total_topics
+              }
+            });
+          }
+        }
+      } catch (moduleCheckError) {
+        console.error('Error checking module completion:', moduleCheckError);
+        // Don't fail the main request for this
+      }
 
       res.json({
         success: true,

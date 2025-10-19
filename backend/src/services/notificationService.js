@@ -2,6 +2,7 @@
 const express = require('express');
 const sql = require('mssql');
 const { authenticateToken } = require('../middleware/authMiddleware');
+const { eventBus, EventType } = require('../utils/eventBus');
 
 const router = express.Router();
 
@@ -61,7 +62,21 @@ const createNotification = async (
       VALUES (@userIdVarchar, @notificationType, @title, @message, @metadata, @scheduledFor)
     `);
 
-    return result.recordset[0];
+    const notification = result.recordset[0];
+
+    // Emit notification created event
+    eventBus.emitEvent(EventType.NOTIFICATION_CREATED, {
+      userId: userId,
+      notificationId: notification.notification_id,
+      type: notificationType,
+      title: title,
+      message: message,
+      metadata: metadata,
+      scheduledFor: scheduledFor,
+      createdAt: notification.created_at
+    });
+
+    return notification;
   } catch (error) {
     console.error('Error creating notification:', error);
     throw error;
@@ -337,6 +352,14 @@ router.put('/:notificationId/read', authenticateToken, async (req, res) => {
 
     const notification = result.recordset[0];
     notification.metadata = notification.metadata ? JSON.parse(notification.metadata) : null;
+
+    // Emit notification read event
+    eventBus.emitEvent(EventType.NOTIFICATION_READ, {
+      userId: req.user.id,
+      notificationId: notification.notification_id,
+      type: notification.notification_type,
+      readAt: new Date().toISOString()
+    });
 
     res.json(notification);
   } catch (error) {

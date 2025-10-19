@@ -59,6 +59,7 @@ export default function CourseDetails({ id }: { id: string }) {
         description: log.description,
       });
       console.log('✅ Study hours logged successfully');
+      
       // Refresh both course data and topics to update progress
       const courses = await DataService.fetchCourses();
       const updatedCourse = courses.find((c: any) => String(c.id) === String(course.id));
@@ -66,6 +67,11 @@ export default function CourseDetails({ id }: { id: string }) {
 
       const topicsData = await DataService.fetchModuleTopics(Number(course.id));
       setTopics(topicsData);
+      
+      // Dispatch event to notify other components to refresh course data
+      window.dispatchEvent(new CustomEvent('courses:invalidate', { 
+        detail: { courseId: course.id, type: 'progress_update' } 
+      }));
     } catch (error) {
       console.error('❌ Failed to log hours:', error);
       alert('Failed to log study hours. Please check your connection and try again.');
@@ -81,6 +87,7 @@ export default function CourseDetails({ id }: { id: string }) {
     try {
       await DataService.markTopicComplete(topicId);
       console.log('✅ Topic marked as complete');
+      
       // Refresh both course data and topics to update progress
       const courses = await DataService.fetchCourses();
       const updatedCourse = courses.find((c: any) => String(c.id) === String(course.id));
@@ -88,6 +95,11 @@ export default function CourseDetails({ id }: { id: string }) {
 
       const topicsData = await DataService.fetchModuleTopics(Number(course.id));
       setTopics(topicsData);
+      
+      // Dispatch event to notify other components to refresh course data
+      window.dispatchEvent(new CustomEvent('courses:invalidate', { 
+        detail: { courseId: course.id, type: 'progress_update' } 
+      }));
     } catch (error) {
       console.error('❌ Failed to mark topic complete:', error);
       alert('Failed to mark topic as complete. Please try again.');
@@ -258,14 +270,28 @@ export default function CourseDetails({ id }: { id: string }) {
               <TrendingUp className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm text-slate-600">Overall Progress</p>
+              <p className="text-sm text-slate-600">Course Progress</p>
               <p className="text-2xl font-bold text-slate-900">{progressPercentage}%</p>
             </div>
           </div>
           <div className="w-full bg-slate-100 rounded-full h-2">
             <div
-              className="bg-gradient-to-r from-emerald-500 to-emerald-600 h-2 rounded-full transition-all duration-500"
-              style={{ width: `${Math.min(100, Math.max(0, progressPercentage))}%` }}
+              className={`h-2 rounded-full transition-all duration-500 ${
+                progressPercentage >= 100
+                  ? 'bg-gradient-to-r from-emerald-500 to-emerald-600'
+                  : progressPercentage > 0
+                  ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
+                  : (course.totalHours && course.totalHours > 0)
+                  ? 'bg-gradient-to-r from-blue-400 to-blue-500'
+                  : 'bg-slate-300'
+              }`}
+              style={{ 
+                width: progressPercentage > 0 
+                  ? `${Math.min(100, Math.max(0, progressPercentage))}%`
+                  : (course.totalHours && course.totalHours > 0)
+                  ? '10%' // Show small blue bar when hours logged but no topics completed
+                  : '0%'
+              }}
             />
           </div>
         </div>

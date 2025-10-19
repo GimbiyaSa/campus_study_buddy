@@ -224,6 +224,62 @@ export class AzureConfigService {
     return this.getSecret('jwt-secret');
   }
 
+  public async getLogicAppEmailUrl(): Promise<string> {
+    try {
+      return await this.getSecret('logic-app-email-url');
+    } catch (error) {
+      // Fallback to environment variable
+      const envUrl = process.env.LOGIC_APP_EMAIL_URL;
+      if (envUrl) {
+        console.warn('[AzureConfig] Using LOGIC_APP_EMAIL_URL from environment variables');
+        return envUrl;
+      }
+      throw new Error('Logic App email URL not configured');
+    }
+  }
+
+  public async getLogicAppReminderUrl(): Promise<string> {
+    try {
+      return await this.getSecret('logic-app-reminder-url');
+    } catch (error) {
+      // Fallback to environment variable
+      const envUrl = process.env.LOGIC_APP_REMINDER_URL;
+      if (envUrl) {
+        console.warn('[AzureConfig] Using LOGIC_APP_REMINDER_URL from environment variables');
+        return envUrl;
+      }
+      throw new Error('Logic App reminder URL not configured');
+    }
+  }
+
+  public async getLogicAppCalendarUrl(): Promise<string> {
+    try {
+      return await this.getSecret('logic-app-calendar-url');
+    } catch (error) {
+      // Fallback to environment variable
+      const envUrl = process.env.LOGIC_APP_CALENDAR_URL;
+      if (envUrl) {
+        console.warn('[AzureConfig] Using LOGIC_APP_CALENDAR_URL from environment variables');
+        return envUrl;
+      }
+      throw new Error('Logic App calendar URL not configured');
+    }
+  }
+
+  public async getFrontendUrl(): Promise<string> {
+    try {
+      return await this.getSecret('frontend-url');
+    } catch (error) {
+      // Fallback to environment variable
+      const envUrl = process.env.FRONTEND_URL;
+      if (envUrl) {
+        return envUrl;
+      }
+      // Default to production frontend URL if nothing is configured
+      return 'https://csb-prod-app-frontend-w0zgifbb.azurewebsites.net';
+    }
+  }
+
   public async getStorageContainerClient(containerName: string) {
     const blobServiceClient = await this.getBlobServiceClient();
     return blobServiceClient.getContainerClient(containerName);
@@ -272,12 +328,14 @@ export class AzureConfigService {
     database: string;
     storage: string;
     webpubsub: string;
+    logicApps: string;
     timestamp: string;
   }> {
     const result = {
       database: 'unknown',
       storage: 'unknown',
       webpubsub: 'unknown',
+      logicApps: 'unknown',
       timestamp: new Date().toISOString(),
     };
 
@@ -300,6 +358,13 @@ export class AzureConfigService {
       result.webpubsub = 'healthy';
     } catch {
       result.webpubsub = 'unhealthy';
+    }
+
+    try {
+      await this.getLogicAppEmailUrl();
+      result.logicApps = 'healthy';
+    } catch {
+      result.logicApps = 'unhealthy';
     }
 
     return result;

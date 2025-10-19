@@ -18,6 +18,21 @@ export default function Chat() {
   } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Check for partnerId in URL query params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const partnerId = params.get('partnerId');
+    
+    if (partnerId && buddies.length > 0) {
+      const buddy = buddies.find((b) => String(b.id) === partnerId);
+      if (buddy) {
+        setSelectedBuddy(buddy);
+        // Clear the URL parameter after selecting
+        window.history.replaceState({}, '', '/chat');
+      }
+    }
+  }, [buddies]);
+
   // Load buddies (accepted connections)
   useEffect(() => {
     loadBuddies();
@@ -372,47 +387,55 @@ export default function Chat() {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {messages.map((message, i) => (
-                        <div
-                          key={i}
-                          className={`flex ${
-                            message.senderId === currentUser?.user_id
-                              ? 'justify-end'
-                              : 'justify-start'
-                          }`}
-                        >
+                      {messages.map((message, i) => {
+                        // Try different possible field names for sender ID
+                        const messageSenderId = message.senderId || message.sender_id || message.userId || message.user_id || message.senderUserId;
+                        const isCurrentUser = String(messageSenderId) === String(currentUser?.user_id);
+                        
+                        return (
                           <div
-                            className={`max-w-xs lg:max-w-sm xl:max-w-md px-4 py-3 rounded-2xl ${
-                              message.senderId === currentUser?.user_id
-                                ? 'bg-emerald-600 text-white'
-                                : 'bg-white border border-slate-200 text-slate-900'
+                            key={i}
+                            className={`flex ${
+                              isCurrentUser
+                                ? 'justify-end'
+                                : 'justify-start'
                             }`}
                           >
                             <div
-                              className={`text-xs font-medium mb-1 ${
-                                message.senderId === currentUser?.user_id
-                                  ? 'text-emerald-100'
-                                  : 'text-slate-500'
+                              className={`max-w-xs lg:max-w-sm xl:max-w-md px-4 py-3 rounded-2xl ${
+                                isCurrentUser
+                                  ? 'bg-emerald-600 text-white'
+                                  : 'bg-white border border-slate-200 text-slate-900'
                               }`}
                             >
-                              {message.senderName}
+                              <div
+                                className={`text-xs font-medium mb-1 ${
+                                  isCurrentUser
+                                    ? 'text-emerald-100'
+                                    : 'text-slate-500'
+                                }`}
+                              >
+                                {message.senderName}
+                              </div>
+                              <p className="break-words">{message.content}</p>
+                              <p
+                                className={`text-xs mt-2 ${
+                                  isCurrentUser
+                                    ? 'text-emerald-100'
+                                    : 'text-slate-400'
+                                }`}
+                              >
+                                {new Date(message.timestamp).toLocaleString([], {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </p>
                             </div>
-                            <p className="break-words">{message.content}</p>
-                            <p
-                              className={`text-xs mt-2 ${
-                                message.senderId === currentUser?.user_id
-                                  ? 'text-emerald-100'
-                                  : 'text-slate-400'
-                              }`}
-                            >
-                              {new Date(message.timestamp).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </p>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                       <div ref={messagesEndRef} />
                     </div>
                   )}

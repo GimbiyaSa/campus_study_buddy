@@ -111,7 +111,10 @@ export default function Sidebar() {
     <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
       {/* Header - aligned with main header */}
       <div className="h-16 px-6 border-b border-gray-200 flex items-center">
-        <h1 className="text-xl font-bold text-gray-900">Study Buddy</h1>
+        <h1 className="text-lg font-extrabold leading-tight">
+          <span className="text-emerald-600">Campus </span>
+          <span className="text-slate-900">Study Buddy</span>
+        </h1>
       </div>
 
       {/* Navigation - takes up full space now */}

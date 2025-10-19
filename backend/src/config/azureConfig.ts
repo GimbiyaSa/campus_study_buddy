@@ -224,6 +224,20 @@ export class AzureConfigService {
     return this.getSecret('jwt-secret');
   }
 
+  public async getFrontendUrl(): Promise<string> {
+    try {
+      return await this.getSecret('frontend-url');
+    } catch (error) {
+      // Fallback to environment variable
+      const envUrl = process.env.FRONTEND_URL;
+      if (envUrl) {
+        return envUrl;
+      }
+      // Default to production frontend URL if nothing is configured
+      return 'https://csb-prod-app-frontend-w0zgifbb.azurewebsites.net';
+    }
+  }
+
   public async getStorageContainerClient(containerName: string) {
     const blobServiceClient = await this.getBlobServiceClient();
     return blobServiceClient.getContainerClient(containerName);

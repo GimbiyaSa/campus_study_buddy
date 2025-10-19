@@ -13,16 +13,16 @@ if (process.env.NODE_ENV === 'development') {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 }
 
-import userService from './services/userService';
-import partnerService from './services/partnerService';
-import groupService from './services/groupService';
-import progressService from './services/progressService';
-import chatService from './services/chatService';
-import courseService from './services/courseService';
-import moduleService from './services/moduleService';
-import sessionService from './services/sessionService';
-import notificationService from './services/notificationService';
-import notesService from './services/notesService';
+const userService = require('./services/userService');
+const partnerService = require('./services/partnerService');
+const groupService = require('./services/groupService');
+const progressService = require('./services/progressService');
+const chatService = require('./services/chatService');
+const courseService = require('./services/courseService');
+const moduleService = require('./services/moduleService');
+const sessionService = require('./services/sessionService');
+const notificationService = require('./services/notificationService');
+const notesService = require('./services/notesService');
 
 const app = express();
 

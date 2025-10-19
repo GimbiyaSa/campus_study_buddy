@@ -895,14 +895,25 @@ export default function Groups() {
             Join or create study groups to collaborate with peers
             {error && <span className="ml-2 text-xs text-gray-500">(demo data)</span>}
           </p>
+          <div className="mt-2">
+            <button
+              onClick={() => navigate('/sessions')}
+              className="inline-flex items-center gap-1 text-sm text-brand-600 hover:text-brand-700 font-medium"
+            >
+              <Calendar className="h-4 w-4" />
+              Go to Sessions
+            </button>
+          </div>
         </div>
-        <button
-          onClick={() => setOpenCreate(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition"
-        >
-          <Plus className="w-5 h-5" />
-          Create Group
-        </button>
+        {groups.length > 0 && (
+          <button
+            onClick={() => setOpenCreate(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition"
+          >
+            <Plus className="w-5 h-5" />
+            Create Group
+          </button>
+        )}
       </div>
 
       {/* Error message */}

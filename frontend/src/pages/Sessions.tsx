@@ -3,6 +3,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar, Clock, MapPin, Plus, Users, X, Edit, Trash2 } from 'lucide-react';
 import { DataService, type StudySession, type StudyGroup } from '../services/dataService';
+import { navigate } from '../router';
 
 export default function Sessions() {
   const [sessions, setSessions] = useState<StudySession[]>([]);
@@ -24,17 +25,47 @@ export default function Sessions() {
         if (mounted) setLoading(false);
       }
     })();
+
+    // Listen for session events from other components (Groups, Calendar, etc.)
+    const handleSessionCreated = (event: CustomEvent) => {
+      const newSession = event.detail;
+      if (newSession && mounted) {
+        setSessions(prev => {
+          // Avoid duplicates
+          const exists = prev.some(s => s.id === newSession.id);
+          return exists ? prev : [newSession, ...prev];
+        });
+      }
+    };
+
+    const handleSessionsInvalidate = () => {
+      if (mounted) {
+        DataService.fetchSessions()
+          .then(data => mounted && setSessions(data))
+          .catch(console.error);
+      }
+    };
+
+    window.addEventListener('session:created', handleSessionCreated as EventListener);
+    window.addEventListener('sessions:invalidate', handleSessionsInvalidate);
+
     return () => {
       mounted = false;
+      window.removeEventListener('session:created', handleSessionCreated as EventListener);
+      window.removeEventListener('sessions:invalidate', handleSessionsInvalidate);
     };
   }, []);
 
   // notify other views (e.g., Calendar)
   function broadcastSessionCreated(session: StudySession) {
     try {
+      console.log('📡 Broadcasting session:created event:', session);
       window.dispatchEvent(new CustomEvent('session:created', { detail: session }));
       window.dispatchEvent(new Event('sessions:invalidate'));
-    } catch {}
+      console.log('📡 Events dispatched successfully');
+    } catch (err) {
+      console.error('📡 Error dispatching events:', err);
+    }
   }
 
   const handleCreateSession = async (
@@ -45,6 +76,13 @@ export default function Sessions() {
       if (created) {
         setSessions((prev) => [created, ...prev]);
         broadcastSessionCreated(created);
+        
+        // Also emit events using the eventBus pattern like Notes
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('groups:session-created', { 
+            detail: { session: created, groupId: created.groupId }
+          }));
+        }
         return;
       }
     } catch (error) {
@@ -62,6 +100,13 @@ export default function Sessions() {
     };
     setSessions((prev) => [newSession, ...prev]);
     broadcastSessionCreated(newSession);
+    
+    // Emit events for fallback case too
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('groups:session-created', { 
+        detail: { session: newSession, groupId: newSession.groupId }
+      }));
+    }
   };
 
   const handleEditSession = async (
@@ -236,15 +281,25 @@ export default function Sessions() {
           <p className="text-slate-600 text-sm">
             Schedule and manage your collaborative study sessions
           </p>
+          <div className="mt-2">
+            <button
+              onClick={() => navigate('/groups')}
+              className="inline-flex items-center gap-1 text-sm text-emerald-600 hover:text-emerald-700 font-medium"
+            >
+              <Users className="h-4 w-4" />
+              Go to Groups
+            </button>
+          </div>
         </div>
-
-        <button
-          onClick={() => setShowModal(true)}
-          className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-white shadow-sm hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
-        >
-          <Plus className="h-4 w-4" />
-          New session
-        </button>
+        {sessions.length > 0 && (
+          <button
+            onClick={() => setShowModal(true)}
+            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-white shadow-sm hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
+          >
+            <Plus className="h-4 w-4" />
+            New session
+          </button>
+        )}
       </div>
 
       {/* Filter tabs */}
@@ -513,6 +568,8 @@ function SessionModal({
     Array<Pick<StudyGroup, 'id' | 'name' | 'course' | 'courseCode'>>
   >([]);
   const [groupId, setGroupId] = useState<string | undefined>(undefined);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const groupIdFieldId = useId();
 
   const titleId = useId();
@@ -601,6 +658,10 @@ function SessionModal({
   const onChangeGroup = (val: string) => {
     const next = val || undefined;
     setGroupId(next);
+    // Clear group error when user selects a group
+    if (next && formErrors.groupId) {
+      setFormErrors(prev => ({ ...prev, groupId: '' }));
+    }
     if (next) {
       const g = groups.find((x) => x.id === next);
       if (g) {
@@ -610,25 +671,96 @@ function SessionModal({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim() || !date || !startTime || !endTime || !location.trim()) return;
-
-    onSubmit({
-      title: title.trim(),
-      course: course.trim() || undefined,
-      courseCode: courseCode.trim() || undefined,
-      date,
-      startTime,
-      endTime,
-      location: location.trim(),
-      maxParticipants,
-      type,
-      groupId,
-    });
-
-    onClose();
+  // Clear field errors on change
+  const clearFieldError = (field: string) => {
+    if (formErrors[field]) {
+      setFormErrors(prev => ({ ...prev, [field]: '' }));
+    }
   };
+
+  // Validation functions
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
+
+    // Required fields validation
+    if (!title.trim()) {
+      errors.title = 'Session title is required';
+    }
+    if (!date) {
+      errors.date = 'Date is required';
+    }
+    if (!startTime) {
+      errors.startTime = 'Start time is required';
+    }
+    if (!endTime) {
+      errors.endTime = 'End time is required';
+    }
+    if (!location.trim()) {
+      errors.location = 'Location is required';
+    }
+
+    // Study group validation - backend requires a group
+    if (!groupId && groups.length === 0) {
+      errors.groupId = 'You must create or join a study group first';
+    } else if (!groupId && groups.length > 0) {
+      errors.groupId = 'Please select a study group for this session';
+    }
+
+    // Time validation
+    if (startTime && endTime && startTime >= endTime) {
+      errors.endTime = 'End time must be after start time';
+    }
+
+    // Date validation (cannot be in the past)
+    if (date && new Date(date) < new Date(new Date().toDateString())) {
+      errors.date = 'Date cannot be in the past';
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    
+    try {
+      await onSubmit({
+        title: title.trim(),
+        course: course.trim() || undefined,
+        courseCode: courseCode.trim() || undefined,
+        date,
+        startTime,
+        endTime,
+        location: location.trim(),
+        maxParticipants,
+        type,
+        groupId,
+      });
+      onClose();
+    } catch (error) {
+      console.error('Failed to create session:', error);
+      setFormErrors({ submit: 'Failed to create session. Please try again.' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Check if form is valid
+  const isFormValid = !isSubmitting && 
+    title.trim() && 
+    date && 
+    startTime && 
+    endTime && 
+    location.trim() && 
+    (groupId || groups.length === 0) &&
+    (!startTime || !endTime || startTime < endTime) &&
+    (!date || new Date(date) >= new Date(new Date().toDateString()));
 
   return createPortal(
     <>
@@ -670,38 +802,83 @@ function SessionModal({
                   htmlFor={groupIdFieldId}
                   className="block mb-1 text-sm font-medium text-slate-800"
                 >
-                  Study group
+                  Study group <span className="text-red-500">*</span>
                 </label>
                 <select
                   id={groupIdFieldId}
                   value={groupId || ''}
                   onChange={(e) => onChangeGroup(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                  className={`w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 ${
+                    formErrors.groupId 
+                      ? 'border-red-300 bg-red-50 focus:ring-red-100' 
+                      : 'border-slate-300 bg-slate-50 focus:ring-emerald-100'
+                  }`}
                 >
-                  <option value="">None</option>
+                  <option value="">
+                    {groups.length === 0 ? 'No study groups available' : 'Select a study group'}
+                  </option>
                   {groups.map((g) => (
                     <option key={g.id} value={g.id}>
                       {g.name}
                     </option>
                   ))}
                 </select>
-                <p className="mt-1 text-xs text-slate-500">
-                  Link this session to one of your study groups (optional).
-                </p>
+                {formErrors.groupId ? (
+                  <div className="mt-1">
+                    <p className="text-xs text-red-600">{formErrors.groupId}</p>
+                    {groups.length === 0 && (
+                      <button
+                        onClick={() => navigate('/groups')}
+                        className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 mt-1"
+                      >
+                        <Users className="h-3 w-3" />
+                        Go to Study Groups
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="mt-1">
+                    <p className="text-xs text-slate-500">
+                      {groups.length === 0 
+                        ? 'Create or join a study group to schedule sessions' 
+                        : 'Select which study group this session is for'
+                      }
+                    </p>
+                    {groups.length === 0 && (
+                      <button
+                        onClick={() => navigate('/groups')}
+                        className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 mt-1"
+                      >
+                        <Users className="h-3 w-3" />
+                        Go to Study Groups
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="sm:col-span-2">
                 <label htmlFor={titleId} className="block mb-1 text-sm font-medium text-slate-800">
-                  Session title <span className="text-emerald-700">*</span>
+                  Session title <span className="text-red-500">*</span>
                 </label>
                 <input
                   id={titleId}
                   value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  onChange={(e) => {
+                    setTitle(e.target.value);
+                    clearFieldError('title');
+                  }}
                   placeholder="e.g., Algorithm Study Group"
                   required
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                  className={`w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 ${
+                    formErrors.title 
+                      ? 'border-red-300 bg-red-50 focus:ring-red-100' 
+                      : 'border-slate-300 bg-slate-50 focus:ring-emerald-100'
+                  }`}
                 />
+                {formErrors.title && (
+                  <p className="mt-1 text-xs text-red-600">{formErrors.title}</p>
+                )}
               </div>
 
               <div>
@@ -732,16 +909,27 @@ function SessionModal({
 
               <div>
                 <label htmlFor={dateId} className="block mb-1 text-sm font-medium text-slate-800">
-                  Date <span className="text-emerald-700">*</span>
+                  Date <span className="text-red-500">*</span>
                 </label>
                 <input
                   id={dateId}
                   type="date"
                   value={date}
-                  onChange={(e) => setDate(e.target.value)}
+                  onChange={(e) => {
+                    setDate(e.target.value);
+                    clearFieldError('date');
+                  }}
                   required
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                  min={new Date().toISOString().split('T')[0]}
+                  className={`w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 ${
+                    formErrors.date 
+                      ? 'border-red-300 bg-red-50 focus:ring-red-100' 
+                      : 'border-slate-300 bg-slate-50 focus:ring-emerald-100'
+                  }`}
                 />
+                {formErrors.date && (
+                  <p className="mt-1 text-xs text-red-600">{formErrors.date}</p>
+                )}
               </div>
 
               <div>
@@ -749,16 +937,26 @@ function SessionModal({
                   htmlFor={locationId}
                   className="block mb-1 text-sm font-medium text-slate-800"
                 >
-                  Location <span className="text-emerald-700">*</span>
+                  Location <span className="text-red-500">*</span>
                 </label>
                 <input
                   id={locationId}
                   value={location}
-                  onChange={(e) => setLocation(e.target.value)}
+                  onChange={(e) => {
+                    setLocation(e.target.value);
+                    clearFieldError('location');
+                  }}
                   placeholder="e.g., Library Room 204"
                   required
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                  className={`w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 ${
+                    formErrors.location 
+                      ? 'border-red-300 bg-red-50 focus:ring-red-100' 
+                      : 'border-slate-300 bg-slate-50 focus:ring-emerald-100'
+                  }`}
                 />
+                {formErrors.location && (
+                  <p className="mt-1 text-xs text-red-600">{formErrors.location}</p>
+                )}
               </div>
 
               <div>
@@ -766,16 +964,27 @@ function SessionModal({
                   htmlFor={startTimeId}
                   className="block mb-1 text-sm font-medium text-slate-800"
                 >
-                  Start time <span className="text-emerald-700">*</span>
+                  Start time <span className="text-red-500">*</span>
                 </label>
                 <input
                   id={startTimeId}
                   type="time"
                   value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
+                  onChange={(e) => {
+                    setStartTime(e.target.value);
+                    clearFieldError('startTime');
+                    clearFieldError('endTime'); // Clear end time error too since it depends on start time
+                  }}
                   required
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                  className={`w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 ${
+                    formErrors.startTime 
+                      ? 'border-red-300 bg-red-50 focus:ring-red-100' 
+                      : 'border-slate-300 bg-slate-50 focus:ring-emerald-100'
+                  }`}
                 />
+                {formErrors.startTime && (
+                  <p className="mt-1 text-xs text-red-600">{formErrors.startTime}</p>
+                )}
               </div>
 
               <div>
@@ -783,16 +992,26 @@ function SessionModal({
                   htmlFor={endTimeId}
                   className="block mb-1 text-sm font-medium text-slate-800"
                 >
-                  End time <span className="text-emerald-700">*</span>
+                  End time <span className="text-red-500">*</span>
                 </label>
                 <input
                   id={endTimeId}
                   type="time"
                   value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
+                  onChange={(e) => {
+                    setEndTime(e.target.value);
+                    clearFieldError('endTime');
+                  }}
                   required
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                  className={`w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 ${
+                    formErrors.endTime 
+                      ? 'border-red-300 bg-red-50 focus:ring-red-100' 
+                      : 'border-slate-300 bg-slate-50 focus:ring-emerald-100'
+                  }`}
                 />
+                {formErrors.endTime && (
+                  <p className="mt-1 text-xs text-red-600">{formErrors.endTime}</p>
+                )}
               </div>
 
               <div>
@@ -835,19 +1054,34 @@ function SessionModal({
               </div>
             </div>
 
+            {formErrors.submit && (
+              <div className="rounded-xl bg-red-50 border border-red-200 p-3">
+                <p className="text-sm text-red-600">{formErrors.submit}</p>
+              </div>
+            )}
+
             <div className="flex items-center justify-end gap-3 pt-4">
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50"
+                disabled={isSubmitting}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="rounded-xl bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
+                disabled={!isFormValid}
+                className={`rounded-xl px-4 py-2 font-medium text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600 ${
+                  isFormValid
+                    ? 'bg-emerald-600 hover:bg-emerald-700'
+                    : 'bg-slate-400 cursor-not-allowed'
+                }`}
               >
-                {editingSession ? 'Update session' : 'Create session'}
+                {isSubmitting 
+                  ? (editingSession ? 'Updating...' : 'Creating...') 
+                  : (editingSession ? 'Update session' : 'Create session')
+                }
               </button>
             </div>
           </form>

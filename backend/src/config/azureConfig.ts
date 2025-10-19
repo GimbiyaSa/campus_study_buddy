@@ -224,46 +224,14 @@ export class AzureConfigService {
     return this.getSecret('jwt-secret');
   }
 
-  public async getLogicAppEmailUrl(): Promise<string> {
-    try {
-      return await this.getSecret('logic-app-email-url');
-    } catch (error) {
-      // Fallback to environment variable
-      const envUrl = process.env.LOGIC_APP_EMAIL_URL;
-      if (envUrl) {
-        console.warn('[AzureConfig] Using LOGIC_APP_EMAIL_URL from environment variables');
-        return envUrl;
-      }
-      throw new Error('Logic App email URL not configured');
-    }
-  }
 
   public async getLogicAppReminderUrl(): Promise<string> {
-    try {
-      return await this.getSecret('logic-app-reminder-url');
-    } catch (error) {
-      // Fallback to environment variable
-      const envUrl = process.env.LOGIC_APP_REMINDER_URL;
-      if (envUrl) {
-        console.warn('[AzureConfig] Using LOGIC_APP_REMINDER_URL from environment variables');
-        return envUrl;
-      }
-      throw new Error('Logic App reminder URL not configured');
+    const envUrl = process.env.LOGIC_APP_REMINDER_URL;
+    if (envUrl) {
+      console.info(`[AzureConfig] Using LOGIC_APP_REMINDER_URL from environment variable`);
+      return envUrl;
     }
-  }
-
-  public async getLogicAppCalendarUrl(): Promise<string> {
-    try {
-      return await this.getSecret('logic-app-calendar-url');
-    } catch (error) {
-      // Fallback to environment variable
-      const envUrl = process.env.LOGIC_APP_CALENDAR_URL;
-      if (envUrl) {
-        console.warn('[AzureConfig] Using LOGIC_APP_CALENDAR_URL from environment variables');
-        return envUrl;
-      }
-      throw new Error('Logic App calendar URL not configured');
-    }
+    throw new Error('Logic App reminder URL not configured');
   }
 
   public async getFrontendUrl(): Promise<string> {
@@ -361,7 +329,7 @@ export class AzureConfigService {
     }
 
     try {
-      await this.getLogicAppEmailUrl();
+      await this.getLogicAppReminderUrl();
       result.logicApps = 'healthy';
     } catch {
       result.logicApps = 'unhealthy';

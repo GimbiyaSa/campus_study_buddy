@@ -29,14 +29,27 @@ export default function UpcomingSessions() {
   const filterUpcomingNext7Days = (list: SessionWithOwner[]) => {
     const now = new Date();
     const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    return list
+    console.log('🕒 UpcomingSessions filter - now:', now, 'nextWeek:', nextWeek);
+    
+    const filtered = list
       .filter(
-        (s) =>
-          (s.status ?? 'upcoming') === 'upcoming' &&
-          toDateTime(s) >= now &&
-          toDateTime(s) <= nextWeek
+        (s) => {
+          const sessionDateTime = toDateTime(s);
+          const isUpcoming = (s.status ?? 'upcoming') === 'upcoming';
+          const isAfterNow = sessionDateTime >= now;
+          const isWithinWeek = sessionDateTime <= nextWeek;
+          
+          console.log('🕒 Session:', s.title, 'date:', s.date, 'time:', s.startTime, 
+                     'dateTime:', sessionDateTime, 'status:', s.status,
+                     'isUpcoming:', isUpcoming, 'isAfterNow:', isAfterNow, 'isWithinWeek:', isWithinWeek);
+          
+          return isUpcoming && isAfterNow && isWithinWeek;
+        }
       )
       .sort((a, b) => toDateTime(a).getTime() - toDateTime(b).getTime());
+      
+    console.log('🕒 Filtered upcoming sessions:', filtered);
+    return filtered;
   };
 
   useEffect(() => {
@@ -47,7 +60,9 @@ export default function UpcomingSessions() {
       setError(null);
       try {
         const allSessions = await DataService.fetchSessions();
+        console.log('🕒 UpcomingSessions - fetched all sessions:', allSessions);
         const upcoming = filterUpcomingNext7Days(allSessions as SessionWithOwner[]);
+        console.log('🕒 UpcomingSessions - final upcoming list:', upcoming);
         if (!mounted) return;
         setSessions(upcoming);
       } catch (err) {

@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, Plus, Clock, MapPin, Users, X } from 'lucide-react';
 import { DataService, type StudySession } from '../services/dataService';
+import { navigate } from '../router';
 
 type ViewMode = 'day' | 'week' | 'month';
 
@@ -80,15 +81,22 @@ export default function Calendar() {
   useEffect(() => {
     const onCreated = (e: Event) => {
       const newSession = (e as CustomEvent<StudySession>).detail;
+      console.log('📅 Calendar received session:created event:', newSession);
       if (!newSession) return;
 
-      setSessions((prev) =>
-        prev.some((s) => s.id === newSession.id) ? prev : [...prev, newSession]
-      );
+      setSessions((prev) => {
+        const exists = prev.some((s) => s.id === newSession.id);
+        console.log('📅 Calendar - session exists:', exists, 'adding to list:', !exists);
+        return exists ? prev : [...prev, newSession];
+      });
     };
 
     const onInvalidate = () => {
-      DataService.fetchSessions().then(setSessions).catch(console.error);
+      console.log('📅 Calendar received sessions:invalidate event, refetching...');
+      DataService.fetchSessions().then(data => {
+        console.log('📅 Calendar fetched sessions:', data);
+        setSessions(data);
+      }).catch(console.error);
     };
 
     window.addEventListener('session:created', onCreated as EventListener);
@@ -125,7 +133,8 @@ export default function Calendar() {
     async function fetchSessions() {
       setLoading(true);
       try {
-        const data = await DataService.fetchSessions({ status: 'upcoming' });
+        const data = await DataService.fetchSessions(); // Remove status filter to get all sessions
+        console.log('📅 Calendar initial load - fetched sessions:', data);
         setSessions(data);
       } catch (error) {
         console.error('Error fetching sessions:', error);
@@ -147,9 +156,13 @@ export default function Calendar() {
 
   const getSessionsForDate = (date: Date) => {
     const dateStr = dateKey(date); // local date
-    return sessions.filter(
+    const filtered = sessions.filter(
       (s) => s.date === dateStr && s.status !== 'cancelled' // optionally: && s.status !== 'completed'
     );
+    if (dateStr === '2025-10-19') { // Today's date
+      console.log('📅 Calendar filtering for today:', dateStr, 'all sessions:', sessions, 'filtered:', filtered);
+    }
+    return filtered;
   };
 
   function navigate(direction: 'prev' | 'next') {
@@ -400,6 +413,32 @@ function ScheduleSessionModal({
   const [location, setLocation] = useState('');
   const [type, setType] = useState<StudySession['type']>('study');
   const [maxParticipants, setMaxParticipants] = useState<number | undefined>();
+  const [groups, setGroups] = useState<Array<{ id: string; name: string }>>([]);
+  const [groupId, setGroupId] = useState<string | undefined>();
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Load groups when modal opens
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (!open) return;
+      try {
+        const raw = await DataService.fetchMyGroups();
+        const pruned = (raw || []).map((g: any) => ({
+          id: String(g.id),
+          name: String(g.name ?? g.group_name ?? 'Untitled group'),
+        }));
+        if (mounted) setGroups(pruned);
+      } catch (e) {
+        console.warn('Failed to load groups for calendar modal:', e);
+        if (mounted) setGroups([]);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [open]);
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -424,9 +463,41 @@ function ScheduleSessionModal({
 
   if (!open) return null;
 
+  // Validation function
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
+    
+    if (!title.trim()) errors.title = 'Session title is required';
+    if (!date) errors.date = 'Date is required';
+    if (!startTime) errors.startTime = 'Start time is required';
+    if (!endTime) errors.endTime = 'End time is required';
+    if (!location.trim()) errors.location = 'Location is required';
+    
+    // Group validation - backend requires a group
+    if (!groupId && groups.length === 0) {
+      errors.groupId = 'You must create or join a study group first';
+    } else if (!groupId && groups.length > 0) {
+      errors.groupId = 'Please select a study group for this session';
+    }
+    
+    if (startTime && endTime && startTime >= endTime) {
+      errors.endTime = 'End time must be after start time';
+    }
+    
+    if (date && new Date(date) < new Date(new Date().toDateString())) {
+      errors.date = 'Date cannot be in the past';
+    }
+    
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !date || !startTime || !endTime || !location.trim()) return;
+    
+    if (!validateForm()) return;
+    
+    setIsSubmitting(true);
 
     // Prepare payload that matches the shape used by Sessions.tsx -> DataService.createSession
     const payload: Omit<
@@ -442,7 +513,7 @@ function ScheduleSessionModal({
       location: location.trim(),
       type,
       maxParticipants,
-      // NOTE: no groupId field here since the calendar modal doesn’t pick a group.
+      groupId, // Include the selected group
     };
 
     try {
@@ -452,6 +523,7 @@ function ScheduleSessionModal({
         // notify all other widgets
         window.dispatchEvent(new CustomEvent('session:created', { detail: created }));
         window.dispatchEvent(new Event('sessions:invalidate'));
+        onClose();
       } else {
         // Fallback (optimistic) if service returned falsy
         const optimistic: StudySession = {
@@ -465,9 +537,13 @@ function ScheduleSessionModal({
         onSessionCreated(optimistic);
         window.dispatchEvent(new CustomEvent('session:created', { detail: optimistic }));
         window.dispatchEvent(new Event('sessions:invalidate'));
+        onClose();
       }
     } catch (err) {
       console.error('Error creating session (calendar):', err);
+      setFormErrors({ submit: 'Failed to create session. Please try again.' });
+    } finally {
+      setIsSubmitting(false);
       // Keep your previous optimistic UX
       const optimistic: StudySession = {
         ...payload,
@@ -518,6 +594,59 @@ function ScheduleSessionModal({
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block mb-1 text-sm font-medium text-slate-800">
+                Study group <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={groupId || ''}
+                onChange={(e) => setGroupId(e.target.value || undefined)}
+                className={`w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 ${
+                  formErrors.groupId 
+                    ? 'border-red-300 bg-red-50 focus:ring-red-100' 
+                    : 'border-slate-300 bg-slate-50 focus:ring-emerald-100'
+                }`}
+              >
+                <option value="">
+                  {groups.length === 0 ? 'No study groups available' : 'Select a study group'}
+                </option>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+              {formErrors.groupId ? (
+                <div className="mt-1">
+                  <p className="text-xs text-red-600">{formErrors.groupId}</p>
+                  {groups.length === 0 && (
+                    <button
+                      type="button"
+                      onClick={() => navigate('/groups')}
+                      className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 mt-1"
+                    >
+                      <Users className="h-3 w-3" />
+                      Go to Study Groups
+                    </button>
+                  )}
+                </div>
+              ) : groups.length === 0 ? (
+                <div className="mt-1">
+                  <p className="text-xs text-slate-500">Create or join a study group to schedule sessions</p>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/groups')}
+                    className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 mt-1"
+                  >
+                    <Users className="h-3 w-3" />
+                    Go to Study Groups
+                  </button>
+                </div>
+              ) : (
+                <p className="mt-1 text-xs text-slate-500">Select which study group this session is for</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block mb-1 text-sm font-medium text-slate-800">
                 Session Title <span className="text-red-500">*</span>
               </label>
               <input
@@ -525,8 +654,15 @@ function ScheduleSessionModal({
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g., Algorithm Study Group"
                 required
-                className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-100"
+                className={`w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 ${
+                  formErrors.title 
+                    ? 'border-red-300 bg-red-50 focus:ring-red-100' 
+                    : 'border-slate-300 bg-slate-50 focus:ring-emerald-100'
+                }`}
               />
+              {formErrors.title && (
+                <p className="mt-1 text-xs text-red-600">{formErrors.title}</p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -638,19 +774,31 @@ function ScheduleSessionModal({
               </div>
             </div>
 
+            {formErrors.submit && (
+              <div className="rounded-xl bg-red-50 border border-red-200 p-3">
+                <p className="text-sm text-red-600">{formErrors.submit}</p>
+              </div>
+            )}
+
             <div className="flex items-center justify-end gap-3 pt-4">
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50"
+                disabled={isSubmitting}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="rounded-xl bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
+                disabled={isSubmitting || !title.trim() || !date || !startTime || !endTime || !location.trim() || (!groupId && groups.length > 0)}
+                className={`rounded-xl px-4 py-2 font-medium text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600 ${
+                  isSubmitting || !title.trim() || !date || !startTime || !endTime || !location.trim() || (!groupId && groups.length > 0)
+                    ? 'bg-slate-400 cursor-not-allowed'
+                    : 'bg-emerald-600 hover:bg-emerald-700'
+                }`}
               >
-                Create Session
+                {isSubmitting ? 'Creating...' : 'Create Session'}
               </button>
             </div>
           </form>

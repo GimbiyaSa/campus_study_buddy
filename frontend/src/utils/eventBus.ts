@@ -56,8 +56,10 @@ export type AppEvent =
   // Chat/Notes events
   | 'chat:message-sent'
   | 'chat:created'
+  | 'notes:invalidate'
   | 'notes:created'
   | 'notes:updated'
+  | 'notes:deleted'
   | 'notes:shared'
   // User events
   | 'user:registered'

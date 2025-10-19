@@ -1686,7 +1686,19 @@ export class DataService {
         });
       }
       if (!res.ok) return null;
-      return await this.safeJson<SharedNote | null>(res, null);
+      const created = await this.safeJson<SharedNote | null>(res, null);
+      
+      // Emit events to refresh all related components
+      if (created) {
+        eventBus.emitMany(['notes:created', 'notes:invalidate'], {
+          type: 'create',
+          topicId: created.topic_id || undefined,
+          metadata: { noteId: created.note_id },
+          timestamp: Date.now(),
+        });
+      }
+      
+      return created;
     } catch {
       return null;
     }
@@ -1716,7 +1728,19 @@ export class DataService {
         });
       }
       if (!res.ok) return null;
-      return await this.safeJson<SharedNote | null>(res, null);
+      const updated = await this.safeJson<SharedNote | null>(res, null);
+      
+      // Emit events to refresh all related components
+      if (updated) {
+        eventBus.emitMany(['notes:updated', 'notes:invalidate'], {
+          type: 'update',
+          topicId: updated.topic_id || undefined,
+          metadata: { noteId: updated.note_id },
+          timestamp: Date.now(),
+        });
+      }
+      
+      return updated;
     } catch {
       return null;
     }
@@ -1732,7 +1756,19 @@ export class DataService {
           method: 'DELETE',
         });
       }
-      return res.ok;
+      
+      const success = res.ok;
+      
+      // Emit events to refresh all related components
+      if (success) {
+        eventBus.emitMany(['notes:deleted', 'notes:invalidate'], {
+          type: 'delete',
+          metadata: { noteId },
+          timestamp: Date.now(),
+        });
+      }
+      
+      return success;
     } catch {
       return false;
     }

@@ -12,6 +12,9 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { DataService } from '../services/dataService';
+import type { SharedNote } from '../services/dataService';
+import TopicNotes from './TopicNotes';
+import { CreateNoteModal, NoteModal, EditNoteModal } from '../components/Notes';
 import { ErrorHandler, type AppError } from '../utils/errorHandler';
 import StudyLogDialog, { type StudyLog } from '../components/StudyLogDialog';
 import AddTopicDialog from '../components/AddTopicDialog';
@@ -19,8 +22,15 @@ import { navigate } from '../router';
 
 // Accept id as prop for custom router
 export default function CourseDetails({ id }: { id: string }) {
+  const [showCreateNote, setShowCreateNote] = useState(false);
+  const [noteCourseId, setNoteCourseId] = useState<string>('');
+  const [noteTopicId, setNoteTopicId] = useState<string>('');
+  const [openNote, setOpenNote] = useState<SharedNote | null>(null);
+  const [editingNote, setEditingNote] = useState<SharedNote | null>(null);
+  const [notesRefreshKey, setNotesRefreshKey] = useState(0);
   const [course, setCourse] = useState<any>(null);
   const [topics, setTopics] = useState<any[]>([]);
+  const [groups, setGroups] = useState<any[]>([]);
   const [error, setError] = useState<AppError | null>(null);
   const [loading, setLoading] = useState(true);
   const [showLogDialog, setShowLogDialog] = useState(false);
@@ -36,9 +46,13 @@ export default function CourseDetails({ id }: { id: string }) {
       setLoading(true);
       setError(null);
       try {
-        const courses = await DataService.fetchCourses();
+        const [courses, userGroups] = await Promise.all([
+          DataService.fetchCourses(),
+          DataService.fetchMyGroups()
+        ]);
         const found = courses.find((c: any) => String(c.id) === String(id));
         setCourse(found);
+        setGroups(userGroups || []);
         if (found) {
           const t = await DataService.fetchModuleTopics(Number(found.id));
           setTopics(t);
@@ -116,6 +130,22 @@ export default function CourseDetails({ id }: { id: string }) {
     } catch (error) {
       console.error('❌ Failed to add topic:', error);
       alert('Failed to add topic. Please check your connection and try again.');
+    }
+  };
+
+  const handleEditNote = (note: SharedNote) => {
+    setEditingNote(note);
+  };
+
+  const handleDeleteNote = async (noteId: number) => {
+    try {
+      await DataService.deleteNote(String(noteId));
+      console.log('✅ Note deleted successfully');
+      // Refresh notes by incrementing the refresh key
+      setNotesRefreshKey(k => k + 1);
+    } catch (error) {
+      console.error('❌ Failed to delete note:', error);
+      alert('Failed to delete note. Please try again.');
     }
   };
 
@@ -355,14 +385,11 @@ export default function CourseDetails({ id }: { id: string }) {
             </button>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-8">
             {topics
               .sort((a: any, b: any) => a.orderSequence - b.orderSequence)
               .map((topic: any) => (
-                <div
-                  key={topic.id}
-                  className="flex items-center justify-between p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors"
-                >
+                <div key={topic.id} className="p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors">
                   <div className="flex items-center gap-4 flex-1">
                     <div
                       className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
@@ -395,30 +422,50 @@ export default function CourseDetails({ id }: { id: string }) {
                           </span>
                         )}
                       </div>
+                      {/* --- Notes for this topic --- */}
+                      <TopicNotes 
+                        topicId={topic.id} 
+                        onNoteClick={setOpenNote} 
+                        onEditNote={handleEditNote}
+                        onDeleteNote={handleDeleteNote}
+                        refreshSignal={notesRefreshKey} 
+                      />
+                      <button
+                        className="mt-2 px-3 py-1.5 text-xs font-medium text-brand-700 bg-brand-50 hover:bg-brand-100 rounded-lg transition-colors"
+                        onClick={() => {
+                          setNoteCourseId(String(course.id));
+                          setNoteTopicId(String(topic.id));
+                          setShowCreateNote(true);
+                        }}
+                      >
+                        Add Note
+                      </button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                      onClick={() =>
-                        openLogDialog({
-                          id: topic.id,
-                          name: topic.name,
-                          module: course.title,
-                        })
-                      }
-                      className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
-                    >
-                      <Clock className="h-4 w-4" />
-                      Log Hours
-                    </button>
+                  <div className="flex items-center gap-2 flex-shrink-0 mt-2">
                     {topic.completionStatus !== 'completed' && (
-                      <button
-                        onClick={() => handleMarkComplete(topic.id)}
-                        className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"
-                      >
-                        <CheckCircle className="h-4 w-4" />
-                        Complete
-                      </button>
+                      <>
+                        <button
+                          onClick={() =>
+                            openLogDialog({
+                              id: topic.id,
+                              name: topic.name,
+                              module: course.title,
+                            })
+                          }
+                          className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                        >
+                          <Clock className="h-4 w-4" />
+                          Log Hours
+                        </button>
+                        <button
+                          onClick={() => handleMarkComplete(topic.id)}
+                          className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          Complete
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -426,6 +473,38 @@ export default function CourseDetails({ id }: { id: string }) {
           </div>
         )}
       </div>
+
+      {/* Create Note Modal for topic */}
+      {showCreateNote && (
+        <CreateNoteModal
+          open={showCreateNote}
+          groups={groups}
+          defaultGroupId={groups.length > 0 ? String(groups[0].id || groups[0].group_id) : ''}
+          onClose={() => setShowCreateNote(false)}
+          onCreated={() => {
+            setShowCreateNote(false);
+            setNotesRefreshKey((k) => k + 1);
+          }}
+          courseId={noteCourseId}
+          topicId={noteTopicId}
+        />
+      )}
+
+      {/* --- Note Modal for viewing --- */}
+      {openNote && <NoteModal note={openNote} onClose={() => setOpenNote(null)} />}
+
+      {/* --- Edit Note Modal --- */}
+      {editingNote && (
+        <EditNoteModal
+          note={editingNote}
+          groups={groups}
+          onClose={() => setEditingNote(null)}
+          onUpdated={() => {
+            setEditingNote(null);
+            setNotesRefreshKey((k) => k + 1);
+          }}
+        />
+      )}
 
       {/* Study Log Dialog */}
       <StudyLogDialog

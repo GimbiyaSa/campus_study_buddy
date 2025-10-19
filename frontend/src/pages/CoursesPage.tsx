@@ -376,7 +376,7 @@ function EnhancedCourseCard({
                   ? 'bg-gradient-to-r from-emerald-500 to-emerald-600'
                   : progressPercentage > 0
                   ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
-                  : (course.totalHours && course.totalHours > 0)
+                  : course.totalHours && course.totalHours > 0
                   ? 'bg-gradient-to-r from-blue-400 to-blue-500'
                   : 'bg-slate-300'
               }`}
@@ -384,7 +384,7 @@ function EnhancedCourseCard({
                 width:
                   progressPercentage > 0
                     ? `${Math.min(100, Math.max(0, progressPercentage))}%`
-                    : (course.totalHours && course.totalHours > 0)
+                    : course.totalHours && course.totalHours > 0
                     ? '10%' // Show small blue bar when hours logged but no topics completed
                     : '0%',
               }}

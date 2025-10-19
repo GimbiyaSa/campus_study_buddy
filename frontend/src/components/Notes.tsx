@@ -8,7 +8,11 @@ export default function Notes() {
   const [notes, setNotes] = useState<SharedNote[]>([]);
   const [groups, setGroups] = useState<StudyGroup[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<{ title: string; message: string; retryable?: boolean } | null>(null);
+  const [error, setError] = useState<{
+    title: string;
+    message: string;
+    retryable?: boolean;
+  } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<string>(''); // group_id
   const [visibilityFilter, setVisibilityFilter] = useState<string>(''); // group|public|private
@@ -17,7 +21,6 @@ export default function Notes() {
   const [editingNote, setEditingNote] = useState<SharedNote | null>(null);
   const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
   const [dateWindow, setDateWindow] = useState<'7d' | '30d' | 'all'>('7d');
-
 
   useEffect(() => {
     async function load() {
@@ -65,9 +68,9 @@ export default function Notes() {
         setLoading(false);
       }
     }
-    
+
     load();
-    
+
     // Listen for note invalidation events (when notes are created/updated from other pages)
     const handleNotesInvalidate = (event: CustomEvent) => {
       console.log('🔄 Notes invalidation event received:', event.detail);
@@ -75,7 +78,7 @@ export default function Notes() {
     };
 
     window.addEventListener('notes:invalidate', handleNotesInvalidate as EventListener);
-    
+
     return () => {
       window.removeEventListener('notes:invalidate', handleNotesInvalidate as EventListener);
     };
@@ -123,7 +126,7 @@ export default function Notes() {
     try {
       await DataService.deleteNote(String(noteId));
       // Remove from local state
-      setNotes(prev => prev.filter(n => n.note_id !== noteId));
+      setNotes((prev) => prev.filter((n) => n.note_id !== noteId));
     } catch (error) {
       console.error('Failed to delete note:', error);
       alert('Failed to delete note. Please try again.');
@@ -245,7 +248,8 @@ export default function Notes() {
                         } catch {
                           setError({
                             title: 'Failed to load notes',
-                            message: 'Unable to load notes. Please check your connection or try again.',
+                            message:
+                              'Unable to load notes. Please check your connection or try again.',
                             retryable: true,
                           });
                           setGroups([]);
@@ -282,7 +286,8 @@ export default function Notes() {
           </div>
           <h3 className="text-xl font-bold text-slate-900 mb-3">No notes yet</h3>
           <p className="text-slate-600 mb-6 max-w-md mx-auto">
-            Capture your first study note to get started. Notes you create or share will appear here.
+            Capture your first study note to get started. Notes you create or share will appear
+            here.
           </p>
           <button
             onClick={() => setShowCreate(true)}
@@ -300,7 +305,12 @@ export default function Notes() {
               className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition h-52 flex flex-col"
             >
               <div className="flex items-start justify-between mb-2 gap-2">
-                <h3 className="font-semibold text-gray-900 text-sm leading-tight line-clamp-2" title={note.note_title}>{note.note_title}</h3>
+                <h3
+                  className="font-semibold text-gray-900 text-sm leading-tight line-clamp-2"
+                  title={note.note_title}
+                >
+                  {note.note_title}
+                </h3>
                 <span className="text-xs px-2 py-1 rounded flex-shrink-0 bg-gray-100 text-gray-600">
                   {note.visibility}
                 </span>
@@ -312,10 +322,8 @@ export default function Notes() {
                   ? `Updated: ${new Date(note.updated_at).toLocaleDateString()}`
                   : `Created: ${new Date(note.created_at).toLocaleDateString()}`}
               </p>
-              
-              <p className="text-sm text-gray-700 flex-1 line-clamp-4 mb-3">
-                {note.note_content}
-              </p>
+
+              <p className="text-sm text-gray-700 flex-1 line-clamp-4 mb-3">{note.note_content}</p>
 
               <div className="flex items-center justify-between text-xs">
                 <button
@@ -368,12 +376,18 @@ export default function Notes() {
           // Refetch the latest note from backend to ensure attachments are up-to-date
           try {
             const fresh = await DataService.fetchNotes();
-            const latest = Array.isArray(fresh) ? fresh.find(n => n.note_id === updatedNote.note_id) : updatedNote;
-            setNotes(prev => prev.map(n => n.note_id === updatedNote.note_id ? (latest || updatedNote) : n));
+            const latest = Array.isArray(fresh)
+              ? fresh.find((n) => n.note_id === updatedNote.note_id)
+              : updatedNote;
+            setNotes((prev) =>
+              prev.map((n) => (n.note_id === updatedNote.note_id ? latest || updatedNote : n))
+            );
             setEditingNote(null);
             setOpenNote(latest || updatedNote); // Show the latest note in view modal
           } catch {
-            setNotes(prev => prev.map(n => n.note_id === updatedNote.note_id ? updatedNote : n));
+            setNotes((prev) =>
+              prev.map((n) => (n.note_id === updatedNote.note_id ? updatedNote : n))
+            );
             setEditingNote(null);
             setOpenNote(updatedNote);
           }
@@ -568,7 +582,12 @@ function CreateNoteModal({
   const [courses, setCourses] = useState<any[]>([]);
   const [topics, setTopics] = useState<any[]>([]);
 
-  console.log('🔍 CreateNoteModal props:', { courseId, topicId, internalCourseId, internalTopicId });
+  console.log('🔍 CreateNoteModal props:', {
+    courseId,
+    topicId,
+    internalCourseId,
+    internalTopicId,
+  });
 
   useEffect(() => {
     setGroupId(defaultGroupId ?? '');
@@ -576,7 +595,9 @@ function CreateNoteModal({
 
   useEffect(() => {
     if (open) {
-      DataService.fetchCourses().then(setCourses).catch(() => setCourses([]));
+      DataService.fetchCourses()
+        .then(setCourses)
+        .catch(() => setCourses([]));
     }
   }, [open]);
 
@@ -586,7 +607,12 @@ function CreateNoteModal({
       DataService.fetchModuleTopics(Number(internalCourseId))
         .then((data) => {
           console.log('[Notes] Topics loaded for courseId', internalCourseId, ':', data);
-          console.log('[Notes] Topic names for courseId', internalCourseId, ':', data.map(t => t.name || t.topic_name || t.title));
+          console.log(
+            '[Notes] Topic names for courseId',
+            internalCourseId,
+            ':',
+            data.map((t) => t.name || t.topic_name || t.title)
+          );
           setTopics(Array.isArray(data) ? data : []);
         })
         .catch((err) => {
@@ -603,7 +629,8 @@ function CreateNoteModal({
 
   const MAX_CONTENT_LENGTH = 1000;
   const contentTooLong = content.length > MAX_CONTENT_LENGTH;
-  const canSave = title.trim() && content.trim() && !contentTooLong && (visibility !== 'group' || groupId);
+  const canSave =
+    title.trim() && content.trim() && !contentTooLong && (visibility !== 'group' || groupId);
 
   async function handleCreate() {
     if (!canSave || saving) return;
@@ -611,15 +638,20 @@ function CreateNoteModal({
     setErr(null);
     try {
       // 1) create note - use groupId for group notes, fallback for others
-      const targetGroupId = visibility === 'group' ? groupId : (groups[0]?.id || '1');
-      
+      const targetGroupId = visibility === 'group' ? groupId : groups[0]?.id || '1';
+
       const created = await DataService.createNote(targetGroupId, {
         note_title: title.trim(),
         note_content: content.trim(),
         visibility,
         topic_id: internalTopicId ? parseInt(internalTopicId) : null, // Link to topic if selected
       });
-      console.log('🔍 Note created with topic_id:', internalTopicId ? parseInt(internalTopicId) : null, 'Full note:', created);
+      console.log(
+        '🔍 Note created with topic_id:',
+        internalTopicId ? parseInt(internalTopicId) : null,
+        'Full note:',
+        created
+      );
       if (!created) {
         setErr('Failed to create note');
         return;
@@ -676,13 +708,15 @@ function CreateNoteModal({
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Course <span className="text-red-500">*</span></label>
+                <label className="block text-sm text-gray-700 mb-1">
+                  Course <span className="text-red-500">*</span>
+                </label>
                 <select
                   value={internalCourseId}
                   onChange={(e) => {
                     const selectedId = e.target.value;
                     console.log('[Notes] Course selected:', selectedId);
-                    const selectedCourse = courses.find(c => c.id == selectedId);
+                    const selectedCourse = courses.find((c) => c.id == selectedId);
                     console.log('[Notes] Selected course object:', selectedCourse);
                     setInternalCourseId(selectedId);
                   }}
@@ -701,14 +735,18 @@ function CreateNoteModal({
               </div>
 
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Topic <span className="text-red-500">*</span></label>
+                <label className="block text-sm text-gray-700 mb-1">
+                  Topic <span className="text-red-500">*</span>
+                </label>
                 <select
                   value={internalTopicId}
                   onChange={(e) => setInternalTopicId(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500"
                   disabled={!internalCourseId}
                 >
-                  <option value="">{internalCourseId ? 'Select topic...' : 'Select course first'}</option>
+                  <option value="">
+                    {internalCourseId ? 'Select topic...' : 'Select course first'}
+                  </option>
                   {topics.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.name || t.topic_name || t.title}
@@ -728,9 +766,11 @@ function CreateNoteModal({
                   disabled={visibility !== 'group'}
                 >
                   <option value="">
-                    {visibility === 'group' ? 'Select group...' : 
-                     visibility === 'public' ? 'Not applicable - public to all users' :
-                     'Not applicable - private only'}
+                    {visibility === 'group'
+                      ? 'Select group...'
+                      : visibility === 'public'
+                      ? 'Not applicable - public to all users'
+                      : 'Not applicable - private only'}
                   </option>
                   {groups.map((g) => (
                     <option key={g.id} value={g.id}>
@@ -739,14 +779,10 @@ function CreateNoteModal({
                   ))}
                 </select>
                 {visibility === 'public' && (
-                  <p className="text-xs text-green-600 mt-1">
-                    Visible to all site users
-                  </p>
+                  <p className="text-xs text-green-600 mt-1">Visible to all site users</p>
                 )}
                 {visibility === 'private' && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    Only visible to you
-                  </p>
+                  <p className="text-xs text-gray-500 mt-1">Only visible to you</p>
                 )}
               </div>
 
@@ -771,7 +807,9 @@ function CreateNoteModal({
             </div>
 
             <div>
-                <label className="block text-sm text-gray-700 mb-1">Title <span className="text-red-500">*</span></label>
+              <label className="block text-sm text-gray-700 mb-1">
+                Title <span className="text-red-500">*</span>
+              </label>
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -781,7 +819,9 @@ function CreateNoteModal({
             </div>
 
             <div>
-                <label className="block text-sm text-gray-700 mb-1">Content <span className="text-red-500">*</span></label>
+              <label className="block text-sm text-gray-700 mb-1">
+                Content <span className="text-red-500">*</span>
+              </label>
               <textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
@@ -791,8 +831,12 @@ function CreateNoteModal({
                 maxLength={MAX_CONTENT_LENGTH + 1}
               />
               <div className="flex justify-between text-xs mt-1">
-                <span>{content.length}/{MAX_CONTENT_LENGTH} characters</span>
-                {contentTooLong && <span className="text-red-600">Content too long (max {MAX_CONTENT_LENGTH})</span>}
+                <span>
+                  {content.length}/{MAX_CONTENT_LENGTH} characters
+                </span>
+                {contentTooLong && (
+                  <span className="text-red-600">Content too long (max {MAX_CONTENT_LENGTH})</span>
+                )}
               </div>
             </div>
             <div>
@@ -831,7 +875,6 @@ function CreateNoteModal({
   );
 }
 
-
 function EditNoteModal({
   note,
   groups,
@@ -860,7 +903,7 @@ function EditNoteModal({
     if (note) {
       setTitle(note.note_title || '');
       setContent(note.note_content || '');
-      setVisibility(note.visibility as any || 'private');
+      setVisibility((note.visibility as any) || 'private');
       setGroupId(String(note.group_id || ''));
       setTopicId(String(note.topic_id || ''));
       setFiles([]);
@@ -871,18 +914,22 @@ function EditNoteModal({
   useEffect(() => {
     if (note && note.topic_id) {
       // Find course for topic (if available in courses)
-      DataService.fetchCourses().then((allCourses) => {
-        setCourses(allCourses);
-        // Try to find course containing this topic
-        const found = allCourses.find((c: any) =>
-          Array.isArray(c.topics) && c.topics.some((t: any) => t.id === note.topic_id)
-        );
-        if (found) {
-          setCourseId(String(found.id));
-        }
-      }).catch(() => setCourses([]));
+      DataService.fetchCourses()
+        .then((allCourses) => {
+          setCourses(allCourses);
+          // Try to find course containing this topic
+          const found = allCourses.find(
+            (c: any) => Array.isArray(c.topics) && c.topics.some((t: any) => t.id === note.topic_id)
+          );
+          if (found) {
+            setCourseId(String(found.id));
+          }
+        })
+        .catch(() => setCourses([]));
     } else if (note) {
-      DataService.fetchCourses().then(setCourses).catch(() => setCourses([]));
+      DataService.fetchCourses()
+        .then(setCourses)
+        .catch(() => setCourses([]));
     }
   }, [note]);
 
@@ -894,7 +941,9 @@ function EditNoteModal({
           setTopics(Array.isArray(data) ? data : []);
           // If editing, preselect topic if it exists in the list
           if (note && note.topic_id) {
-            const found = Array.isArray(data) ? data.find((t: any) => t.id === note.topic_id) : null;
+            const found = Array.isArray(data)
+              ? data.find((t: any) => t.id === note.topic_id)
+              : null;
             if (found) setTopicId(String(found.id));
           }
         })
@@ -908,41 +957,46 @@ function EditNoteModal({
   }, [courseId, note]);
   // Show attachments in EditNoteModal
   const attachments = note && note.attachments ? normalizeAttachments(note.attachments) : [];
-            {attachments.length > 0 && (
-              <div className="mt-4 border-t border-gray-100 pt-4">
-                <h4 className="text-sm font-semibold text-gray-800 mb-2">Existing Attachments</h4>
-                <ul className="space-y-2">
-                  {attachments.map((att, idx) => (
-                    <li key={idx} className="flex items-center justify-between text-sm">
-                      <span className="truncate mr-3">{att.name}</span>
-                      {hasSAS(att.url) ? (
-                        <a
-                          href={att.url}
-                          target="_blank"
-                          rel="noopener"
-                          className="px-3 py-1 rounded-md bg-brand-600 text-white hover:bg-brand-700 text-xs"
-                        >
-                          Download
-                        </a>
-                      ) : (
-                        <button
-                          onClick={() => {/* TODO: implement download logic if needed */}}
-                          className="px-3 py-1 rounded-md bg-brand-600 text-white hover:bg-brand-700 text-xs"
-                        >
-                          Download
-                        </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+  {
+    attachments.length > 0 && (
+      <div className="mt-4 border-t border-gray-100 pt-4">
+        <h4 className="text-sm font-semibold text-gray-800 mb-2">Existing Attachments</h4>
+        <ul className="space-y-2">
+          {attachments.map((att, idx) => (
+            <li key={idx} className="flex items-center justify-between text-sm">
+              <span className="truncate mr-3">{att.name}</span>
+              {hasSAS(att.url) ? (
+                <a
+                  href={att.url}
+                  target="_blank"
+                  rel="noopener"
+                  className="px-3 py-1 rounded-md bg-brand-600 text-white hover:bg-brand-700 text-xs"
+                >
+                  Download
+                </a>
+              ) : (
+                <button
+                  onClick={() => {
+                    /* TODO: implement download logic if needed */
+                  }}
+                  className="px-3 py-1 rounded-md bg-brand-600 text-white hover:bg-brand-700 text-xs"
+                >
+                  Download
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
 
   if (!note) return null;
 
   const MAX_CONTENT_LENGTH = 1000;
   const contentTooLong = content.length > MAX_CONTENT_LENGTH;
-  const canSave = title.trim() && content.trim() && !contentTooLong && (visibility !== 'group' || groupId);
+  const canSave =
+    title.trim() && content.trim() && !contentTooLong && (visibility !== 'group' || groupId);
 
   async function handleUpdate() {
     if (!canSave || saving || !note) return;
@@ -1036,9 +1090,11 @@ function EditNoteModal({
                   disabled={visibility !== 'group'}
                 >
                   <option value="">
-                    {visibility === 'group' ? 'Select group...' : 
-                     visibility === 'public' ? 'Not applicable - public to all users' :
-                     'Not applicable - private only'}
+                    {visibility === 'group'
+                      ? 'Select group...'
+                      : visibility === 'public'
+                      ? 'Not applicable - public to all users'
+                      : 'Not applicable - private only'}
                   </option>
                   {groups.map((g) => (
                     <option key={g.id} value={g.id}>
@@ -1089,8 +1145,12 @@ function EditNoteModal({
                 maxLength={MAX_CONTENT_LENGTH + 1}
               />
               <div className="flex justify-between text-xs mt-1">
-                <span>{content.length}/{MAX_CONTENT_LENGTH} characters</span>
-                {contentTooLong && <span className="text-red-600">Content too long (max {MAX_CONTENT_LENGTH})</span>}
+                <span>
+                  {content.length}/{MAX_CONTENT_LENGTH} characters
+                </span>
+                {contentTooLong && (
+                  <span className="text-red-600">Content too long (max {MAX_CONTENT_LENGTH})</span>
+                )}
               </div>
             </div>
             <div>

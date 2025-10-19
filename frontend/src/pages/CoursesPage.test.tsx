@@ -30,7 +30,7 @@ beforeEach(() => {
             lastStudied: '2025-09-18',
             type: 'institution',
             enrollmentStatus: 'active',
-          }
+          },
         ],
         pagination: { page: 1, limit: 20, total: 2, pages: 1, hasNext: false, hasPrev: false },
       }),
@@ -82,19 +82,34 @@ describe('CoursesPage - Basic Rendering', () => {
 
   test('displays loading state initially', async () => {
     // Mock a slow response
-    global.fetch = vi.fn().mockImplementation(() => 
-      new Promise(resolve => {
-        setTimeout(() => resolve(
-          new Response(
-            JSON.stringify({ courses: [], pagination: { page: 1, limit: 20, total: 0, pages: 0, hasNext: false, hasPrev: false } }),
-            { status: 200, headers: { 'Content-Type': 'application/json' } }
-          )
-        ), 100);
-      })
+    global.fetch = vi.fn().mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(
+            () =>
+              resolve(
+                new Response(
+                  JSON.stringify({
+                    courses: [],
+                    pagination: {
+                      page: 1,
+                      limit: 20,
+                      total: 0,
+                      pages: 0,
+                      hasNext: false,
+                      hasPrev: false,
+                    },
+                  }),
+                  { status: 200, headers: { 'Content-Type': 'application/json' } }
+                )
+              ),
+            100
+          );
+        })
     );
 
     render(<CoursesPage />);
-    
+
     // Check loading state appears
     expect(screen.getByText(/Loading courses/i)).toBeInTheDocument();
   });
@@ -115,7 +130,7 @@ describe('CoursesPage - Error Handling', () => {
   test('retry functionality is available on errors', async () => {
     // Since retry behavior is tested in "handles API error gracefully" test,
     // this test validates that retry mechanism exists without complex async behavior
-    
+
     // Mock API error
     global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
 
@@ -123,14 +138,14 @@ describe('CoursesPage - Error Handling', () => {
 
     // Wait for error to appear
     await screen.findByText(/Courses Unavailable/i);
-    
+
     // Verify retry button is present
     const retryButton = screen.getByRole('button', { name: /Refresh/i });
     expect(retryButton).toBeInTheDocument();
-    
+
     // Test button is interactive
     expect(retryButton).toBeEnabled();
-    
+
     // Verify fetch attempts were made (the retry mechanism is working)
     expect((global.fetch as any).mock.calls.length).toBeGreaterThan(0);
     // Expecting 2 calls due to retry mechanism working correctly
@@ -145,7 +160,7 @@ describe('CoursesPage - Error Handling', () => {
 
     // Wait for error and dismiss
     const dismissButton = await screen.findByRole('button', { name: /Dismiss/i });
-    
+
     fireEvent.click(dismissButton);
 
     await waitFor(() => {
@@ -154,9 +169,9 @@ describe('CoursesPage - Error Handling', () => {
   });
 
   test('handles 500 server error', async () => {
-    global.fetch = vi.fn().mockResolvedValue(
-      new Response('Internal Server Error', { status: 500 })
-    );
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response('Internal Server Error', { status: 500 }));
 
     render(<CoursesPage />);
 
@@ -177,7 +192,7 @@ describe('CoursesPage - Search and Filtering', () => {
 
     if (searchInput) {
       expect(searchInput).toBeInTheDocument();
-      
+
       await act(async () => {
         fireEvent.change(searchInput, { target: { value: 'Computer' } });
       });
@@ -202,7 +217,7 @@ describe('CoursesPage - Search and Filtering', () => {
     await screen.findByRole('button', { name: /Add Course/i });
 
     const searchInput = screen.getByPlaceholderText(/Search courses/i);
-    
+
     await act(async () => {
       fireEvent.change(searchInput, { target: { value: 'Python' } });
     });
@@ -218,7 +233,7 @@ describe('CoursesPage - Search and Filtering', () => {
     await screen.findByRole('button', { name: /Add Course/i });
 
     const sortSelect = screen.getByDisplayValue(/Recently enrolled/i);
-    
+
     await act(async () => {
       fireEvent.change(sortSelect, { target: { value: 'progress-DESC' } });
     });
@@ -232,7 +247,7 @@ describe('CoursesPage - Search and Filtering', () => {
     await screen.findByPlaceholderText(/Search courses/i);
 
     const searchInput = screen.getByPlaceholderText(/Search courses/i) as HTMLInputElement;
-    
+
     await act(async () => {
       fireEvent.change(searchInput, { target: { value: 'test' } });
     });
@@ -248,22 +263,21 @@ describe('CoursesPage - Search and Filtering', () => {
 describe('CoursesPage - Course Management', () => {
   test('can remove a course', async () => {
     // Mock remove course API call
-    global.fetch = vi.fn()
+    global.fetch = vi
+      .fn()
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
             courses: [
               { id: 'CS101', title: 'Intro to Computer Science', progress: 80, totalHours: 40 },
-              { id: 'MATH201', title: 'Calculus II', progress: 60, totalHours: 30 }
+              { id: 'MATH201', title: 'Calculus II', progress: 60, totalHours: 30 },
             ],
             pagination: { page: 1, limit: 20, total: 2, pages: 1, hasNext: false, hasPrev: false },
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } }
         )
       )
-      .mockResolvedValueOnce(
-        new Response('{}', { status: 200 })
-      );
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }));
 
     render(<CoursesPage />);
 
@@ -284,7 +298,8 @@ describe('CoursesPage - Course Management', () => {
 
   test('handles remove course error', async () => {
     // Mock API calls - first fetch succeeds, delete fails
-    global.fetch = vi.fn()
+    global.fetch = vi
+      .fn()
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
@@ -301,7 +316,7 @@ describe('CoursesPage - Course Management', () => {
     await screen.findByText(/Intro to Computer Science/i);
 
     const removeButton = screen.getByRole('button', { name: /Remove/i });
-    
+
     await act(async () => {
       fireEvent.click(removeButton);
     });
@@ -312,7 +327,8 @@ describe('CoursesPage - Course Management', () => {
 
   test('shows loading state while removing course', async () => {
     // Mock slow delete response
-    global.fetch = vi.fn()
+    global.fetch = vi
+      .fn()
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
@@ -322,10 +338,11 @@ describe('CoursesPage - Course Management', () => {
           { status: 200, headers: { 'Content-Type': 'application/json' } }
         )
       )
-      .mockImplementation(() => 
-        new Promise(resolve => {
-          setTimeout(() => resolve(new Response('{}', { status: 200 })), 100);
-        })
+      .mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            setTimeout(() => resolve(new Response('{}', { status: 200 })), 100);
+          })
       );
 
     render(<CoursesPage />);
@@ -333,7 +350,7 @@ describe('CoursesPage - Course Management', () => {
     await screen.findByText(/Intro to Computer Science/i);
 
     const removeButton = screen.getByRole('button', { name: /Remove/i });
-    
+
     fireEvent.click(removeButton);
 
     // Should show loading indicator on the button
@@ -347,7 +364,7 @@ describe('CoursesPage - Course Management', () => {
 
     // Wait for add button and click it
     const addButton = await screen.findByRole('button', { name: /Add Course/i });
-    
+
     fireEvent.click(addButton);
 
     // Modal should open
@@ -401,16 +418,17 @@ describe('CoursesPage - Course Display', () => {
 
     // Wait for courses to load and check last studied dates are shown
     await screen.findByText(/Intro to Computer Science/i);
-    
+
     // Check that course data is displayed - date format may vary
     // Look for any indication of temporal information
-    const hasDateInfo = screen.queryByText(/2025/) || 
-                       screen.queryByText(/Sep|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Oct|Nov|Dec/i) || 
-                       screen.queryByText(/\d+.*day/i) ||
-                       screen.queryByText(/ago/i) ||
-                       screen.queryByText(/Last.*studied/i) ||
-                       screen.queryByText(/Recently/i);
-    
+    const hasDateInfo =
+      screen.queryByText(/2025/) ||
+      screen.queryByText(/Sep|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Oct|Nov|Dec/i) ||
+      screen.queryByText(/\d+.*day/i) ||
+      screen.queryByText(/ago/i) ||
+      screen.queryByText(/Last.*studied/i) ||
+      screen.queryByText(/Recently/i);
+
     // If no date is shown, at least verify the component rendered the course
     if (!hasDateInfo) {
       expect(screen.getByText(/Intro to Computer Science/i)).toBeInTheDocument();
@@ -431,7 +449,7 @@ describe('CoursesPage - Course Display', () => {
               totalHours: null,
               lastStudied: null,
               type: 'casual',
-            }
+            },
           ],
           pagination: { page: 1, limit: 20, total: 1, pages: 1, hasNext: false, hasPrev: false },
         }),
@@ -443,7 +461,7 @@ describe('CoursesPage - Course Display', () => {
 
     // Should still render component without crashing
     expect(screen.getByText(/Your courses/i)).toBeInTheDocument();
-    
+
     // Wait for loading to complete
     await waitFor(() => {
       expect(screen.queryByText(/Loading/i)).not.toBeInTheDocument();
@@ -454,18 +472,22 @@ describe('CoursesPage - Course Display', () => {
 describe('CoursesPage - Success Messages', () => {
   test('displays success message after adding course', async () => {
     // Mock successful add
-    global.fetch = vi.fn()
+    global.fetch = vi
+      .fn()
       .mockResolvedValueOnce(
         new Response(
-          JSON.stringify({ courses: [], pagination: { page: 1, limit: 20, total: 0, pages: 0, hasNext: false, hasPrev: false } }),
+          JSON.stringify({
+            courses: [],
+            pagination: { page: 1, limit: 20, total: 0, pages: 0, hasNext: false, hasPrev: false },
+          }),
           { status: 200, headers: { 'Content-Type': 'application/json' } }
         )
       )
       .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({ id: 'NEW1', title: 'New Course', progress: 0 }),
-          { status: 201, headers: { 'Content-Type': 'application/json' } }
-        )
+        new Response(JSON.stringify({ id: 'NEW1', title: 'New Course', progress: 0 }), {
+          status: 201,
+          headers: { 'Content-Type': 'application/json' },
+        })
       );
 
     render(<CoursesPage />);

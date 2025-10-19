@@ -94,7 +94,7 @@ export default function Progress() {
 
   useEffect(() => {
     fetchProgressData();
-    
+
     // Listen for course invalidation events (when progress is updated)
     const handleCourseInvalidate = (event: CustomEvent) => {
       console.log('🔄 Progress invalidation event received:', event.detail);
@@ -102,7 +102,7 @@ export default function Progress() {
     };
 
     window.addEventListener('courses:invalidate', handleCourseInvalidate as EventListener);
-    
+
     return () => {
       window.removeEventListener('courses:invalidate', handleCourseInvalidate as EventListener);
     };
@@ -116,11 +116,13 @@ export default function Progress() {
       });
       console.log('✅ Study hours logged successfully');
       fetchProgressData(); // Refresh data
-      
+
       // Dispatch event to notify other components to refresh course data
-      window.dispatchEvent(new CustomEvent('courses:invalidate', { 
-        detail: { topicId: log.topicId, type: 'progress_update' } 
-      }));
+      window.dispatchEvent(
+        new CustomEvent('courses:invalidate', {
+          detail: { topicId: log.topicId, type: 'progress_update' },
+        })
+      );
     } catch (error) {
       console.error('❌ Failed to log hours:', error);
       alert('Failed to log study hours. Please check your connection and try again.');
@@ -428,12 +430,13 @@ function CourseProgressCard({
                 ? 'bg-gradient-to-r from-blue-400 to-blue-500'
                 : 'bg-slate-300'
             }`}
-            style={{ 
-              width: progressPercentage > 0 
-                ? `${Math.min(100, Math.max(0, progressPercentage))}%`
-                : (course.totalHours && course.totalHours > 0)
-                ? '10%' // Show small blue bar when hours logged but no topics completed
-                : '0%'
+            style={{
+              width:
+                progressPercentage > 0
+                  ? `${Math.min(100, Math.max(0, progressPercentage))}%`
+                  : course.totalHours && course.totalHours > 0
+                  ? '10%' // Show small blue bar when hours logged but no topics completed
+                  : '0%',
             }}
           />
         </div>

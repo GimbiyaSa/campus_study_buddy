@@ -52,7 +52,7 @@ export default function Courses() {
 
   useEffect(() => {
     fetchCourses();
-    
+
     // Listen for course invalidation events (when progress is updated)
     const handleCourseInvalidate = (event: CustomEvent) => {
       console.log('🔄 Course invalidation event received:', event.detail);
@@ -60,7 +60,7 @@ export default function Courses() {
     };
 
     window.addEventListener('courses:invalidate', handleCourseInvalidate as EventListener);
-    
+
     return () => {
       abortRef.current?.abort();
       window.removeEventListener('courses:invalidate', handleCourseInvalidate as EventListener);
@@ -76,13 +76,11 @@ export default function Courses() {
 
     const completed = courses.filter((c) => (c.progress ?? 0) >= 100).length;
     // Count as "In Progress" if either: progress > 0 OR hours logged (even with 0 progress)
-    const inProgress = courses.filter(
-      (c) => {
-        const progress = c.progress ?? 0;
-        const hours = c.totalHours ?? 0;
-        return progress < 100 && (progress > 0 || hours > 0);
-      }
-    ).length;
+    const inProgress = courses.filter((c) => {
+      const progress = c.progress ?? 0;
+      const hours = c.totalHours ?? 0;
+      return progress < 100 && (progress > 0 || hours > 0);
+    }).length;
     const totalHours = courses.reduce((sum, c) => sum + (c.totalHours ?? 0), 0);
     const total = courses.reduce((s, c) => s + clamp(c.progress ?? 0), 0);
     const avg = Math.round((total / courses.length) * 10) / 10;

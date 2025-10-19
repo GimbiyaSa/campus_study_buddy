@@ -44,7 +44,7 @@ beforeEach(() => {
             lastStudied: '2025-09-18',
             type: 'institution',
             enrollmentStatus: 'active',
-          }
+          },
         ],
         pagination: { page: 1, limit: 20, total: 2, pages: 1, hasNext: false, hasPrev: false },
       }),
@@ -70,21 +70,40 @@ describe('Courses Component - Basic Rendering', () => {
 
   test('displays loading state initially', async () => {
     // Mock slow API response
-    global.fetch = vi.fn().mockImplementation(() => 
-      new Promise(resolve => {
-        setTimeout(() => resolve(
-          new Response(
-            JSON.stringify({ courses: [], pagination: { page: 1, limit: 20, total: 0, pages: 0, hasNext: false, hasPrev: false } }),
-            { status: 200, headers: { 'Content-Type': 'application/json' } }
-          )
-        ), 100);
-      })
+    global.fetch = vi.fn().mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(
+            () =>
+              resolve(
+                new Response(
+                  JSON.stringify({
+                    courses: [],
+                    pagination: {
+                      page: 1,
+                      limit: 20,
+                      total: 0,
+                      pages: 0,
+                      hasNext: false,
+                      hasPrev: false,
+                    },
+                  }),
+                  { status: 200, headers: { 'Content-Type': 'application/json' } }
+                )
+              ),
+            100
+          );
+        })
     );
 
     render(<Courses />);
-    
+
     // Check loading state appears
-    expect(screen.getByText(/Loading/i) || screen.getByRole('progressbar') || screen.queryByTestId('loading')).toBeTruthy();
+    expect(
+      screen.getByText(/Loading/i) ||
+        screen.getByRole('progressbar') ||
+        screen.queryByTestId('loading')
+    ).toBeTruthy();
   });
 
   test('renders course statistics correctly', async () => {
@@ -92,10 +111,12 @@ describe('Courses Component - Basic Rendering', () => {
 
     // Wait for courses to load and check statistics are calculated
     await screen.findByText(/Intro to Computer Science/i);
-    
+
     // Should display some form of statistics (total courses, average progress, etc.)
     // The exact text depends on how the component calculates and displays stats
-    expect(screen.getByText(/courses/i) || screen.getByText(/progress/i) || screen.getByText(/2/)).toBeTruthy();
+    expect(
+      screen.getByText(/courses/i) || screen.getByText(/progress/i) || screen.getByText(/2/)
+    ).toBeTruthy();
   });
 
   test('displays course progress bars', async () => {
@@ -104,8 +125,14 @@ describe('Courses Component - Basic Rendering', () => {
     await screen.findByText(/Intro to Computer Science/i);
 
     // Look for progress indicators
-    expect(screen.getByText(/80%/) || screen.getByText(/80/) || screen.queryByRole('progressbar')).toBeTruthy();
-    expect(screen.getByText(/60%/) || screen.getByText(/60/) || screen.getAllByRole('progressbar').length > 0).toBeTruthy();
+    expect(
+      screen.getByText(/80%/) || screen.getByText(/80/) || screen.queryByRole('progressbar')
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/60%/) ||
+        screen.getByText(/60/) ||
+        screen.getAllByRole('progressbar').length > 0
+    ).toBeTruthy();
   });
 });
 
@@ -127,21 +154,23 @@ describe('Courses Component - Empty States', () => {
     // Wait for loading to finish and check empty state
     await waitFor(() => {
       expect(
-        screen.getByText(/No courses/i) || 
-        screen.getByText(/Start learning/i) || 
-        screen.getByText(/Add your first/i) ||
-        screen.getByText(/You haven't enrolled/i)
+        screen.getByText(/No courses/i) ||
+          screen.getByText(/Start learning/i) ||
+          screen.getByText(/Add your first/i) ||
+          screen.getByText(/You haven't enrolled/i)
       ).toBeTruthy();
     });
   });
 
   test('handles null or undefined courses data', async () => {
-    global.fetch = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({ courses: null }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      )
-    );
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ courses: null }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
 
     render(<Courses />);
 
@@ -162,33 +191,38 @@ describe('Courses Component - Error Handling', () => {
     await waitFor(() => {
       expect(
         screen.getByText(/Error/i) ||
-        screen.getByText(/failed/i) ||
-        screen.getByText(/Try again/i) ||
-        screen.getByRole('button', { name: /retry/i })
+          screen.getByText(/failed/i) ||
+          screen.getByText(/Try again/i) ||
+          screen.getByRole('button', { name: /retry/i })
       ).toBeTruthy();
     });
   });
 
   test('handles 500 server error', async () => {
-    global.fetch = vi.fn().mockResolvedValue(
-      new Response('Internal Server Error', { status: 500 })
-    );
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response('Internal Server Error', { status: 500 }));
 
     render(<Courses />);
 
     await waitFor(() => {
       expect(
         screen.getByText(/Error/i) ||
-        screen.getByText(/unavailable/i) ||
-        screen.getByText(/Try again/i)
+          screen.getByText(/unavailable/i) ||
+          screen.getByText(/Try again/i)
       ).toBeTruthy();
     });
   });
 
   test('handles malformed JSON response', async () => {
-    global.fetch = vi.fn().mockResolvedValue(
-      new Response('invalid json', { status: 200, headers: { 'Content-Type': 'application/json' } })
-    );
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response('invalid json', {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
 
     render(<Courses />);
 
@@ -214,20 +248,26 @@ describe('Courses Component - User Interactions', () => {
   });
 
   test('handles refresh functionality if available', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({ courses: [], pagination: { page: 1, limit: 20, total: 0, pages: 0, hasNext: false, hasPrev: false } }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      )
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            courses: [],
+            pagination: { page: 1, limit: 20, total: 0, pages: 0, hasNext: false, hasPrev: false },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
     global.fetch = mockFetch;
 
     render(<Courses />);
 
     // Look for refresh button if it exists
-    const refreshButton = screen.queryByRole('button', { name: /refresh/i }) || 
-                         screen.queryByRole('button', { name: /reload/i });
-    
+    const refreshButton =
+      screen.queryByRole('button', { name: /refresh/i }) ||
+      screen.queryByRole('button', { name: /reload/i });
+
     if (refreshButton) {
       await act(async () => {
         fireEvent.click(refreshButton);
@@ -247,7 +287,7 @@ describe('Courses Component - User Interactions', () => {
 
     // Test Tab navigation
     fireEvent.keyDown(document.body, { key: 'Tab' });
-    
+
     // Verify component handles keyboard events
     expect(screen.getByText(/My Courses/i)).toBeInTheDocument();
   });
@@ -261,10 +301,8 @@ describe('Courses Component - Data Processing', () => {
 
     // Verify statistics calculations (average progress, total hours, etc.)
     // The exact implementation depends on the component logic
-    const progressElements = screen.getAllByText(/\d+%/) || 
-                           screen.getAllByText(/80|60/) ||
-                           [];
-    
+    const progressElements = screen.getAllByText(/\d+%/) || screen.getAllByText(/80|60/) || [];
+
     expect(progressElements.length).toBeGreaterThan(0);
   });
 
@@ -278,22 +316,22 @@ describe('Courses Component - Data Processing', () => {
               title: 'Active Course',
               progress: 50,
               enrollmentStatus: 'active',
-              type: 'institution'
+              type: 'institution',
             },
             {
               id: 'CS102',
               title: 'Completed Course',
               progress: 100,
               enrollmentStatus: 'completed',
-              type: 'institution'
+              type: 'institution',
             },
             {
               id: 'CS103',
               title: 'Paused Course',
               progress: 25,
               enrollmentStatus: 'paused',
-              type: 'casual'
-            }
+              type: 'casual',
+            },
           ],
           pagination: { page: 1, limit: 20, total: 3, pages: 1, hasNext: false, hasPrev: false },
         }),
@@ -318,7 +356,7 @@ describe('Courses Component - Data Processing', () => {
               id: 'INCOMPLETE1',
               title: 'Incomplete Course',
               // Missing progress, code, etc.
-            }
+            },
           ],
           pagination: { page: 1, limit: 20, total: 1, pages: 1, hasNext: false, hasPrev: false },
         }),
@@ -399,12 +437,17 @@ describe('Courses Component - Performance', () => {
   });
 
   test('debounces rapid state changes', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({ courses: [], pagination: { page: 1, limit: 20, total: 0, pages: 0, hasNext: false, hasPrev: false } }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      )
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            courses: [],
+            pagination: { page: 1, limit: 20, total: 0, pages: 0, hasNext: false, hasPrev: false },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
     global.fetch = mockFetch;
 
     render(<Courses />);

@@ -22,7 +22,7 @@ export default function Chat() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const partnerId = params.get('partnerId');
-    
+
     if (partnerId && buddies.length > 0) {
       const buddy = buddies.find((b) => String(b.id) === partnerId);
       if (buddy) {
@@ -389,17 +389,19 @@ export default function Chat() {
                     <div className="space-y-4">
                       {messages.map((message, i) => {
                         // Try different possible field names for sender ID
-                        const messageSenderId = message.senderId || message.sender_id || message.userId || message.user_id || message.senderUserId;
-                        const isCurrentUser = String(messageSenderId) === String(currentUser?.user_id);
-                        
+                        const messageSenderId =
+                          message.senderId ||
+                          message.sender_id ||
+                          message.userId ||
+                          message.user_id ||
+                          message.senderUserId;
+                        const isCurrentUser =
+                          String(messageSenderId) === String(currentUser?.user_id);
+
                         return (
                           <div
                             key={i}
-                            className={`flex ${
-                              isCurrentUser
-                                ? 'justify-end'
-                                : 'justify-start'
-                            }`}
+                            className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
                           >
                             <div
                               className={`max-w-xs lg:max-w-sm xl:max-w-md px-4 py-3 rounded-2xl ${
@@ -410,9 +412,7 @@ export default function Chat() {
                             >
                               <div
                                 className={`text-xs font-medium mb-1 ${
-                                  isCurrentUser
-                                    ? 'text-emerald-100'
-                                    : 'text-slate-500'
+                                  isCurrentUser ? 'text-emerald-100' : 'text-slate-500'
                                 }`}
                               >
                                 {message.senderName}
@@ -420,9 +420,7 @@ export default function Chat() {
                               <p className="break-words">{message.content}</p>
                               <p
                                 className={`text-xs mt-2 ${
-                                  isCurrentUser
-                                    ? 'text-emerald-100'
-                                    : 'text-slate-400'
+                                  isCurrentUser ? 'text-emerald-100' : 'text-slate-400'
                                 }`}
                               >
                                 {new Date(message.timestamp).toLocaleString([], {

@@ -13,7 +13,7 @@ export const useAutoRefresh = () => {
   useEffect(() => {
     // Initialize event bus connection
     eventBusRef.current = new EventBus();
-    
+
     // Set up global event listeners for automatic refresh
     const setupEventListeners = () => {
       if (!eventBusRef.current) return;
@@ -116,7 +116,7 @@ export const useAutoRefresh = () => {
    * Trigger refresh for specific data types
    */
   const triggerRefresh = useCallback((refreshTypes: string[]) => {
-    refreshTypes.forEach(type => {
+    refreshTypes.forEach((type) => {
       const callback = refreshCallbacks.current.get(type);
       if (callback) {
         console.log(`🔄 Auto-refreshing: ${type}`);
@@ -130,7 +130,7 @@ export const useAutoRefresh = () => {
    */
   const registerRefresh = useCallback((dataType: string, refreshCallback: () => void) => {
     refreshCallbacks.current.set(dataType, refreshCallback);
-    
+
     return () => {
       refreshCallbacks.current.delete(dataType);
     };
@@ -139,9 +139,12 @@ export const useAutoRefresh = () => {
   /**
    * Manually trigger refresh for specific types
    */
-  const manualRefresh = useCallback((dataTypes: string[]) => {
-    triggerRefresh(dataTypes);
-  }, [triggerRefresh]);
+  const manualRefresh = useCallback(
+    (dataTypes: string[]) => {
+      triggerRefresh(dataTypes);
+    },
+    [triggerRefresh]
+  );
 
   /**
    * Emit an event (for components that create data)
@@ -156,7 +159,7 @@ export const useAutoRefresh = () => {
     registerRefresh,
     manualRefresh,
     emitEvent,
-    isConnected: eventBusRef.current?.isConnected() ?? false
+    isConnected: eventBusRef.current?.isConnected() ?? false,
   };
 };
 

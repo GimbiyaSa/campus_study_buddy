@@ -355,7 +355,7 @@ export default function Groups() {
   async function refreshGroups(): Promise<boolean> {
     try {
       let allGroups: any[] = [];
-      
+
       // Always get all available groups first
       try {
         allGroups = await DataService.fetchGroupsRaw();
@@ -363,7 +363,7 @@ export default function Groups() {
         console.error('Failed to fetch all groups:', err);
         return false;
       }
-      
+
       // Then try to get user's joined groups specifically
       let myGroupIds: Set<string> = new Set();
       try {
@@ -374,10 +374,10 @@ export default function Groups() {
       } catch (err) {
         console.warn('⚠️ Could not fetch user groups:', err);
       }
-      
+
       const mapped = (Array.isArray(allGroups) ? allGroups : []).map((g: any) => toStudyGroup(g));
       setGroups(mapped);
-      
+
       // Set joinedByMe state based on actual membership
       const newJoinedByMe: Record<string, boolean> = {};
       mapped.forEach((group) => {
@@ -386,9 +386,9 @@ export default function Groups() {
           newJoinedByMe[backendId] = myGroupIds.has(backendId);
         }
       });
-      
+
       setJoinedByMe(newJoinedByMe);
-      
+
       setError(null);
       return true;
     } catch {
@@ -407,14 +407,16 @@ export default function Groups() {
   // Auto-load members for groups only when member list is expanded
   useEffect(() => {
     // Only load members when a group is expanded and members haven't been loaded yet
-    const expandedGroupIds = Object.keys(expandedMembers).filter(id => expandedMembers[Number(id)]);
-    
+    const expandedGroupIds = Object.keys(expandedMembers).filter(
+      (id) => expandedMembers[Number(id)]
+    );
+
     if (expandedGroupIds.length > 0 && typeof membersFn === 'function') {
       expandedGroupIds.forEach(async (groupIdStr) => {
         const groupId = Number(groupIdStr);
-        const group = groups.find(g => g.group_id === groupId);
+        const group = groups.find((g) => g.group_id === groupId);
         const backendId = (group as any)?._backendId as string | undefined;
-        
+
         if (backendId && !membersByGroup[backendId] && !membersLoading[backendId]) {
           await loadMembersFor(group!);
         }
@@ -423,9 +425,10 @@ export default function Groups() {
   }, [expandedMembers, groups.length]); // React to expansion changes
 
   // --- members fetcher (feature-detected) ---
-  const membersFn = typeof DataService.getGroupMembers === 'function'
-    ? (groupId: string) => DataService.getGroupMembers(groupId)
-    : null;
+  const membersFn =
+    typeof DataService.getGroupMembers === 'function'
+      ? (groupId: string) => DataService.getGroupMembers(groupId)
+      : null;
 
   // --- optional invite endpoints (feature-detected) ---
   const acceptInviteFn =
@@ -451,10 +454,10 @@ export default function Groups() {
     if (!backendId || typeof membersFn !== 'function') {
       return;
     }
-    
+
     setMembersLoading((p) => ({ ...p, [backendId]: true }));
     setMembersError((p) => ({ ...p, [backendId]: null }));
-    
+
     try {
       const list = await membersFn(backendId);
       const arr = Array.isArray(list) ? list : [];
@@ -463,7 +466,10 @@ export default function Groups() {
       // Check if it's a network error (backend not running)
       if (e instanceof TypeError && e.message.includes('fetch')) {
         setMembersError((p) => ({ ...p, [backendId]: 'Backend server not running' }));
-      } else if (e instanceof Error && (e.message.includes('Failed to fetch') || e.message.includes('Network'))) {
+      } else if (
+        e instanceof Error &&
+        (e.message.includes('Failed to fetch') || e.message.includes('Network'))
+      ) {
         setMembersError((p) => ({ ...p, [backendId]: 'Cannot connect to server' }));
       } else {
         setMembersError((p) => ({ ...p, [backendId]: 'Could not load members' }));
@@ -499,10 +505,10 @@ export default function Groups() {
     try {
       const ok = await DataService.joinGroup(realId);
       if (!ok) throw new Error('join failed');
-      
+
       // Refresh groups to get accurate member count from server
       await refreshGroups();
-      
+
       // If members list is expanded, reload members. Otherwise, clear cache so they reload on next expand
       if (expandedMembers[groupId]) {
         // List is expanded - reload members immediately
@@ -516,7 +522,7 @@ export default function Groups() {
           return updated;
         });
       }
-      
+
       // re-assert membership in case of eventual consistency
       setJoinedByMe((prev) => ({ ...prev, [realId]: true }));
 
@@ -567,10 +573,10 @@ export default function Groups() {
     try {
       const ok = await DataService.leaveGroup(realId);
       if (!ok) throw new Error('leave failed');
-      
+
       // Refresh groups to get accurate member count from server
       await refreshGroups();
-      
+
       // If members list is expanded, reload members. Otherwise, clear cache so they reload on next expand
       if (expandedMembers[groupId]) {
         // List is expanded - reload members immediately
@@ -1069,9 +1075,14 @@ export default function Groups() {
                       onClick={async () => {
                         const next = !isExpanded;
                         setExpandedMembers((p) => ({ ...p, [group.group_id]: next }));
-                        
+
                         // Only load members when expanding and they're not already loaded
-                        if (next && backendId && typeof membersFn === 'function' && !membersByGroup[backendId]) {
+                        if (
+                          next &&
+                          backendId &&
+                          typeof membersFn === 'function' &&
+                          !membersByGroup[backendId]
+                        ) {
                           await loadMembersFor(group);
                         }
                       }}

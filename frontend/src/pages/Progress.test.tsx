@@ -63,7 +63,7 @@ test('shows course cards with progress information', async () => {
     const progressElements = screen.getAllByText(/%/);
     expect(progressElements.length).toBeGreaterThan(0); // Should show percentage values
   });
-  
+
   // Check for "course complete" text pattern
   const courseCompleteText = screen.queryAllByText(/% course complete/);
   expect(courseCompleteText.length).toBeGreaterThan(0);
@@ -202,12 +202,12 @@ test('handles course expansion and topic loading', async () => {
   // Find and click expand button (looking for the chevron button)
   const expandButtons = screen.getAllByRole('button');
   const expandButton = expandButtons.find(
-    btn => btn.querySelector('svg') && btn.querySelector('path[d*="19 9l-7 7-7-7"]')
+    (btn) => btn.querySelector('svg') && btn.querySelector('path[d*="19 9l-7 7-7-7"]')
   );
 
   if (expandButton) {
     fireEvent.click(expandButton);
-    
+
     // Should show topics section or no topics message
     await waitFor(() => {
       const hasNoTopics = screen.queryByText(/No topics available/i);
@@ -230,7 +230,8 @@ test('handles empty course topics gracefully', async () => {
   // Click expand button (look for the chevron down icon)
   const expandButtons = screen.getAllByRole('button');
   const expandButton = expandButtons.find(
-    btn => btn.querySelector('svg[viewBox="0 0 24 24"]') && btn.querySelector('path[d*="19 9l-7 7-7-7"]')
+    (btn) =>
+      btn.querySelector('svg[viewBox="0 0 24 24"]') && btn.querySelector('path[d*="19 9l-7 7-7-7"]')
   );
 
   if (expandButton) {
@@ -260,10 +261,10 @@ test('calculates overview statistics with edge cases', async () => {
             totalHours: undefined, // undefined hours
             totalTopics: 0, // zero topics
             completedTopics: null, // null completed
-            enrollmentStatus: 'active'
-          }
+            enrollmentStatus: 'active',
+          },
         ],
-        pagination: { page: 1, limit: 20, total: 1, pages: 1, hasNext: false, hasPrev: false }
+        pagination: { page: 1, limit: 20, total: 1, pages: 1, hasNext: false, hasPrev: false },
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     )
@@ -274,11 +275,11 @@ test('calculates overview statistics with edge cases', async () => {
   await waitFor(() => {
     // Should handle null/undefined values gracefully and display the course
     expect(screen.getByText('Test Course')).toBeInTheDocument();
-    
+
     // Check that stats show 0 values
     const zeroValues = screen.getAllByText('0');
     expect(zeroValues.length).toBeGreaterThan(0); // Should show multiple zeros for empty stats
-    
+
     // Check for 0% progress
     const progressElements = screen.getAllByText(/0%/);
     expect(progressElements.length).toBeGreaterThan(0);
@@ -287,12 +288,14 @@ test('calculates overview statistics with edge cases', async () => {
 
 test('handles API error gracefully and displays fallback content', async () => {
   // Mock API error - using a status 500 response instead of rejection
-  global.fetch = vi.fn().mockResolvedValue(
-    new Response(
-      JSON.stringify({ error: 'Internal Server Error' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    )
-  );
+  global.fetch = vi
+    .fn()
+    .mockResolvedValue(
+      new Response(JSON.stringify({ error: 'Internal Server Error' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
 
   render(<Progress />);
 
@@ -313,14 +316,16 @@ test('handles different progress trend messages', async () => {
   global.fetch = vi.fn().mockResolvedValue(
     new Response(
       JSON.stringify({
-        courses: [{
-          id: 'CS101',
-          title: 'Computer Science',
-          progress: 95,
-          totalHours: 50,
-          enrollmentStatus: 'active'
-        }],
-        pagination: { page: 1, limit: 20, total: 1, pages: 1, hasNext: false, hasPrev: false }
+        courses: [
+          {
+            id: 'CS101',
+            title: 'Computer Science',
+            progress: 95,
+            totalHours: 50,
+            enrollmentStatus: 'active',
+          },
+        ],
+        pagination: { page: 1, limit: 20, total: 1, pages: 1, hasNext: false, hasPrev: false },
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     )
@@ -331,11 +336,11 @@ test('handles different progress trend messages', async () => {
   await waitFor(() => {
     // Check for course progress percentage display
     expect(screen.getByText('95%')).toBeInTheDocument();
-    
+
     // Check for "Excellent progress!" message in trend text
     const excellentProgress = screen.queryByText(/Excellent progress!/i);
     const keepItUp = screen.queryByText(/Keep it up!/i);
-    
+
     // Should show one of the positive progress messages
     expect(excellentProgress || keepItUp).toBeTruthy();
   });
@@ -347,7 +352,7 @@ test('handles browse courses navigation from empty state', async () => {
     new Response(
       JSON.stringify({
         courses: [],
-        pagination: { page: 1, limit: 20, total: 0, pages: 0, hasNext: false, hasPrev: false }
+        pagination: { page: 1, limit: 20, total: 0, pages: 0, hasNext: false, hasPrev: false },
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     )
@@ -380,7 +385,7 @@ test('handles missing localStorage token gracefully', async () => {
 test('handles loading state properly', async () => {
   // Mock slow API response
   let resolvePromise: (value: any) => void;
-  const slowPromise = new Promise(resolve => {
+  const slowPromise = new Promise((resolve) => {
     resolvePromise = resolve;
   });
 
@@ -390,12 +395,17 @@ test('handles loading state properly', async () => {
 
   // Should show loading state
   expect(screen.getByText(/Track my progress/i)).toBeInTheDocument();
-  
+
   // Complete the promise
-  resolvePromise!(new Response(JSON.stringify({
-    courses: [],
-    pagination: { page: 1, limit: 20, total: 0, pages: 0, hasNext: false, hasPrev: false }
-  }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+  resolvePromise!(
+    new Response(
+      JSON.stringify({
+        courses: [],
+        pagination: { page: 1, limit: 20, total: 0, pages: 0, hasNext: false, hasPrev: false },
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    )
+  );
 
   await waitFor(() => {
     expect(screen.getByText(/No courses enrolled/i)).toBeInTheDocument();
@@ -412,24 +422,24 @@ test('handles course enrollment status variations', async () => {
             title: 'Active Course',
             progress: 50,
             totalHours: 20,
-            enrollmentStatus: 'active'
+            enrollmentStatus: 'active',
           },
           {
-            id: 'CS102', 
+            id: 'CS102',
             title: 'Completed Course',
             progress: 100,
             totalHours: 40,
-            enrollmentStatus: 'completed'
+            enrollmentStatus: 'completed',
           },
           {
             id: 'CS103',
-            title: 'Paused Course', 
+            title: 'Paused Course',
             progress: 25,
             totalHours: 5,
-            enrollmentStatus: 'paused'
-          }
+            enrollmentStatus: 'paused',
+          },
         ],
-        pagination: { page: 1, limit: 20, total: 3, pages: 1, hasNext: false, hasPrev: false }
+        pagination: { page: 1, limit: 20, total: 3, pages: 1, hasNext: false, hasPrev: false },
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     )
@@ -447,7 +457,7 @@ test('handles course enrollment status variations', async () => {
   await waitFor(() => {
     // Look for the total hours (20+40+5 = 65)
     expect(screen.getByText('65')).toBeInTheDocument();
-    
+
     // Look for the average progress (50+100+25)/3 = 58.33 → rounded to 58%
     expect(screen.getByText('58%')).toBeInTheDocument();
   });

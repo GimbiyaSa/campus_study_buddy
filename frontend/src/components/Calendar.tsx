@@ -93,10 +93,12 @@ export default function Calendar() {
 
     const onInvalidate = () => {
       console.log('📅 Calendar received sessions:invalidate event, refetching...');
-      DataService.fetchSessions().then(data => {
-        console.log('📅 Calendar fetched sessions:', data);
-        setSessions(data);
-      }).catch(console.error);
+      DataService.fetchSessions()
+        .then((data) => {
+          console.log('📅 Calendar fetched sessions:', data);
+          setSessions(data);
+        })
+        .catch(console.error);
     };
 
     window.addEventListener('session:created', onCreated as EventListener);
@@ -159,8 +161,16 @@ export default function Calendar() {
     const filtered = sessions.filter(
       (s) => s.date === dateStr && s.status !== 'cancelled' // optionally: && s.status !== 'completed'
     );
-    if (dateStr === '2025-10-19') { // Today's date
-      console.log('📅 Calendar filtering for today:', dateStr, 'all sessions:', sessions, 'filtered:', filtered);
+    if (dateStr === '2025-10-19') {
+      // Today's date
+      console.log(
+        '📅 Calendar filtering for today:',
+        dateStr,
+        'all sessions:',
+        sessions,
+        'filtered:',
+        filtered
+      );
     }
     return filtered;
   };
@@ -466,37 +476,37 @@ function ScheduleSessionModal({
   // Validation function
   const validateForm = () => {
     const errors: Record<string, string> = {};
-    
+
     if (!title.trim()) errors.title = 'Session title is required';
     if (!date) errors.date = 'Date is required';
     if (!startTime) errors.startTime = 'Start time is required';
     if (!endTime) errors.endTime = 'End time is required';
     if (!location.trim()) errors.location = 'Location is required';
-    
+
     // Group validation - backend requires a group
     if (!groupId && groups.length === 0) {
       errors.groupId = 'You must create or join a study group first';
     } else if (!groupId && groups.length > 0) {
       errors.groupId = 'Please select a study group for this session';
     }
-    
+
     if (startTime && endTime && startTime >= endTime) {
       errors.endTime = 'End time must be after start time';
     }
-    
+
     if (date && new Date(date) < new Date(new Date().toDateString())) {
       errors.date = 'Date cannot be in the past';
     }
-    
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
-    
+
     setIsSubmitting(true);
 
     // Prepare payload that matches the shape used by Sessions.tsx -> DataService.createSession
@@ -600,8 +610,8 @@ function ScheduleSessionModal({
                 value={groupId || ''}
                 onChange={(e) => setGroupId(e.target.value || undefined)}
                 className={`w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 ${
-                  formErrors.groupId 
-                    ? 'border-red-300 bg-red-50 focus:ring-red-100' 
+                  formErrors.groupId
+                    ? 'border-red-300 bg-red-50 focus:ring-red-100'
                     : 'border-slate-300 bg-slate-50 focus:ring-emerald-100'
                 }`}
               >
@@ -630,7 +640,9 @@ function ScheduleSessionModal({
                 </div>
               ) : groups.length === 0 ? (
                 <div className="mt-1">
-                  <p className="text-xs text-slate-500">Create or join a study group to schedule sessions</p>
+                  <p className="text-xs text-slate-500">
+                    Create or join a study group to schedule sessions
+                  </p>
                   <button
                     type="button"
                     onClick={() => navigate('/groups')}
@@ -641,7 +653,9 @@ function ScheduleSessionModal({
                   </button>
                 </div>
               ) : (
-                <p className="mt-1 text-xs text-slate-500">Select which study group this session is for</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Select which study group this session is for
+                </p>
               )}
             </div>
 
@@ -655,14 +669,12 @@ function ScheduleSessionModal({
                 placeholder="e.g., Algorithm Study Group"
                 required
                 className={`w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 ${
-                  formErrors.title 
-                    ? 'border-red-300 bg-red-50 focus:ring-red-100' 
+                  formErrors.title
+                    ? 'border-red-300 bg-red-50 focus:ring-red-100'
                     : 'border-slate-300 bg-slate-50 focus:ring-emerald-100'
                 }`}
               />
-              {formErrors.title && (
-                <p className="mt-1 text-xs text-red-600">{formErrors.title}</p>
-              )}
+              {formErrors.title && <p className="mt-1 text-xs text-red-600">{formErrors.title}</p>}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -791,9 +803,23 @@ function ScheduleSessionModal({
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting || !title.trim() || !date || !startTime || !endTime || !location.trim() || (!groupId && groups.length > 0)}
+                disabled={
+                  isSubmitting ||
+                  !title.trim() ||
+                  !date ||
+                  !startTime ||
+                  !endTime ||
+                  !location.trim() ||
+                  (!groupId && groups.length > 0)
+                }
                 className={`rounded-xl px-4 py-2 font-medium text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600 ${
-                  isSubmitting || !title.trim() || !date || !startTime || !endTime || !location.trim() || (!groupId && groups.length > 0)
+                  isSubmitting ||
+                  !title.trim() ||
+                  !date ||
+                  !startTime ||
+                  !endTime ||
+                  !location.trim() ||
+                  (!groupId && groups.length > 0)
                     ? 'bg-slate-400 cursor-not-allowed'
                     : 'bg-emerald-600 hover:bg-emerald-700'
                 }`}

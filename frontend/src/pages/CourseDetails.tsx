@@ -418,7 +418,7 @@ export default function CourseDetails({ id }: { id: string }) {
                           )
                         ) : (
                           <span className="capitalize">
-                            {topic.completionStatus.replace('_', ' ')}
+                            {typeof topic.completionStatus === 'string' ? topic.completionStatus.replace('_', ' ') : ''}
                           </span>
                         )}
                       </div>

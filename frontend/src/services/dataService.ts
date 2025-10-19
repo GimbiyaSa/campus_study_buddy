@@ -2227,6 +2227,65 @@ export class DataService {
       throw appError;
     }
   }
+
+  /* ----------------- Group Chat ----------------- */
+
+  /**
+   * Fetch message history for a group chat
+   */
+  static async fetchGroupMessages(
+    groupId: string,
+    options: { limit?: number; before?: string } = {}
+  ): Promise<any[]> {
+    try {
+      const params = new URLSearchParams();
+      if (options.limit) params.set('limit', String(options.limit));
+      if (options.before) params.set('before', options.before);
+
+      const url = `/api/v1/chat/groups/${encodeURIComponent(groupId)}/messages${
+        params.toString() ? `?${params}` : ''
+      }`;
+      
+      const res = await this.request(url, { method: 'GET' });
+      
+      if (!res.ok) {
+        console.error('Failed to fetch group messages:', res.status);
+        return [];
+      }
+      
+      const messages = await this.safeJson<any[]>(res, []);
+      return Array.isArray(messages) ? messages : [];
+    } catch (error) {
+      console.error('❌ fetchGroupMessages error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Send a message to a group chat
+   */
+  static async sendGroupMessage(
+    groupId: string,
+    content: string,
+    type: string = 'text'
+  ): Promise<any | null> {
+    try {
+      const res = await this.request(`/api/v1/chat/groups/${encodeURIComponent(groupId)}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ content, type }),
+      });
+      
+      if (!res.ok) {
+        console.error('Failed to send group message:', res.status);
+        return null;
+      }
+      
+      return await this.safeJson<any>(res, null);
+    } catch (error) {
+      console.error('❌ sendGroupMessage error:', error);
+      return null;
+    }
+  }
 }
 
 // Small helper for ids in normalize fallback

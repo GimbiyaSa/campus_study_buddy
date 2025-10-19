@@ -500,6 +500,9 @@ export default function Groups() {
       const ok = await DataService.joinGroup(realId);
       if (!ok) throw new Error('join failed');
       
+      // Notify chat page about group joined
+      window.dispatchEvent(new CustomEvent('group:joined', { detail: { groupId: realId, group_id: realId } }));
+      
       // Refresh groups to get accurate member count from server
       await refreshGroups();
       
@@ -567,6 +570,9 @@ export default function Groups() {
     try {
       const ok = await DataService.leaveGroup(realId);
       if (!ok) throw new Error('leave failed');
+      
+      // Notify chat page about group left
+      window.dispatchEvent(new CustomEvent('group:left', { detail: { groupId: realId, group_id: realId } }));
       
       // Refresh groups to get accurate member count from server
       await refreshGroups();
@@ -1150,16 +1156,18 @@ export default function Groups() {
                         <Trash2 className="w-4 h-4" />
                       </button>
 
-                      {/* Open chat (placeholder) */}
-                      <button
-                        type="button"
-                        onClick={() => navigate('/chat')}
-                        className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
-                        title="Open chat"
-                        aria-label="Open chat"
-                      >
-                        <MessageSquare className="w-4 h-4" />
-                      </button>
+                      {/* Open chat (only for members) */}
+                      {iJoined && realId && (
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/chat?groupId=${realId}`)}
+                          className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
+                          title="Open group chat"
+                          aria-label="Open group chat"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                        </button>
+                      )}
 
                       {/* Schedule session */}
                       <button
@@ -1235,16 +1243,18 @@ export default function Groups() {
                         </>
                       )}
 
-                      {/* Chat */}
-                      <button
-                        type="button"
-                        onClick={() => navigate('/chat')}
-                        className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
-                        title="Open chat"
-                        aria-label="Open chat"
-                      >
-                        <MessageSquare className="w-4 h-4" />
-                      </button>
+                      {/* Chat (only for members) */}
+                      {iJoined && realId && (
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/chat?groupId=${realId}`)}
+                          className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
+                          title="Open group chat"
+                          aria-label="Open group chat"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                        </button>
+                      )}
 
                       {/* Schedule (optional: show only to members/owner) */}
                       {(iJoined || owner) && (

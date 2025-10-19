@@ -29,30 +29,55 @@ const initializeWebPubSub = async () => {
 
 // Initialize Azure SQL connection pool
 let pool;
+let isInitialized = false;
+
 const initializeDatabase = async () => {
   try {
+    console.log('🔄 Initializing database connection for chat service...');
     // Try to use Azure configuration first
     try {
       const { azureConfig } = require('../config/azureConfig');
       const dbConfig = await azureConfig.getDatabaseConfig();
+      console.log('🔧 Using Azure config for database connection');
       pool = await sql.connect(dbConfig);
     } catch (azureError) {
-      console.warn('Azure config not available, using environment variables');
+      console.warn('⚠️ Azure config not available, using environment variables:', azureError.message);
       // Fallback to connection string
       if (process.env.DATABASE_CONNECTION_STRING) {
+        console.log('🔧 Using DATABASE_CONNECTION_STRING from environment');
         pool = await sql.connect(process.env.DATABASE_CONNECTION_STRING);
       } else {
         throw new Error('DATABASE_CONNECTION_STRING not found in environment variables');
       }
     }
+    console.log('✅ Database connection established for chat service');
   } catch (error) {
-    console.error('❌ Database connection failed:', error);
+    console.error('❌ Database connection failed for chat service:', error.message);
     throw error;
   }
 };
 
 // Initialize both services
-Promise.all([initializeWebPubSub(), initializeDatabase()]).catch(console.error);
+const initializeServices = async () => {
+  try {
+    await Promise.all([initializeWebPubSub(), initializeDatabase()]);
+    isInitialized = true;
+    console.log('✅ Chat service fully initialized');
+  } catch (error) {
+    console.error('❌ Chat service initialization failed:', error);
+  }
+};
+
+// Start initialization
+initializeServices();
+
+// Helper function to check if service is ready
+const ensureServiceReady = (req, res, next) => {
+  if (!isInitialized || !pool) {
+    return res.status(503).json({ error: 'Chat service is initializing, please try again in a moment' });
+  }
+  next();
+};
 
 // Helper function
 function generateId() {
@@ -60,7 +85,7 @@ function generateId() {
 }
 
 // Get chat connection
-router.post('/negotiate', authenticateToken, async (req, res) => {
+router.post('/negotiate', authenticateToken, ensureServiceReady, async (req, res) => {
   try {
     const { groupId, partnerId } = req.body;
 
@@ -99,85 +124,185 @@ router.post('/negotiate', authenticateToken, async (req, res) => {
 });
 
 // Send message to group
-router.post('/groups/:groupId/messages', authenticateToken, async (req, res) => {
+router.post('/groups/:groupId/messages', authenticateToken, ensureServiceReady, async (req, res) => {
   try {
     const { groupId } = req.params;
     const { content, type = 'text' } = req.body;
+    const userId = req.user.id;
 
-    const message = {
-      id: generateId(),
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: 'Message content is required' });
+    }
+
+    console.log('💬 Sending group message:', {
       groupId,
-      partitionKey: groupId,
-      userId: req.user.id,
-      userName: req.user.name,
-      content,
-      type,
-      timestamp: new Date().toISOString(),
+      userId,
+      content: content.substring(0, 50) + '...',
+    });
+
+    // Get or create chat room for this group
+    const roomName = `group_${groupId}`;
+    
+    let roomRequest = pool.request();
+    roomRequest.input('roomName', sql.NVarChar(255), roomName);
+    roomRequest.input('groupId', sql.Int, parseInt(groupId));
+
+    let roomResult = await roomRequest.query(`
+      SELECT room_id FROM chat_rooms WHERE room_name = @roomName
+    `);
+
+    let roomId;
+    if (roomResult.recordset.length === 0) {
+      // Create room if it doesn't exist
+      const createRoomRequest = pool.request();
+      createRoomRequest.input('roomName', sql.NVarChar(255), roomName);
+      createRoomRequest.input('groupId', sql.Int, parseInt(groupId));
+      createRoomRequest.input('roomType', sql.NVarChar(50), 'group');
+
+      const createResult = await createRoomRequest.query(`
+        INSERT INTO chat_rooms (group_id, room_name, room_type, is_active)
+        OUTPUT INSERTED.room_id
+        VALUES (@groupId, @roomName, @roomType, 1)
+      `);
+      roomId = createResult.recordset[0].room_id;
+      console.log('✅ Created new group chat room:', roomId);
+    } else {
+      roomId = roomResult.recordset[0].room_id;
+    }
+
+    // Save message to database
+    const messageRequest = pool.request();
+    messageRequest.input('roomId', sql.Int, roomId);
+    messageRequest.input('senderId', sql.NVarChar(255), userId);
+    messageRequest.input('content', sql.NText, content.trim());
+    messageRequest.input('messageType', sql.NVarChar(50), type);
+
+    const messageResult = await messageRequest.query(`
+      INSERT INTO chat_messages (room_id, sender_id, message_content, message_type)
+      OUTPUT INSERTED.message_id, INSERTED.created_at
+      VALUES (@roomId, @senderId, @content, @messageType)
+    `);
+
+    const newMessage = messageResult.recordset[0];
+
+    // Get sender name
+    const senderRequest = pool.request();
+    senderRequest.input('senderId', sql.NVarChar(255), userId);
+    const senderResult = await senderRequest.query(`
+      SELECT first_name + ' ' + last_name as senderName FROM users WHERE user_id = @senderId
+    `);
+
+    const senderName = senderResult.recordset[0]?.senderName || 'Unknown User';
+
+    // Send real-time message via WebPubSub
+    const messagePayload = {
+      type: 'chat_message',
+      payload: {
+        chatRoomId: roomName,
+        content: content.trim(),
+        messageType: type,
+        senderId: userId,
+        senderName,
+        timestamp: newMessage.created_at,
+        messageId: newMessage.message_id,
+        groupId: groupId,
+      },
     };
 
-    // Save message to database (mocked in tests)
-    if (typeof global.__testMessages === 'object') {
-      global.__testMessages.push(message);
-    } else {
-      // In production, this would save to Cosmos DB or similar
-      // await messagesContainer.items.create(message);
-    }
-
-    // Broadcast to group members
     try {
-      await serviceClient.sendToGroup(`group_${groupId}`, {
-        type: 'message',
-        data: message,
-      });
-    } catch (broadcastError) {
-      console.error('Error broadcasting message:', broadcastError);
-      // Still return success if message was saved, broadcasting failure is not critical
+      await serviceClient.sendToGroup(roomName, messagePayload);
+      console.log('✅ Real-time group message sent via WebPubSub');
+    } catch (pubsubError) {
+      console.warn('⚠️ Failed to send real-time group message:', pubsubError);
     }
 
-    res.status(201).json(message);
+    console.log('✅ Group message saved and sent');
+    res.json({
+      messageId: newMessage.message_id,
+      timestamp: newMessage.created_at,
+      success: true,
+    });
   } catch (error) {
-    console.error('Error sending message:', error);
+    console.error('❌ Error sending group message:', error);
     res.status(500).json({ error: 'Failed to send message' });
   }
 });
 
-// Get chat history
-router.get('/groups/:groupId/messages', authenticateToken, async (req, res) => {
+// Get chat history for a group
+router.get('/groups/:groupId/messages', authenticateToken, ensureServiceReady, async (req, res) => {
   try {
     const { groupId } = req.params;
-    const { limit = 50, before } = req.query;
+    const { limit = 50 } = req.query;
+    const userId = req.user.id;
 
-    let querySpec = {
-      query: `
-        SELECT TOP @limit * FROM messages m 
-        WHERE m.groupId = @groupId 
-        ${before ? 'AND m.timestamp < @before' : ''}
-        ORDER BY m.timestamp DESC
-      `,
-      parameters: [
-        { name: '@groupId', value: groupId },
-        { name: '@limit', value: parseInt(limit) },
-      ],
-    };
+    console.log('📨 Fetching group messages:', { groupId, userId, limit });
 
-    if (before) {
-      querySpec.parameters.push({ name: '@before', value: before });
+    // Check if database pool is available
+    if (!pool) {
+      console.error('❌ Database pool not initialized');
+      return res.status(500).json({ error: 'Database connection not available' });
     }
 
-    let messages = [];
-    if (typeof global.__testMessages === 'object') {
-      messages = global.__testMessages.filter((m) => m.groupId === groupId);
+    // Verify user has access to this group
+    const hasAccess = await verifyGroupAccess(userId, groupId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'Access denied to group' });
+    }
+
+    // Get or create chat room for this group
+    const roomName = `group_${groupId}`;
+    
+    const roomRequest = pool.request();
+    roomRequest.input('roomName', sql.NVarChar(255), roomName);
+    roomRequest.input('groupId', sql.Int, parseInt(groupId));
+
+    let roomResult = await roomRequest.query(`
+      SELECT room_id FROM chat_rooms WHERE room_name = @roomName
+    `);
+
+    let roomId;
+    if (roomResult.recordset.length === 0) {
+      // Create room if it doesn't exist
+      const createRoomRequest = pool.request();
+      createRoomRequest.input('roomName', sql.NVarChar(255), roomName);
+      createRoomRequest.input('groupId', sql.Int, parseInt(groupId));
+      createRoomRequest.input('roomType', sql.NVarChar(50), 'group');
+
+      const createResult = await createRoomRequest.query(`
+        INSERT INTO chat_rooms (group_id, room_name, room_type, is_active)
+        OUTPUT INSERTED.room_id
+        VALUES (@groupId, @roomName, @roomType, 1)
+      `);
+      roomId = createResult.recordset[0].room_id;
+      console.log('✅ Created new chat room:', roomId);
     } else {
-      // In production, this would query Cosmos DB or similar
-      // const { resources: messages } = await messagesContainer.items.query(querySpec).fetchAll();
-      // For now, simulate production behavior with error handling
-      if (typeof global.__testMessages === 'undefined') {
-        throw new Error('Message store not available');
-      }
+      roomId = roomResult.recordset[0].room_id;
     }
-    res.json(messages.reverse()); // Return in chronological order
+
+    // Get messages from room
+    const messageRequest = pool.request();
+    messageRequest.input('roomId', sql.Int, roomId);
+    messageRequest.input('limit', sql.Int, parseInt(limit));
+
+    const messageResult = await messageRequest.query(`
+      SELECT TOP (@limit)
+        cm.message_id as id,
+        cm.sender_id as senderId,
+        cm.message_content as content,
+        cm.message_type as type,
+        cm.created_at as timestamp,
+        u.first_name + ' ' + u.last_name as senderName
+      FROM chat_messages cm
+      INNER JOIN users u ON cm.sender_id = u.user_id
+      WHERE cm.room_id = @roomId AND cm.is_deleted = 0
+      ORDER BY cm.created_at DESC
+    `);
+
+    const messages = messageResult.recordset.reverse(); // Return in chronological order
+    console.log(`✅ Fetched ${messages.length} messages for group ${groupId}`);
+    res.json(messages);
   } catch (error) {
-    console.error('Error fetching messages:', error);
+    console.error('❌ Error fetching group messages:', error);
     res.status(500).json({ error: 'Failed to fetch messages' });
   }
 });
@@ -185,6 +310,9 @@ router.get('/groups/:groupId/messages', authenticateToken, async (req, res) => {
 async function verifyGroupAccess(userId, groupId) {
   // Implementation to verify user is member of the group using Azure SQL
   try {
+    if (!pool) {
+      throw new Error('Message store not available');
+    }
     const request = pool.request();
     request.input('userId', sql.NVarChar(255), userId);
     request.input('groupId', sql.Int, groupId);
@@ -208,7 +336,7 @@ async function verifyGroupAccess(userId, groupId) {
 // Partner chat endpoints for message persistence
 
 // Get or create a partner chat room
-router.get('/partner/:partnerId/room', authenticateToken, async (req, res) => {
+router.get('/partner/:partnerId/room', authenticateToken, ensureServiceReady, async (req, res) => {
   try {
     const { partnerId } = req.params;
     const userId = req.user.id;
@@ -270,7 +398,7 @@ router.get('/partner/:partnerId/room', authenticateToken, async (req, res) => {
 });
 
 // Get message history for a partner chat
-router.get('/partner/:partnerId/messages', authenticateToken, async (req, res) => {
+router.get('/partner/:partnerId/messages', authenticateToken, ensureServiceReady, async (req, res) => {
   try {
     const { partnerId } = req.params;
     const userId = req.user.id;
@@ -336,7 +464,7 @@ router.get('/partner/:partnerId/messages', authenticateToken, async (req, res) =
 });
 
 // Send a message to partner chat
-router.post('/partner/:partnerId/message', authenticateToken, async (req, res) => {
+router.post('/partner/:partnerId/message', authenticateToken, ensureServiceReady, async (req, res) => {
   try {
     const { partnerId } = req.params;
     const userId = req.user.id;

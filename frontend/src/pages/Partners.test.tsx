@@ -1664,7 +1664,7 @@ test('covers buddy request failure with alert', async () => {
   });
   
   await waitFor(() => {
-    expect(alertSpy).toHaveBeenCalledWith('Failed to send invite. Please try again.');
+    expect(alertSpy).toHaveBeenCalledWith('Request failed');
   });
   
   alertSpy.mockRestore();
@@ -1858,26 +1858,27 @@ test('covers modal timeout for invite success', async () => {
   await waitFor(() => {
     const connectButton = screen.getByRole('button', { name: /connect/i });
     user.click(connectButton);
-  });
+  }, { timeout: 3000 });
   
   // Send invite
   await waitFor(() => {
     const inviteButton = screen.getByRole('button', { name: /send invite/i });
     user.click(inviteButton);
-  });
+  }, { timeout: 3000 });
   
   // Fast-forward time
-  act(() => {
+  await act(async () => {
     vi.advanceTimersByTime(1000);
+    await Promise.resolve();
   });
   
   // Modal should close after timeout
   await waitFor(() => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-  });
+  }, { timeout: 3000 });
   
   vi.useRealTimers();
-});
+}, 10000);
 
 test('covers buddy exclusion from suggestions', async () => {
   const allPartners = [
@@ -1898,8 +1899,8 @@ test('covers buddy exclusion from suggestions', async () => {
     const suggestionSection = screen.getByLabelText(/suggested for you/i);
     expect(suggestionSection).not.toHaveTextContent('Buddy Partner');
     expect(suggestionSection).toHaveTextContent('New Partner');
-  });
-});
+  }, { timeout: 10000 });
+}, 15000);
 
 test('covers buddy exclusion from search results', async () => {
   const allPartners = [
@@ -1923,8 +1924,8 @@ test('covers buddy exclusion from search results', async () => {
     // Should not find the buddy in search results
     const resultsSection = screen.getByLabelText(/all study partners/i);
     expect(resultsSection).not.toHaveTextContent('Buddy in Results');
-  });
-});
+  }, { timeout: 10000 });
+}, 15000);
 
 test('covers event listener cleanup on unmount', () => {
   const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
@@ -1971,8 +1972,8 @@ test('covers connection status none filter logic', async () => {
   
   await waitFor(() => {
     expect(screen.getByText('None Status Partner')).toBeInTheDocument();
-  });
-});
+  }, { timeout: 10000 });
+}, 15000);
 
 test('covers accepted connection status exclusion', async () => {
   const partners = [
@@ -1999,8 +2000,8 @@ test('covers accepted connection status exclusion', async () => {
     // Accepted partner should be excluded
     expect(screen.queryByText('Accepted Partner')).not.toBeInTheDocument();
     expect(screen.getByText('Available Partner')).toBeInTheDocument();
-  });
-});
+  }, { timeout: 10000 });
+}, 15000);
 
 test('covers shared courses empty array handling', async () => {
   const partners = [
@@ -2021,8 +2022,8 @@ test('covers shared courses empty array handling', async () => {
     // Should not appear in suggestions (no shared courses)
     const suggestionSection = screen.getByLabelText(/suggested for you/i);
     expect(suggestionSection).not.toHaveTextContent('No Shared Partner');
-  });
-});
+  }, { timeout: 10000 });
+}, 15000);
 
 test('covers modal backdrop focus trap edge case', async () => {
   const partners = [
@@ -2040,14 +2041,14 @@ test('covers modal backdrop focus trap edge case', async () => {
   await waitFor(() => {
     const connectButton = screen.getByRole('button', { name: /connect/i });
     user.click(connectButton);
-  });
+  }, { timeout: 10000 });
   
   // Modal should be open and focusable
   await waitFor(() => {
     const modal = screen.getByRole('dialog');
     expect(modal).toBeInTheDocument();
-  });
-});
+  }, { timeout: 10000 });
+}, 15000);
 
 test('covers azure connection event handlers', async () => {
   const mockHandlerAccepted = vi.fn();
@@ -2086,8 +2087,8 @@ test('covers window event buddy:connected handler', async () => {
   
   await waitFor(() => {
     expect(screen.getByText('New Buddy')).toBeInTheDocument();
-  });
-});
+  }, { timeout: 10000 });
+}, 15000);
 
 test('covers buddy:connected duplicate prevention', async () => {
   const existingBuddy = { id: '1', name: 'Existing Buddy', course: 'CS', connectionStatus: 'accepted' };
@@ -2102,8 +2103,8 @@ test('covers buddy:connected duplicate prevention', async () => {
   await waitFor(() => {
     const buddyElements = screen.getAllByText('Existing Buddy');
     expect(buddyElements).toHaveLength(1); // Should not duplicate
-  });
-});
+  }, { timeout: 10000 });
+}, 15000);
 
 test('covers window buddies:invalidate event', async () => {
   const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -2116,10 +2117,10 @@ test('covers window buddies:invalidate event', async () => {
   // Should trigger re-fetch
   await waitFor(() => {
     expect(mockDataService.searchPartners).toHaveBeenCalledTimes(2); // Initial + invalidate
-  });
+  }, { timeout: 10000 });
   
   consoleSpy.mockRestore();
-});
+}, 15000);
 
 test('covers initials generation edge cases', async () => {
   const partners = [

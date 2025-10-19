@@ -2,6 +2,8 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import Courses from './Courses';
 import { expect, test, beforeEach, afterEach, vi, describe } from 'vitest';
 
+let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
 beforeEach(() => {
   localStorage.setItem('token', 'test-token');
   // Mock localStorage methods
@@ -56,6 +58,10 @@ beforeEach(() => {
 afterEach(() => {
   localStorage.clear();
   vi.restoreAllMocks();
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutId = undefined;
+    }
 });
 
 describe('Courses Component - Basic Rendering', () => {
@@ -72,7 +78,7 @@ describe('Courses Component - Basic Rendering', () => {
     // Mock slow API response
     global.fetch = vi.fn().mockImplementation(() => 
       new Promise(resolve => {
-        setTimeout(() => resolve(
+        timeoutId = setTimeout(() => resolve(
           new Response(
             JSON.stringify({ courses: [], pagination: { page: 1, limit: 20, total: 0, pages: 0, hasNext: false, hasPrev: false } }),
             { status: 200, headers: { 'Content-Type': 'application/json' } }

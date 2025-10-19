@@ -139,7 +139,7 @@ export const useAutoRefresh = () => {
 
     return () => {
       // Unsubscribe from all events
-      unsubscribers.current.forEach(unsubscribe => unsubscribe());
+      unsubscribers.current.forEach((unsubscribe) => unsubscribe());
       unsubscribers.current = [];
     };
   }, []);

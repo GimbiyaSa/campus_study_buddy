@@ -288,14 +288,12 @@ test('calculates overview statistics with edge cases', async () => {
 
 test('handles API error gracefully and displays fallback content', async () => {
   // Mock API error - using a status 500 response instead of rejection
-  global.fetch = vi
-    .fn()
-    .mockResolvedValue(
-      new Response(JSON.stringify({ error: 'Internal Server Error' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    );
+  global.fetch = vi.fn().mockResolvedValue(
+    new Response(JSON.stringify({ error: 'Internal Server Error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  );
 
   render(<Progress />);
 

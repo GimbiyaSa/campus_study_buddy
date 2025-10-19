@@ -169,14 +169,12 @@ describe('Courses Component - Empty States', () => {
   });
 
   test('handles null or undefined courses data', async () => {
-    global.fetch = vi
-      .fn()
-      .mockResolvedValue(
-        new Response(JSON.stringify({ courses: null }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      );
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ courses: null }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
 
     render(<Courses />);
 
@@ -221,14 +219,12 @@ describe('Courses Component - Error Handling', () => {
   });
 
   test('handles malformed JSON response', async () => {
-    global.fetch = vi
-      .fn()
-      .mockResolvedValue(
-        new Response('invalid json', {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      );
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response('invalid json', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
 
     render(<Courses />);
 
@@ -254,17 +250,15 @@ describe('Courses Component - User Interactions', () => {
   });
 
   test('handles refresh functionality if available', async () => {
-    const mockFetch = vi
-      .fn()
-      .mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            courses: [],
-            pagination: { page: 1, limit: 20, total: 0, pages: 0, hasNext: false, hasPrev: false },
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } }
-        )
-      );
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          courses: [],
+          pagination: { page: 1, limit: 20, total: 0, pages: 0, hasNext: false, hasPrev: false },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
     global.fetch = mockFetch;
 
     render(<Courses />);
@@ -443,17 +437,15 @@ describe('Courses Component - Performance', () => {
   });
 
   test('debounces rapid state changes', async () => {
-    const mockFetch = vi
-      .fn()
-      .mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            courses: [],
-            pagination: { page: 1, limit: 20, total: 0, pages: 0, hasNext: false, hasPrev: false },
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } }
-        )
-      );
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          courses: [],
+          pagination: { page: 1, limit: 20, total: 0, pages: 0, hasNext: false, hasPrev: false },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
     global.fetch = mockFetch;
 
     render(<Courses />);

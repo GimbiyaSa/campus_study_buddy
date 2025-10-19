@@ -376,8 +376,7 @@ function EnhancedCourseCard({
                   ? 'bg-gradient-to-r from-emerald-500 to-emerald-600'
                   : progressPercentage > 0
                   ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
-                  : (course.totalTopics && course.totalTopics > 0) ||
-                    (course.totalHours && course.totalHours > 0)
+                  : course.totalHours && course.totalHours > 0
                   ? 'bg-gradient-to-r from-blue-400 to-blue-500'
                   : 'bg-slate-300'
               }`}
@@ -385,9 +384,8 @@ function EnhancedCourseCard({
                 width:
                   progressPercentage > 0
                     ? `${Math.min(100, Math.max(0, progressPercentage))}%`
-                    : (course.totalTopics && course.totalTopics > 0) ||
-                      (course.totalHours && course.totalHours > 0)
-                    ? '10%' // Show small progress if there are topics/hours but no completed topics
+                    : course.totalHours && course.totalHours > 0
+                    ? '10%' // Show small blue bar when hours logged but no topics completed
                     : '0%',
               }}
             />
@@ -418,23 +416,23 @@ function EnhancedCourseCard({
         </div>
       </div>
 
-      {/* Remove Button - Outside clickable area */}
-      <div className="absolute top-4 right-4">
+      {/* Remove Button - Properly aligned */}
+      <div className="absolute top-3 right-3 z-10">
         <button
           onClick={(e) => {
             e.stopPropagation(); // Prevent card click
             onRemove();
           }}
           disabled={isDeleting}
-          className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex-shrink-0 shadow-sm"
+          className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm group/remove"
           aria-label={`Remove ${course.title}`}
+          title={isDeleting ? 'Removing...' : `Remove ${course.title}`}
         >
           {isDeleting ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-4 w-4 group-hover/remove:scale-110 transition-transform" />
           )}
-          {isDeleting ? 'Removing...' : 'Remove'}
         </button>
       </div>
     </article>

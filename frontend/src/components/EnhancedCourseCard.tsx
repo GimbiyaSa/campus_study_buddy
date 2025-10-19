@@ -16,15 +16,6 @@ export default function EnhancedCourseCard({
   const progressPercentage = course.progress || 0;
   const hasProgress = progressPercentage > 0;
 
-  const getProgressColor = (progress: number) => {
-    if (progress >= 80) return 'emerald';
-    if (progress >= 50) return 'blue';
-    if (progress >= 20) return 'amber';
-    return 'slate';
-  };
-
-  const progressColor = getProgressColor(progressPercentage);
-
   return (
     <div className="group relative bg-white rounded-xl border border-slate-200 p-6 hover:shadow-lg hover:border-emerald-200 transition-all duration-200">
       {/* Header */}
@@ -43,19 +34,31 @@ export default function EnhancedCourseCard({
           <h3 className="font-semibold text-slate-900 group-hover:text-emerald-700 transition-colors mb-1">
             {course.title}
           </h3>
-          <p className="text-sm text-slate-600 line-clamp-2">
-            {course.description || 'No description available'}
-          </p>
+          {course.description && course.description.trim() !== '' && (
+            <p className="text-sm text-slate-600 line-clamp-2">{course.description}</p>
+          )}
         </div>
       </div>
 
       {/* Progress Section */}
       <div className="mb-4">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-slate-700">Progress</span>
+          <span className="text-sm font-medium text-slate-700">Course Progress</span>
           <div className="flex items-center gap-2">
             {hasProgress ? (
-              <span className={`font-bold text-${progressColor}-600`}>{progressPercentage}%</span>
+              <span
+                className={`font-bold ${
+                  progressPercentage >= 80
+                    ? 'text-emerald-600'
+                    : progressPercentage >= 50
+                    ? 'text-blue-600'
+                    : progressPercentage >= 20
+                    ? 'text-amber-600'
+                    : 'text-slate-600'
+                }`}
+              >
+                {progressPercentage}%
+              </span>
             ) : (
               <span className="text-xs text-slate-500 bg-slate-50 rounded-full px-2 py-1">
                 Not started
@@ -72,8 +75,23 @@ export default function EnhancedCourseCard({
         {/* Progress Bar */}
         <div className="w-full bg-slate-100 rounded-full h-2">
           <div
-            className={`h-2 rounded-full bg-${progressColor}-500 transition-all duration-300`}
-            style={{ width: `${progressPercentage}%` }}
+            className={`h-2 rounded-full transition-all duration-300 ${
+              progressPercentage >= 100
+                ? 'bg-gradient-to-r from-emerald-500 to-emerald-600'
+                : progressPercentage > 0
+                ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
+                : course.totalHours && course.totalHours > 0
+                ? 'bg-gradient-to-r from-blue-400 to-blue-500'
+                : 'bg-slate-300'
+            }`}
+            style={{
+              width:
+                progressPercentage > 0
+                  ? `${progressPercentage}%`
+                  : course.totalHours && course.totalHours > 0
+                  ? '10%' // Show small blue bar when hours logged but no topics completed
+                  : '0%',
+            }}
           />
         </div>
       </div>

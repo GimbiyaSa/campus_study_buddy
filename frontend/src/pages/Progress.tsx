@@ -94,6 +94,18 @@ export default function Progress() {
 
   useEffect(() => {
     fetchProgressData();
+
+    // Listen for course invalidation events (when progress is updated)
+    const handleCourseInvalidate = (event: CustomEvent) => {
+      console.log('🔄 Progress invalidation event received:', event.detail);
+      fetchProgressData();
+    };
+
+    window.addEventListener('courses:invalidate', handleCourseInvalidate as EventListener);
+
+    return () => {
+      window.removeEventListener('courses:invalidate', handleCourseInvalidate as EventListener);
+    };
   }, []);
 
   const handleLogHours = async (log: StudyLog) => {
@@ -104,6 +116,13 @@ export default function Progress() {
       });
       console.log('✅ Study hours logged successfully');
       fetchProgressData(); // Refresh data
+
+      // Dispatch event to notify other components to refresh course data
+      window.dispatchEvent(
+        new CustomEvent('courses:invalidate', {
+          detail: { topicId: log.topicId, type: 'progress_update' },
+        })
+      );
     } catch (error) {
       console.error('❌ Failed to log hours:', error);
       alert('Failed to log study hours. Please check your connection and try again.');
@@ -200,9 +219,9 @@ export default function Progress() {
         />
         <EnhancedStatCard
           icon={<TrendingUp className="h-5 w-5" />}
-          title="Average Progress"
+          title="Course Progress"
           value={`${overview.averageProgress}%`}
-          subtitle="Across all courses"
+          subtitle="Average across all courses"
           trend={
             overview.averageProgress > 50
               ? 'Excellent progress!'
@@ -347,7 +366,7 @@ function CourseProgressCard({
                 </a>
               )}
               {course.code && <span>•</span>}
-              <span>{progressPercentage}% complete</span>
+              <span>{progressPercentage}% course complete</span>
               <span>•</span>
               <span>
                 {course.totalHours && course.totalHours > 0
@@ -407,9 +426,18 @@ function CourseProgressCard({
                 ? 'bg-gradient-to-r from-emerald-500 to-emerald-600'
                 : progressPercentage > 0
                 ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
-                : 'bg-gradient-to-r from-blue-400 to-blue-500'
+                : course.totalHours && course.totalHours > 0
+                ? 'bg-gradient-to-r from-blue-400 to-blue-500'
+                : 'bg-slate-300'
             }`}
-            style={{ width: `${Math.min(100, Math.max(0, progressPercentage))}%` }}
+            style={{
+              width:
+                progressPercentage > 0
+                  ? `${Math.min(100, Math.max(0, progressPercentage))}%`
+                  : course.totalHours && course.totalHours > 0
+                  ? '10%' // Show small blue bar when hours logged but no topics completed
+                  : '0%',
+            }}
           />
         </div>
       </div>

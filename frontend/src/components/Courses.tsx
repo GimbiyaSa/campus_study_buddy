@@ -52,7 +52,19 @@ export default function Courses() {
 
   useEffect(() => {
     fetchCourses();
-    return () => abortRef.current?.abort();
+
+    // Listen for course invalidation events (when progress is updated)
+    const handleCourseInvalidate = (event: CustomEvent) => {
+      console.log('🔄 Course invalidation event received:', event.detail);
+      fetchCourses();
+    };
+
+    window.addEventListener('courses:invalidate', handleCourseInvalidate as EventListener);
+
+    return () => {
+      abortRef.current?.abort();
+      window.removeEventListener('courses:invalidate', handleCourseInvalidate as EventListener);
+    };
   }, []);
 
   // Enhanced progress calculations
@@ -63,9 +75,12 @@ export default function Courses() {
     if (!courses.length) return { avg: 0, completed: 0, inProgress: 0, totalHours: 0 };
 
     const completed = courses.filter((c) => (c.progress ?? 0) >= 100).length;
-    const inProgress = courses.filter(
-      (c) => (c.progress ?? 0) > 0 && (c.progress ?? 0) < 100
-    ).length;
+    // Count as "In Progress" if either: progress > 0 OR hours logged (even with 0 progress)
+    const inProgress = courses.filter((c) => {
+      const progress = c.progress ?? 0;
+      const hours = c.totalHours ?? 0;
+      return progress < 100 && (progress > 0 || hours > 0);
+    }).length;
     const totalHours = courses.reduce((sum, c) => sum + (c.totalHours ?? 0), 0);
     const total = courses.reduce((s, c) => s + clamp(c.progress ?? 0), 0);
     const avg = Math.round((total / courses.length) * 10) / 10;
@@ -222,7 +237,8 @@ export default function Courses() {
                   <figcaption className="absolute inset-0 grid place-items-center text-center">
                     <div>
                       <div className="text-2xl font-bold text-slate-900">{stats.avg}%</div>
-                      <div className="text-xs text-slate-500">Overall progress</div>
+                      <div className="text-xs text-slate-500">Average</div>
+                      <div className="text-xs text-slate-500 font-medium">across courses</div>
                     </div>
                   </figcaption>
                 </figure>
@@ -234,7 +250,7 @@ export default function Courses() {
                 <div className="grid grid-cols-3 gap-3">
                   <div className="text-center">
                     <div className="text-lg font-bold text-emerald-600">{stats.completed}</div>
-                    <div className="text-xs text-slate-600">Completed</div>
+                    <div className="text-xs text-slate-600">Courses Done</div>
                   </div>
                   <div className="text-center">
                     <div className="text-lg font-bold text-blue-600">{stats.inProgress}</div>
@@ -242,7 +258,7 @@ export default function Courses() {
                   </div>
                   <div className="text-center">
                     <div className="text-lg font-bold text-purple-600">{stats.totalHours}h</div>
-                    <div className="text-xs text-slate-600">Total Study</div>
+                    <div className="text-xs text-slate-600">Study Time</div>
                   </div>
                 </div>
 

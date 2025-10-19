@@ -45,112 +45,116 @@ const initializeDatabase = async () => {
 
 // Initialize database connection
 initializeDatabase();
+// Tokenize helper: split into normalized tokens (letters/digits), lowercase, basic stemming (naive)
+function tokenize(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .map((t) => t.replace(/(ing|ers|er|s)$/g, ''))
+    .filter(Boolean);
+}
 
-/**
- * GET /api/v1/partners
- * Returns the current user's "buddies" — users with ACCEPTED connections
- * (either requests you sent that were accepted, or requests you accepted).
- */
-router.get('/', authenticateToken, async (req, res) => {
-  try {
-    console.log('📋 Fetching buddies for user:', req.user.id);
-    const userId = req.user.id;
-    const request = pool.request();
-    request.input('userId', sql.NVarChar(255), userId);
+function jaccardSimilarity(aTokens, bTokens) {
+  const a = new Set(aTokens);
+  const b = new Set(bTokens);
+  const inter = [...a].filter((x) => b.has(x)).length;
+  const uni = new Set([...a, ...b]).size || 1;
+  return inter / uni;
+}
 
-    // Find accepted connections where current user is requester or recipient
-    const connectionsResult = await request.query(`
-      SELECT 
-        pm.match_id as id,
-        pm.requester_id as requesterId,
-        pm.matched_user_id as recipientId,
-        pm.match_status as status,
-        pm.created_at as createdAt,
-        pm.updated_at as updatedAt
-      FROM partner_matches pm
-      WHERE pm.match_status = 'accepted'
-      AND (pm.requester_id = @userId OR pm.matched_user_id = @userId)
-    `);
+function calculateEnhancedCompatibilityScore(
+  partnerPreferences,
+  criteria,
+  sharedCoursesCount = 0,
+  partnerData = {},
+  currentUser = {}
+) {
+  // New weighting (sum to 100):
+  // Shared courses: up to 60, Program/course similarity (Jaccard): up to 30,
+  // Year proximity: up to 7, Same university: up to 3. No other hidden factors.
+  let score = 0;
+  const breakdown = [];
 
-    const links = connectionsResult.recordset;
-
-    // Extract the "other side" of each accepted connection
-    const buddyIds = Array.from(
-      new Set(links.map((c) => (c.requesterId === userId ? c.recipientId : c.requesterId)))
-    );
-
-    if (buddyIds.length === 0) {
-      return res.json([]);
-    }
-
-    // Fetch users for those IDs
-    const usersRequest = pool.request();
-    const buddyIdsString = buddyIds.map((id) => `'${id}'`).join(',');
-
-    const usersResult = await usersRequest.query(`
-      SELECT 
-        u.user_id as id,
-        u.email,
-        u.first_name,
-        u.last_name,
-        u.university,
-        u.course,
-        u.year_of_study,
-        u.bio,
-        u.study_preferences,
-        u.created_at,
-        u.updated_at
-      FROM users u
-      WHERE u.user_id IN (${buddyIdsString})
-    `);
-
-    const buddies = usersResult.recordset;
-    console.log(`👥 Found ${buddies.length} buddies for user ${userId}`);
-
-    const payload = buddies.map((u) => ({
-      id: u.id,
-      name: u.name || [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email || 'Unknown',
-      email: u.email,
-      university: u.university,
-      course: u.course,
-      yearOfStudy: u.year_of_study,
-      bio: u.bio,
-      connectionStatus: 'accepted', // Since this endpoint only returns accepted connections
-      profile: u.profile || null,
-      statistics: u.statistics || null,
-    }));
-
-    res.json(payload);
-  } catch (error) {
-    console.error('Error fetching buddies:', error);
-    res.status(500).json({ error: 'Failed to fetch buddies' });
+  // 1) Shared courses (max 60)
+  const clampedShared = Math.max(0, Math.min(sharedCoursesCount, 4));
+  if (clampedShared > 0) {
+    const sharedPts = clampedShared * 15; // 1->15, 2->30, 3->45, 4+->60
+    score += sharedPts;
+    breakdown.push(`Shared courses x${sharedCoursesCount}: +${sharedPts}`);
   }
-});
 
-// Search for study partners (SQL-based implementation)
+  // 2) Program/course similarity via Jaccard (max 30)
+  let programSimilarity = 0;
+  if (partnerData.course && criteria.course) {
+    const a = tokenize(partnerData.course);
+    const b = tokenize(criteria.course);
+    programSimilarity = jaccardSimilarity(a, b); // 0..1
+    const progPts = Math.round(programSimilarity * 30);
+    if (progPts > 0) {
+      score += progPts;
+      breakdown.push(`Program similarity ${(programSimilarity * 100).toFixed(0)}%: +${progPts}`);
+    }
+  }
+
+  // 3) Year of study proximity (max 7)
+  let yearDiff = null;
+  if (partnerData.yearOfStudy && criteria.yearOfStudy) {
+    yearDiff = Math.abs(partnerData.yearOfStudy - criteria.yearOfStudy);
+    if (yearDiff === 0) {
+      score += 7;
+      breakdown.push('Same year: +7');
+    } else if (yearDiff === 1) {
+      score += 4;
+      breakdown.push('Year proximity (±1): +4');
+    } else if (yearDiff === 2) {
+      score += 2;
+      breakdown.push('Year proximity (±2): +2');
+    }
+  }
+
+  // 4) Same university (max 3)
+  let sameUniversity = false;
+  if (
+    partnerData.university &&
+    criteria.university &&
+    partnerData.university === criteria.university
+  ) {
+    sameUniversity = true;
+    score += 3;
+    breakdown.push('Same university: +3');
+  }
+
+  // Final score 0..100
+  const finalScore = Math.max(0, Math.min(100, Math.round(score)));
+  return {
+    score: finalScore,
+    breakdown,
+    details: {
+      sharedCoursesCount,
+      programSimilarity,
+      yearDiff,
+      sameUniversity,
+    },
+  };
+}
+// Search potential study partners
 router.get('/search', authenticateToken, async (req, res) => {
   try {
-    const { subjects, studyStyle, groupSize, availability, university, search } = req.query;
-    const currentUserId = req.user.id;
+    if (!pool) await initializeDatabase();
 
-    console.log('🔍 Partner search params:', {
-      subjects,
-      studyStyle,
-      groupSize,
-      availability,
-      university,
-      search,
-    });
+    const currentUser = req.user || {};
+    const currentUserId = currentUser.id;
 
-    // Get current user's info for better compatibility scoring
-    const currentUserRequest = pool.request();
-    currentUserRequest.input('userId', sql.NVarChar(255), currentUserId);
-    const currentUserResult = await currentUserRequest.query(`
-      SELECT university, course, year_of_study, study_preferences
-      FROM users WHERE user_id = @userId
-    `);
+    // Parse query params (tolerant to arrays/strings)
+    let { university, search, subjects, studyStyle, groupSize, availability } = req.query || {};
+    university = typeof university === 'string' ? university : undefined;
+    search = typeof search === 'string' ? search : undefined;
+    subjects = typeof subjects === 'string' ? subjects : undefined;
+    studyStyle = typeof studyStyle === 'string' ? studyStyle : undefined;
+    groupSize = typeof groupSize === 'string' ? groupSize : undefined;
+    availability = typeof availability === 'string' ? availability : undefined;
 
-    const currentUser = currentUserResult.recordset[0] || {};
     let currentUserPreferences = {};
     try {
       if (currentUser.study_preferences) {
@@ -166,7 +170,23 @@ router.get('/search', authenticateToken, async (req, res) => {
     const request = pool.request();
     request.input('currentUserId', sql.NVarChar(255), currentUserId);
 
-    // Base query to find potential partners with shared courses and connection status
+    // Get current user's stats for better matching
+    const currentUserStatsQuery = await request.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM dbo.user_modules WHERE user_id = @currentUserId AND enrollment_status = 'active') as activeModulesCount,
+        ISNULL((SELECT SUM(hours_logged) FROM dbo.study_hours WHERE user_id = @currentUserId), 0) as totalStudyHours
+    `);
+
+    if (currentUserStatsQuery.recordset.length > 0) {
+      currentUser.activeModulesCount = currentUserStatsQuery.recordset[0].activeModulesCount;
+      currentUser.totalStudyHours = currentUserStatsQuery.recordset[0].totalStudyHours;
+    }
+
+    // Enhanced query to find potential partners with SMART matching based on:
+    // 1. Shared courses (fuzzy matching on module names, codes, descriptions)
+    // 2. Shared topics within courses
+    // 3. Similar study progress and hours
+    // 4. Module descriptions for better context matching
     let query = `
       SELECT 
         u.user_id as id,
@@ -180,19 +200,105 @@ router.get('/search', authenticateToken, async (req, res) => {
         u.study_preferences,
         u.created_at,
         u.updated_at,
-        -- Get shared courses as comma-separated list
+        
+        -- Get ALL user's courses with details (for display)
         STUFF((
           SELECT DISTINCT ', ' + m.module_name
+          FROM dbo.user_modules um_all
+          INNER JOIN dbo.modules m ON um_all.module_id = m.module_id
+          WHERE um_all.user_id = u.user_id AND um_all.enrollment_status = 'active'
+          FOR XML PATH('')
+        ), 1, 2, '') as allCourses,
+        
+        -- Get matched courses with match details (for suggestions)
+        -- This includes module name, code, AND description fuzzy matching
+        STUFF((
+          SELECT DISTINCT ', ' + m1.module_name
           FROM dbo.user_modules um1
-          INNER JOIN dbo.modules m ON um1.module_id = m.module_id
+          INNER JOIN dbo.modules m1 ON um1.module_id = m1.module_id
           WHERE um1.user_id = u.user_id
-          AND um1.module_id IN (
-            SELECT um2.module_id 
-            FROM dbo.user_modules um2 
+          AND um1.enrollment_status = 'active'
+          AND EXISTS (
+            SELECT 1
+            FROM dbo.user_modules um2
+            INNER JOIN dbo.modules m2 ON um2.module_id = m2.module_id
             WHERE um2.user_id = @currentUserId
+            AND um2.enrollment_status = 'active'
+            AND (
+              -- Exact module match
+              um1.module_id = um2.module_id
+              OR
+              -- Fuzzy match: similar module names
+              (
+                LOWER(m1.module_name) LIKE '%' + LOWER(m2.module_name) + '%'
+                OR LOWER(m2.module_name) LIKE '%' + LOWER(m1.module_name) + '%'
+                OR EXISTS (
+                  -- Word-level matching (e.g., "Math Science" matches "Math" OR "Science")
+                  SELECT value FROM STRING_SPLIT(LOWER(ISNULL(m2.module_name, '')), ' ')
+                  WHERE LEN(value) > 2
+                  AND LOWER(m1.module_name) LIKE '%' + value + '%'
+                )
+              )
+              OR
+              -- Module code similarity
+              (
+                m1.module_code IS NOT NULL 
+                AND m2.module_code IS NOT NULL
+                AND (
+                  LOWER(m1.module_code) LIKE LOWER(LEFT(m2.module_code, 3)) + '%'
+                  OR LOWER(m2.module_code) LIKE LOWER(LEFT(m1.module_code, 3)) + '%'
+                )
+              )
+              OR
+              -- Description similarity (for better context matching)
+              (
+                m1.description IS NOT NULL 
+                AND m2.description IS NOT NULL
+                AND LEN(CAST(m1.description AS NVARCHAR(MAX))) > 20
+                AND LEN(CAST(m2.description AS NVARCHAR(MAX))) > 20
+                AND (
+                  LOWER(CAST(m1.description AS NVARCHAR(MAX))) LIKE '%' + LOWER(LEFT(CAST(m2.description AS NVARCHAR(MAX)), 50)) + '%'
+                  OR LOWER(CAST(m2.description AS NVARCHAR(MAX))) LIKE '%' + LOWER(LEFT(CAST(m1.description AS NVARCHAR(MAX)), 50)) + '%'
+                )
+              )
+            )
           )
           FOR XML PATH('')
         ), 1, 2, '') as sharedCourses,
+        
+        -- Count shared topics within matched courses (deeper matching)
+        (
+          SELECT COUNT(DISTINCT t1.topic_name)
+          FROM dbo.user_modules um1
+          INNER JOIN dbo.topics t1 ON um1.module_id = t1.module_id
+          WHERE um1.user_id = u.user_id
+          AND EXISTS (
+            SELECT 1
+            FROM dbo.user_modules um2
+            INNER JOIN dbo.topics t2 ON um2.module_id = t2.module_id
+            WHERE um2.user_id = @currentUserId
+            AND (
+              LOWER(t1.topic_name) = LOWER(t2.topic_name)
+              OR LOWER(t1.topic_name) LIKE '%' + LOWER(t2.topic_name) + '%'
+              OR LOWER(t2.topic_name) LIKE '%' + LOWER(t1.topic_name) + '%'
+            )
+          )
+        ) as sharedTopicsCount,
+        
+        -- Total study hours (indicates engagement level)
+        ISNULL((
+          SELECT SUM(sh.hours_logged)
+          FROM dbo.study_hours sh
+          WHERE sh.user_id = u.user_id
+        ), 0) as totalStudyHours,
+        
+        -- Active modules count
+        (
+          SELECT COUNT(*)
+          FROM dbo.user_modules um
+          WHERE um.user_id = u.user_id AND um.enrollment_status = 'active'
+        ) as activeModulesCount,
+        
         -- Check connection status with current user
         pm.match_status as connectionStatus,
         pm.match_id as connectionId,
@@ -204,6 +310,13 @@ router.get('/search', authenticateToken, async (req, res) => {
       )
       WHERE u.user_id != @currentUserId
       AND u.is_active = 1
+      -- CRITICAL: Only show users who have at least one active course
+      AND EXISTS (
+        SELECT 1 
+        FROM dbo.user_modules um 
+        WHERE um.user_id = u.user_id 
+        AND um.enrollment_status = 'active'
+      )
     `;
 
     // Add university filter if provided
@@ -212,10 +325,16 @@ router.get('/search', authenticateToken, async (req, res) => {
       query += ` AND u.university = @university`;
     }
 
-    // Add name/email search if provided
+    // Add name/email/course search if provided
     if (search && search.trim()) {
       request.input('searchTerm', sql.NVarChar(255), `%${search.trim()}%`);
-      query += ` AND (u.first_name LIKE @searchTerm OR u.last_name LIKE @searchTerm OR u.email LIKE @searchTerm)`;
+      query += ` AND (u.first_name LIKE @searchTerm OR u.last_name LIKE @searchTerm OR u.email LIKE @searchTerm OR u.course LIKE @searchTerm OR EXISTS (
+        SELECT 1 FROM dbo.user_modules um_search 
+        INNER JOIN dbo.modules m_search ON um_search.module_id = m_search.module_id 
+        WHERE um_search.user_id = u.user_id 
+        AND um_search.enrollment_status = 'active'
+        AND (m_search.module_name LIKE @searchTerm OR m_search.module_code LIKE @searchTerm)
+      ))`;
     }
 
     // Limit results
@@ -249,6 +368,9 @@ router.get('/search', authenticateToken, async (req, res) => {
         university: partner.university,
         course: partner.course,
         yearOfStudy: partner.year_of_study,
+        bio: partner.bio,
+        activeModulesCount: partner.activeModulesCount || 0,
+        totalStudyHours: partner.totalStudyHours || 0,
       };
 
       const searchCriteria = {
@@ -264,6 +386,25 @@ router.get('/search', authenticateToken, async (req, res) => {
       const sharedCoursesCount = partner.sharedCourses
         ? partner.sharedCourses.split(', ').filter(Boolean).length
         : 0;
+
+      // Get all courses for this partner
+      const allCourses = partner.allCourses ? partner.allCourses.split(', ').filter(Boolean) : [];
+
+      // Get shared topics count
+      const sharedTopicsCount = partner.sharedTopicsCount || 0;
+
+      // Calculate match percentage for "Suggested for you" section
+      // This shows the user WHAT percentage was matched
+      const currentUserModulesCount = currentUser.activeModulesCount || 1;
+      const partnerModulesCount = partner.activeModulesCount || 1;
+      const maxModules = Math.max(currentUserModulesCount, partnerModulesCount);
+
+      // Course overlap as percentage (0-100)
+      const courseMatchPercent =
+        maxModules > 0 ? Math.round((sharedCoursesCount / maxModules) * 100) : 0;
+
+      // Topic overlap bonus (0-30 extra points)
+      const topicMatchBonus = Math.min(sharedTopicsCount * 1.5, 30);
 
       // Determine connection status
       let connectionStatus = 'none'; // none, pending, accepted, declined
@@ -282,6 +423,57 @@ router.get('/search', authenticateToken, async (req, res) => {
         }
       }
 
+      // Compute compatibility score with improved weighting and capture breakdown
+      const {
+        score: compatibilityScore,
+        breakdown: scoreBreakdown,
+        details,
+      } = calculateEnhancedCompatibilityScore(
+        studyPreferences,
+        searchCriteria,
+        sharedCoursesCount,
+        partnerData,
+        currentUser // pass current user for better reasoning
+      );
+
+      // Build SMART match reasons based on actual data
+      const matchReasons = [];
+
+      // Courses match
+      if (details.sharedCoursesCount > 0) {
+        matchReasons.push(
+          `${details.sharedCoursesCount} similar course${details.sharedCoursesCount > 1 ? 's' : ''}`
+        );
+      }
+
+      // Topics match (shows deeper alignment)
+      if (sharedTopicsCount > 0) {
+        matchReasons.push(`${sharedTopicsCount} shared topic${sharedTopicsCount > 1 ? 's' : ''}`);
+      }
+
+      // Program/field similarity
+      if (details.programSimilarity >= 0.6) {
+        matchReasons.push('Similar program/field');
+      } else if (
+        partnerData.course &&
+        currentUser.course &&
+        partnerData.course === currentUser.course
+      ) {
+        matchReasons.push('Same program');
+      }
+
+      // Year alignment
+      if (typeof details.yearDiff === 'number' && details.yearDiff === 0) {
+        matchReasons.push('Same year');
+      } else if (typeof details.yearDiff === 'number' && details.yearDiff === 1) {
+        matchReasons.push('Similar year');
+      }
+
+      // Study engagement level (if both are active studiers)
+      if (partnerData.totalStudyHours > 10 && currentUser.totalStudyHours > 10) {
+        matchReasons.push('Active studier');
+      }
+
       return {
         id: partner.id,
         name: partnerData.name,
@@ -291,19 +483,30 @@ router.get('/search', authenticateToken, async (req, res) => {
         yearOfStudy: partner.year_of_study,
         bio: partner.bio,
         studyPreferences,
-
-        // Enhanced shared courses and topics
+        // Only include shared courses for matching/suggestions
         sharedCourses: partner.sharedCourses
           ? partner.sharedCourses.split(', ').filter(Boolean)
           : [],
-        sharedTopics: [], // Could be enhanced with topic-level data
-
-        // Connection status information
+        // Include ALL courses for display purposes
+        allCourses: allCourses,
+        sharedTopics: [],
+        sharedTopicsCount: sharedTopicsCount, // Number of shared topics
+        courseMatchPercent: courseMatchPercent, // Percentage of course overlap
+        matchReasons,
+        recommendationReason:
+          matchReasons.length > 0
+            ? matchReasons.join(' • ')
+            : 'Active student looking for study partners',
         connectionStatus,
         connectionId,
         isPendingSent,
         isPendingReceived,
-
+        studyHours: partnerData.totalStudyHours,
+        rating: 0,
+        weeklyHours: 0,
+        studyStreak: 0,
+        activeGroups: 0,
+        sessionsAttended: 0,
         profile: {
           subjects: partner.sharedCourses ? partner.sharedCourses.split(', ').filter(Boolean) : [],
           studyStyle: studyPreferences.studyStyle || null,
@@ -311,22 +514,22 @@ router.get('/search', authenticateToken, async (req, res) => {
           availability: studyPreferences.availability || null,
         },
         statistics: {
-          sessionsAttended: 0, // Could be enhanced with actual study session data
+          sessionsAttended: 0,
           completedStudies: 0,
         },
-        compatibilityScore: calculateEnhancedCompatibilityScore(
-          studyPreferences,
-          searchCriteria,
-          sharedCoursesCount,
-          partnerData
-        ),
+        compatibilityScore,
+        scoreBreakdown,
+        // Flag to help frontend identify if this is a valid suggestion
+        hasMatchedCourses: sharedCoursesCount > 0,
       };
     });
 
-    // Sort by compatibility score
+    // Sort ALL partners by compatibility score
+    // CRITICAL: For suggestions, we ONLY want partners with matched courses
+    // For "All partners" discovery, show everyone
     const sortedPartners = formattedPartners
       .sort((a, b) => b.compatibilityScore - a.compatibilityScore)
-      .slice(0, 20); // Return top 20 matches
+      .slice(0, 100); // Return up to 100 partners
 
     console.log(
       `🎯 Top matches with scores:`,
@@ -346,179 +549,133 @@ router.get('/search', authenticateToken, async (req, res) => {
   }
 });
 
-function calculateEnhancedCompatibilityScore(
-  partnerPreferences,
-  criteria,
-  sharedCoursesCount = 0,
-  partnerData = {}
-) {
-  let score = 0;
-  const debugging = [];
+// Get accepted study partners (current connections)
+router.get('/', authenticateToken, async (req, res) => {
+  try {
+    if (!pool) await initializeDatabase();
 
-  // 1. University/Location compatibility (20% weight)
-  if (partnerData.university && criteria.university) {
-    if (partnerData.university === criteria.university) {
-      score += 20;
-      debugging.push('University match: +20');
-    } else {
-      // Partial score for nearby universities or same city
-      score += 5;
-      debugging.push('Different university: +5');
-    }
-  }
+    const currentUser = req.user || {};
+    const currentUserId = currentUser.id;
 
-  // 2. Course field similarity (15% weight)
-  if (partnerData.course && criteria.course) {
-    const partnerCourse = partnerData.course.toLowerCase();
-    const criteraCourse = criteria.course.toLowerCase();
+    const request = pool.request();
+    request.input('currentUserId', sql.NVarChar(255), currentUserId);
 
-    // Exact match
-    if (partnerCourse === criteraCourse) {
-      score += 15;
-      debugging.push('Exact course match: +15');
-    } else {
-      // Field similarity (CS, Software Engineering, Data Science, etc.)
-      const techFields = [
-        'computer',
-        'software',
-        'data',
-        'information',
-        'technology',
-        'engineering',
-      ];
-      const mathFields = ['mathematics', 'statistics', 'physics', 'engineering'];
-      const businessFields = ['business', 'management', 'economics', 'finance'];
+    const query = `
+      SELECT 
+        pm.match_id as connectionId,
+        CASE WHEN pm.requester_id = @currentUserId THEN pm.matched_user_id ELSE pm.requester_id END as id,
+        u.email,
+        u.first_name,
+        u.last_name,
+        u.university,
+        u.course,
+        u.year_of_study,
+        u.bio,
+        u.study_preferences,
+        'accepted' as connectionStatus,
+        -- Get ALL user's courses
+        STUFF((
+          SELECT DISTINCT ', ' + m.module_name
+          FROM dbo.user_modules um_all
+          INNER JOIN dbo.modules m ON um_all.module_id = m.module_id
+          WHERE um_all.user_id = u.user_id
+          FOR XML PATH('')
+        ), 1, 2, '') as allCourses,
+        -- Shared courses with the other user (for reference)
+        STUFF((
+          SELECT DISTINCT ', ' + m.module_name
+          FROM dbo.user_modules um1
+          INNER JOIN dbo.modules m ON um1.module_id = m.module_id
+          WHERE um1.user_id = u.user_id
+          AND um1.module_id IN (
+            SELECT um2.module_id 
+            FROM dbo.user_modules um2 
+            WHERE um2.user_id = @currentUserId
+          )
+          FOR XML PATH('')
+        ), 1, 2, '') as sharedCourses
+      FROM partner_matches pm
+      INNER JOIN users u ON u.user_id = CASE WHEN pm.requester_id = @currentUserId THEN pm.matched_user_id ELSE pm.requester_id END
+      WHERE (pm.requester_id = @currentUserId OR pm.matched_user_id = @currentUserId)
+      AND pm.match_status = 'accepted'
+      ORDER BY pm.updated_at DESC
+    `;
 
-      const isPartnerTech = techFields.some((field) => partnerCourse.includes(field));
-      const isCriteriaTech = techFields.some((field) => criteraCourse.includes(field));
-      const isPartnerMath = mathFields.some((field) => partnerCourse.includes(field));
-      const isCriteriaMath = mathFields.some((field) => criteraCourse.includes(field));
-      const isPartnerBusiness = businessFields.some((field) => partnerCourse.includes(field));
-      const isCriteriaBusiness = businessFields.some((field) => criteraCourse.includes(field));
+    const result = await request.query(query);
+    const partners = result.recordset;
 
-      if (
-        (isPartnerTech && isCriteriaTech) ||
-        (isPartnerMath && isCriteriaMath) ||
-        (isPartnerBusiness && isCriteriaBusiness)
-      ) {
-        score += 10;
-        debugging.push('Similar field: +10');
-      } else {
-        score += 3;
-        debugging.push('Different field: +3');
-      }
-    }
-  }
+    const formatted = partners.map((partner) => {
+      let studyPreferences = {};
+      try {
+        if (partner.study_preferences) {
+          studyPreferences =
+            typeof partner.study_preferences === 'string'
+              ? JSON.parse(partner.study_preferences)
+              : partner.study_preferences;
+        }
+      } catch {}
 
-  // 3. Year of study compatibility (15% weight)
-  if (partnerData.yearOfStudy && criteria.yearOfStudy) {
-    const yearDiff = Math.abs(partnerData.yearOfStudy - criteria.yearOfStudy);
-    if (yearDiff === 0) {
-      score += 15;
-      debugging.push('Same year: +15');
-    } else if (yearDiff === 1) {
-      score += 10;
-      debugging.push('1 year difference: +10');
-    } else if (yearDiff === 2) {
-      score += 5;
-      debugging.push('2 year difference: +5');
-    } else {
-      score += 2;
-      debugging.push('3+ year difference: +2');
-    }
-  }
-
-  // 4. Study preferences alignment (20% weight total)
-  // Study style match (10% weight)
-  if (partnerPreferences.studyStyle && criteria.studyStyle) {
-    if (partnerPreferences.studyStyle === criteria.studyStyle) {
-      score += 10;
-      debugging.push('Study style match: +10');
-    } else {
-      // Partial compatibility for complementary styles
-      const visualAuditory = ['visual', 'auditory'];
-      const collaborativeKinesthetic = ['collaborative', 'kinesthetic'];
-
-      if (
-        (visualAuditory.includes(partnerPreferences.studyStyle) &&
-          visualAuditory.includes(criteria.studyStyle)) ||
-        (collaborativeKinesthetic.includes(partnerPreferences.studyStyle) &&
-          collaborativeKinesthetic.includes(criteria.studyStyle))
-      ) {
-        score += 5;
-        debugging.push('Compatible study style: +5');
-      }
-    }
-  }
-
-  // Group size preference (10% weight)
-  if (partnerPreferences.groupSize && criteria.groupSize) {
-    if (partnerPreferences.groupSize === criteria.groupSize) {
-      score += 10;
-      debugging.push('Group size match: +10');
-    } else {
-      // Flexible matching (small-medium, medium-large can work together)
-      const flexible = {
-        small: ['medium'],
-        medium: ['small', 'large'],
-        large: ['medium'],
+      const partnerData = {
+        name:
+          [partner.first_name, partner.last_name].filter(Boolean).join(' ') ||
+          partner.email ||
+          'Unknown',
+        university: partner.university,
+        course: partner.course,
+        yearOfStudy: partner.year_of_study,
+        bio: partner.bio,
       };
-      if (flexible[partnerPreferences.groupSize]?.includes(criteria.groupSize)) {
-        score += 5;
-        debugging.push('Flexible group size: +5');
-      }
-    }
-  }
 
-  // 5. Availability overlap (15% weight)
-  if (partnerPreferences.availability && criteria.availability) {
-    try {
-      const partnerAvail = Array.isArray(partnerPreferences.availability)
-        ? partnerPreferences.availability
-        : [partnerPreferences.availability];
-      const criteriaAvail = Array.isArray(criteria.availability)
-        ? criteria.availability
-        : criteria.availability.split(',');
-
-      const overlap = partnerAvail.filter((time) => criteriaAvail.includes(time)).length;
-      if (overlap > 0) {
-        const overlapScore = (overlap / Math.max(partnerAvail.length, criteriaAvail.length)) * 15;
-        score += overlapScore;
-        debugging.push(
-          `Availability overlap (${overlap}/${Math.max(
-            partnerAvail.length,
-            criteriaAvail.length
-          )}): +${overlapScore.toFixed(1)}`
+      // Compute a score for consistency, though UI may not use it here
+      const { score: compatibilityScore, breakdown: scoreBreakdown } =
+        calculateEnhancedCompatibilityScore(
+          studyPreferences,
+          {
+            university: currentUser.university,
+            course: currentUser.course,
+            yearOfStudy: currentUser.year_of_study,
+          },
+          partner.sharedCourses ? partner.sharedCourses.split(', ').filter(Boolean).length : 0,
+          partnerData,
+          currentUser
         );
-      }
-    } catch (e) {
-      debugging.push('Availability parsing failed');
-    }
-  }
 
-  // 6. Shared courses bonus (10% weight) - bonus, not requirement
-  if (sharedCoursesCount > 0) {
-    const sharedScore = Math.min(sharedCoursesCount * 3, 10); // 3 points per shared course, max 10
-    score += sharedScore;
-    debugging.push(`Shared courses (${sharedCoursesCount}): +${sharedScore}`);
-  }
-
-  // 7. Bio/interest matching (5% weight) - future enhancement
-  // This could analyze keywords in bio for common interests
-  score += 5; // Base engagement score for having a profile
-
-  // Log debugging info occasionally
-  if (Math.random() < 0.1) {
-    // 10% chance to debug log
-    console.log('🤖 Compatibility calculation:', {
-      partner: partnerData.name || 'Unknown',
-      score: Math.round(score),
-      breakdown: debugging,
+      return {
+        id: partner.id,
+        name: partnerData.name,
+        email: partner.email,
+        university: partner.university,
+        course: partner.course,
+        yearOfStudy: partner.year_of_study,
+        bio: partner.bio,
+        studyPreferences,
+        // Return ALL courses for accepted partners (buddies)
+        sharedCourses: partner.allCourses ? partner.allCourses.split(', ').filter(Boolean) : [],
+        allCourses: partner.allCourses ? partner.allCourses.split(', ').filter(Boolean) : [],
+        sharedTopics: [],
+        connectionStatus: 'accepted',
+        connectionId: partner.connectionId,
+        isPendingSent: false,
+        isPendingReceived: false,
+        compatibilityScore,
+        scoreBreakdown,
+        matchReasons: [],
+        recommendationReason: undefined,
+        studyHours: 0,
+        rating: 0,
+        weeklyHours: 0,
+        studyStreak: 0,
+        activeGroups: 0,
+        sessionsAttended: 0,
+      };
     });
-  }
 
-  return Math.round(score);
-}
+    res.json(formatted);
+  } catch (error) {
+    console.error('❌ Error fetching partners:', error);
+    res.status(500).json({ error: 'Failed to fetch partners' });
+  }
+});
 
 function calculateBasicCompatibilityScore(partnerPreferences, criteria) {
   let score = 0;
@@ -770,8 +927,33 @@ router.post('/request', authenticateToken, async (req, res) => {
     if (existingConnection.recordset.length > 0) {
       const status = existingConnection.recordset[0].match_status;
       console.log(`❌ Existing connection found with status: ${status}`);
+      
+      // Provide more specific error messages based on status
+      let errorMessage = '';
+      let errorCode = '';
+      
+      switch (status) {
+        case 'pending':
+          errorMessage = 'A buddy request is already pending between these users';
+          errorCode = 'REQUEST_PENDING';
+          break;
+        case 'accepted':
+          errorMessage = 'These users are already connected as study buddies';
+          errorCode = 'ALREADY_CONNECTED';
+          break;
+        case 'declined':
+          errorMessage = 'This person has declined your previous buddy request';
+          errorCode = 'REQUEST_DECLINED';
+          break;
+        default:
+          errorMessage = `A ${status} connection already exists between these users`;
+          errorCode = 'CONNECTION_EXISTS';
+      }
+      
       return res.status(400).json({
-        error: `A ${status} connection already exists between these users`,
+        error: errorMessage,
+        code: errorCode,
+        status: status,
       });
     }
 
@@ -830,19 +1012,22 @@ router.post('/request', authenticateToken, async (req, res) => {
     // Send Web PubSub notification to recipient
     if (webPubSubClient) {
       try {
-        await webPubSubClient.sendToUser(matched_user_id, {
+        await webPubSubClient.sendToUser(recipientId, {
           type: 'partner_request',
           data: {
             requestId: newRequest.match_id,
-            requesterId: requester_id,
-            requesterName: requesterInfo.first_name + ' ' + requesterInfo.last_name,
-            requesterUniversity: requesterInfo.university,
-            requesterCourse: requesterInfo.course,
+            requesterId: requesterId,
+            requesterName:
+              req.user.name ||
+              `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim() ||
+              req.user.email,
+            requesterUniversity: req.user.university,
+            requesterCourse: req.user.course,
             message: message,
             timestamp: new Date().toISOString(),
           },
         });
-        console.log('✅ Web PubSub notification sent to user:', matched_user_id);
+        console.log('✅ Web PubSub notification sent to user:', recipientId);
       } catch (pubsubError) {
         console.warn('⚠️ Failed to send Web PubSub notification:', pubsubError);
         // Don't fail the request if notification fails
@@ -852,6 +1037,39 @@ router.post('/request', authenticateToken, async (req, res) => {
     }
 
     console.log('✅ Buddy request sent successfully');
+
+    // Send email notification to recipient (non-blocking)
+    try {
+      // Get recipient and sender info for email
+      const recipientRes = await pool
+        .request()
+        .input('recipientId', sql.NVarChar(255), recipientId)
+        .query('SELECT email, first_name, last_name FROM users WHERE user_id = @recipientId');
+
+      const senderRes = await pool.request().input('senderId', sql.NVarChar(255), requesterId)
+        .query(`
+          SELECT u.first_name + ' ' + u.last_name as name, u.email, u.university, u.course, u.bio,
+                 COALESCE((SELECT SUM(hours_spent) FROM study_hours WHERE user_id = u.user_id), 0) as studyHours
+          FROM users u 
+          WHERE u.user_id = @senderId
+        `);
+
+      if (recipientRes.recordset.length > 0 && senderRes.recordset.length > 0) {
+        const recipientEmail = recipientRes.recordset[0].email;
+        const senderInfo = senderRes.recordset[0];
+        senderInfo.id = requesterId;
+        
+        // Log buddy request notification (Logic Apps removed)
+        console.log('📧 Buddy request notification:', {
+          recipient: recipientEmail,
+          sender: senderInfo.first_name + ' ' + senderInfo.last_name,
+          message: message
+        });
+      }
+    } catch (err) {
+      console.error('⚠️ Buddy request email notification failed:', err.message);
+      // Don't fail the request if email fails
+    }
 
     res.status(201).json({
       id: newRequest.match_id,

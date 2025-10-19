@@ -354,14 +354,41 @@ export default function Groups() {
 
   async function refreshGroups(): Promise<boolean> {
     try {
-      let data: any[] = [];
+      let allGroups: any[] = [];
+
+      // Always get all available groups first
       try {
-        data = await DataService.fetchMyGroups();
-      } catch {
-        data = await DataService.fetchGroupsRaw();
+        allGroups = await DataService.fetchGroupsRaw();
+      } catch (err) {
+        console.error('Failed to fetch all groups:', err);
+        return false;
       }
-      const mapped = (Array.isArray(data) ? data : []).map((g: any) => toStudyGroup(g));
+
+      // Then try to get user's joined groups specifically
+      let myGroupIds: Set<string> = new Set();
+      try {
+        const myGroups = await DataService.fetchMyGroups();
+        myGroupIds = new Set(
+          myGroups.map((g: any) => String(g?.id ?? g?.group_id ?? '')).filter(Boolean)
+        );
+      } catch (err) {
+        console.warn('⚠️ Could not fetch user groups:', err);
+      }
+
+      const mapped = (Array.isArray(allGroups) ? allGroups : []).map((g: any) => toStudyGroup(g));
       setGroups(mapped);
+
+      // Set joinedByMe state based on actual membership
+      const newJoinedByMe: Record<string, boolean> = {};
+      mapped.forEach((group) => {
+        const backendId = (group as any)._backendId as string | undefined;
+        if (backendId) {
+          newJoinedByMe[backendId] = myGroupIds.has(backendId);
+        }
+      });
+
+      setJoinedByMe(newJoinedByMe);
+
       setError(null);
       return true;
     } catch {
@@ -377,12 +404,31 @@ export default function Groups() {
     refreshGroups().finally(() => setLoading(false));
   }, []);
 
+  // Auto-load members for groups only when member list is expanded
+  useEffect(() => {
+    // Only load members when a group is expanded and members haven't been loaded yet
+    const expandedGroupIds = Object.keys(expandedMembers).filter(
+      (id) => expandedMembers[Number(id)]
+    );
+
+    if (expandedGroupIds.length > 0 && typeof membersFn === 'function') {
+      expandedGroupIds.forEach(async (groupIdStr) => {
+        const groupId = Number(groupIdStr);
+        const group = groups.find((g) => g.group_id === groupId);
+        const backendId = (group as any)?._backendId as string | undefined;
+
+        if (backendId && !membersByGroup[backendId] && !membersLoading[backendId]) {
+          await loadMembersFor(group!);
+        }
+      });
+    }
+  }, [expandedMembers, groups.length]); // React to expansion changes
+
   // --- members fetcher (feature-detected) ---
   const membersFn =
-    (DataService as any)?.getGroupMembers ||
-    (DataService as any)?.fetchGroupMembers ||
-    (DataService as any)?.listGroupMembers ||
-    (DataService as any)?.getMembers;
+    typeof DataService.getGroupMembers === 'function'
+      ? (groupId: string) => DataService.getGroupMembers(groupId)
+      : null;
 
   // --- optional invite endpoints (feature-detected) ---
   const acceptInviteFn =
@@ -405,17 +451,29 @@ export default function Groups() {
 
   async function loadMembersFor(group: StudyGroup) {
     const backendId = (group as any)._backendId as string | undefined;
-    if (!backendId || typeof membersFn !== 'function') return;
+    if (!backendId || typeof membersFn !== 'function') {
+      return;
+    }
 
     setMembersLoading((p) => ({ ...p, [backendId]: true }));
     setMembersError((p) => ({ ...p, [backendId]: null }));
+
     try {
       const list = await membersFn(backendId);
       const arr = Array.isArray(list) ? list : [];
       setMembersByGroup((p) => ({ ...p, [backendId]: arr }));
     } catch (e) {
-      console.warn('loadMembersFor failed', e);
-      setMembersError((p) => ({ ...p, [backendId]: 'Could not load members' }));
+      // Check if it's a network error (backend not running)
+      if (e instanceof TypeError && e.message.includes('fetch')) {
+        setMembersError((p) => ({ ...p, [backendId]: 'Backend server not running' }));
+      } else if (
+        e instanceof Error &&
+        (e.message.includes('Failed to fetch') || e.message.includes('Network'))
+      ) {
+        setMembersError((p) => ({ ...p, [backendId]: 'Cannot connect to server' }));
+      } else {
+        setMembersError((p) => ({ ...p, [backendId]: 'Could not load members' }));
+      }
     } finally {
       setMembersLoading((p) => ({ ...p, [backendId]: false }));
     }
@@ -447,11 +505,29 @@ export default function Groups() {
     try {
       const ok = await DataService.joinGroup(realId);
       if (!ok) throw new Error('join failed');
+
+      // Notify chat page about group joined
+      window.dispatchEvent(
+        new CustomEvent('group:joined', { detail: { groupId: realId, group_id: realId } })
+      );
+
+      // Refresh groups to get accurate member count from server
       await refreshGroups();
+
+      // If members list is expanded, reload members. Otherwise, clear cache so they reload on next expand
       if (expandedMembers[groupId]) {
+        // List is expanded - reload members immediately
         const g = groups.find((x) => x.group_id === groupId);
         if (g) await loadMembersFor(g);
+      } else if (realId && membersByGroup[realId]) {
+        // List is collapsed - just clear cache
+        setMembersByGroup((prev) => {
+          const updated = { ...prev };
+          delete updated[realId];
+          return updated;
+        });
       }
+
       // re-assert membership in case of eventual consistency
       setJoinedByMe((prev) => ({ ...prev, [realId]: true }));
 
@@ -463,6 +539,7 @@ export default function Groups() {
       } catch {}
     } catch (err) {
       console.error('Error joining group:', err);
+      // Revert optimistic update
       setGroups((prev) =>
         prev.map((g) =>
           g.group_id === groupId
@@ -501,13 +578,31 @@ export default function Groups() {
     try {
       const ok = await DataService.leaveGroup(realId);
       if (!ok) throw new Error('leave failed');
+
+      // Notify chat page about group left
+      window.dispatchEvent(
+        new CustomEvent('group:left', { detail: { groupId: realId, group_id: realId } })
+      );
+
+      // Refresh groups to get accurate member count from server
       await refreshGroups();
+
+      // If members list is expanded, reload members. Otherwise, clear cache so they reload on next expand
       if (expandedMembers[groupId]) {
+        // List is expanded - reload members immediately
         const g = groups.find((x) => x.group_id === groupId);
         if (g) await loadMembersFor(g);
+      } else if (realId && membersByGroup[realId]) {
+        // List is collapsed - just clear cache
+        setMembersByGroup((prev) => {
+          const updated = { ...prev };
+          delete updated[realId];
+          return updated;
+        });
       }
     } catch (err) {
       console.error('Error leaving group:', err);
+      // Revert optimistic update
       setGroups((prev) =>
         prev.map((g) =>
           g.group_id === groupId ? { ...g, member_count: (g.member_count || 0) + 1 } : g
@@ -895,14 +990,25 @@ export default function Groups() {
             Join or create study groups to collaborate with peers
             {error && <span className="ml-2 text-xs text-gray-500">(demo data)</span>}
           </p>
+          <div className="mt-2">
+            <button
+              onClick={() => navigate('/sessions')}
+              className="inline-flex items-center gap-1 text-sm text-brand-600 hover:text-brand-700 font-medium"
+            >
+              <Calendar className="h-4 w-4" />
+              Go to Sessions
+            </button>
+          </div>
         </div>
-        <button
-          onClick={() => setOpenCreate(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition"
-        >
-          <Plus className="w-5 h-5" />
-          Create Group
-        </button>
+        {groups.length > 0 && (
+          <button
+            onClick={() => setOpenCreate(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition"
+          >
+            <Plus className="w-5 h-5" />
+            Create Group
+          </button>
+        )}
       </div>
 
       {/* Error message */}
@@ -926,9 +1032,12 @@ export default function Groups() {
             const immediateMembers =
               (group as any).members && Array.isArray((group as any).members)
                 ? (group as any).members
-                : backendId && membersByGroup[backendId]
+                : backendId && Array.isArray(membersByGroup[backendId])
                 ? membersByGroup[backendId]
                 : [];
+
+            // Use backend member_count as source of truth, with loaded members for display only
+            const actualMemberCount = group.member_count || 0;
 
             const isExpanded = !!expandedMembers[group.group_id];
 
@@ -970,30 +1079,27 @@ export default function Groups() {
                   <div className="flex items-center gap-2">
                     <Users className="w-4 h-4" />
                     <span>
-                      {group.member_count || 0}/{group.max_members} members
+                      {actualMemberCount}/{group.max_members} members
                     </span>
-                    {(Array.isArray((group as any).members) ||
-                      Array.isArray((group as any).membersList) ||
-                      (typeof membersFn === 'function' && realId)) && (
-                      <button
-                        onClick={async () => {
-                          const next = !isExpanded;
-                          setExpandedMembers((p) => ({ ...p, [group.group_id]: next }));
-                          if (
-                            next &&
-                            !Array.isArray((group as any).members) &&
-                            !Array.isArray((group as any).membersList)
-                          ) {
-                            if (backendId && !membersByGroup[backendId]) {
-                              await loadMembersFor(group);
-                            }
-                          }
-                        }}
-                        className="ml-2 text-xs px-2 py-1 rounded border border-gray-300 hover:bg-gray-50"
-                      >
-                        {isExpanded ? 'Hide members' : 'View members'}
-                      </button>
-                    )}
+                    <button
+                      onClick={async () => {
+                        const next = !isExpanded;
+                        setExpandedMembers((p) => ({ ...p, [group.group_id]: next }));
+
+                        // Only load members when expanding and they're not already loaded
+                        if (
+                          next &&
+                          backendId &&
+                          typeof membersFn === 'function' &&
+                          !membersByGroup[backendId]
+                        ) {
+                          await loadMembersFor(group);
+                        }
+                      }}
+                      className="ml-2 text-xs px-2 py-1 rounded border border-gray-300 hover:bg-gray-50"
+                    >
+                      {isExpanded ? 'Hide members' : 'View members'}
+                    </button>
                   </div>
                   {group.module_name && (
                     <div className="text-xs text-gray-500">{group.module_name}</div>
@@ -1065,16 +1171,18 @@ export default function Groups() {
                         <Trash2 className="w-4 h-4" />
                       </button>
 
-                      {/* Open chat (placeholder) */}
-                      <button
-                        type="button"
-                        onClick={() => navigate('/chat')}
-                        className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
-                        title="Open chat"
-                        aria-label="Open chat"
-                      >
-                        <MessageSquare className="w-4 h-4" />
-                      </button>
+                      {/* Open chat (only for members) */}
+                      {iJoined && realId && (
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/chat?groupId=${realId}`)}
+                          className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
+                          title="Open group chat"
+                          aria-label="Open group chat"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                        </button>
+                      )}
 
                       {/* Schedule session */}
                       <button
@@ -1150,16 +1258,18 @@ export default function Groups() {
                         </>
                       )}
 
-                      {/* Chat */}
-                      <button
-                        type="button"
-                        onClick={() => navigate('/chat')}
-                        className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
-                        title="Open chat"
-                        aria-label="Open chat"
-                      >
-                        <MessageSquare className="w-4 h-4" />
-                      </button>
+                      {/* Chat (only for members) */}
+                      {iJoined && realId && (
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/chat?groupId=${realId}`)}
+                          className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
+                          title="Open group chat"
+                          aria-label="Open group chat"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                        </button>
+                      )}
 
                       {/* Schedule (optional: show only to members/owner) */}
                       {(iJoined || owner) && (

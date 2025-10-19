@@ -23,6 +23,10 @@ type StudyGroup = {
   // optional passthroughs
   members?: Array<any>;
   isOwner?: boolean;
+  /** NEW: if backend says you're invited */
+  isInvited?: boolean;
+  /** Stable backend id (string) for state keys and API calls */
+  _backendId?: string;
 };
 
 export default function Groups() {
@@ -52,13 +56,20 @@ export default function Groups() {
   const [connLoading, setConnLoading] = useState(false);
 
   const [meId, setMeId] = useState<string>('');
-  const [owners, setOwners] = useState<Record<number, string>>({});
-  const [idMap, setIdMap] = useState<Record<number, string>>({}); // local numeric → backend id
+  // owners keyed by backend id
+  const [owners, setOwners] = useState<Record<string, string>>({});
+  // local numeric → backend id (kept for compatibility)
+  const [idMap, setIdMap] = useState<Record<number, string>>({});
 
-  // join/leave UI state
+  // join/leave UI state (by local numeric for spinners only)
   const [joiningId, setJoiningId] = useState<number | null>(null);
   const [pendingAction, setPendingAction] = useState<'join' | 'leave' | null>(null);
-  const [joinedByMe, setJoinedByMe] = useState<Record<number, boolean>>({});
+  // membership keyed by backend id (stable)
+  const [joinedByMe, setJoinedByMe] = useState<Record<string, boolean>>({});
+
+  // invite accept/decline UI state (local numeric for spinners only)
+  const [respondingId, setRespondingId] = useState<number | null>(null);
+  const [respondingAction, setRespondingAction] = useState<'accept' | 'decline' | null>(null);
 
   // schedule-session modal state
   const [openSchedule, setOpenSchedule] = useState<{
@@ -72,9 +83,10 @@ export default function Groups() {
 
   // members UI state
   const [expandedMembers, setExpandedMembers] = useState<Record<number, boolean>>({});
-  const [membersByGroup, setMembersByGroup] = useState<Record<number, any[]>>({});
-  const [membersLoading, setMembersLoading] = useState<Record<number, boolean>>({});
-  const [membersError, setMembersError] = useState<Record<number, string | null>>({});
+  // members keyed by backend id (stable)
+  const [membersByGroup, setMembersByGroup] = useState<Record<string, any[]>>({});
+  const [membersLoading, setMembersLoading] = useState<Record<string, boolean>>({});
+  const [membersError, setMembersError] = useState<Record<string, string | null>>({});
 
   // ---- headers consistent with DataService ----
   function authHeadersJSON(): Headers {
@@ -156,12 +168,21 @@ export default function Groups() {
     } catch {}
   }
 
+  function stableHash(s: string): number {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+    h = Math.abs(h);
+    return h || 1;
+  }
+
   // map API → local card shape; capture owner + backend id + my membership
   function toStudyGroup(g: any): StudyGroup {
-    const idStr = String(g?.id ?? g?.group_id ?? '');
-    let hash = 0;
-    for (let i = 0; i < idStr.length; i++) hash = ((hash << 5) - hash + idStr.charCodeAt(i)) | 0;
-    const numericId = Number.isFinite(g?.group_id) ? g.group_id : Math.abs(hash || Date.now());
+    const backendId = String(g?.id ?? g?.group_id ?? g?.uuid ?? g?._id ?? '');
+    const localNumeric = Number.isFinite(g?.group_id)
+      ? Number(g.group_id)
+      : backendId
+      ? stableHash(backendId)
+      : stableHash(String(g?.name ?? '') + String(g?.createdAt ?? ''));
 
     const createdBy =
       g?.createdBy != null
@@ -170,28 +191,29 @@ export default function Groups() {
         ? String(g.creator_id)
         : '';
 
-    // keep owner map fresh in case backend transfers ownership
-    setOwners((prev) =>
-      prev[numericId] === createdBy ? prev : { ...prev, [numericId]: createdBy }
-    );
-
-    // ✅ NEW: accept either id or group_id as the backend id
-    if (g?.id != null || g?.group_id != null) {
-      const backendId = String(g.id ?? g.group_id);
-      setIdMap((prev) => (prev[numericId] ? prev : { ...prev, [numericId]: backendId }));
+    // keep owner map fresh in case backend transfers ownership (key by backendId)
+    if (backendId) {
+      setOwners((prev) =>
+        prev[backendId] === createdBy ? prev : { ...prev, [backendId]: createdBy }
+      );
     }
 
-    // membership hint from API if available
-    if (Array.isArray(g?.members) && meId) {
+    // map local numeric → backend id for legacy lookups
+    if (backendId) {
+      setIdMap((prev) => (prev[localNumeric] ? prev : { ...prev, [localNumeric]: backendId }));
+    }
+
+    // membership hint from API if available (key by backendId)
+    if (backendId && Array.isArray(g?.members) && meId) {
       const iAmIn = g.members.some(
         (m: any) => String(m?.userId ?? m?.id ?? m?.user_id) === String(meId)
       );
       setJoinedByMe((prev) =>
-        prev[numericId] === undefined ? { ...prev, [numericId]: iAmIn } : prev
+        prev[backendId] === undefined ? { ...prev, [backendId]: iAmIn } : prev
       );
-    } else if (createdBy && meId && String(createdBy) === String(meId)) {
+    } else if (backendId && createdBy && meId && String(createdBy) === String(meId)) {
       setJoinedByMe((prev) =>
-        prev[numericId] === undefined ? { ...prev, [numericId]: true } : prev
+        prev[backendId] === undefined ? { ...prev, [backendId]: true } : prev
       );
     }
 
@@ -211,7 +233,7 @@ export default function Groups() {
         : g?.module_name ?? undefined;
 
     const base: any = {
-      group_id: numericId,
+      group_id: localNumeric,
       group_name: g?.name ?? g?.group_name ?? 'Untitled group',
       description: g?.description ?? '',
       creator_id: createdBy, // normalized to string
@@ -225,31 +247,34 @@ export default function Groups() {
       member_count: membersCount,
       module_name: moduleName,
       creator_name: g?.createdByName || g?.creator_name,
+      _backendId: backendId,
     };
-    // carry through useful server hints when present
     if (typeof g?.isOwner === 'boolean') base.isOwner = !!g.isOwner;
     if (Array.isArray(g?.members)) base.members = g.members;
 
     // If I'm the creator, reflect membership immediately
-    if (meId && String(createdBy || '') === String(meId)) {
+    if (backendId && meId && String(createdBy || '') === String(meId)) {
       base.member_count = Math.max(1, Number(base.member_count || 0));
       setJoinedByMe((prev) =>
-        prev[numericId] === undefined ? { ...prev, [numericId]: true } : prev
+        prev[backendId] === undefined ? { ...prev, [backendId]: true } : prev
       );
     }
+    if (typeof g?.isInvited === 'boolean') (base as any).isInvited = !!g.isInvited;
 
     return base as StudyGroup;
   }
 
   function isOwner(group: StudyGroup): boolean {
     if (!meId) return false;
-    // 1) prefer explicit server signal when available
     if ((group as any).isOwner === true) return true;
-    // 2) Fallback to createdBy/creator_id logic
-    const ownerId =
-      owners[group.group_id] ?? (group.creator_id != null ? String(group.creator_id) : '');
-    if (ownerId && String(ownerId) === String(meId)) return true;
-    // 3) Last resort: if members array is present, accept owner-by-role
+    const backendId = (group as any)._backendId as string | undefined;
+    if (backendId) {
+      const ownerId = owners[backendId];
+      if (ownerId && String(ownerId) === String(meId)) return true;
+    }
+    const ownerIdFallback = group.creator_id != null ? String(group.creator_id) : '';
+    if (ownerIdFallback && String(ownerIdFallback) === String(meId)) return true;
+
     const m = (group as any).members;
     if (Array.isArray(m)) {
       const mine = m.find((x: any) => String(x?.userId ?? x?.id ?? x?.user_id) === String(meId));
@@ -275,16 +300,23 @@ export default function Groups() {
             data?.user_id != null ? String(data.user_id) : data?.id != null ? String(data.id) : '';
           if (mounted) setMeId(id);
         } else {
-          if (mounted) setMeId(''); // don't guess; prevents accidental owner UI
+          if (mounted) setMeId('');
         }
       } catch {
-        if (mounted) setMeId(''); // keep empty if unknown
+        if (mounted) setMeId('');
       }
     })();
     return () => {
       mounted = false;
     };
   }, []);
+
+  // once meId is known, refresh so server hints can mark membership/ownership
+  useEffect(() => {
+    if (meId) {
+      refreshGroups();
+    }
+  }, [meId]);
 
   // listen for broadcasted changes (created elsewhere)
   useEffect(() => {
@@ -329,12 +361,12 @@ export default function Groups() {
         data = await DataService.fetchGroupsRaw();
       }
       const mapped = (Array.isArray(data) ? data : []).map((g: any) => toStudyGroup(g));
-      setGroups(mapped); // <- just set what the backend gives you
+      setGroups(mapped);
       setError(null);
       return true;
     } catch {
-      setGroups([]); // <- empty; your “No study groups found” UI kicks in
-      setError('Showing demo groups'); // surface fallback state to UI
+      setGroups([]);
+      setError('Showing demo groups');
       return false;
     }
   }
@@ -352,36 +384,57 @@ export default function Groups() {
     (DataService as any)?.listGroupMembers ||
     (DataService as any)?.getMembers;
 
+  // --- optional invite endpoints (feature-detected) ---
+  const acceptInviteFn =
+    (DataService as any)?.acceptGroupInvite ||
+    (DataService as any)?.acceptInvitation ||
+    (DataService as any)?.groupsAcceptInvite;
+
+  const declineInviteFn =
+    (DataService as any)?.declineGroupInvite ||
+    (DataService as any)?.declineInvitation ||
+    (DataService as any)?.groupsDeclineInvite;
+
+  function backendIdForLocal(localId: number): string | null {
+    const viaMap = idMap[localId];
+    if (viaMap) return viaMap;
+    const g = groups.find((x) => x.group_id === localId);
+    const bid = (g as any)?._backendId as string | undefined;
+    return bid || null;
+  }
+
   async function loadMembersFor(group: StudyGroup) {
-    const backendId = idMap[group.group_id] ?? String(group.group_id); // ✅ fallback
+    const backendId = (group as any)._backendId as string | undefined;
     if (!backendId || typeof membersFn !== 'function') return;
 
-    setMembersLoading((p) => ({ ...p, [group.group_id]: true }));
-    setMembersError((p) => ({ ...p, [group.group_id]: null }));
+    setMembersLoading((p) => ({ ...p, [backendId]: true }));
+    setMembersError((p) => ({ ...p, [backendId]: null }));
     try {
       const list = await membersFn(backendId);
       const arr = Array.isArray(list) ? list : [];
-      setMembersByGroup((p) => ({ ...p, [group.group_id]: arr }));
+      setMembersByGroup((p) => ({ ...p, [backendId]: arr }));
     } catch (e) {
       console.warn('loadMembersFor failed', e);
-      setMembersError((p) => ({ ...p, [group.group_id]: 'Could not load members' }));
+      setMembersError((p) => ({ ...p, [backendId]: 'Could not load members' }));
     } finally {
-      setMembersLoading((p) => ({ ...p, [group.group_id]: false }));
+      setMembersLoading((p) => ({ ...p, [backendId]: false }));
     }
   }
 
   const joinGroup = async (groupId: number) => {
-    const realId = idMap[groupId]; // undefined => fallback/demo
+    const realId = backendIdForLocal(groupId);
     setJoiningId(groupId);
     setPendingAction('join');
 
     // optimistic UI
     setGroups((prev) =>
       prev.map((g) =>
-        g.group_id === groupId ? { ...g, member_count: (g.member_count || 0) + 1 } : g
+        g.group_id === groupId
+          ? { ...g, member_count: (g.member_count || 0) + 1, isInvited: false as any }
+          : g
       )
     );
-    setJoinedByMe((prev) => ({ ...prev, [groupId]: true }));
+    if (realId) setJoinedByMe((prev) => ({ ...prev, [realId]: true }));
 
     if (!realId) {
       setTimeout(() => {
@@ -395,14 +448,21 @@ export default function Groups() {
       const ok = await DataService.joinGroup(realId);
       if (!ok) throw new Error('join failed');
       await refreshGroups();
-      // refresh member list if expanded
       if (expandedMembers[groupId]) {
         const g = groups.find((x) => x.group_id === groupId);
         if (g) await loadMembersFor(g);
       }
+      // re-assert membership in case of eventual consistency
+      setJoinedByMe((prev) => ({ ...prev, [realId]: true }));
+
+      // notify invite UIs (modal) that server invite state may have changed
+      try {
+        window.dispatchEvent(
+          new CustomEvent('group.invites.changed', { detail: { groupId: realId } })
+        );
+      } catch {}
     } catch (err) {
       console.error('Error joining group:', err);
-      // revert on hard error
       setGroups((prev) =>
         prev.map((g) =>
           g.group_id === groupId
@@ -410,7 +470,7 @@ export default function Groups() {
             : g
         )
       );
-      setJoinedByMe((prev) => ({ ...prev, [groupId]: false }));
+      if (realId) setJoinedByMe((prev) => ({ ...prev, [realId]: false }));
     } finally {
       setJoiningId(null);
       setPendingAction(null);
@@ -418,7 +478,7 @@ export default function Groups() {
   };
 
   const leaveGroup = async (groupId: number) => {
-    const realId = idMap[groupId]; // undefined => fallback/demo
+    const realId = backendIdForLocal(groupId);
     setJoiningId(groupId);
     setPendingAction('leave');
 
@@ -428,7 +488,7 @@ export default function Groups() {
         g.group_id === groupId ? { ...g, member_count: Math.max((g.member_count || 0) - 1, 0) } : g
       )
     );
-    setJoinedByMe((prev) => ({ ...prev, [groupId]: false }));
+    if (realId) setJoinedByMe((prev) => ({ ...prev, [realId]: false }));
 
     if (!realId) {
       setTimeout(() => {
@@ -448,26 +508,111 @@ export default function Groups() {
       }
     } catch (err) {
       console.error('Error leaving group:', err);
-      // revert
       setGroups((prev) =>
         prev.map((g) =>
           g.group_id === groupId ? { ...g, member_count: (g.member_count || 0) + 1 } : g
         )
       );
-      setJoinedByMe((prev) => ({ ...prev, [groupId]: true }));
+      if (realId) setJoinedByMe((prev) => ({ ...prev, [realId]: true }));
     } finally {
       setJoiningId(null);
       setPendingAction(null);
     }
   };
 
+  const acceptInvite = async (groupId: number) => {
+    const realId = backendIdForLocal(groupId) ?? String(groupId);
+    if (typeof acceptInviteFn !== 'function') {
+      return joinGroup(groupId);
+    }
+
+    setRespondingId(groupId);
+    setRespondingAction('accept');
+
+    try {
+      const ok = await acceptInviteFn(realId);
+      if (!ok) throw new Error('accept failed');
+
+      // Optimistic: mark as joined
+      setJoinedByMe((prev) => ({ ...prev, [realId]: true }));
+      setGroups((prev) =>
+        prev.map((g) =>
+          g.group_id === groupId
+            ? {
+                ...g,
+                member_count: Math.max(1, (g.member_count || 0) + 1),
+                isInvited: false as any,
+              }
+            : g
+        )
+      );
+
+      await refreshGroups();
+      // Re-assert post-refresh
+      setJoinedByMe((prev) => ({ ...prev, [realId]: true }));
+
+      // notify invite UIs (modal)
+      try {
+        window.dispatchEvent(
+          new CustomEvent('group.invites.changed', { detail: { groupId: realId } })
+        );
+      } catch {}
+    } catch (err) {
+      console.error('Error accepting invite:', err);
+    } finally {
+      setRespondingId(null);
+      setRespondingAction(null);
+    }
+  };
+
+  const declineInvite = async (groupId: number) => {
+    const realId = backendIdForLocal(groupId) ?? String(groupId);
+    if (typeof declineInviteFn !== 'function') {
+      setGroups((prev) =>
+        prev.map((g) => (g.group_id === groupId ? { ...g, isInvited: false as any } : g))
+      );
+      // notify invite UIs (modal)
+      try {
+        window.dispatchEvent(
+          new CustomEvent('group.invites.changed', { detail: { groupId: realId } })
+        );
+      } catch {}
+      return;
+    }
+
+    setRespondingId(groupId);
+    setRespondingAction('decline');
+
+    try {
+      const ok = await declineInviteFn(realId);
+      if (!ok) throw new Error('decline failed');
+
+      setGroups((prev) =>
+        prev.map((g) => (g.group_id === groupId ? { ...g, isInvited: false as any } : g))
+      );
+
+      await refreshGroups();
+
+      // notify invite UIs (modal)
+      try {
+        window.dispatchEvent(
+          new CustomEvent('group.invites.changed', { detail: { groupId: realId } })
+        );
+      } catch {}
+    } catch (err) {
+      console.error('Error declining invite:', err);
+    } finally {
+      setRespondingId(null);
+      setRespondingAction(null);
+    }
+  };
+
   const deleteGroup = async (groupId: number) => {
-    const realId = idMap[groupId] || String(groupId);
+    const realId = backendIdForLocal(groupId) || String(groupId);
     if (!window.confirm('Delete this group? This action cannot be undone.')) return;
 
     const snap = groups;
     const target = groups.find((g) => g.group_id === groupId);
-    // Optional pre-notify (members still see it even as card disappears)
     if (target) {
       await notifyGroupSafe(realId, {
         title: 'Group deleted',
@@ -507,9 +652,8 @@ export default function Groups() {
       if (created) {
         const sg = toStudyGroup(created);
 
-        // Ensure the creator is actually a member on the server too
         try {
-          const newId = String((created as any)?.id ?? idMap[sg.group_id]);
+          const newId = String((created as any)?.id ?? (sg as any)?._backendId);
           if (newId && (DataService as any)?.joinGroup) {
             await (DataService as any).joinGroup(newId);
           }
@@ -517,14 +661,18 @@ export default function Groups() {
           console.warn('joinGroup right after create failed (non-fatal)', e);
         }
 
-        // Ensure the UI immediately reflects creator membership + ownership
-        setJoinedByMe((prev) => ({ ...prev, [sg.group_id]: true }));
-        setOwners((prev) => ({ ...prev, [sg.group_id]: meId }));
+        setJoinedByMe((prev) => {
+          const bid = (sg as any)?._backendId as string | undefined;
+          return bid ? { ...prev, [bid]: true } : prev;
+        });
+        setOwners((prev) => {
+          const bid = (sg as any)?._backendId as string | undefined;
+          return bid ? { ...prev, [bid]: meId } : prev;
+        });
         if ((created as any)?.id) {
           setIdMap((prev) => ({ ...prev, [sg.group_id]: String((created as any).id) }));
         }
 
-        // Seed visible count to at least 1 (creator)
         setGroups((prev) => [{ ...sg, member_count: Math.max(1, sg.member_count || 0) }, ...prev]);
 
         broadcastGroupCreated({ ...sg, member_count: Math.max(1, sg.member_count || 0) });
@@ -551,8 +699,14 @@ export default function Groups() {
       group_type: 'study',
     });
 
-    setJoinedByMe((prev) => ({ ...prev, [localGroup.group_id]: true }));
-    setOwners((prev) => ({ ...prev, [localGroup.group_id]: meId }));
+    setJoinedByMe((prev) => {
+      const bid = (localGroup as any)?._backendId as string | undefined;
+      return bid ? { ...prev, [bid]: true } : prev;
+    });
+    setOwners((prev) => {
+      const bid = (localGroup as any)?._backendId as string | undefined;
+      return bid ? { ...prev, [bid]: meId } : prev;
+    });
     setGroups((prev) => [localGroup, ...prev]);
     broadcastGroupCreated(localGroup);
   };
@@ -671,7 +825,7 @@ export default function Groups() {
     } catch (e) {
       console.error('Update group failed', e);
       alert('Could not update the group.');
-      await refreshGroups(); // restore authoritative state
+      await refreshGroups();
     }
   };
 
@@ -763,16 +917,18 @@ export default function Groups() {
           {groups.filter(Boolean).map((group) => {
             if (!group || !group.group_name || !group.group_type) return null;
             const owner = isOwner(group);
-            const iJoined = !!joinedByMe[group.group_id];
+            const backendId = (group as any)._backendId as string | undefined;
+            const iJoined = backendId ? !!joinedByMe[backendId] : false;
 
-            const realId = idMap[group.group_id] || String(group.group_id);
+            const realId = backendId || idMap[group.group_id] || String(group.group_id);
             const coursePieces = splitModuleName(group.module_name);
 
-            // prefer members already provided by API; else use fetched; else empty
             const immediateMembers =
               (group as any).members && Array.isArray((group as any).members)
                 ? (group as any).members
-                : membersByGroup[group.group_id] || [];
+                : backendId && membersByGroup[backendId]
+                ? membersByGroup[backendId]
+                : [];
 
             const isExpanded = !!expandedMembers[group.group_id];
 
@@ -788,6 +944,11 @@ export default function Groups() {
                       {owner && (
                         <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
                           Owner
+                        </span>
+                      )}
+                      {!owner && (group as any).isInvited === true && !iJoined && (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                          Invited
                         </span>
                       )}
                     </div>
@@ -811,11 +972,9 @@ export default function Groups() {
                     <span>
                       {group.member_count || 0}/{group.max_members} members
                     </span>
-                    {/* Members toggle (only if we have or can fetch members) */}
                     {(Array.isArray((group as any).members) ||
                       Array.isArray((group as any).membersList) ||
-                      (typeof membersFn === 'function' &&
-                        (idMap[group.group_id] ?? group.group_id))) && (
+                      (typeof membersFn === 'function' && realId)) && (
                       <button
                         onClick={async () => {
                           const next = !isExpanded;
@@ -825,7 +984,7 @@ export default function Groups() {
                             !Array.isArray((group as any).members) &&
                             !Array.isArray((group as any).membersList)
                           ) {
-                            if (!membersByGroup[group.group_id]) {
+                            if (backendId && !membersByGroup[backendId]) {
                               await loadMembersFor(group);
                             }
                           }
@@ -844,10 +1003,10 @@ export default function Groups() {
                 {/* Members list */}
                 {isExpanded && (
                   <div className="mb-4">
-                    {membersLoading[group.group_id] ? (
+                    {backendId && membersLoading[backendId] ? (
                       <div className="text-xs text-gray-500">Loading members…</div>
-                    ) : membersError[group.group_id] ? (
-                      <div className="text-xs text-red-600">{membersError[group.group_id]}</div>
+                    ) : backendId && membersError[backendId] ? (
+                      <div className="text-xs text-red-600">{membersError[backendId]}</div>
                     ) : immediateMembers.length === 0 ? (
                       <div className="text-xs text-gray-500">No members listed.</div>
                     ) : (
@@ -865,7 +1024,7 @@ export default function Groups() {
                       <button
                         onClick={async () => {
                           await loadConnections();
-                          setOpenInvite({ open: true, groupId: realId });
+                          if (realId) setOpenInvite({ open: true, groupId: realId });
                         }}
                         className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
                         title="Invite members"
@@ -877,6 +1036,7 @@ export default function Groups() {
                       {canEditGroup && (
                         <button
                           onClick={() => {
+                            if (!realId) return;
                             setOpenEdit({
                               open: true,
                               backendId: realId,
@@ -885,7 +1045,7 @@ export default function Groups() {
                                 name: group.group_name,
                                 description: group.description || '',
                                 maxMembers: group.max_members ?? 8,
-                                isPublic: true, // fallback if server doesn't surface it on list
+                                isPublic: true,
                               },
                             });
                           }}
@@ -908,7 +1068,7 @@ export default function Groups() {
                       {/* Open chat (placeholder) */}
                       <button
                         type="button"
-                        onClick={() => navigate('/chat')} // or '/chats' if that’s your route
+                        onClick={() => navigate('/chat')}
                         className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
                         title="Open chat"
                         aria-label="Open chat"
@@ -919,6 +1079,7 @@ export default function Groups() {
                       {/* Schedule session */}
                       <button
                         onClick={() =>
+                          realId &&
                           setOpenSchedule({
                             open: true,
                             groupId: realId,
@@ -936,27 +1097,60 @@ export default function Groups() {
                     </>
                   ) : (
                     <>
-                      {iJoined ? (
-                        <button
-                          onClick={() => leaveGroup(group.group_id)}
-                          disabled={joiningId === group.group_id}
-                          className="flex-1 px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition disabled:opacity-60"
-                        >
-                          {joiningId === group.group_id && pendingAction === 'leave'
-                            ? 'Leaving…'
-                            : 'Leave Group'}
-                        </button>
+                      {(group as any).isInvited === true && !iJoined ? (
+                        <>
+                          <button
+                            onClick={() => acceptInvite(group.group_id)}
+                            disabled={
+                              !realId ||
+                              (respondingId === group.group_id && respondingAction === 'accept')
+                            }
+                            className="flex-1 px-3 py-2 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 transition disabled:opacity-60"
+                          >
+                            {respondingId === group.group_id && respondingAction === 'accept'
+                              ? 'Accepting…'
+                              : 'Accept Invite'}
+                          </button>
+                          <button
+                            onClick={() => declineInvite(group.group_id)}
+                            disabled={
+                              !realId ||
+                              (respondingId === group.group_id && respondingAction === 'decline')
+                            }
+                            className="px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition disabled:opacity-60"
+                          >
+                            {respondingId === group.group_id && respondingAction === 'decline'
+                              ? 'Declining…'
+                              : 'Decline'}
+                          </button>
+                        </>
                       ) : (
-                        <button
-                          onClick={() => joinGroup(group.group_id)}
-                          disabled={joiningId === group.group_id}
-                          className="flex-1 px-3 py-2 bg-brand-500 text-white text-sm rounded-lg hover:bg-brand-600 transition disabled:opacity-60"
-                        >
-                          {joiningId === group.group_id && pendingAction === 'join'
-                            ? 'Joining…'
-                            : 'Join Group'}
-                        </button>
+                        <>
+                          {iJoined ? (
+                            <button
+                              onClick={() => leaveGroup(group.group_id)}
+                              disabled={!realId || joiningId === group.group_id}
+                              className="flex-1 px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition disabled:opacity-60"
+                            >
+                              {joiningId === group.group_id && pendingAction === 'leave'
+                                ? 'Leaving…'
+                                : 'Leave Group'}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => joinGroup(group.group_id)}
+                              disabled={!realId || joiningId === group.group_id}
+                              className="flex-1 px-3 py-2 bg-brand-500 text-white text-sm rounded-lg hover:bg-brand-600 transition disabled:opacity-60"
+                            >
+                              {joiningId === group.group_id && pendingAction === 'join'
+                                ? 'Joining…'
+                                : 'Join Group'}
+                            </button>
+                          )}
+                        </>
                       )}
+
+                      {/* Chat */}
                       <button
                         type="button"
                         onClick={() => navigate('/chat')}
@@ -967,22 +1161,26 @@ export default function Groups() {
                         <MessageSquare className="w-4 h-4" />
                       </button>
 
-                      <button
-                        onClick={() =>
-                          setOpenSchedule({
-                            open: true,
-                            groupId: realId,
-                            groupLocalId: group.group_id,
-                            groupName: group.group_name,
-                            course: coursePieces.course,
-                            courseCode: coursePieces.courseCode,
-                          })
-                        }
-                        className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
-                        title="Schedule a session"
-                      >
-                        <Calendar className="w-4 h-4" />
-                      </button>
+                      {/* Schedule (optional: show only to members/owner) */}
+                      {(iJoined || owner) && (
+                        <button
+                          onClick={() =>
+                            realId &&
+                            setOpenSchedule({
+                              open: true,
+                              groupId: realId,
+                              groupLocalId: group.group_id,
+                              groupName: group.group_name,
+                              course: coursePieces.course,
+                              courseCode: coursePieces.courseCode,
+                            })
+                          }
+                          className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
+                          title="Schedule a session"
+                        >
+                          <Calendar className="w-4 h-4" />
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
@@ -1300,7 +1498,8 @@ function ScheduleSessionModal({
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
 
-  const titleId = useId();
+  const headingId = useId();
+  const titleInputId = useId();
   const dateId = useId();
   const stId = useId();
   const etId = useId();
@@ -1359,7 +1558,7 @@ function ScheduleSessionModal({
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby={titleId}
+        aria-labelledby={headingId}
         className="fixed inset-0 z-[9999] grid place-items-center p-4"
       >
         <div
@@ -1368,7 +1567,7 @@ function ScheduleSessionModal({
         >
           <div className="flex items-start justify-between mb-6">
             <div>
-              <h2 id={titleId} className="text-lg font-semibold text-slate-900">
+              <h2 id={headingId} className="text-lg font-semibold text-slate-900">
                 Schedule a session
               </h2>
               <p className="text-sm text-slate-600">
@@ -1388,11 +1587,14 @@ function ScheduleSessionModal({
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
-                <label htmlFor={titleId} className="block mb-1 text-sm font-medium text-slate-800">
+                <label
+                  htmlFor={titleInputId}
+                  className="block mb-1 text-sm font-medium text-slate-800"
+                >
                   Session title <span className="text-emerald-700">*</span>
                 </label>
                 <input
-                  id={titleId}
+                  id={titleInputId}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="e.g., Midterm Review"
@@ -1512,9 +1714,55 @@ function InviteMembersModal({
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
+  // NEW: ids that already have a pending invite for this group
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const rows = await DataService.getGroupPendingInvites(groupId);
+        const ids = (Array.isArray(rows) ? rows : [])
+          .filter((r) => String(r.status).toLowerCase() === 'pending')
+          .map((r) => String(r.user_id));
+        if (mounted) setPendingIds(new Set(ids));
+      } catch {
+        if (mounted) setPendingIds(new Set());
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [groupId]);
+
   const toggle = (id: string) => {
+    if (pendingIds.has(id)) return;
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
+
+  useEffect(() => {
+    if (!groupId) return;
+
+    async function refetchPending() {
+      try {
+        const rows = await DataService.getGroupPendingInvites(groupId);
+        const ids = (Array.isArray(rows) ? rows : [])
+          .filter((r) => String(r.status).toLowerCase() === 'pending')
+          .map((r) => String(r.user_id));
+        setPendingIds(new Set(ids));
+      } catch {
+        // keep existing pendingIds on failure
+      }
+    }
+
+    const handler = (ev: any) => {
+      if (ev?.detail?.groupId !== groupId) return;
+      refetchPending();
+    };
+
+    window.addEventListener('group.invites.changed', handler);
+    return () => window.removeEventListener('group.invites.changed', handler);
+  }, [groupId]);
 
   async function invite() {
     if (selectedIds.length === 0 || sending || sent) return;
@@ -1523,35 +1771,60 @@ function InviteMembersModal({
       const ok = await DataService.inviteToGroup(groupId, selectedIds);
       if (!ok) throw new Error('invite failed');
 
-      // Notify inviter (you)
-      if (currentUserId) {
-        await DataService.createNotification({
-          user_id: currentUserId,
-          notification_type: 'group_invite',
-          title: 'Group invites sent',
-          message: `You invited ${selectedIds.length} ${
-            selectedIds.length === 1 ? 'person' : 'people'
-          } to join your group.`,
-          metadata: { group_id: groupId, invitee_ids: selectedIds, direction: 'sent' },
-        });
-      }
-
-      // Notify each invitee
-      await Promise.all(
-        selectedIds.map((uid) =>
-          DataService.createNotification({
-            user_id: uid,
-            notification_type: 'group_invite',
-            title: 'You’ve been invited to a study group',
-            message: 'Open the app to accept or view the group details.',
-            metadata: { group_id: groupId, invited_by: currentUserId, direction: 'received' },
-          }).catch(() => null)
-        )
-      );
+      (async () => {
+        try {
+          if (currentUserId) {
+            await DataService.createNotification({
+              user_id: currentUserId,
+              notification_type: 'group_invite',
+              title: 'Group invites sent',
+              message: `You invited ${selectedIds.length} ${
+                selectedIds.length === 1 ? 'person' : 'people'
+              } to join your group.`,
+              metadata: { group_id: groupId, invitee_ids: selectedIds, direction: 'sent' },
+            });
+          }
+          await Promise.allSettled(
+            selectedIds.map((uid) =>
+              DataService.createNotification({
+                user_id: uid,
+                notification_type: 'group_invite',
+                title: 'You’ve been invited to a study group',
+                message: 'Open the app to accept or view the group details.',
+                metadata: { group_id: groupId, invited_by: currentUserId, direction: 'received' },
+              })
+            )
+          );
+        } catch {}
+      })();
 
       setSent(true);
+
+      setPendingIds((prev) => {
+        const next = new Set(prev);
+        selectedIds.forEach((id) => next.add(id));
+        return next;
+      });
+
+      setSelectedIds([]);
+
+      window.dispatchEvent(new Event('groups:invalidate'));
+
+      try {
+        window.dispatchEvent(
+          new CustomEvent('toast', {
+            detail: {
+              type: 'success',
+              message: `Sent ${selectedIds.length} invite${selectedIds.length === 1 ? '' : 's'}`,
+            },
+          })
+        );
+      } catch {}
+
+      setTimeout(onClose, 900);
     } catch (err) {
       console.error('Error sending invites:', err);
+      alert('Could not send invites. Please try again.');
     } finally {
       setSending(false);
     }
@@ -1576,6 +1849,11 @@ function InviteMembersModal({
                   .join('')
                   .slice(0, 2)
                   .toUpperCase();
+
+                const partnerSaysPending =
+                  p.connectionStatus === 'pending' || (p as any).isPendingSent;
+                const isPending = pendingIds.has(p.id) || partnerSaysPending;
+
                 return (
                   <li key={p.id} className="flex items-center justify-between p-3">
                     <div className="flex items-center gap-3">
@@ -1583,16 +1861,25 @@ function InviteMembersModal({
                         {initials}
                       </div>
                       <div>
-                        <div className="text-sm font-medium text-gray-900">{p.name}</div>
+                        <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                          {p.name}
+                          {isPending && (
+                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700">
+                              Pending
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs text-gray-500">{(p as any).major}</div>
                       </div>
                     </div>
+
                     <input
                       type="checkbox"
                       className="h-4 w-4"
                       checked={selectedIds.includes(p.id)}
                       onChange={() => toggle(p.id)}
-                      disabled={sent}
+                      disabled={sent || isPending}
+                      title={isPending ? 'Invite already sent' : undefined}
                     />
                   </li>
                 );
@@ -1601,8 +1888,9 @@ function InviteMembersModal({
           )}
         </div>
 
-        <div className="mt-6 flex items-center justify-end gap-3">
+        <div className="mt-6 flex items-center justify-end gap-3" aria-live="polite">
           <button
+            type="button"
             onClick={onClose}
             className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50"
           >
@@ -1613,7 +1901,7 @@ function InviteMembersModal({
             disabled={selectedIds.length === 0 || sending || sent}
             className="rounded-xl bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
           >
-            {sent ? 'Invites sent' : sending ? 'Sending…' : 'Send Invites'}
+            {sent ? 'Invites sent ✓' : sending ? 'Sending…' : 'Send Invites'}
           </button>
         </div>
       </div>

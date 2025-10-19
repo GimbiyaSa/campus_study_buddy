@@ -167,6 +167,7 @@ export type StudyGroup = {
   group_type?: 'study' | 'project' | 'exam_prep' | 'discussion';
   session_count?: number;
   isMember?: boolean;
+  isInvited?: boolean;
   membersList?: Array<{ userId: string; role?: string }>;
 
   /** explicit owner clarity for robust UI checks */
@@ -215,6 +216,20 @@ export type NotificationCounts = {
   unread_reminders: number;
   unread_invites: number;
   unread_matches: number;
+};
+
+// --- Profile shapes the page expects (optional: keep inline if you prefer)
+export type UserProfile = {
+  user_id: string;
+  email: string;
+  first_name?: string;
+  last_name?: string;
+  university?: string;
+  course?: string;
+  year_of_study?: number | null;
+  bio?: string | null;
+  profile_image_url?: string | null;
+  study_preferences?: any | null; // { preferredTimes, studyStyle, groupSize, ... }
 };
 
 /* ============================================================================
@@ -619,6 +634,113 @@ export class DataService {
     }
   }
 
+  /** Full current-user profile from backend */
+  static async getUserProfile(): Promise<UserProfile | null> {
+    try {
+      const res = await this.request('/api/v1/users/me', { method: 'GET' });
+      if (!res.ok) return null;
+      return this.safeJson<UserProfile | null>(res, null);
+    } catch {
+      return null;
+    }
+  }
+
+  /** Update current-user profile (partial patch) */
+  static async updateUserProfile(
+    patch: Partial<UserProfile> & { study_preferences?: any }
+  ): Promise<UserProfile | null> {
+    try {
+      const res = await this.request('/api/v1/users/me', {
+        method: 'PUT',
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) return null;
+      return this.safeJson<UserProfile | null>(res, null);
+    } catch {
+      return null;
+    }
+  }
+
+  /** Upload a profile image, returns the URL (and you can follow up with PUT /me if needed) */
+  static async uploadProfileImage(file: File): Promise<string | null> {
+    try {
+      const url = buildApiUrl('/api/v1/users/files/upload');
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('uploadType', 'profile-image');
+
+      // IMPORTANT: do not set Content-Type for FormData; only send auth
+      const auth = Object.fromEntries(this.authHeaders().entries());
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: auth,
+        body: fd,
+        credentials: 'include',
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data?.file?.url ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  // inside class DataService, e.g. after uploadProfileImage()
+  /** Backend → UI mapping for the profile page */
+  static mapUserToStudentProfile(u: UserProfile): {
+    fullName: string;
+    email: string;
+    studentId: string;
+    bio: string;
+    availableForStudyPartners: boolean;
+    notifyReminders: boolean;
+    avatarUrl?: string;
+  } {
+    const fullName = [u.first_name, u.last_name].filter(Boolean).join(' ').trim();
+    return {
+      fullName: fullName || u.email,
+      email: u.email,
+      studentId: u.user_id,
+      bio: (u.bio ?? '') as string,
+      availableForStudyPartners: true,
+      notifyReminders: true,
+      avatarUrl: u.profile_image_url ?? undefined,
+    };
+  }
+
+  /** UI form → backend update payload */
+  static mapFormToUserUpdate(form: {
+    fullName: string;
+    email: string;
+    studentId: string;
+    bio: string;
+    availableForStudyPartners: boolean;
+    notifyReminders: boolean;
+    avatarUrl?: string;
+  }): Partial<UserProfile> {
+    // split name safely
+    const parts = (form.fullName || '').trim().split(/\s+/);
+    const first = parts.shift() ?? '';
+    const last = parts.join(' ') || null;
+
+    return {
+      // email/user_id are not updated here; server owns them
+      first_name: first || undefined,
+      last_name: last || undefined,
+      bio: form.bio ?? null,
+      profile_image_url: form.avatarUrl ?? undefined,
+      // keep prefs in a single JSON column if you want
+      study_preferences: {
+        preferredTimes: [],
+        studyStyle: 'visual',
+        groupSize: 'medium',
+        // you can add availableForStudyPartners/notifyReminders here if you’ll read them back
+        availableForStudyPartners: !!form.availableForStudyPartners,
+        notifyReminders: !!form.notifyReminders,
+      },
+    };
+  }
+
   /* ----------------- Courses (incoming preserved) ----------------- */
   static async fetchCourses(options?: CourseFetchOptions): Promise<Course[]> {
     try {
@@ -1001,6 +1123,20 @@ export class DataService {
     }
   }
 
+  static async getPendingInvitations(): Promise<any[]> {
+    try {
+      console.log('🔍 Fetching pending invitations from API...');
+      const res = await this.fetchWithRetry(buildApiUrl('/api/v1/partners/pending-invitations'));
+      const data = await this.safeJson<any[]>(res, []);
+      console.log('✅ Pending invitations fetched:', data.length, data);
+      return data;
+    } catch (error) {
+      console.error('❌ getPendingInvitations error:', error);
+      const appError = ErrorHandler.handleApiError(error, 'partners');
+      throw appError;
+    }
+  }
+
   static async rejectPartnerRequest(requestId: number): Promise<void> {
     try {
       const res = await this.fetchWithRetry(buildApiUrl(`/api/v1/partners/reject/${requestId}`), {
@@ -1042,6 +1178,120 @@ export class DataService {
     } catch {
       return [];
     }
+  }
+
+  /** List my group invitations (recipient side) */
+  static async getMyGroupInvites(
+    status: 'pending' | 'accepted' | 'declined' | 'expired' = 'pending'
+  ): Promise<
+    Array<{
+      group_id: number;
+      group_name?: string;
+      invited_by?: string;
+      status: string;
+      created_at?: string;
+    }>
+  > {
+    // Try a few likely endpoints; all are optional and fail-soft
+    const candidates = [
+      `/api/v1/groups/invitations?status=${encodeURIComponent(status)}`,
+      `/api/v1/users/me/group-invitations?status=${encodeURIComponent(status)}`,
+    ];
+    for (const path of candidates) {
+      try {
+        const res = await this.request(path, { method: 'GET' });
+        if (!res.ok) continue;
+        const rows = await this.safeJson<any[]>(res, []);
+        if (Array.isArray(rows)) return rows;
+      } catch {}
+    }
+    // Fallback: infer from notifications (less precise; no per-invite status)
+    try {
+      const notes = await this.fetchNotifications({ type: 'group_invite' });
+      return (notes || [])
+        .map((n) => {
+          const gid = n?.metadata?.group_id;
+          return gid
+            ? {
+                group_id: Number(gid),
+                group_name: n?.title,
+                status: 'pending',
+                created_at: n?.created_at,
+              }
+            : null;
+        })
+        .filter(Boolean) as any[];
+    } catch {
+      return [];
+    }
+  }
+
+  /** Owner/admin: list pending invites for a specific group */
+  static async getGroupPendingInvites(groupId: string | number): Promise<
+    Array<{
+      user_id: string;
+      status: 'pending' | 'accepted' | 'declined' | 'expired';
+      invited_by?: string;
+      created_at?: string;
+    }>
+  > {
+    const gid = encodeURIComponent(String(groupId));
+    const paths = [
+      `/api/v1/groups/${gid}/invitations?status=pending`,
+      `/api/v1/groups/${gid}/invites?status=pending`,
+    ];
+    for (const p of paths) {
+      try {
+        const res = await this.request(p, { method: 'GET' });
+        if (!res.ok) continue;
+        const rows = await this.safeJson<any[]>(res, []);
+        if (Array.isArray(rows))
+          return rows.map((r) => ({
+            user_id: String(r.user_id ?? r.uid ?? r.id),
+            status: (r.status ?? 'pending') as any,
+            invited_by: r.invited_by ?? r.inviter_id ?? undefined,
+            created_at: r.created_at ?? undefined,
+          }));
+      } catch {}
+    }
+    return [];
+  }
+
+  static async acceptGroupInvite(groupId: string | number): Promise<boolean> {
+    const gid = encodeURIComponent(String(groupId));
+    const paths = [
+      `/api/v1/groups/${gid}/invitations/accept`,
+      `/api/v1/groups/${gid}/accept-invite`,
+      `/api/v1/groups/invitations/${gid}/accept`, // id-as-invitation id fallback
+    ];
+    for (const p of paths) {
+      try {
+        const res = await this.request(p, { method: 'POST' });
+        if (res.ok) return true;
+      } catch {}
+    }
+    // final fallback: try joining directly (for public groups)
+    try {
+      return await this.joinGroup(String(groupId));
+    } catch {
+      return false;
+    }
+  }
+
+  static async declineGroupInvite(groupId: string | number): Promise<boolean> {
+    const gid = encodeURIComponent(String(groupId));
+    const paths = [
+      `/api/v1/groups/${gid}/invitations/decline`,
+      `/api/v1/groups/${gid}/decline-invite`,
+      `/api/v1/groups/invitations/${gid}/decline`,
+    ];
+    for (const p of paths) {
+      try {
+        const res = await this.request(p, { method: 'POST' });
+        if (res.ok) return true;
+      } catch {}
+    }
+    return false;
   }
 
   static async createGroup(payload: {
@@ -1442,6 +1692,94 @@ export class DataService {
       return res.ok;
     } catch {
       return false;
+    }
+  }
+
+  // ---------- Notes: attachments upload/download ----------
+
+  /**
+   * Upload one or more files to a note. Expects backend route:
+   * POST /api/v1/notes/:noteId/attachments (multer form field name: "files")
+   * Returns the updated note (with attachments JSON).
+   */
+  static async uploadNoteAttachments(
+    noteId: number | string,
+    files: File[]
+  ): Promise<SharedNote | null> {
+    if (!files?.length) return this.getNoteById(noteId);
+
+    const url = buildApiUrl(`/api/v1/notes/${encodeURIComponent(String(noteId))}/attachments`);
+    const fd = new FormData();
+    for (const f of files) fd.append('files', f);
+
+    // Auth header only (do NOT set Content-Type for FormData)
+    const auth = Object.fromEntries(this.authHeaders().entries());
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: auth,
+      body: fd,
+      credentials: 'include',
+    });
+
+    if (!res.ok) return null;
+    return this.safeJson<SharedNote | null>(res, null);
+  }
+
+  /** Optionally delete a single attachment record + blob on the server. */
+  static async deleteNoteAttachment(params: {
+    noteId: number | string;
+    container: string;
+    blob: string;
+  }): Promise<boolean> {
+    const url = buildApiUrl(
+      `/api/v1/notes/${encodeURIComponent(String(params.noteId))}/attachments`
+    );
+    const res = await this.fetchWithRetry(url, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...Object.fromEntries(this.authHeaders().entries()),
+      },
+      body: JSON.stringify({ container: params.container, blob: params.blob }),
+    });
+    return res.ok;
+  }
+
+  /**
+   * Get a short-lived download URL when the stored attachment object has no `url`.
+   * Expects backend route:
+   * GET /api/v1/notes/:noteId/attachments/url?container=...&blob=...
+   */
+  static async getNoteAttachmentUrl(
+    noteId: number | string,
+    container: string,
+    blob: string
+  ): Promise<string | null> {
+    try {
+      const qs = new URLSearchParams({ container, blob });
+      const res = await this.request(
+        `/api/v1/notes/${encodeURIComponent(String(noteId))}/attachments/url?${qs.toString()}`,
+        { method: 'GET' }
+      );
+      if (!res.ok) return null;
+      const data = await this.safeJson<{ url?: string }>(res, {});
+      return data?.url ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Convenience to fetch a single note if needed */
+  static async getNoteById(noteId: number | string): Promise<SharedNote | null> {
+    try {
+      const res = await this.request(`/api/v1/notes/${encodeURIComponent(String(noteId))}`, {
+        method: 'GET',
+      });
+      if (!res.ok) return null;
+      return this.safeJson<SharedNote | null>(res, null);
+    } catch {
+      return null;
     }
   }
 

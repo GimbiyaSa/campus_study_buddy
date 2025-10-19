@@ -5,6 +5,7 @@ import { Search, ChevronDown, LogOut, Settings } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
 import { buildApiUrl } from '../utils/url';
 import NotificationHandler from './NotificationHandler';
+import { DataService } from '../services/dataService';
 
 export default function Header() {
   const { currentUser, loading, logout } = useUser();
@@ -177,14 +178,105 @@ export default function Header() {
       />
 
       {/* Settings Modal */}
-      <SettingsModal open={showSettingsModal} onClose={() => setShowSettingsModal(false)} />
+      <SettingsModal
+        open={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        currentUser={currentUser}
+      />
     </>
   );
 }
 
 /* ---------- Settings Modal ---------- */
-function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+function SettingsModal({
+  open,
+  onClose,
+  currentUser,
+}: {
+  open: boolean;
+  onClose: () => void;
+  currentUser: any;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const initialPush = !!(
+    currentUser?.study_preferences?.push_enabled ??
+    currentUser?.notifyReminders ??
+    false
+  );
+  const initialEmail = !!(
+    currentUser?.study_preferences?.email_updates ??
+    currentUser?.notifyReminders ??
+    false
+  );
+
+  const [pushEnabled, setPushEnabled] = useState(initialPush);
+  const [emailEnabled, setEmailEnabled] = useState(initialEmail);
+
+  useEffect(() => {
+    setPushEnabled(initialPush);
+    setEmailEnabled(initialEmail);
+  }, [initialPush, initialEmail, open]);
+
   if (!open) return null;
+
+  async function persist(next: { push?: boolean; email?: boolean }) {
+    setError(null);
+    setSaving(true);
+    try {
+      const sp = {
+        ...(currentUser?.study_preferences || {}),
+        push_enabled: next.push ?? pushEnabled,
+        email_updates: next.email ?? emailEnabled,
+      };
+      await DataService.updateUserProfile({ study_preferences: sp });
+    } catch (e) {
+      setError('Could not save your preference. Please try again.');
+      console.error(e);
+      // revert UI on failure
+      if (next.push != null) setPushEnabled((p) => !p);
+      if (next.email != null) setEmailEnabled((e) => !e);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function togglePush() {
+    // If enabling push, ask browser permission
+    if (!pushEnabled) {
+      if (!('Notification' in window)) {
+        setError('This browser does not support push notifications.');
+        return;
+      }
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        setError('Please allow notifications in your browser.');
+        return;
+      }
+      // Optional: register service worker here if you have one
+      // await navigator.serviceWorker?.register('/sw.js');
+    }
+    setPushEnabled((v) => !v);
+    persist({ push: !pushEnabled });
+  }
+
+  async function toggleEmail() {
+    setEmailEnabled((v) => !v);
+    persist({ email: !emailEnabled });
+  }
+
+  const switchCls = (on: boolean) =>
+    [
+      'relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600',
+      on ? 'bg-brand-600' : 'bg-gray-300',
+      saving ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-90',
+    ].join(' ');
+  const knobCls = (on: boolean) =>
+    [
+      'inline-block h-6 w-6 transform rounded-full bg-white shadow transition-transform',
+      on ? 'translate-x-7' : 'translate-x-1',
+    ].join(' ');
 
   return createPortal(
     <>
@@ -193,35 +285,46 @@ function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }
         <div className="w-full max-w-md rounded-2xl bg-white shadow-xl border border-gray-100 p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900">Settings</h2>
-            <button
-              onClick={onClose}
-              className="p-1 hover:bg-gray-100 rounded-lg transition"
-              aria-label="Close"
-            >
+            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
               ×
             </button>
           </div>
 
           <div className="space-y-4">
+            {/* Email Updates */}
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-700">Email Updates</span>
               <button
-                className="w-12 h-6 bg-gray-200 rounded-full relative transition-colors hover:bg-gray-300"
-                aria-label="Toggle email updates"
+                type="button"
+                role="switch"
+                aria-checked={emailEnabled}
+                onClick={saving ? undefined : toggleEmail}
+                className={switchCls(emailEnabled)}
               >
-                <div className="w-5 h-5 bg-white rounded-full absolute top-0.5 left-0.5 transition-transform" />
+                <span className={knobCls(emailEnabled)} />
               </button>
             </div>
 
+            {/* Push Notifications */}
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-700">Push Notifications</span>
               <button
-                className="w-12 h-6 bg-gray-200 rounded-full relative transition-colors hover:bg-gray-300"
-                aria-label="Toggle push notifications"
+                type="button"
+                role="switch"
+                aria-checked={pushEnabled}
+                onClick={saving ? undefined : togglePush}
+                className={switchCls(pushEnabled)}
               >
-                <div className="w-5 h-5 bg-white rounded-full absolute top-0.5 left-0.5 transition-transform" />
+                <span className={knobCls(pushEnabled)} />
               </button>
             </div>
+
+            {error && <p className="text-sm text-rose-600">{error}</p>}
+            {!('Notification' in window) && (
+              <p className="text-xs text-gray-500">
+                Your browser doesn’t support push notifications.
+              </p>
+            )}
           </div>
 
           <div className="flex justify-end mt-6">
@@ -238,6 +341,7 @@ function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }
     document.body
   );
 }
+
 function LogoutConfirmModal({
   open,
   onClose,

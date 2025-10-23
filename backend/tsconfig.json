@@ -16,6 +16,6 @@
     "checkJs": false,
     "incremental": false
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "**/*.test.*", "**/*.spec.*", "**/*.js"]
+  "include": ["src/**/*.ts", "src/**/*.js"],
+  "exclude": ["node_modules", "dist", "**/*.test.*", "**/*.spec.*"]
 }

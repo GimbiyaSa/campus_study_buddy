@@ -58,13 +58,13 @@ beforeAll(async () => {
   // Clear module cache and reload to hit initialization paths
   delete require.cache[require.resolve('./partnerService')];
   const partnerService = require('./partnerService');
-  
+
   app = express();
   app.use(express.json());
   app.use('/partners', partnerService);
-  
+
   // Wait for initialization
-  await new Promise(resolve => setTimeout(resolve, 100));
+  await new Promise((resolve) => setTimeout(resolve, 100));
 });
 
 beforeEach(() => {
@@ -74,24 +74,25 @@ beforeEach(() => {
 });
 
 describe('Partner Service - MINIMAL Coverage Tests', () => {
-  
   // TARGET: Lines 637-672 - GET /partners (buddies endpoint)
   test('covers GET /partners buddies endpoint', async () => {
     mockQuery.mockResolvedValueOnce({
-      recordset: [{
-        connectionId: 123,
-        id: 'buddy1',
-        email: 'buddy@test.com',
-        first_name: 'Buddy',
-        last_name: 'One',
-        university: 'Test Uni',
-        course: 'CS',
-        year_of_study: 2,
-        bio: 'Test bio',
-        study_preferences: '{"studyStyle": "visual"}',
-        allCourses: 'CS101, Math101',
-        sharedCourses: 'CS101'
-      }]
+      recordset: [
+        {
+          connectionId: 123,
+          id: 'buddy1',
+          email: 'buddy@test.com',
+          first_name: 'Buddy',
+          last_name: 'One',
+          university: 'Test Uni',
+          course: 'CS',
+          year_of_study: 2,
+          bio: 'Test bio',
+          study_preferences: '{"studyStyle": "visual"}',
+          allCourses: 'CS101, Math101',
+          sharedCourses: 'CS101',
+        },
+      ],
     });
 
     const res = await request(app).get('/partners');
@@ -103,23 +104,28 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
     mockQuery
       .mockResolvedValueOnce({ recordset: [{ activeModulesCount: 3, totalStudyHours: 50 }] })
       .mockResolvedValueOnce({
-        recordset: [{
-          id: 'partner1',
-          first_name: 'Test',
-          last_name: 'Partner',
-          study_preferences: '{"studyStyle": "visual", "groupSize": "small", "availability": ["morning"]}',
-          university: 'Test Uni',
-          course: 'CS',
-          year_of_study: 2,
-          sharedCourses: 'CS101',
-          allCourses: 'CS101',
-          sharedTopicsCount: 2,
-          totalStudyHours: 30,
-          activeModulesCount: 2
-        }]
+        recordset: [
+          {
+            id: 'partner1',
+            first_name: 'Test',
+            last_name: 'Partner',
+            study_preferences:
+              '{"studyStyle": "visual", "groupSize": "small", "availability": ["morning"]}',
+            university: 'Test Uni',
+            course: 'CS',
+            year_of_study: 2,
+            sharedCourses: 'CS101',
+            allCourses: 'CS101',
+            sharedTopicsCount: 2,
+            totalStudyHours: 30,
+            activeModulesCount: 2,
+          },
+        ],
       });
 
-    const res = await request(app).get('/partners/search?studyStyle=visual&groupSize=small&availability=morning');
+    const res = await request(app).get(
+      '/partners/search?studyStyle=visual&groupSize=small&availability=morning'
+    );
     expect(res.statusCode).toBe(200);
   });
 
@@ -147,33 +153,41 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
     const partnerService = require('./partnerService');
     partnerService.webPubSubClient = mockWebPubSubClient;
 
-    mockQuery.mockResolvedValueOnce({
-      recordset: [{
-        requester_id: 'requester-user',
-        first_name: 'Requester',
-        last_name: 'User',
-        email: 'requester@test.com'
-      }]
-    }).mockResolvedValueOnce({ recordset: [] }); // Update success
+    mockQuery
+      .mockResolvedValueOnce({
+        recordset: [
+          {
+            requester_id: 'requester-user',
+            first_name: 'Requester',
+            last_name: 'User',
+            email: 'requester@test.com',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ recordset: [] }); // Update success
 
     const res = await request(app).post('/partners/accept/123');
     expect(res.statusCode).toBe(200);
     expect(mockWebPubSubClient.sendToUser).toHaveBeenCalled();
   });
 
-  // TARGET: Lines 1222-1234 - WebPubSub success in reject endpoint  
+  // TARGET: Lines 1222-1234 - WebPubSub success in reject endpoint
   test('covers WebPubSub success path in reject endpoint', async () => {
     const partnerService = require('./partnerService');
     partnerService.webPubSubClient = mockWebPubSubClient;
 
-    mockQuery.mockResolvedValueOnce({
-      recordset: [{
-        requester_id: 'requester-user',
-        first_name: 'Requester',
-        last_name: 'User',
-        email: 'requester@test.com'
-      }]
-    }).mockResolvedValueOnce({ recordset: [] }); // Update success
+    mockQuery
+      .mockResolvedValueOnce({
+        recordset: [
+          {
+            requester_id: 'requester-user',
+            first_name: 'Requester',
+            last_name: 'User',
+            email: 'requester@test.com',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ recordset: [] }); // Update success
 
     const res = await request(app).post('/partners/reject/123');
     expect(res.statusCode).toBe(200);
@@ -188,8 +202,10 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
 
   // TARGET: Error handling paths to boost coverage
   test('covers error handling in GET /partners', async () => {
-    mockQuery.mockRejectedValueOnce(new Error("Cannot read properties of undefined (reading 'recordset')"));
-    
+    mockQuery.mockRejectedValueOnce(
+      new Error("Cannot read properties of undefined (reading 'recordset')")
+    );
+
     const res = await request(app).get('/partners');
     expect(res.status).toBe(500);
     expect(res.body).toHaveProperty('error', 'Failed to fetch partners');
@@ -202,21 +218,21 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
       .mockResolvedValueOnce({ recordset: [{ module_id: 1 }] }) // Module exists
       .mockResolvedValueOnce({ recordset: [{ match_id: 123, created_at: new Date() }] }) // Insert success
       .mockResolvedValueOnce({ recordset: [{ email: 'recipient@test.com' }] }) // Recipient exists
-      .mockResolvedValueOnce({ recordset: [{ first_name: 'Test', last_name: 'User', email: 'test@example.com' }] }); // Sender exists
+      .mockResolvedValueOnce({
+        recordset: [{ first_name: 'Test', last_name: 'User', email: 'test@example.com' }],
+      }); // Sender exists
 
     const res = await request(app)
       .post('/partners/request')
       .send({ recipientId: 'target-user', message: 'Hello!' });
-    
+
     expect(res.statusCode).toBe(201);
   });
 
   // TARGET: Error handling for missing parameters
   test('covers error handling for missing recipientId', async () => {
-    const res = await request(app)
-      .post('/partners/request')
-      .send({});
-    
+    const res = await request(app).post('/partners/request').send({});
+
     expect(res.status).toBe(400);
     expect(res.body).toHaveProperty('error');
   });
@@ -226,7 +242,7 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
     const res = await request(app)
       .post('/partners/request')
       .send({ recipientId: 'test-user', message: 'Hello!' });
-    
+
     expect(res.status).toBe(400);
     expect(res.body.error).toContain('yourself');
   });
@@ -234,15 +250,17 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
   // TARGET: GET /partners/pending-invitations endpoint
   test('covers GET /partners/pending-invitations', async () => {
     mockQuery.mockResolvedValueOnce({
-      recordset: [{
-        match_id: 'req123',
-        requester_id: 'requester1',
-        first_name: 'John',
-        last_name: 'Doe',
-        email: 'john@test.com',
-        message: 'Hello!',
-        created_at: new Date()
-      }]
+      recordset: [
+        {
+          match_id: 'req123',
+          requester_id: 'requester1',
+          first_name: 'John',
+          last_name: 'Doe',
+          email: 'john@test.com',
+          message: 'Hello!',
+          created_at: new Date(),
+        },
+      ],
     });
 
     const res = await request(app).get('/partners/pending-invitations');
@@ -254,30 +272,35 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
     mockQuery
       .mockResolvedValueOnce({ recordset: [{ activeModulesCount: 4, totalStudyHours: 100 }] })
       .mockResolvedValueOnce({
-        recordset: [{
-          id: 'perfect-match',
-          first_name: 'Perfect',
-          last_name: 'Match',
-          email: 'perfect@test.com',
-          university: 'Same University',
-          course: 'Computer Science Engineering',
-          year_of_study: 2,
-          bio: 'Love algorithms and data structures',
-          study_preferences: '{"studyStyle": "collaborative", "groupSize": "medium"}',
-          availability: '{"weekdays": ["Monday", "Wednesday"], "timeSlots": ["morning", "afternoon"]}',
-          profile_picture_url: null,
-          created_at: new Date(),
-          last_active: new Date(),
-          sharedCourses: 'CS101, CS102, CS103, CS104, CS105',
-          allCourses: 'CS101, CS102, CS103, CS104, CS105, Math201',
-          sharedTopicsCount: 8,
-          totalStudyHours: 120,
-          activeModulesCount: 5,
-          connectionStatus: null
-        }]
+        recordset: [
+          {
+            id: 'perfect-match',
+            first_name: 'Perfect',
+            last_name: 'Match',
+            email: 'perfect@test.com',
+            university: 'Same University',
+            course: 'Computer Science Engineering',
+            year_of_study: 2,
+            bio: 'Love algorithms and data structures',
+            study_preferences: '{"studyStyle": "collaborative", "groupSize": "medium"}',
+            availability:
+              '{"weekdays": ["Monday", "Wednesday"], "timeSlots": ["morning", "afternoon"]}',
+            profile_picture_url: null,
+            created_at: new Date(),
+            last_active: new Date(),
+            sharedCourses: 'CS101, CS102, CS103, CS104, CS105',
+            allCourses: 'CS101, CS102, CS103, CS104, CS105, Math201',
+            sharedTopicsCount: 8,
+            totalStudyHours: 120,
+            activeModulesCount: 5,
+            connectionStatus: null,
+          },
+        ],
       });
 
-    const res = await request(app).get('/partners/search?university=Same%20University&course=Computer%20Science');
+    const res = await request(app).get(
+      '/partners/search?university=Same%20University&course=Computer%20Science'
+    );
     expect(res.statusCode).toBe(200);
     if (res.body.length > 0) {
       expect(res.body[0]).toHaveProperty('compatibilityScore');
@@ -287,7 +310,7 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
   // TARGET: Database error handling in search
   test('covers database error in search endpoint', async () => {
     mockQuery.mockRejectedValueOnce(new Error('Database connection timeout'));
-    
+
     const res = await request(app).get('/partners/search');
     expect(res.status).toBe(500);
     expect(res.body).toHaveProperty('error', 'Failed to search for partners');
@@ -296,15 +319,15 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
   // TARGET: Accept endpoint with no request found
   test('covers accept endpoint with invalid request ID', async () => {
     mockQuery.mockResolvedValueOnce({ recordset: [] }); // No request found
-    
+
     const res = await request(app).post('/partners/accept/nonexistent-id');
     expect(res.status).toBe(404);
   });
 
-  // TARGET: Reject endpoint with no request found  
+  // TARGET: Reject endpoint with no request found
   test('covers reject endpoint with invalid request ID', async () => {
     mockQuery.mockResolvedValueOnce({ recordset: [] }); // No request found
-    
+
     const res = await request(app).post('/partners/reject/nonexistent-id');
     expect(res.status).toBe(404);
   });
@@ -313,10 +336,8 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
 
   // TARGET: POST /partners/test endpoint (lines 873-890)
   test('covers POST /partners/test endpoint', async () => {
-    const res = await request(app)
-      .post('/partners/test')
-      .send({ testData: 'test' });
-    
+    const res = await request(app).post('/partners/test').send({ testData: 'test' });
+
     expect(res.statusCode).toBe(200);
     expect(res.body).toHaveProperty('message', 'Test endpoint working');
     expect(res.body).toHaveProperty('user');
@@ -327,31 +348,36 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
     mockQuery
       .mockResolvedValueOnce({ recordset: [{ activeModulesCount: 5, totalStudyHours: 150 }] })
       .mockResolvedValueOnce({
-        recordset: [{
-          id: 'high-score-partner',
-          first_name: 'Algorithm',
-          last_name: 'Expert',
-          email: 'algo@test.com',
-          university: 'Test University', // Same university = +3
-          course: 'Computer Science Engineering', // Similar course via Jaccard
-          year_of_study: 2, // Same year = +7  
-          bio: 'Expert in algorithms, data structures, software engineering, machine learning',
-          study_preferences: '{"studyStyle": "collaborative", "groupSize": "small"}',
-          availability: '{"weekdays": ["Monday", "Wednesday", "Friday"], "timeSlots": ["morning"]}',
-          profile_picture_url: null,
-          created_at: new Date(),
-          last_active: new Date(),
-          sharedCourses: 'CS101, CS102, CS103, CS104', // 4+ shared courses = +60
-          allCourses: 'CS101, CS102, CS103, CS104, CS201, Math101',
-          sharedTopicsCount: 12,
-          totalStudyHours: 200,
-          activeModulesCount: 6,
-          connectionStatus: null
-        }]
+        recordset: [
+          {
+            id: 'high-score-partner',
+            first_name: 'Algorithm',
+            last_name: 'Expert',
+            email: 'algo@test.com',
+            university: 'Test University', // Same university = +3
+            course: 'Computer Science Engineering', // Similar course via Jaccard
+            year_of_study: 2, // Same year = +7
+            bio: 'Expert in algorithms, data structures, software engineering, machine learning',
+            study_preferences: '{"studyStyle": "collaborative", "groupSize": "small"}',
+            availability:
+              '{"weekdays": ["Monday", "Wednesday", "Friday"], "timeSlots": ["morning"]}',
+            profile_picture_url: null,
+            created_at: new Date(),
+            last_active: new Date(),
+            sharedCourses: 'CS101, CS102, CS103, CS104', // 4+ shared courses = +60
+            allCourses: 'CS101, CS102, CS103, CS104, CS201, Math101',
+            sharedTopicsCount: 12,
+            totalStudyHours: 200,
+            activeModulesCount: 6,
+            connectionStatus: null,
+          },
+        ],
       });
 
     // This should trigger high compatibility score calculation
-    const res = await request(app).get('/partners/search?university=Test%20University&course=Computer%20Science&year=2');
+    const res = await request(app).get(
+      '/partners/search?university=Test%20University&course=Computer%20Science&year=2'
+    );
     expect(res.statusCode).toBe(200);
     if (res.body.length > 0) {
       // Should get good score from shared courses + program similarity + same year + same uni
@@ -376,7 +402,7 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
       .send({ recipientId: 'target-user', message: 'Fallback test' });
 
     expect(res.statusCode).toBe(201);
-    
+
     // Restore client
     partnerService.webPubSubClient = originalClient;
   });
@@ -426,8 +452,8 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
 
   // TARGET: Existing connection check (lines 930-940)
   test('covers existing connection prevention', async () => {
-    mockQuery.mockResolvedValueOnce({ 
-      recordset: [{ match_status: 'pending' }] 
+    mockQuery.mockResolvedValueOnce({
+      recordset: [{ match_status: 'pending' }],
     });
 
     const res = await request(app)
@@ -443,27 +469,33 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
     mockQuery
       .mockResolvedValueOnce({ recordset: [{ activeModulesCount: 3, totalStudyHours: 75 }] })
       .mockResolvedValueOnce({
-        recordset: [{
-          id: 'verbose-partner',
-          first_name: 'Verbose',
-          last_name: 'Student',
-          email: 'verbose@test.com',
-          university: 'Test University',
-          course: 'Computer Science and Information Technology Engineering with Machine Learning Focus',
-          year_of_study: 3,
-          bio: 'Passionate about artificial intelligence, machine learning, deep learning, neural networks, computer vision, natural language processing, data science, algorithms, programming, software engineering, and collaborative learning experiences!',
-          study_preferences: '{"studyStyle": "mixed", "groupSize": "large"}',
-          availability: '{"weekdays": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], "timeSlots": ["morning", "afternoon", "evening"]}',
-          sharedCourses: 'CS101, CS102',
-          allCourses: 'CS101, CS102, AI101, ML201',
-          sharedTopicsCount: 15,
-          totalStudyHours: 300,
-          activeModulesCount: 8,
-          connectionStatus: null
-        }]
+        recordset: [
+          {
+            id: 'verbose-partner',
+            first_name: 'Verbose',
+            last_name: 'Student',
+            email: 'verbose@test.com',
+            university: 'Test University',
+            course:
+              'Computer Science and Information Technology Engineering with Machine Learning Focus',
+            year_of_study: 3,
+            bio: 'Passionate about artificial intelligence, machine learning, deep learning, neural networks, computer vision, natural language processing, data science, algorithms, programming, software engineering, and collaborative learning experiences!',
+            study_preferences: '{"studyStyle": "mixed", "groupSize": "large"}',
+            availability:
+              '{"weekdays": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], "timeSlots": ["morning", "afternoon", "evening"]}',
+            sharedCourses: 'CS101, CS102',
+            allCourses: 'CS101, CS102, AI101, ML201',
+            sharedTopicsCount: 15,
+            totalStudyHours: 300,
+            activeModulesCount: 8,
+            connectionStatus: null,
+          },
+        ],
       });
 
-    const res = await request(app).get('/partners/search?search=machine%20learning%20artificial%20intelligence');
+    const res = await request(app).get(
+      '/partners/search?search=machine%20learning%20artificial%20intelligence'
+    );
     expect(res.statusCode).toBe(200);
   });
 
@@ -471,7 +503,9 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
   test('covers POST /partners/match endpoint', async () => {
     mockQuery
       .mockResolvedValueOnce({ recordset: [] }) // No existing connections
-      .mockResolvedValueOnce({ recordset: [{ first_name: 'Match', last_name: 'User', email: 'match@test.com' }] }) // Requester info
+      .mockResolvedValueOnce({
+        recordset: [{ first_name: 'Match', last_name: 'User', email: 'match@test.com' }],
+      }) // Requester info
       .mockResolvedValueOnce({ recordset: [{ match_id: 555, created_at: new Date() }] }); // Insert success
 
     const res = await request(app)
@@ -483,9 +517,7 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
 
   // TARGET: Missing matched_user_id in match
   test('covers /match endpoint validation', async () => {
-    const res = await request(app)
-      .post('/partners/match')
-      .send({ message: 'Missing user ID' });
+    const res = await request(app).post('/partners/match').send({ message: 'Missing user ID' });
 
     expect(res.statusCode).toBe(400);
     expect(res.body.error).toContain('Matched user ID is required');
@@ -508,7 +540,9 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
 
     mockQuery
       .mockResolvedValueOnce({ recordset: [] }) // No existing connections
-      .mockResolvedValueOnce({ recordset: [{ first_name: 'Match', last_name: 'User', email: 'match@test.com' }] }) // Requester info
+      .mockResolvedValueOnce({
+        recordset: [{ first_name: 'Match', last_name: 'User', email: 'match@test.com' }],
+      }) // Requester info
       .mockResolvedValueOnce({ recordset: [{ match_id: 666, created_at: new Date() }] }); // Insert success
 
     const res = await request(app)
@@ -536,7 +570,7 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
     expect(res.body.error).toBe('Failed to accept partner request');
   });
 
-  // TARGET: Error handling for reject request (lines 1246-1247)  
+  // TARGET: Error handling for reject request (lines 1246-1247)
   test('covers error handling in reject partner request', async () => {
     mockQuery.mockRejectedValueOnce(new Error('Database connection failed'));
 
@@ -558,26 +592,24 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
   test('covers detailed error logging in development mode', async () => {
     const originalEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = 'development'; // Enable detailed error logging (lines 1070-1071)
-    
+
     // Mock database error with detailed properties
     const detailedError = Object.assign(new Error('Database connection timeout'), {
       code: 'TIMEOUT',
-      state: 1, 
-      number: 2
+      state: 1,
+      number: 2,
     });
     mockQuery.mockRejectedValueOnce(detailedError);
 
-    const res = await request(app)
-      .post('/partners/request')
-      .send({
-        recipientId: 'error-test',
-        message: 'Force detailed error path'
-      });
+    const res = await request(app).post('/partners/request').send({
+      recipientId: 'error-test',
+      message: 'Force detailed error path',
+    });
 
     expect(res.statusCode).toBe(500);
     expect(res.body.error).toBe('Failed to send buddy request');
     expect(res.body.details).toBe('Database connection timeout'); // Development mode only
-    
+
     process.env.NODE_ENV = originalEnv;
   });
 
@@ -587,26 +619,28 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
     mockQuery
       .mockResolvedValueOnce({ recordset: [{ activeModulesCount: 2, totalStudyHours: 40 }] })
       .mockResolvedValueOnce({
-        recordset: [{
-          id: 'edge-case-user',
-          first_name: 'Edge',
-          last_name: 'Case',
-          email: 'edge@test.com',
-          university: 'Test University',
-          course: 'Mathematics',
-          year_of_study: 1,
-          bio: '',  // Empty bio to test tokenization edge case
-          study_preferences: '{"studyStyle": "independent", "groupSize": "individual"}',
-          availability: '{"weekdays": [], "timeSlots": []}', // Empty availability
-          sharedCourses: '',  // Empty shared courses
-          allCourses: 'MATH101',
-          sharedTopicsCount: 0,
-          totalStudyHours: 5,
-          activeModulesCount: 1,
-          connectionStatus: null,
-          ActivityLevel: 'Low',  // Test different activity level
-          PreferredGroupSize: 'Large (8+ people)'  // Test different group size preference
-        }]
+        recordset: [
+          {
+            id: 'edge-case-user',
+            first_name: 'Edge',
+            last_name: 'Case',
+            email: 'edge@test.com',
+            university: 'Test University',
+            course: 'Mathematics',
+            year_of_study: 1,
+            bio: '', // Empty bio to test tokenization edge case
+            study_preferences: '{"studyStyle": "independent", "groupSize": "individual"}',
+            availability: '{"weekdays": [], "timeSlots": []}', // Empty availability
+            sharedCourses: '', // Empty shared courses
+            allCourses: 'MATH101',
+            sharedTopicsCount: 0,
+            totalStudyHours: 5,
+            activeModulesCount: 1,
+            connectionStatus: null,
+            ActivityLevel: 'Low', // Test different activity level
+            PreferredGroupSize: 'Large (8+ people)', // Test different group size preference
+          },
+        ],
       });
 
     const res = await request(app).get('/partners/search?search=mathematics');
@@ -617,18 +651,22 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
   test('covers WebPubSub notification failure in accept request', async () => {
     // Mock WebPubSub client to throw error
     const originalSendToUser = mockWebPubSubClient.sendToUser;
-    mockWebPubSubClient.sendToUser = jest.fn().mockRejectedValue(new Error('WebPubSub connection failed'));
+    mockWebPubSubClient.sendToUser = jest
+      .fn()
+      .mockRejectedValue(new Error('WebPubSub connection failed'));
 
-    // Mock successful database operations  
+    // Mock successful database operations
     mockQuery
       .mockResolvedValueOnce({ recordset: [{ Status: 'pending' }] }) // Request exists
       .mockResolvedValueOnce({ recordset: [] }) // Update success
-      .mockResolvedValueOnce({ recordset: [{ SenderID: 'sender123', RecipientID: 'recipient456' }] }); // Get request details
+      .mockResolvedValueOnce({
+        recordset: [{ SenderID: 'sender123', RecipientID: 'recipient456' }],
+      }); // Get request details
 
     const res = await request(app).post('/partners/accept/123');
     expect(res.statusCode).toBe(200);
     expect(mockWebPubSubClient.sendToUser).toHaveBeenCalled();
-    
+
     // Restore original mock
     mockWebPubSubClient.sendToUser = originalSendToUser;
   });
@@ -637,25 +675,29 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
   test('covers WebPubSub warning paths in reject request', async () => {
     // Mock WebPubSub client to throw error during reject
     const originalSendToUser = mockWebPubSubClient.sendToUser;
-    mockWebPubSubClient.sendToUser = jest.fn().mockRejectedValue(new Error('WebPubSub reject failed'));
+    mockWebPubSubClient.sendToUser = jest
+      .fn()
+      .mockRejectedValue(new Error('WebPubSub reject failed'));
 
-    // Mock successful database operations for reject  
+    // Mock successful database operations for reject
     mockQuery
       .mockResolvedValueOnce({ recordset: [{ Status: 'pending' }] }) // Request exists
       .mockResolvedValueOnce({ recordset: [] }) // Update success
-      .mockResolvedValueOnce({ recordset: [{ SenderID: 'sender789', RecipientID: 'recipient101' }] }); // Get request details
+      .mockResolvedValueOnce({
+        recordset: [{ SenderID: 'sender789', RecipientID: 'recipient101' }],
+      }); // Get request details
 
     const res = await request(app).post('/partners/reject/456');
     expect(res.statusCode).toBe(200);
     expect(mockWebPubSubClient.sendToUser).toHaveBeenCalled();
-    
+
     // Restore original mock
     mockWebPubSubClient.sendToUser = originalSendToUser;
   });
 
   // TARGET: Covers missing lines in module handling and WebPubSub client warning
   test('covers WebPubSub client null scenario in accept', async () => {
-    // Set WebPubSub client to null to trigger warning path  
+    // Set WebPubSub client to null to trigger warning path
     const partnerService = require('./partnerService');
     const originalClient = partnerService.webPubSubClient;
     partnerService.webPubSubClient = null;
@@ -669,7 +711,7 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
     const res = await request(app).post('/partners/accept/789');
     expect(res.statusCode).toBe(200);
     expect(res.body.message).toContain('accepted');
-    
+
     // Restore client
     partnerService.webPubSubClient = originalClient;
   });
@@ -680,12 +722,10 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
     const originalPool = require('../database/db').pool;
     require('../database/db').pool = null;
 
-    const res = await request(app)
-      .post('/partners/request')
-      .send({
-        recipientId: 'test-recipient',
-        message: 'Test message'
-      });
+    const res = await request(app).post('/partners/request').send({
+      recipientId: 'test-recipient',
+      message: 'Test message',
+    });
 
     expect(res.statusCode).toBe(500);
     expect(res.body.error).toBe('Database connection not available');
@@ -700,22 +740,24 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
 
     // Mock user lookup success, no existing connections, then module error
     mockQuery
-      .mockResolvedValueOnce({ recordset: [{ StudentID: 9999, FirstName: 'Module', LastName: 'Test', Email: 'module@test.com' }] }) // User lookup
+      .mockResolvedValueOnce({
+        recordset: [
+          { StudentID: 9999, FirstName: 'Module', LastName: 'Test', Email: 'module@test.com' },
+        ],
+      }) // User lookup
       .mockResolvedValueOnce({ recordset: [] }) // No existing connections
       .mockRejectedValueOnce(new Error('Module query failed')); // Module lookup fails - triggers lines 977-978
 
-    const res = await request(app)
-      .post('/partners/request')
-      .send({
-        recipientId: 'module-fallback-test',
-        message: 'Module fallback test'
-      });
+    const res = await request(app).post('/partners/request').send({
+      recipientId: 'module-fallback-test',
+      message: 'Module fallback test',
+    });
 
     // Should use fallback module ID and continue
     expect(res.statusCode).toBe(200);
   });
 
-  // TARGET: Lines 1013-1017 - WebPubSub client null scenario  
+  // TARGET: Lines 1013-1017 - WebPubSub client null scenario
   test('covers WebPubSub client null warning path', async () => {
     jest.clearAllMocks();
 
@@ -723,17 +765,19 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
     mockWebPubSubServiceClient = null;
 
     mockQuery
-      .mockResolvedValueOnce({ recordset: [{ StudentID: 8888, FirstName: 'WebPub', LastName: 'Null', Email: 'webpub@null.com' }] }) // User lookup
+      .mockResolvedValueOnce({
+        recordset: [
+          { StudentID: 8888, FirstName: 'WebPub', LastName: 'Null', Email: 'webpub@null.com' },
+        ],
+      }) // User lookup
       .mockResolvedValueOnce({ recordset: [] }) // No existing connections
       .mockResolvedValueOnce({ recordset: [{ ModuleID: 1 }] }) // Module exists
       .mockResolvedValueOnce({ recordset: [{ RequestID: 8888 }] }); // Insert request
 
-    const res = await request(app)
-      .post('/partners/request')
-      .send({
-        recipientId: 'webpub-null-test',
-        message: 'WebPubSub null test'
-      });
+    const res = await request(app).post('/partners/request').send({
+      recipientId: 'webpub-null-test',
+      message: 'WebPubSub null test',
+    });
 
     expect(res.statusCode).toBe(200); // Should succeed with warning
   });
@@ -743,16 +787,18 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
     jest.clearAllMocks();
 
     // First test invitations endpoint with proper response structure
-    mockQuery.mockResolvedValueOnce({ 
-      recordset: [{ 
-        RequestID: 7777,
-        SenderID: 'final-sender', 
-        Message: 'Final invitation',
-        CreatedAt: new Date(),
-        FirstName: 'Final',
-        LastName: 'Sender',
-        Email: 'final@sender.com'
-      }] 
+    mockQuery.mockResolvedValueOnce({
+      recordset: [
+        {
+          RequestID: 7777,
+          SenderID: 'final-sender',
+          Message: 'Final invitation',
+          CreatedAt: new Date(),
+          FirstName: 'Final',
+          LastName: 'Sender',
+          Email: 'final@sender.com',
+        },
+      ],
     });
 
     const inviteRes = await request(app).get('/partners/pending-invitations');
@@ -761,18 +807,22 @@ describe('Partner Service - MINIMAL Coverage Tests', () => {
 
     // Now test email notification SUCCESS path - completely fresh user
     mockQuery
-      .mockResolvedValueOnce({ recordset: [{ StudentID: 7777, FirstName: 'Email', LastName: 'Success', Email: 'email@success.com' }] }) // User lookup
+      .mockResolvedValueOnce({
+        recordset: [
+          { StudentID: 7777, FirstName: 'Email', LastName: 'Success', Email: 'email@success.com' },
+        ],
+      }) // User lookup
       .mockResolvedValueOnce({ recordset: [] }) // No existing connections
-      .mockResolvedValueOnce({ recordset: [{ ModuleID: 1 }] }) // Module exists  
+      .mockResolvedValueOnce({ recordset: [{ ModuleID: 1 }] }) // Module exists
       .mockResolvedValueOnce({ recordset: [{ RequestID: 7777 }] }) // Insert request
-      .mockResolvedValueOnce({ recordset: [{ FirstName: 'Email', LastName: 'Success', Email: 'email@success.com' }] }); // Email lookup SUCCESS - line 1048!
+      .mockResolvedValueOnce({
+        recordset: [{ FirstName: 'Email', LastName: 'Success', Email: 'email@success.com' }],
+      }); // Email lookup SUCCESS - line 1048!
 
-    const emailRes = await request(app)
-      .post('/partners/request')
-      .send({
-        recipientId: 'email-success-final-7777',
-        message: 'Email success test'
-      });
+    const emailRes = await request(app).post('/partners/request').send({
+      recipientId: 'email-success-final-7777',
+      message: 'Email success test',
+    });
 
     expect(emailRes.statusCode).toBe(200);
   });

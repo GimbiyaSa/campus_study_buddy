@@ -1017,17 +1017,15 @@ describe('Progress Service API', () => {
 
     test('should handle user with no enrollments in overview', async () => {
       const mockEmptyStats = {
-        recordset: [{ totalHours: 0, completedTopics: 0, totalSessions: 0 }]
+        recordset: [{ totalHours: 0, completedTopics: 0, totalSessions: 0 }],
       };
-      
+
       const mockEmptyModules = { recordset: [] };
 
-      mockQuery
-        .mockResolvedValueOnce(mockEmptyStats)
-        .mockResolvedValueOnce(mockEmptyModules);
+      mockQuery.mockResolvedValueOnce(mockEmptyStats).mockResolvedValueOnce(mockEmptyModules);
 
       const res = await request(app).get('/progress/overview');
-      
+
       expect(res.statusCode).toBe(200);
       expect(res.body.goals.overall.totalHours).toBe(0);
       expect(res.body.modules).toHaveLength(0);
@@ -1035,20 +1033,22 @@ describe('Progress Service API', () => {
 
     test('should calculate module progress correctly in overview', async () => {
       const mockStats = {
-        recordset: [{ totalHours: 20, completedTopics: 5, totalSessions: 10 }]
+        recordset: [{ totalHours: 20, completedTopics: 5, totalSessions: 10 }],
       };
-      
+
       const mockModules = {
-        recordset: [{
-          id: 1,
-          code: 'CS101',
-          name: 'Computer Science',
-          description: 'Intro',
-          enrollmentStatus: 'active',
-          enrolledAt: '2023-01-01',
-          progress: 75,
-          totalHours: 15
-        }]
+        recordset: [
+          {
+            id: 1,
+            code: 'CS101',
+            name: 'Computer Science',
+            description: 'Intro',
+            enrollmentStatus: 'active',
+            enrolledAt: '2023-01-01',
+            progress: 75,
+            totalHours: 15,
+          },
+        ],
       };
 
       const mockTopics = { recordset: [] };
@@ -1059,7 +1059,7 @@ describe('Progress Service API', () => {
         .mockResolvedValueOnce(mockTopics);
 
       const res = await request(app).get('/progress/overview');
-      
+
       expect(res.statusCode).toBe(200);
       expect(res.body.modules).toHaveLength(1);
       expect(res.body.modules[0].progress).toBe(75);
@@ -1069,11 +1069,11 @@ describe('Progress Service API', () => {
       // Test authentication edge cases by mocking request without proper setup
       const testApp = express();
       testApp.use(express.json());
-      
+
       testApp.use('/progress', (req, res, next) => {
         return res.status(401).json({ error: 'Unauthorized' });
       });
-      
+
       const res = await request(testApp).get('/progress/analytics');
       expect(res.statusCode).toBe(401);
     });
@@ -1105,7 +1105,7 @@ describe('Progress Service API', () => {
         .mockResolvedValueOnce({ recordset: [{ user_module_id: 1 }] }) // enrollment check
         .mockResolvedValueOnce({ recordset: [] }) // study hours insert
         .mockResolvedValueOnce({
-          recordset: [{ hour_id: 1, study_date: new Date(), logged_at: new Date().toISOString() }]
+          recordset: [{ hour_id: 1, study_date: new Date(), logged_at: new Date().toISOString() }],
         }) // get logged hour
         .mockResolvedValueOnce({ recordset: [] }) // check existing progress
         .mockResolvedValueOnce({ recordset: [] }); // create new progress
@@ -1118,13 +1118,13 @@ describe('Progress Service API', () => {
 
     test('should handle large topicIds arrays in sessions', async () => {
       const largeTopicArray = Array.from({ length: 50 }, (_, i) => i + 1);
-      
+
       mockQuery.mockResolvedValueOnce({ recordset: [{ user_module_id: 1 }] }); // enrolled
 
       const sessionData = {
         moduleId: 1,
         topicIds: largeTopicArray,
-        duration: 180
+        duration: 180,
       };
 
       const res = await request(app).post('/progress/sessions').send(sessionData);
@@ -1137,7 +1137,7 @@ describe('Progress Service API', () => {
       const logData = {
         hours: 2.0,
         studyDate: 'invalid-date-format',
-        description: 'Test session'
+        description: 'Test session',
       };
 
       const res = await request(app).post('/progress/topics/101/log-hours').send(logData);

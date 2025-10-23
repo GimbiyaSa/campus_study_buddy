@@ -12,7 +12,7 @@
     "resolveJsonModule": true,
     "declaration": false,
     "sourceMap": true,
-    "allowJs":true,
+    "allowJs": true,
     "checkJs": false,
     "incremental": false
   },

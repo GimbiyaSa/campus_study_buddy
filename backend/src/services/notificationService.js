@@ -73,7 +73,7 @@ const createNotification = async (
       message: message,
       metadata: metadata,
       scheduledFor: scheduledFor,
-      createdAt: notification.created_at
+      createdAt: notification.created_at,
     });
 
     return notification;
@@ -358,7 +358,7 @@ router.put('/:notificationId/read', authenticateToken, async (req, res) => {
       userId: req.user.id,
       notificationId: notification.notification_id,
       type: notification.notification_type,
-      readAt: new Date().toISOString()
+      readAt: new Date().toISOString(),
     });
 
     res.json(notification);

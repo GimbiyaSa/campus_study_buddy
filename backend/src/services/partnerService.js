@@ -169,14 +169,14 @@ router.get('/search', authenticateToken, async (req, res) => {
 
     const request = pool.request();
     request.input('currentUserId', sql.NVarChar(255), currentUserId);
-    
+
     // Get current user's stats for better matching
     const currentUserStatsQuery = await request.query(`
       SELECT 
         (SELECT COUNT(*) FROM dbo.user_modules WHERE user_id = @currentUserId AND enrollment_status = 'active') as activeModulesCount,
         ISNULL((SELECT SUM(hours_logged) FROM dbo.study_hours WHERE user_id = @currentUserId), 0) as totalStudyHours
     `);
-    
+
     if (currentUserStatsQuery.recordset.length > 0) {
       currentUser.activeModulesCount = currentUserStatsQuery.recordset[0].activeModulesCount;
       currentUser.totalStudyHours = currentUserStatsQuery.recordset[0].totalStudyHours;
@@ -388,24 +388,21 @@ router.get('/search', authenticateToken, async (req, res) => {
         : 0;
 
       // Get all courses for this partner
-      const allCourses = partner.allCourses
-        ? partner.allCourses.split(', ').filter(Boolean)
-        : [];
-      
+      const allCourses = partner.allCourses ? partner.allCourses.split(', ').filter(Boolean) : [];
+
       // Get shared topics count
       const sharedTopicsCount = partner.sharedTopicsCount || 0;
-      
+
       // Calculate match percentage for "Suggested for you" section
       // This shows the user WHAT percentage was matched
       const currentUserModulesCount = currentUser.activeModulesCount || 1;
       const partnerModulesCount = partner.activeModulesCount || 1;
       const maxModules = Math.max(currentUserModulesCount, partnerModulesCount);
-      
+
       // Course overlap as percentage (0-100)
-      const courseMatchPercent = maxModules > 0 
-        ? Math.round((sharedCoursesCount / maxModules) * 100) 
-        : 0;
-        
+      const courseMatchPercent =
+        maxModules > 0 ? Math.round((sharedCoursesCount / maxModules) * 100) : 0;
+
       // Topic overlap bonus (0-30 extra points)
       const topicMatchBonus = Math.min(sharedTopicsCount * 1.5, 30);
 
@@ -427,32 +424,33 @@ router.get('/search', authenticateToken, async (req, res) => {
       }
 
       // Compute compatibility score with improved weighting and capture breakdown
-      const { score: compatibilityScore, breakdown: scoreBreakdown, details } =
-        calculateEnhancedCompatibilityScore(
-          studyPreferences,
-          searchCriteria,
-          sharedCoursesCount,
-          partnerData,
-          currentUser // pass current user for better reasoning
-        );
+      const {
+        score: compatibilityScore,
+        breakdown: scoreBreakdown,
+        details,
+      } = calculateEnhancedCompatibilityScore(
+        studyPreferences,
+        searchCriteria,
+        sharedCoursesCount,
+        partnerData,
+        currentUser // pass current user for better reasoning
+      );
 
       // Build SMART match reasons based on actual data
       const matchReasons = [];
-      
+
       // Courses match
       if (details.sharedCoursesCount > 0) {
         matchReasons.push(
           `${details.sharedCoursesCount} similar course${details.sharedCoursesCount > 1 ? 's' : ''}`
         );
       }
-      
+
       // Topics match (shows deeper alignment)
       if (sharedTopicsCount > 0) {
-        matchReasons.push(
-          `${sharedTopicsCount} shared topic${sharedTopicsCount > 1 ? 's' : ''}`
-        );
+        matchReasons.push(`${sharedTopicsCount} shared topic${sharedTopicsCount > 1 ? 's' : ''}`);
       }
-      
+
       // Program/field similarity
       if (details.programSimilarity >= 0.6) {
         matchReasons.push('Similar program/field');
@@ -463,14 +461,14 @@ router.get('/search', authenticateToken, async (req, res) => {
       ) {
         matchReasons.push('Same program');
       }
-      
+
       // Year alignment
       if (typeof details.yearDiff === 'number' && details.yearDiff === 0) {
         matchReasons.push('Same year');
       } else if (typeof details.yearDiff === 'number' && details.yearDiff === 1) {
         matchReasons.push('Similar year');
       }
-      
+
       // Study engagement level (if both are active studiers)
       if (partnerData.totalStudyHours > 10 && currentUser.totalStudyHours > 10) {
         matchReasons.push('Active studier');
@@ -510,9 +508,7 @@ router.get('/search', authenticateToken, async (req, res) => {
         activeGroups: 0,
         sessionsAttended: 0,
         profile: {
-          subjects: partner.sharedCourses
-            ? partner.sharedCourses.split(', ').filter(Boolean)
-            : [],
+          subjects: partner.sharedCourses ? partner.sharedCourses.split(', ').filter(Boolean) : [],
           studyStyle: studyPreferences.studyStyle || null,
           groupSize: studyPreferences.groupSize || null,
           availability: studyPreferences.availability || null,
@@ -654,12 +650,8 @@ router.get('/', authenticateToken, async (req, res) => {
         bio: partner.bio,
         studyPreferences,
         // Return ALL courses for accepted partners (buddies)
-        sharedCourses: partner.allCourses
-          ? partner.allCourses.split(', ').filter(Boolean)
-          : [],
-        allCourses: partner.allCourses
-          ? partner.allCourses.split(', ').filter(Boolean)
-          : [],
+        sharedCourses: partner.allCourses ? partner.allCourses.split(', ').filter(Boolean) : [],
+        allCourses: partner.allCourses ? partner.allCourses.split(', ').filter(Boolean) : [],
         sharedTopics: [],
         connectionStatus: 'accepted',
         connectionId: partner.connectionId,
@@ -935,11 +927,11 @@ router.post('/request', authenticateToken, async (req, res) => {
     if (existingConnection.recordset.length > 0) {
       const status = existingConnection.recordset[0].match_status;
       console.log(`❌ Existing connection found with status: ${status}`);
-      
+
       // Provide more specific error messages based on status
       let errorMessage = '';
       let errorCode = '';
-      
+
       switch (status) {
         case 'pending':
           errorMessage = 'A buddy request is already pending between these users';
@@ -957,7 +949,7 @@ router.post('/request', authenticateToken, async (req, res) => {
           errorMessage = `A ${status} connection already exists between these users`;
           errorCode = 'CONNECTION_EXISTS';
       }
-      
+
       return res.status(400).json({
         error: errorMessage,
         code: errorCode,
@@ -1025,7 +1017,10 @@ router.post('/request', authenticateToken, async (req, res) => {
           data: {
             requestId: newRequest.match_id,
             requesterId: requesterId,
-            requesterName: req.user.name || `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim() || req.user.email,
+            requesterName:
+              req.user.name ||
+              `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim() ||
+              req.user.email,
             requesterUniversity: req.user.university,
             requesterCourse: req.user.course,
             message: message,
@@ -1050,27 +1045,25 @@ router.post('/request', authenticateToken, async (req, res) => {
         .request()
         .input('recipientId', sql.NVarChar(255), recipientId)
         .query('SELECT email, first_name, last_name FROM users WHERE user_id = @recipientId');
-      
-      const senderRes = await pool
-        .request()
-        .input('senderId', sql.NVarChar(255), requesterId)
+
+      const senderRes = await pool.request().input('senderId', sql.NVarChar(255), requesterId)
         .query(`
           SELECT u.first_name + ' ' + u.last_name as name, u.email, u.university, u.course, u.bio,
                  COALESCE((SELECT SUM(hours_spent) FROM study_hours WHERE user_id = u.user_id), 0) as studyHours
           FROM users u 
           WHERE u.user_id = @senderId
         `);
-      
+
       if (recipientRes.recordset.length > 0 && senderRes.recordset.length > 0) {
         const recipientEmail = recipientRes.recordset[0].email;
         const senderInfo = senderRes.recordset[0];
         senderInfo.id = requesterId;
-        
+
         // Log buddy request notification (Logic Apps removed)
         console.log('📧 Buddy request notification:', {
           recipient: recipientEmail,
           sender: senderInfo.first_name + ' ' + senderInfo.last_name,
-          message: message
+          message: message,
         });
       }
     } catch (err) {
